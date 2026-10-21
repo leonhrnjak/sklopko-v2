@@ -1,0 +1,350 @@
+import { produce } from 'immer'
+import { create } from 'zustand'
+import { getDef } from '../engine/registry'
+import { paramDefaults, type ParamValue } from '../engine/types'
+import {
+  boundsRect,
+  emptyCircuit,
+  findPin,
+  newId,
+  rectsIntersect,
+  snap,
+  type Circuit,
+  type Comp,
+  type PinRef,
+  type Point,
+  type Rect,
+  type Rot,
+  type Wire,
+} from '../model/circuit'
+import { pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
+import { normalize } from '../routing/path'
+import { sim } from './sim'
+
+export interface View {
+  /** Screen offset of world origin, in CSS px. */
+  x: number
+  y: number
+  zoom: number
+}
+
+interface State {
+  circuit: Circuit
+  /** Bumped whenever the simulator must recompile (parts, wires or behavioral params changed). */
+  structVersion: number
+  selection: string[]
+  past: Circuit[]
+  future: Circuit[]
+  running: boolean
+  /** Simulated time per real time (scales clock speeds). */
+  speed: number
+  view: View
+  /** Part chosen in the palette and waiting to be dropped on the canvas. */
+  placing: string | null
+  toast: string | null
+}
+
+export const useStore = create<State>(() => ({
+  circuit: emptyCircuit(),
+  structVersion: 0,
+  selection: [],
+  past: [],
+  future: [],
+  running: true,
+  speed: 1,
+  view: { x: 40, y: 40, zoom: 1 },
+  placing: null,
+  toast: null,
+}))
+
+const get = useStore.getState
+const set = useStore.setState
+const HISTORY = 200
+
+/** Save the current circuit on the undo stack. Call once before each user action. */
+export function checkpoint() {
+  const { circuit, past } = get()
+  set({ past: [...past.slice(-HISTORY + 1), circuit], future: [] })
+}
+
+/** Apply a change to the circuit. `structural` triggers a simulator recompile. */
+function edit(fn: (c: Circuit) => void, structural = true) {
+  const s = get()
+  set({ circuit: produce(s.circuit, fn), structVersion: s.structVersion + (structural ? 1 : 0) })
+}
+
+export function undo() {
+  const { past, future, circuit, structVersion } = get()
+  if (!past.length) return
+  set({
+    circuit: past[past.length - 1],
+    past: past.slice(0, -1),
+    future: [circuit, ...future],
+    structVersion: structVersion + 1,
+    selection: [],
+  })
+}
+
+export function redo() {
+  const { past, future, circuit, structVersion } = get()
+  if (!future.length) return
+  set({
+    circuit: future[0],
+    past: [...past, circuit],
+    future: future.slice(1),
+    structVersion: structVersion + 1,
+    selection: [],
+  })
+}
+
+export function showToast(msg: string) {
+  set({ toast: msg })
+  window.setTimeout(() => {
+    if (get().toast === msg) set({ toast: null })
+  }, 2600)
+}
+
+// ---- Selection ---------------------------------------------------------------------------------
+
+export const select = (ids: string[]) => set({ selection: ids })
+export const isComp = (id: string) => id in get().circuit.comps
+
+export function selectInRect(r: Rect, add: boolean) {
+  const c = get().circuit
+  const comps = Object.values(c.comps)
+    .filter((k) => rectsIntersect(boundsRect(k), r))
+    .map((k) => k.id)
+  const inSet = new Set(comps)
+  const wires = Object.values(c.wires)
+    .filter((w) => inSet.has(w.from.comp) && inSet.has(w.to.comp))
+    .map((w) => w.id)
+  const ids = [...comps, ...wires]
+  set({ selection: add ? [...new Set([...get().selection, ...ids])] : ids })
+}
+
+export const selectAll = () => {
+  const c = get().circuit
+  set({ selection: [...Object.keys(c.comps), ...Object.keys(c.wires)] })
+}
+
+// ---- Components --------------------------------------------------------------------------------
+
+export function addComp(type: string, x: number, y: number): string {
+  checkpoint()
+  const id = newId('c')
+  edit((c) => {
+    c.comps[id] = { id, type, x: snap(x), y: snap(y), rot: 0, flip: false, params: paramDefaults(getDef(type)) }
+    // Wires the new part was dropped onto get out of its way.
+    rerouteAround(c, [id])
+  })
+  set({ selection: [id] })
+  return id
+}
+
+/** Move components by a grid-snapped delta. Call checkpoint() once at the start of a drag. */
+export function moveComps(ids: string[], d: Point, final: boolean) {
+  if (!ids.length) return
+  const moved = new Set(ids)
+  edit((c) => {
+    if (d.x || d.y)
+      for (const id of ids) {
+        const k = c.comps[id]
+        if (!k) continue
+        k.x += d.x
+        k.y += d.y
+      }
+    updateWiresAfterMove(c, moved, d, final)
+  }, false)
+}
+
+export function deleteSelection() {
+  const sel = get().selection
+  if (!sel.length) return
+  checkpoint()
+  edit((c) => {
+    for (const id of sel) {
+      delete c.comps[id]
+      delete c.wires[id]
+    }
+    pruneWires(c)
+  })
+  set({ selection: [] })
+}
+
+function transformSelection(fn: (k: Comp) => void) {
+  const ids = get().selection.filter(isComp)
+  if (!ids.length) return
+  checkpoint()
+  edit((c) => {
+    for (const id of ids) fn(c.comps[id])
+    rerouteAround(c, ids)
+  }, false)
+}
+
+export const rotateSelection = () => transformSelection((k) => (k.rot = ((k.rot + 1) % 4) as Rot))
+export const flipSelection = () => transformSelection((k) => (k.flip = !k.flip))
+
+export function setParam(id: string, key: string, value: ParamValue) {
+  const k = get().circuit.comps[id]
+  if (!k) return
+  const def = getDef(k.type)
+  const pd = def.params?.find((p) => p.key === key)
+  checkpoint()
+  edit((c) => {
+    c.comps[id].params[key] = value
+    if (pd?.structural) {
+      pruneWires(c)
+      rerouteAround(c, [id])
+    }
+  })
+}
+
+export function setLabel(id: string, label: string) {
+  checkpoint()
+  edit((c) => {
+    if (label) c.comps[id].label = label
+    else delete c.comps[id].label
+  }, false)
+}
+
+/** Click on a switch / 4-bit input: change its value without an undo step, straight into the simulator. */
+export function interact(id: string, alt: boolean) {
+  const k = get().circuit.comps[id]
+  if (!k) return
+  const def = getDef(k.type)
+  let params = k.params
+  if (def.interactive === 'toggle') params = { ...params, on: !params.on }
+  else if (def.interactive === 'cycle') params = { ...params, value: (Number(params.value) + (alt ? 15 : 1)) % 16 }
+  else return
+  edit((c) => {
+    c.comps[id].params = params
+  }, false)
+  sim.setParams(id, get().circuit.comps[id].params)
+}
+
+// ---- Wires -------------------------------------------------------------------------------------
+
+/** Connect two pins (in either order). Replaces whatever was connected to the input. */
+export function connect(a: PinRef, b: PinRef, replacing?: string): boolean {
+  const c = get().circuit
+  const pa = c.comps[a.comp] && findPin(c.comps[a.comp], a.pin)
+  const pb = c.comps[b.comp] && findPin(c.comps[b.comp], b.pin)
+  if (!pa || !pb || pa.def.dir === pb.def.dir) return false
+  const [from, to] = pa.def.dir === 'out' ? [a, b] : [b, a]
+  checkpoint()
+  const id = newId('w')
+  edit((d) => {
+    if (replacing) delete d.wires[replacing]
+    for (const w of Object.values(d.wires)) if (w.to.comp === to.comp && w.to.pin === to.pin) delete d.wires[w.id]
+    d.wires[id] = { id, from, to, path: [] }
+    reroute(d, [id])
+  })
+  set({ selection: [id] })
+  return true
+}
+
+export function deleteWire(id: string) {
+  checkpoint()
+  edit((c) => {
+    delete c.wires[id]
+  })
+}
+
+/** Store a hand-edited path. Call checkpoint() at drag start. */
+export function setWirePath(id: string, path: Wire['path'], final: boolean) {
+  edit((c) => {
+    const w = c.wires[id]
+    if (!w) return
+    w.path = final ? normalize(path) : path
+    w.manual = true
+  }, false)
+}
+
+export function resetWireRoute(id: string) {
+  checkpoint()
+  edit((c) => reroute(c, [id]), false)
+}
+
+export function rerouteAll() {
+  checkpoint()
+  edit((c) => reroute(c, Object.keys(c.wires)), false)
+}
+
+export function clearWires() {
+  checkpoint()
+  edit((c) => {
+    c.wires = {}
+  })
+  set({ selection: [] })
+}
+
+export function clearAll() {
+  checkpoint()
+  edit((c) => {
+    c.comps = {}
+    c.wires = {}
+  })
+  set({ selection: [] })
+}
+
+/** Replace the whole circuit (load file, example, share link). */
+export function loadCircuit(c: Circuit, undoable = true) {
+  if (undoable) checkpoint()
+  set({ circuit: c, structVersion: get().structVersion + 1, selection: [] })
+  sim.reset()
+}
+
+// ---- Clipboard ---------------------------------------------------------------------------------
+
+let clipboard: { comps: Comp[]; wires: Wire[] } | null = null
+let pasteCount = 0
+
+export function copySelection() {
+  const { circuit, selection } = get()
+  const ids = new Set(selection.filter((id) => id in circuit.comps))
+  if (!ids.size) return false
+  clipboard = {
+    comps: [...ids].map((id) => circuit.comps[id]),
+    wires: Object.values(circuit.wires).filter((w) => ids.has(w.from.comp) && ids.has(w.to.comp)),
+  }
+  pasteCount = 0
+  return true
+}
+
+export function paste() {
+  if (!clipboard) return
+  pasteCount++
+  const off = 40 * pasteCount
+  const map = new Map<string, string>()
+  checkpoint()
+  const newIds: string[] = []
+  edit((c) => {
+    for (const k of clipboard!.comps) {
+      const id = newId('c')
+      map.set(k.id, id)
+      newIds.push(id)
+      c.comps[id] = { ...structuredClone(k), id, x: k.x + off, y: k.y + off }
+    }
+    for (const w of clipboard!.wires) {
+      const id = newId('w')
+      newIds.push(id)
+      c.wires[id] = {
+        ...w,
+        id,
+        from: { comp: map.get(w.from.comp)!, pin: w.from.pin },
+        to: { comp: map.get(w.to.comp)!, pin: w.to.pin },
+        path: w.path.map((p) => ({ x: p.x + off, y: p.y + off })),
+      }
+    }
+  })
+  set({ selection: newIds })
+}
+
+export function duplicateSelection() {
+  if (copySelection()) paste()
+}
+
+export const setRunning = (running: boolean) => set({ running })
+export const setSpeed = (speed: number) => set({ speed })
+export const setView = (view: View) => set({ view })
+export const setPlacing = (placing: string | null) => set({ placing })
