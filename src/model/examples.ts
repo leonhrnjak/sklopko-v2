@@ -221,8 +221,124 @@ function digitalClock(): Circuit {
   return b.build()
 }
 
+/**
+ * Two-way traffic light with a pedestrian crossing. A counter steps through 16 phases; bit D says whose turn it is
+ * (0 = north–south, 1 = east–west) and steps 6–7 of each half (bits C and B both 1) are yellow.
+ * A pedestrian press is remembered by an SR latch until the next north–south green, when WALK lights up.
+ */
+function trafficLights(): Circuit {
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 40, { params: { hz: 2 }, label: '2 Hz' })
+  const cnt = b.add('counter', 120, 20, { params: { mod: 16 } })
+  const stepDisp = b.add('hexdisp', 270, 20, { label: 'Step' })
+  b.wire(`${clk}.Q`, `${cnt}.CLK`)
+  for (const p of ['A', 'B', 'C', 'D']) b.wire(`${cnt}.${p}`, `${stepDisp}.${p}`)
+
+  // Phase decoding.
+  const yellowTime = b.add('and', 440, 160, { label: 'yellow time' })
+  const greenTime = b.add('nand', 440, 240, { label: 'green time' })
+  const nsTurn = b.add('not', 440, 330, { label: 'N–S turn' })
+  b.wire(`${cnt}.C`, `${yellowTime}.A`)
+  b.wire(`${cnt}.B`, `${yellowTime}.B`)
+  b.wire(`${cnt}.C`, `${greenTime}.A`)
+  b.wire(`${cnt}.B`, `${greenTime}.B`)
+  b.wire(`${cnt}.D`, `${nsTurn}.A`)
+
+  // North–south light.
+  const nsRed = b.add('led', 760, 0, { label: 'N–S', params: { color: 'red' } })
+  const nsYellow = b.add('led', 760, 50, { params: { color: 'yellow' } })
+  const nsGreen = b.add('led', 760, 100, { params: { color: 'green' } })
+  const nsY = b.add('and', 640, 40)
+  const nsG = b.add('and', 640, 90)
+  b.wire(`${cnt}.D`, `${nsRed}.A`)
+  b.wire(`${nsTurn}.Y`, `${nsY}.A`)
+  b.wire(`${yellowTime}.Y`, `${nsY}.B`)
+  b.wire(`${nsY}.Y`, `${nsYellow}.A`)
+  b.wire(`${nsTurn}.Y`, `${nsG}.A`)
+  b.wire(`${greenTime}.Y`, `${nsG}.B`)
+  b.wire(`${nsG}.Y`, `${nsGreen}.A`)
+
+  // East–west light.
+  const ewRed = b.add('led', 760, 260, { label: 'E–W', params: { color: 'red' } })
+  const ewYellow = b.add('led', 760, 310, { params: { color: 'yellow' } })
+  const ewGreen = b.add('led', 760, 360, { params: { color: 'green' } })
+  const ewY = b.add('and', 640, 300)
+  const ewG = b.add('and', 640, 350)
+  b.wire(`${nsTurn}.Y`, `${ewRed}.A`)
+  b.wire(`${cnt}.D`, `${ewY}.A`)
+  b.wire(`${yellowTime}.Y`, `${ewY}.B`)
+  b.wire(`${ewY}.Y`, `${ewYellow}.A`)
+  b.wire(`${cnt}.D`, `${ewG}.A`)
+  b.wire(`${greenTime}.Y`, `${ewG}.B`)
+  b.wire(`${ewG}.Y`, `${ewGreen}.A`)
+
+  // Pedestrians: the latch remembers a press until the north–south light turns yellow.
+  const request = b.add('button', 300, 470, { label: 'Pedestrian button' })
+  const latch = b.add('srlatch', 440, 460, { label: 'request' })
+  const walk = b.add('and', 640, 470)
+  const dontWalk = b.add('not', 640, 540)
+  const walkLed = b.add('led', 760, 480, { label: 'WALK', params: { color: 'green' } })
+  const stopLed = b.add('led', 760, 540, { label: "DON'T WALK", params: { color: 'red' } })
+  b.wire(`${request}.Q`, `${latch}.S`)
+  b.wire(`${nsY}.Y`, `${latch}.R`)
+  b.wire(`${latch}.Q`, `${walk}.A`)
+  b.wire(`${nsG}.Y`, `${walk}.B`)
+  b.wire(`${walk}.Y`, `${walkLed}.A`)
+  b.wire(`${walk}.Y`, `${dontWalk}.A`)
+  b.wire(`${dontWalk}.Y`, `${stopLed}.A`)
+  return b.build()
+}
+
+/**
+ * Electronic dice. While ROLL is held, a fast clock (gated by an AND) spins a 0–5 counter; letting go stops it
+ * somewhere unpredictable. Gates turn the count (0–5 = faces 1–6) into the seven pips of a die:
+ * centre = odd faces, one diagonal = 2 and up, the other diagonal = 4 and up, middle pair = 6 only.
+ */
+function dice(): Circuit {
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 30, { params: { hz: 32 }, label: 'Fast clock' })
+  const roll = b.add('button', 10, 150, { label: 'Hold to roll' })
+  const gate = b.add('and', 140, 60, { label: 'spin' })
+  const cnt = b.add('counter', 280, 30, { params: { mod: 6 } })
+  const rolling = b.add('led', 160, 190, { label: 'Rolling', params: { color: 'yellow' } })
+  b.wire(`${clk}.Q`, `${gate}.A`)
+  b.wire(`${roll}.Q`, `${gate}.B`)
+  b.wire(`${gate}.Y`, `${cnt}.CLK`)
+  b.wire(`${roll}.Q`, `${rolling}.A`)
+
+  // Pip logic on the count c (A = bit 0).
+  const centre = b.add('not', 500, 0, { label: 'odd face' })
+  const diag1 = b.add('or', 500, 60, { params: { inputs: 3 }, label: '2 and up' })
+  const ab = b.add('and', 500, 170)
+  const diag2 = b.add('or', 600, 160, { label: '4 and up' })
+  const six = b.add('and', 500, 250, { label: 'six' })
+  b.wire(`${cnt}.A`, `${centre}.A`)
+  b.wire(`${cnt}.A`, `${diag1}.A`)
+  b.wire(`${cnt}.B`, `${diag1}.B`)
+  b.wire(`${cnt}.C`, `${diag1}.C`)
+  b.wire(`${cnt}.A`, `${ab}.A`)
+  b.wire(`${cnt}.B`, `${ab}.B`)
+  b.wire(`${ab}.Y`, `${diag2}.A`)
+  b.wire(`${cnt}.C`, `${diag2}.B`)
+  b.wire(`${cnt}.A`, `${six}.A`)
+  b.wire(`${cnt}.C`, `${six}.B`)
+
+  // The die: each signal lights a group of pips.
+  const die = b.add('dicedisp', 800, 40, { label: 'Die' })
+  b.wire(`${centre}.Y`, `${die}.C`)
+  b.wire(`${diag1}.Y`, `${die}.TL`)
+  b.wire(`${diag1}.Y`, `${die}.BR`)
+  b.wire(`${diag2}.Y`, `${die}.TR`)
+  b.wire(`${diag2}.Y`, `${die}.BL`)
+  b.wire(`${six}.Y`, `${die}.ML`)
+  b.wire(`${six}.Y`, `${die}.MR`)
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
+  { id: 'traffic', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
+  { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr', name: 'SR latch from NOR gates', build: srLatch },

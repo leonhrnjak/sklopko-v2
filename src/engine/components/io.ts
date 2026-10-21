@@ -121,6 +121,16 @@ export const display: ComponentDef[] = [
     evaluate() {},
   },
   {
+    type: 'dicedisp',
+    name: 'Dice display',
+    category: 'display',
+    description:
+      'A die face with seven pips, one input each: top-left, top-right, middle-left, centre, middle-right, ' +
+      'bottom-left, bottom-right.',
+    layout: () => box({ w: 160, left: ['TL', 'TR', 'ML', 'C', 'MR', 'BL', 'BR'] }),
+    evaluate() {},
+  },
+  {
     type: 'bar',
     name: 'LED bar',
     category: 'display',

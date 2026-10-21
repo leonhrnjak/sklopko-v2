@@ -572,6 +572,11 @@ button.danger {
   stroke: var(--ink);
   stroke-width: 2;
 }
+.die-face {
+  fill: #232325;
+  stroke: #3a3a3e;
+  stroke-width: 1.5;
+}
 .display-label {
   fill: #9aa3a0;
 }

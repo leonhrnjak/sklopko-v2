@@ -401,6 +401,42 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'dicedisp': {
+      const vs = ins()
+      // Pip centres on a 3×3 grid, in input order TL, TR, ML, C, MR, BL, BR.
+      const x0 = 36
+      const y0 = 22
+      const size = 116
+      const at = (i: number) => x0 + size * [0.22, 0.5, 0.78][i]
+      const yAt = (i: number) => y0 + size * [0.22, 0.5, 0.78][i]
+      const pips: [number, number][] = [
+        [0, 0],
+        [2, 0],
+        [0, 1],
+        [1, 1],
+        [2, 1],
+        [0, 2],
+        [2, 2],
+      ]
+      content = (
+        <>
+          {l.pins.map((q) => (
+            <Stub key={q.name} pin={q} inner={edgePoint(q, l)} />
+          ))}
+          <rect className="display-body" x={0} y={0} width={l.w} height={l.h} rx={4} />
+          {l.pins.map((q) => (
+            <Txt key={q.name} x={6} y={q.y} anchor="start" className="pin-label display-label">
+              {q.name}
+            </Txt>
+          ))}
+          <rect x={x0} y={y0} width={size} height={size} rx={18} className="die-face" />
+          {pips.map(([cx, cy], i) => (
+            <circle key={i} cx={at(cx)} cy={yAt(cy)} r={11} className={vs[i] === 1 ? 'seg on' : 'seg'} />
+          ))}
+        </>
+      )
+      break
+    }
     case 'bar': {
       const vs = ins()
       content = (
