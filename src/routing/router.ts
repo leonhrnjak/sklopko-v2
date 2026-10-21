@@ -14,7 +14,7 @@ import { normalize } from './path'
 const STEP = 1
 const SHARE = 0.5 // walking along a wire of the same net (fan-out trunks)
 const BEND = 6
-const CROSS = 3 // crossing another net at right angles
+const CROSS = 8 // crossing another net at right angles (worth more than a bend: crossings are harder to read)
 const CLASH = 200 // overlapping / touching another net in a way that looks like a connection
 const NEAR_BODY = 0.6 // running right next to a component body
 const MAX_EXPANSIONS = 300_000
@@ -237,7 +237,11 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
   return g
 }
 
-function search(g: Grid, e: Endpoints, net: number): Point[] | null {
+/**
+ * A* over (cell, direction). `passable` holds pin tips the wire may run through: inputs already fed by the
+ * same net (electrically the same signal; the crossing point shows a junction dot).
+ */
+function search(g: Grid, e: Endpoints, net: number, passable?: Set<number>): Point[] | null {
   const s = g.idx(e.from)
   const t = g.idx(e.to)
   if (s < 0 || t < 0) return null
@@ -279,7 +283,7 @@ function search(g: Grid, e: Endpoints, net: number): Point[] | null {
       const nb = ny * w + nx
       if (nb === t) {
         if (d !== td) continue
-      } else if (g.blocked[nb] || (g.tip[nb] && nb !== s)) continue
+      } else if (g.blocked[nb] || (g.tip[nb] && nb !== s && !passable?.has(nb))) continue
 
       let cost = STEP
       const edge = d === 0 ? g.hOcc[cell] : d === 2 ? g.hOcc[nb] : d === 1 ? g.vOcc[cell] : g.vOcc[nb]
@@ -373,6 +377,17 @@ export function routeWires(c: Circuit, ids: string[], improve = true): Record<st
   const paths = new Map<string, Point[]>()
   for (const w of Object.values(c.wires)) paths.set(w.id, ends.has(w.id) ? [] : w.path)
 
+  // Input tips fed by each net: a wire of that net may pass through them.
+  const fedTips = new Map<number, Set<number>>()
+  for (const w of Object.values(c.wires)) {
+    const tc = c.comps[w.to.comp]
+    const tp = tc && findPin(tc, w.to.pin)
+    if (!tp) continue
+    const n = netOf(w)
+    if (!fedTips.has(n)) fedTips.set(n, new Set())
+    fedTips.get(n)!.add(base.idx(tp.pos))
+  }
+
   const gridWithout = (skip?: string) => {
     const g = base.fresh()
     for (const [id, p] of paths) if (id !== skip && p.length) g.addPath(p, netOf(c.wires[id]))
@@ -393,7 +408,7 @@ export function routeWires(c: Circuit, ids: string[], improve = true): Record<st
     const net = netOf(c.wires[id])
     const e = ends.get(id)!
     const touching = e.from.x === e.to.x && e.from.y === e.to.y
-    const path = touching ? [{ ...e.from }, { ...e.to }] : (search(g, e, net) ?? fallbackPath(e))
+    const path = touching ? [{ ...e.from }, { ...e.to }] : (search(g, e, net, fedTips.get(net)) ?? fallbackPath(e))
     paths.set(id, path)
     g.addPath(path, net)
   }
@@ -407,7 +422,7 @@ export function routeWires(c: Circuit, ids: string[], improve = true): Record<st
         const others = all().filter((o) => o.id !== id)
         const before = crossings(paths.get(id)!, net, others)
         if (!before) continue
-        const p = search(gridWithout(id), ends.get(id)!, net)
+        const p = search(gridWithout(id), ends.get(id)!, net, fedTips.get(net))
         if (p && crossings(p, net, others) < before) {
           paths.set(id, p)
           better = true

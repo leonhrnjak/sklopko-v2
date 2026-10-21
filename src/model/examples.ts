@@ -162,8 +162,68 @@ function rippleCounter(): Circuit {
   return b.build()
 }
 
+/**
+ * Digital clock HH:MM:SS. Six BCD counters share a 1 Hz clock; each counter's carry (CO) enables the next one,
+ * so a digit advances only when all digits to its right roll over. An AND gate resets the hours at 24.
+ * Holding a "set" button forces the minutes or hours to count once per second.
+ */
+function digitalClock(): Circuit {
+  const b = new CircuitBuilder()
+  // Digit blocks in reading order; counter on the left, its display on the right.
+  const digits = [
+    { key: 'ht', x: 0, mod: 10 },
+    { key: 'hu', x: 300, mod: 10 },
+    { key: 'mt', x: 700, mod: 6 },
+    { key: 'mu', x: 1000, mod: 10 },
+    { key: 'st', x: 1400, mod: 6 },
+    { key: 'su', x: 1700, mod: 10 },
+  ]
+  const labels: Record<string, string> = { ht: 'Hours', mt: 'Minutes', st: 'Seconds' }
+  const cnt: Record<string, string> = {}
+  for (const d of digits) {
+    cnt[d.key] = b.add('counter', d.x, 0, { params: { mod: d.mod } })
+    // 20px gap so outputs that also feed other parts have room to branch off.
+    const disp = b.add('hexdisp', d.x + 140, 0, labels[d.key] ? { label: labels[d.key] } : {})
+    for (const p of ['A', 'B', 'C', 'D']) b.wire(`${cnt[d.key]}.${p}`, `${disp}.${p}`)
+  }
+
+  const clk = b.add('clock', -220, 220, { params: { hz: 1 }, label: '1 Hz' })
+  for (const d of digits) b.wire(`${clk}.Q`, `${cnt[d.key]}.CLK`)
+  // Blinking colons.
+  for (const x of [570, 1270]) {
+    const led = b.add('led', x, 40, { params: { color: 'red' } })
+    b.wire(`${clk}.Q`, `${led}.A`)
+  }
+
+  // Carry chain, right to left. Minutes and hours can also be forced on with a set button.
+  b.wire(`${cnt.su}.CO`, `${cnt.st}.EN`)
+  // OR gates face up: carry and set button come in from below, the output goes up into the counter's EN.
+  const orMin = b.add('or', 930, 200, { rot: 3 })
+  const setMin = b.add('button', 880, 300, { label: 'Set minutes' })
+  b.wire(`${cnt.st}.CO`, `${orMin}.A`)
+  b.wire(`${setMin}.Q`, `${orMin}.B`)
+  b.wire(`${orMin}.Y`, `${cnt.mu}.EN`)
+  b.wire(`${cnt.mu}.CO`, `${cnt.mt}.EN`)
+  const orHour = b.add('or', 230, 200, { rot: 3 })
+  const setHour = b.add('button', 180, 300, { label: 'Set hours' })
+  b.wire(`${cnt.mt}.CO`, `${orHour}.A`)
+  b.wire(`${setHour}.Q`, `${orHour}.B`)
+  b.wire(`${orHour}.Y`, `${cnt.hu}.EN`)
+  b.wire(`${cnt.hu}.CO`, `${cnt.ht}.EN`)
+
+  // 24 -> 00: hours-tens = 2 (bit B) and hours-units = 4 (bit C).
+  // Flipped so its inputs face the hour digits and its output faces the reset pins.
+  const at24 = b.add('and', 60, 200, { flip: true, label: '= 24' })
+  b.wire(`${cnt.ht}.B`, `${at24}.A`)
+  b.wire(`${cnt.hu}.C`, `${at24}.B`)
+  b.wire(`${at24}.Y`, `${cnt.ht}.R`)
+  b.wire(`${at24}.Y`, `${cnt.hu}.R`)
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
+  { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'dlatch', name: 'D latch from NAND gates', build: nandDLatch },

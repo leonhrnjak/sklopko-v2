@@ -131,20 +131,25 @@ export const sequential: ComponentDef[] = [
     category: 'sequential',
     description:
       '4-bit synchronous counter (A = least significant bit). Counts on rising CLK while EN=1, ' +
-      'up when U/D=1, down when U/D=0. R resets to 0. CO is high at the last count.',
+      'up when U/D=1, down when U/D=0. R resets to 0. CO is high at the last count while EN=1, ' +
+      'so chaining CO into the next counter\'s EN builds multi-digit counters.',
     params: [
       {
         key: 'mod',
-        label: 'Counts to',
+        label: 'Counts',
         kind: 'select',
         default: 10,
-        options: [
-          { value: 10, label: '9 (decade / BCD)' },
-          { value: 16, label: '15 (binary)' },
-        ],
+        options: Array.from({ length: 15 }, (_, i) => {
+          const m = i + 2
+          const note = m === 10 ? ' (decade / BCD)' : m === 16 ? ' (binary)' : ''
+          return { value: m, label: `0–${m - 1}${note}` }
+        }),
       },
     ],
-    title: (p) => (Number(p.mod) === 10 ? 'BCD\nCNTR' : 'CNTR'),
+    title: (p) => {
+      const m = Number(p.mod)
+      return m === 10 ? 'BCD\nCNTR' : m === 16 ? 'CNTR' : `CNTR\n0–${m - 1}`
+    },
     init: () => ({ n: 0, pc: X as V }),
     layout: () =>
       box({
