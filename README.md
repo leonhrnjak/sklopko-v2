@@ -15,6 +15,21 @@ npm run dev        # http://localhost:5173
 `npm run build` writes a static site to `dist/` that works from any web server or sub-path (GitHub Pages,
 Netlify, `python3 -m http.server`). There is no backend.
 
+## Deploy (Cloudflare Pages)
+
+Connected through Cloudflare's Git integration: every push to `main` deploys to production, and every other
+branch gets its own preview URL. Build settings:
+
+| Setting | Value |
+|---|---|
+| Framework preset | None (or Vite) |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Node version | from `.node-version` (22) |
+
+`public/_headers` sets caching (hashed assets cached forever, `index.html` always revalidated) and basic
+security headers.
+
 ## Using it
 
 - **Add parts:** drag from the left panel, or click one and then click the canvas (Shift keeps placing).
