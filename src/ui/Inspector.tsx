@@ -131,14 +131,16 @@ function Help() {
           <b>Reshape wires:</b> drag a wire segment. Double-click to auto-route again.
         </li>
         <li>
-          <b>Switches:</b> click to toggle. Buttons are pressed while held.
+          <b>Switches &amp; buttons:</b> click to operate (buttons stay pressed while held). To edit one instead,
+          long-press it, right-click it, or drag it.
         </li>
         <li>
           <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll or pinch to zoom, H to fit.
         </li>
         <li>
           <b>Touch screens:</b> tap a part in the list, then tap the canvas to place it. Drag empty canvas with one
-          finger to pan, pinch to zoom. Selecting something shows Rotate, Delete and Edit buttons.
+          finger to pan, pinch to zoom. Selecting something shows Rotate, Delete and Edit buttons (long-press a
+          switch or button to select it).
         </li>
       </ul>
       <h3>Shortcuts</h3>

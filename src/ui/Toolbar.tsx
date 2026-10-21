@@ -204,6 +204,9 @@ export function StatusBar() {
         </div>
       )}
       {toast && <div className="toast">{toast}</div>}
+      <div className="version" title={__APP_COMMIT__ ? `Build ${__APP_COMMIT__}` : undefined}>
+        v{__APP_VERSION__}
+      </div>
     </>
   )
 }

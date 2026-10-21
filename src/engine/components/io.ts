@@ -73,7 +73,7 @@ export const io: ComponentDef[] = [
     type: 'hexin',
     name: '4-bit input',
     category: 'io',
-    description: 'Outputs a 4-bit number (A = least significant bit). Click to count up, Shift-click to count down.',
+    description: 'Outputs a 4-bit number (A = least significant bit). Click to count up, Alt/Option-click to count down.',
     params: [{ key: 'value', label: 'Value', kind: 'number', min: 0, max: 15, default: 0 }],
     interactive: 'cycle',
     layout: () => box({ w: 40, right: ['A', 'B', 'C', 'D'] }),

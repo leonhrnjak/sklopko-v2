@@ -700,6 +700,17 @@ button.danger {
 .badge.paused {
   color: var(--muted);
 }
+.version {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+  -webkit-user-select: text;
+}
 .empty-hint {
   position: absolute;
   inset: 0;

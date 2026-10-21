@@ -59,11 +59,24 @@ test('tap a part, tap the canvas to place it, then delete it from the action bar
   await expect(page.locator('.comp')).toHaveCount(0)
 })
 
-test('Edit opens the inspector as a bottom sheet', async ({ page }) => {
+test('tapping a control operates it; a long-press selects it for editing', async ({ page, context }) => {
   await fresh(page)
   const sw = page.locator('.comp[data-id^="button"] > g')
   const b = (await sw.boundingBox())!
-  await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2)
+  const x = b.x + b.width / 2
+  const y = b.y + b.height / 2
+
+  // A plain tap presses the button but doesn't select it.
+  await page.touchscreen.tap(x, y)
+  await expect(page.locator('.comp.selected')).toHaveCount(0)
+  await expect(page.locator('.action-bar')).toHaveCount(0)
+
+  // Long-press with real touch events.
+  const cdp = await context.newCDPSession(page)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+  await page.waitForTimeout(800)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await expect(page.locator('.comp.selected')).toHaveCount(1)
   await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
   await expect(page.locator('.inspector.open')).toBeVisible()
   await expect(page.locator('.inspector.open h2')).toHaveText('Push button')

@@ -64,11 +64,21 @@ type Op =
       pressed: boolean
       cx: number
       cy: number
+      /** Pressed a switch/button/input as a control: a click operates it without selecting it. */
+      control: boolean
+      /** Select the part once it's actually dragged (it wasn't selected when pressed). */
+      selectOnDrag: boolean
+      /** A long press selected the part instead of operating it. */
+      longPressed: boolean
+      timer: number
     }
   | {
       k: 'wire'
       /** Component whose pin was pressed; a tap without dragging selects it. */
       tapComp: string
+      /** Holding still on a pin selects its part (fingers often land on a pin instead of the body). */
+      longPressed: boolean
+      timer: number
       from: PinRef
       pos: Point
       dir: Point
@@ -82,6 +92,8 @@ type Op =
 
 const DRAG_THRESHOLD = 4
 const TOUCH_THRESHOLD = 8
+/** Holding a control this long without moving selects it for editing. */
+const LONG_PRESS_MS = 550
 
 /** Phones and tablets: bigger pin targets and finger-friendly gestures. */
 const coarsePointer = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
@@ -259,9 +271,11 @@ export function Canvas() {
     op.current = null
     if (!o) return
     if (o.k === 'move') {
+      window.clearTimeout(o.timer)
       if (o.pressed) sim.setState(o.clickId, { pressed: false })
       if (o.moved) moveComps(o.ids, { x: 0, y: 0 }, true)
     } else if (o.k === 'wire') {
+      window.clearTimeout(o.timer)
       setWirePreview(null)
       setHiddenWire(null)
     } else if (o.k === 'segment' && o.moved) {
@@ -302,6 +316,12 @@ export function Canvas() {
       setPanning(true)
       return
     }
+    if (e.button === 2) {
+      // Right-click selects whatever is under the pointer (the way to edit a switch without flipping it).
+      const hit = (e.target as Element).closest<SVGElement>('[data-kind="comp"], [data-kind="wire"]')
+      if (hit) select([hit.dataset.id!])
+      return
+    }
     if (e.button !== 0) return
 
     if (s.placing) {
@@ -323,9 +343,11 @@ export function Canvas() {
       // Grabbing a connected input picks up that wire's end so it can be re-plugged.
       const fromRef = existing ? existing.from : { comp, pin }
       const wp = worldPins(c.comps[fromRef.comp]).find((p) => p.def.name === fromRef.pin)!
-      op.current = {
+      const o: Extract<Op, { k: 'wire' }> = {
         k: 'wire',
         tapComp: comp,
+        longPressed: false,
+        timer: 0,
         from: fromRef,
         pos: wp.pos,
         dir: wp.dir,
@@ -335,6 +357,13 @@ export function Canvas() {
         cy: e.clientY,
         moved: false,
       }
+      o.timer = window.setTimeout(() => {
+        if (op.current !== o || o.moved) return
+        o.longPressed = true
+        select([comp])
+        navigator.vibrate?.(12)
+      }, LONG_PRESS_MS)
+      op.current = o
       return
     }
 
@@ -350,15 +379,17 @@ export function Canvas() {
     if (kind === 'comp') {
       const id = target!.dataset.id!
       const wasSelected = selSet.has(id)
+      const def = getDef(s.circuit.comps[id].type)
+      // Switches, buttons and inputs are controls: pressing them operates them and leaves the selection alone.
+      const control = !!def.interactive && !e.shiftKey
       let sel = selection
       if (!wasSelected) {
         sel = e.shiftKey ? [...selection, id] : [id]
-        select(sel)
+        if (!control) select(sel)
       }
-      const def = getDef(s.circuit.comps[id].type)
-      const pressed = def.interactive === 'momentary'
+      const pressed = control && def.interactive === 'momentary'
       if (pressed) sim.setState(id, { pressed: true })
-      op.current = {
+      const o: Extract<Op, { k: 'move' }> = {
         k: 'move',
         ids: sel.filter((x) => x in s.circuit.comps),
         start: w,
@@ -370,7 +401,20 @@ export function Canvas() {
         pressed,
         cx: e.clientX,
         cy: e.clientY,
+        control,
+        selectOnDrag: control && !wasSelected,
+        longPressed: false,
+        timer: 0,
       }
+      if (control)
+        o.timer = window.setTimeout(() => {
+          if (op.current !== o || o.moved) return
+          // Long press: select for editing. A held push button stays pressed until released.
+          o.longPressed = true
+          select(wasSelected ? selection : [id])
+          navigator.vibrate?.(12)
+        }, LONG_PRESS_MS)
+      op.current = o
       return
     }
 
@@ -414,7 +458,9 @@ export function Canvas() {
         const d = { x: snap(w.x - o.start.x), y: snap(w.y - o.start.y) }
         if (!o.moved) {
           o.moved = true
+          window.clearTimeout(o.timer)
           if (o.pressed) sim.setState(o.clickId, { pressed: false })
+          if (o.selectOnDrag && !o.longPressed) select(o.ids)
           checkpoint()
         }
         if (d.x !== o.applied.x || d.y !== o.applied.y) {
@@ -424,9 +470,10 @@ export function Canvas() {
         break
       }
       case 'wire': {
-        if (!o.moved && !far(o.cx, o.cy)) return
+        if (o.longPressed || (!o.moved && !far(o.cx, o.cy))) return
         if (!o.moved) {
           o.moved = true
+          window.clearTimeout(o.timer)
           if (o.replacing) setHiddenWire(o.replacing)
         }
         const c = useStore.getState().circuit
@@ -478,24 +525,24 @@ export function Canvas() {
         setMarquee(null)
         break
       case 'move':
+        window.clearTimeout(o.timer)
         if (o.pressed) sim.setState(o.clickId, { pressed: false })
         if (o.moved) moveComps(o.ids, { x: 0, y: 0 }, true)
-        else {
-          const def = getDef(useStore.getState().circuit.comps[o.clickId]?.type ?? 'and')
-          if (def.interactive === 'toggle' || def.interactive === 'cycle') interact(o.clickId, e.shiftKey)
-          else if (o.shift && o.wasSelected) select(selection.filter((x) => x !== o.clickId))
-          else if (!o.shift && selection.length > 1) select([o.clickId])
-        }
+        else if (o.control) {
+          if (!o.longPressed && e.type === 'pointerup') interact(o.clickId, e.altKey)
+        } else if (o.shift && o.wasSelected) select(selection.filter((x) => x !== o.clickId))
+        else if (!o.shift && selection.length > 1) select([o.clickId])
         break
       case 'wire': {
+        window.clearTimeout(o.timer)
         setWirePreview(null)
         setHiddenWire(null)
+        if (o.longPressed) break
         if (!o.moved) {
           // A tap on a pin (fingers easily land on one) means the part itself.
           const def = getDef(useStore.getState().circuit.comps[o.tapComp]?.type ?? 'and')
-          select([o.tapComp])
-          if (e.type === 'pointerup' && (def.interactive === 'toggle' || def.interactive === 'cycle'))
-            interact(o.tapComp, e.shiftKey)
+          if (!def.interactive) select([o.tapComp])
+          else if (e.type === 'pointerup') interact(o.tapComp, e.altKey)
           break
         }
         const s = useStore.getState()

@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
 async function fresh(page: Page) {
   await page.goto('/', { waitUntil: 'networkidle' })
@@ -132,6 +135,7 @@ test('undo and redo restore the circuit', async ({ page }) => {
 
 test('examples load and the welcome counter ticks', async ({ page }) => {
   await fresh(page)
+  await expect(page.locator('.version')).toHaveText(`v${pkg.version}`)
   const seg = page.locator('.comp polygon.seg.on')
   // The decade counter runs at 2 Hz: the lit segments change within a second or two.
   const first = await seg.count()
@@ -207,4 +211,48 @@ test('the parts panel never scrolls sideways and can be resized', async ({ page 
   // Wider panel -> more columns.
   const cols = await page.locator('.palette-grid').first().evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length)
   expect(cols).toBeGreaterThanOrEqual(3)
+})
+
+test('switches operate on click; long-press, right-click or drag selects them instead', async ({ page }) => {
+  await fresh(page)
+  await page.selectOption('select[aria-label="Load an example"]', 'gates')
+  const a = page.locator('.comp[data-id="switch1"]')
+  const knob = () => a.locator('.switch-track').getAttribute('class')
+  const box = (await a.locator('> g').boundingBox())!
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+
+  // Click: toggles, nothing gets selected.
+  expect(await knob()).toContain('f0')
+  await page.mouse.click(cx, cy)
+  expect(await knob()).toContain('f1')
+  await expect(page.locator('.comp.selected')).toHaveCount(0)
+  await expect(page.locator('.inspector h2').first()).toHaveText('How to')
+
+  // Long-press: selects, does not toggle.
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.waitForTimeout(800)
+  await page.mouse.up()
+  expect(await knob()).toContain('f1')
+  await expect(a).toHaveClass(/selected/)
+  await expect(page.locator('.inspector h2')).toHaveText('Switch')
+
+  // Right-click the other switch: selects it, no toggle.
+  const b = page.locator('.comp[data-id="switch2"]')
+  const bb = (await b.locator('> g').boundingBox())!
+  const before = await b.locator('.switch-track').getAttribute('class')
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2, { button: 'right' })
+  await expect(b).toHaveClass(/selected/)
+  expect(await b.locator('.switch-track').getAttribute('class')).toBe(before)
+
+  // Drag: moves and selects, no toggle.
+  await page.keyboard.press('Escape')
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx, cy - 60, { steps: 8 })
+  await page.mouse.up()
+  await expect(a).toHaveClass(/selected/)
+  expect(await knob()).toContain('f1')
+  expect((await a.locator('> g').boundingBox())!.y).toBeLessThan(box.y - 30)
 })

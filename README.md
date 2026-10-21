@@ -37,7 +37,8 @@ security headers.
   input picks the wire back up so you can re-plug or remove it.
 - **Move:** drag parts and their wires re-route. Drag a wire segment sideways to reshape it by hand.
   Double-click a wire to auto-route it again.
-- **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Shift-click: down).
+- **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
+  Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
 - **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
