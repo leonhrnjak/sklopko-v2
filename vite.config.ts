@@ -17,9 +17,9 @@ function commit(): string {
   }
 }
 
-// Relative base so the static build works from any path (GitHub Pages, a subfolder, file servers).
+// Served from the site root: example links like /intersection rely on absolute asset paths.
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

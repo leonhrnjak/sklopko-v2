@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSimStatus } from '../app/hooks'
-import { downloadJSON, openJSON, shareLink } from '../app/runtime'
+import { downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { sim } from '../app/sim'
 import {
   clearAll,
   clearWires,
-  loadCircuit,
   redo,
   select,
   setRunning,
@@ -85,7 +84,7 @@ export function Toolbar() {
         onChange={(e) => {
           const ex = EXAMPLES.find((x) => x.id === e.target.value)
           if (ex) {
-            loadCircuit(ex.build())
+            openExample(ex)
             setMenuOpen(false)
             requestAnimationFrame(fitView)
           }

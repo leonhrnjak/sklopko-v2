@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
+import { boundsRect } from './circuit'
 import { EXAMPLES } from './examples'
 
 describe('digital clock example', () => {
@@ -72,46 +73,111 @@ function load(id: string) {
 
 describe('traffic lights example', () => {
   it('cycles N–S green/yellow then E–W green/yellow, and serves a pedestrian request', () => {
-    const { sim, byLabel, ofType } = load('traffic')
-    // LEDs sorted top to bottom: N–S red, yellow, green, E–W red, yellow, green, WALK, DON'T WALK.
-    const leds = ofType('led').sort((a, b) => a.y - b.y).map((k) => k.id)
-    const lamps = () => leds.map((id) => sim.pinValue(id, 'A')).join('')
-    const step = () => sim.advance(500) // 2 Hz clock: one count per 500 ms
-    sim.advance(250) // first rising edge -> count 1
+    const { c, sim, byLabel, ofType } = load('intersection')
+    // Each light's lamps listed red, yellow, green. Around the crossing every light is the same light turned 90°:
+    // N reads left to right, E top to bottom, S right to left, W bottom to top.
+    const cx = 1060
+    const cy = 300
+    // Crosswalk poles: title lamp (red, don't walk), then Walk (green) 50px below, then the Push button.
+    const pole = (name: string) => {
+      const stop = c.comps[byLabel(`${name} crossing`)]
+      const walk = Object.values(c.comps).find((k) => k.type === 'led' && k.x === stop.x && k.y === stop.y + 50)!
+      // The pole's button is the one closest below its lamps.
+      const push = Object.values(c.comps)
+        .filter((k) => k.type === 'button' && k.y > stop.y)
+        .sort((a, b) => Math.hypot(a.x - stop.x, a.y - stop.y) - Math.hypot(b.x - stop.x, b.y - stop.y))[0]
+      return { stop: stop.id, walk: walk.id, push: push.id }
+    }
+    const westX = pole('West')
+    const northX = pole('North')
+    const walkLeds = [westX.walk, westX.stop, northX.walk, northX.stop]
+    const leds = ofType('led').filter((k) => !walkLeds.includes(k.id))
+    const centre = (k: (typeof leds)[number]) => {
+      const r = boundsRect(k)
+      return { x: r.x + r.w / 2, y: r.y + r.h / 2 }
+    }
+    const pick = (keep: (p: { x: number; y: number }) => boolean, order: (p: { x: number; y: number }) => number) =>
+      leds.filter((k) => keep(centre(k))).sort((a, b) => order(centre(a)) - order(centre(b)))
+    const north = pick((p) => p.y < cy - 60, (p) => p.x)
+    const east = pick((p) => p.x > cx + 60, (p) => p.y)
+    const south = pick((p) => p.y > cy + 60, (p) => -p.x)
+    const west = pick((p) => p.x < cx - 60, (p) => -p.y)
+    const colors = (light: typeof leds) => light.map((k) => k.params.color).join(',')
+    for (const light of [north, east, south, west]) expect(colors(light)).toBe('red,yellow,green')
+
+    const read = (light: typeof leds) => light.map((k) => sim.pinValue(k.id, 'A')).join('')
+    // NS lamps + EW lamps + west walk/stop + north walk/stop; opposite lights must always agree.
+    const lamps = () => {
+      expect(read(south)).toBe(read(north))
+      expect(read(east)).toBe(read(west))
+      return read(north) + read(west) + walkLeds.map((id) => sim.pinValue(id, 'A')).join('')
+    }
+    const press = (id: string) => {
+      sim.setState(id, { pressed: true })
+      sim.settle()
+      sim.setState(id, { pressed: false })
+      sim.settle()
+    }
+    const step = () => sim.advance(1000) // 1 Hz clock: one count per second
+    sim.advance(500) // first rising edge -> count 1
     const seen: string[] = []
     for (let n = 1; n < 17; n++) {
       seen.push(lamps().slice(0, 6))
       step()
     }
     //                NS: r y g  EW: r y g
+    const allRed = '100100'
+    const nsReady = '110100' // red + yellow
     const nsGreen = '001100'
     const nsYellow = '010100'
+    const ewReady = '100110'
     const ewGreen = '100001'
     const ewYellow = '100010'
     expect(seen).toEqual([
-      ...Array(5).fill(nsGreen), // counts 1-5
-      nsYellow,
-      nsYellow,
-      ...Array(6).fill(ewGreen),
-      ewYellow,
-      ewYellow,
-      nsGreen, // count 0 again
+      nsReady, // 1
+      ...Array(4).fill(nsGreen), // 2-5
+      nsYellow, // 6
+      nsYellow, // 7
+      allRed, // 8: clearance
+      ewReady, // 9
+      ...Array(4).fill(ewGreen), // 10-13
+      ewYellow, // 14
+      ewYellow, // 15
+      allRed, // 0: clearance
     ])
 
-    // Press during E–W green: WALK waits for the next N–S green, then turns off at yellow.
-    for (let i = 0; i < 9; i++) step() // count 9 (E–W green)
-    expect(lamps().slice(6)).toBe('01')
-    sim.setState(byLabel('Pedestrian button'), { pressed: true })
-    sim.settle()
-    sim.setState(byLabel('Pedestrian button'), { pressed: false })
-    sim.settle()
-    expect(lamps().slice(6)).toBe('01')
-    for (let i = 0; i < 7; i++) step() // count 0: N–S green
-    expect(lamps().slice(6)).toBe('10')
-    for (let i = 0; i < 6; i++) step() // count 6: yellow, request cleared
-    expect(lamps().slice(6)).toBe('01')
-    for (let i = 0; i < 10; i++) step() // next N–S green without a new press
-    expect(lamps().slice(6)).toBe('01')
+    // West crossing: press during E–W green; WALK waits for the next N–S green and ends at N–S yellow.
+    // The loop above ended on count 1.
+    const west2 = () => lamps().slice(6, 8)
+    const north2 = () => lamps().slice(8, 10)
+    for (let i = 0; i < 9; i++) step() // count 10 (E–W green)
+    expect(west2()).toBe('01')
+    press(westX.push)
+    expect(west2()).toBe('01')
+    for (let i = 0; i < 6; i++) step() // count 0: all red, still waiting
+    expect(west2()).toBe('01')
+    step() // count 1: N–S red + yellow, still waiting (and the request survives it)
+    expect(west2()).toBe('01')
+    step() // count 2: N–S green, WALK
+    expect(west2()).toBe('10')
+    expect(north2()).toBe('01') // the other crossing is unaffected
+    for (let i = 0; i < 4; i++) step() // count 6: yellow, request cleared
+    expect(west2()).toBe('01')
+
+    // North crossing: press during N–S yellow; WALK during the E–W green (counts 10-13), not before.
+    press(northX.push)
+    step() // count 7
+    step() // count 8: all red
+    step() // count 9: E–W red + yellow
+    expect(north2()).toBe('01')
+    step() // count 10: E–W green
+    expect(north2()).toBe('10')
+    expect(west2()).toBe('01')
+    for (let i = 0; i < 4; i++) step() // count 14: E–W yellow, request cleared
+    expect(north2()).toBe('01')
+    for (let i = 0; i < 12; i++) step() // count 10 again, no new press
+    expect(north2()).toBe('01')
+    expect(west2()).toBe('01')
   })
 })
 

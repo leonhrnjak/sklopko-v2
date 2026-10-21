@@ -1,4 +1,4 @@
-import { EXAMPLES } from '../model/examples'
+import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { loadIntoSim, sim } from './sim'
@@ -6,7 +6,25 @@ import { loadCircuit, showToast, useStore } from './store'
 
 const STORAGE_KEY = 'sklopko.circuit.v1'
 
+/**
+ * Show an example's short link in the address bar while it is open and unedited
+ * (see `trackExampleUrl`), or the plain root otherwise.
+ */
+export function setExampleUrl(ex: Example | null) {
+  const path = ex ? `/${ex.id}` : '/'
+  if (location.pathname !== path || location.hash) history.replaceState(null, '', path + location.search)
+}
+
+/** Load an example and point the address bar at its short link. */
+export function openExample(ex: Example) {
+  loadCircuit(ex.build())
+  setExampleUrl(ex)
+}
+
 function initialCircuit(): Circuit {
+  const ex = exampleFromPath(location.pathname)
+  if (ex) return ex.build()
+  if (location.pathname !== '/') setExampleUrl(null)
   try {
     const fromHash = fromShareHash(location.hash)
     if (fromHash) {
@@ -59,6 +77,12 @@ export function startRuntime() {
 
   loadCircuit(initialCircuit(), false)
   sync()
+
+  // The first real edit (anything that creates an undo step) leaves the example: drop its short link so a
+  // reload brings back the edited circuit from autosave instead of a fresh example.
+  useStore.subscribe((s, prev) => {
+    if (s.past !== prev.past && exampleFromPath(location.pathname)) setExampleUrl(null)
+  })
   sim.settle()
 
   let last = performance.now()
@@ -74,7 +98,9 @@ export function startRuntime() {
 }
 
 export async function shareLink() {
-  const url = `${location.origin}${location.pathname}#${toShareHash(useStore.getState().circuit)}`
+  // An untouched example has a short link of its own.
+  const ex = exampleFromPath(location.pathname)
+  const url = ex ? `${location.origin}/${ex.id}` : `${location.origin}/#${toShareHash(useStore.getState().circuit)}`
   try {
     await navigator.clipboard.writeText(url)
     showToast('Share link copied to the clipboard.')

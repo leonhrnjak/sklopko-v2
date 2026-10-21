@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
 import { getDef } from '../../engine/registry'
 import { useCompSignature, usePinValue } from '../../app/hooks'
-import { boundsRect, compLayout, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
+import { boundsRect, compLayout, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
 import { junctions } from '../../routing/path'
 import { CompSymbol } from '../symbols'
 import { compTransform } from '../transform'
@@ -14,6 +14,7 @@ export const ComponentView = memo(function ComponentView({ comp, selected }: { c
   // Only parts that show their values need to re-render while the simulation runs.
   useCompSignature(comp.id, LIVE_CATEGORIES.has(def.category) || comp.type === 'button')
   const b = boundsRect(comp)
+  const label = labelAnchor(comp)
   return (
     <g
       className={`comp${def.interactive ? ' interactive' : ''}${selected ? ' selected' : ''}`}
@@ -25,7 +26,7 @@ export const ComponentView = memo(function ComponentView({ comp, selected }: { c
         <CompSymbol comp={comp} layout={l} live />
       </g>
       {comp.label && (
-        <text className="comp-label" x={b.x + b.w / 2} y={b.y - 8} textAnchor="middle">
+        <text className="comp-label" x={label.x} y={label.y} textAnchor="middle">
           {comp.label}
         </text>
       )}

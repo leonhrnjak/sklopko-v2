@@ -1,7 +1,8 @@
 import { CircuitBuilder } from './builder'
-import type { Circuit } from './circuit'
+import type { Circuit, Rot } from './circuit'
 
 export interface Example {
+  /** Also the URL slug: sklopko.example/<id> opens this example. */
   id: string
   name: string
   build(): Circuit
@@ -222,70 +223,114 @@ function digitalClock(): Circuit {
 }
 
 /**
- * Two-way traffic light with a pedestrian crossing. A counter steps through 16 phases; bit D says whose turn it is
- * (0 = north–south, 1 = east–west) and steps 6–7 of each half (bits C and B both 1) are yellow.
- * A pedestrian press is remembered by an SR latch until the next north–south green, when WALK lights up.
+ * Two-way traffic light with pedestrian crossings, using the Croatian/European sequence
+ * red -> red + yellow -> green -> yellow -> red. A 1 Hz clock steps a counter through 16 phases; bit D says whose
+ * turn it is (0 = north–south, 1 = east–west). Within each half: step 0 is all red (so the crossing empties),
+ * step 1 is red + yellow, steps 2–5 green, steps 6–7 yellow. Each crosswalk remembers a button press in a latch
+ * and shows WALK during the next green of the road it runs alongside.
  */
 function trafficLights(): Circuit {
   const b = new CircuitBuilder()
-  const clk = b.add('clock', 0, 40, { params: { hz: 2 }, label: '2 Hz' })
+  const clk = b.add('clock', 0, 40, { params: { hz: 1 }, label: '1 Hz' })
   const cnt = b.add('counter', 120, 20, { params: { mod: 16 } })
   const stepDisp = b.add('hexdisp', 270, 20, { label: 'Step' })
   b.wire(`${clk}.Q`, `${cnt}.CLK`)
   for (const p of ['A', 'B', 'C', 'D']) b.wire(`${cnt}.${p}`, `${stepDisp}.${p}`)
 
-  // Phase decoding.
-  const yellowTime = b.add('and', 440, 160, { label: 'yellow time' })
-  const greenTime = b.add('nand', 440, 240, { label: 'green time' })
-  const nsTurn = b.add('not', 440, 330, { label: 'N–S turn' })
+  // Phase decoding (within each half, s = bits C B A):
+  //   s 0     red time    all red (clearance)
+  //   s 1     red time    get ready: red + yellow for the road about to go
+  //   s 2-5   green time
+  //   s 6-7   yellow time
+  const redTime = b.add('nor', 420, 140, { label: 'red time' })
+  const getReady = b.add('and', 560, 110, { label: 'get ready' })
+  const yellowTime = b.add('and', 420, 240, { label: 'yellow time' })
+  const greenTime = b.add('nor', 560, 190, { label: 'green time' })
+  const yellowLamp = b.add('or', 560, 270, { label: 'yellow lamp' })
+  // Both turn signals pass through exactly one gate, so they change in step with the other decoded
+  // signals. Using D directly (no gate) would briefly glitch E–W yellow on at 7 -> 8 and wrongly clear
+  // the north crosswalk's request: a real race condition.
+  const nsTurn = b.add('not', 420, 330, { label: 'N–S turn' })
+  const ewTurn = b.add('buf', 420, 390, { label: 'E–W turn' })
+  b.wire(`${cnt}.B`, `${redTime}.A`)
+  b.wire(`${cnt}.C`, `${redTime}.B`)
+  b.wire(`${redTime}.Y`, `${getReady}.A`)
+  b.wire(`${cnt}.A`, `${getReady}.B`)
   b.wire(`${cnt}.C`, `${yellowTime}.A`)
   b.wire(`${cnt}.B`, `${yellowTime}.B`)
-  b.wire(`${cnt}.C`, `${greenTime}.A`)
-  b.wire(`${cnt}.B`, `${greenTime}.B`)
+  b.wire(`${redTime}.Y`, `${greenTime}.A`)
+  b.wire(`${yellowTime}.Y`, `${greenTime}.B`)
+  b.wire(`${yellowTime}.Y`, `${yellowLamp}.A`)
+  b.wire(`${getReady}.Y`, `${yellowLamp}.B`)
   b.wire(`${cnt}.D`, `${nsTurn}.A`)
+  b.wire(`${cnt}.D`, `${ewTurn}.A`)
 
-  // North–south light.
-  const nsRed = b.add('led', 760, 0, { label: 'N–S', params: { color: 'red' } })
-  const nsYellow = b.add('led', 760, 50, { params: { color: 'yellow' } })
-  const nsGreen = b.add('led', 760, 100, { params: { color: 'green' } })
-  const nsY = b.add('and', 640, 40)
-  const nsG = b.add('and', 640, 90)
-  b.wire(`${cnt}.D`, `${nsRed}.A`)
+  // Lamp signals: each drives the same lamp on both lights of a road.
+  // Red: the other road's turn, or red time. Yellow: own turn and yellow lamp. Green: own turn and green time.
+  const nsR = b.add('or', 700, -10, { label: 'N–S red' })
+  const nsY = b.add('and', 700, 50)
+  const nsG = b.add('and', 700, 110)
+  const ewR = b.add('or', 700, 250, { label: 'E–W red' })
+  const ewY = b.add('and', 700, 310)
+  const ewG = b.add('and', 700, 370)
+  b.wire(`${ewTurn}.Y`, `${nsR}.A`)
+  b.wire(`${redTime}.Y`, `${nsR}.B`)
   b.wire(`${nsTurn}.Y`, `${nsY}.A`)
-  b.wire(`${yellowTime}.Y`, `${nsY}.B`)
-  b.wire(`${nsY}.Y`, `${nsYellow}.A`)
+  b.wire(`${yellowLamp}.Y`, `${nsY}.B`)
   b.wire(`${nsTurn}.Y`, `${nsG}.A`)
   b.wire(`${greenTime}.Y`, `${nsG}.B`)
-  b.wire(`${nsG}.Y`, `${nsGreen}.A`)
-
-  // East–west light.
-  const ewRed = b.add('led', 760, 260, { label: 'E–W', params: { color: 'red' } })
-  const ewYellow = b.add('led', 760, 310, { params: { color: 'yellow' } })
-  const ewGreen = b.add('led', 760, 360, { params: { color: 'green' } })
-  const ewY = b.add('and', 640, 300)
-  const ewG = b.add('and', 640, 350)
-  b.wire(`${nsTurn}.Y`, `${ewRed}.A`)
-  b.wire(`${cnt}.D`, `${ewY}.A`)
-  b.wire(`${yellowTime}.Y`, `${ewY}.B`)
-  b.wire(`${ewY}.Y`, `${ewYellow}.A`)
-  b.wire(`${cnt}.D`, `${ewG}.A`)
+  b.wire(`${nsTurn}.Y`, `${ewR}.A`)
+  b.wire(`${redTime}.Y`, `${ewR}.B`)
+  b.wire(`${ewTurn}.Y`, `${ewY}.A`)
+  b.wire(`${yellowLamp}.Y`, `${ewY}.B`)
+  b.wire(`${ewTurn}.Y`, `${ewG}.A`)
   b.wire(`${greenTime}.Y`, `${ewG}.B`)
-  b.wire(`${ewG}.Y`, `${ewGreen}.A`)
 
-  // Pedestrians: the latch remembers a press until the north–south light turns yellow.
-  const request = b.add('button', 300, 470, { label: 'Pedestrian button' })
-  const latch = b.add('srlatch', 440, 460, { label: 'request' })
-  const walk = b.add('and', 640, 470)
-  const dontWalk = b.add('not', 640, 540)
-  const walkLed = b.add('led', 760, 480, { label: 'WALK', params: { color: 'green' } })
-  const stopLed = b.add('led', 760, 540, { label: "DON'T WALK", params: { color: 'red' } })
-  b.wire(`${request}.Q`, `${latch}.S`)
-  b.wire(`${nsY}.Y`, `${latch}.R`)
-  b.wire(`${latch}.Q`, `${walk}.A`)
-  b.wire(`${nsG}.Y`, `${walk}.B`)
-  b.wire(`${walk}.Y`, `${walkLed}.A`)
-  b.wire(`${walk}.Y`, `${dontWalk}.A`)
-  b.wire(`${dontWalk}.Y`, `${stopLed}.A`)
+  // The intersection, drawn like a street plan: each light lies across its road with the lenses facing the
+  // crossing. Going round the crossing every light looks the same (red, yellow, green clockwise).
+  //   N: row above, fed from the top     S: row below, fed from underneath
+  //   W: column left, fed from the left  E: column right, fed from the right
+  const cx = 1060
+  const cy = 300
+  const lamp = (x: number, y: number, rot: Rot, color: string, label?: string) =>
+    b.add('led', x, y, { params: { color }, rot, ...(label ? { label } : {}) })
+  // LED bodies are 20×20; these offsets put each lamp's centre at the given point for its rotation.
+  const north = [-40, 0, 40].map((dx, i) => lamp(cx + dx + 10, cy - 120, 1, ['red', 'yellow', 'green'][i], i === 1 ? 'N' : undefined))
+  const east = [-40, 0, 40].map((dy, i) => lamp(cx + 120, cy + dy + 10, 2, ['red', 'yellow', 'green'][i], i === 0 ? 'E' : undefined))
+  const south = [40, 0, -40].map((dx, i) => lamp(cx + dx - 10, cy + 120, 3, ['red', 'yellow', 'green'][i], i === 1 ? 'S' : undefined))
+  const west = [40, 0, -40].map((dy, i) => lamp(cx - 120, cy + dy - 10, 0, ['red', 'yellow', 'green'][i], i === 2 ? 'W' : undefined))
+  const signals = { ns: [nsR, nsY, nsG], ew: [ewR, ewY, ewG] }
+  for (const [light, sig] of [[north, signals.ns], [south, signals.ns], [west, signals.ew], [east, signals.ew]] as const)
+    light.forEach((led, i) => b.wire(`${sig[i]}.Y`, `${led}.A`))
+
+  // Two crosswalks, each with its own pole (title lamp = don't walk, green = walk, and a push button):
+  //   West crossing, across the west road: walk while north–south traffic has green (pole at the SW corner).
+  //   North crossing, across the north road: walk while east–west traffic has green (pole at the NE corner).
+  // A latch remembers a press until that road group turns yellow, so one press = one crossing.
+  // Pole lamps face left with their inputs on the right, so each crosswalk's logic sits just right of its pole.
+  const crosswalk = (name: string, px: number, py: number, green: string, turn: string) => {
+    const pole = (dy: number, color: string, label: string) =>
+      b.add('led', px + 20, py + dy + 20, { rot: 2, label, params: { color } })
+    const stop = pole(0, 'red', `${name} crossing`)
+    const go = pole(50, 'green', 'Walk')
+    const push = b.add('button', px, py + 100, { label: 'Push' })
+    const latch = b.add('srlatch', px + 80, py + 150, { label: `${name} request` })
+    const walk = b.add('and', px + 220, py + 140, { label: `${name} walk` })
+    const dontWalk = b.add('not', px + 220, py + 210)
+    // Clear the request when this road's green ends (its yellow time), not at red + yellow before it.
+    const done = b.add('and', px, py + 170, { label: 'green over' })
+    b.wire(`${turn}.Y`, `${done}.A`)
+    b.wire(`${yellowTime}.Y`, `${done}.B`)
+    b.wire(`${push}.Q`, `${latch}.S`)
+    b.wire(`${done}.Y`, `${latch}.R`)
+    b.wire(`${latch}.Q`, `${walk}.A`)
+    b.wire(`${green}.Y`, `${walk}.B`)
+    b.wire(`${walk}.Y`, `${go}.A`)
+    b.wire(`${walk}.Y`, `${dontWalk}.A`)
+    b.wire(`${dontWalk}.Y`, `${stop}.A`)
+  }
+  crosswalk('West', cx - 230, cy + 120, nsG, nsTurn)
+  crosswalk('North', cx + 190, cy - 300, ewG, ewTurn)
   return b.build()
 }
 
@@ -337,15 +382,21 @@ function dice(): Circuit {
 
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
-  { id: 'traffic', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
+  { id: 'intersection', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
   { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'gates', name: 'Basic gates', build: basicGates },
-  { id: 'sr', name: 'SR latch from NOR gates', build: srLatch },
-  { id: 'dlatch', name: 'D latch from NAND gates', build: nandDLatch },
-  { id: 'shift', name: 'Shift register (D flip-flops)', build: shiftRegister },
-  { id: 'ripple', name: 'Ripple counter (T flip-flops)', build: rippleCounter },
+  { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
+  { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },
+  { id: 'shift-register', name: 'Shift register (D flip-flops)', build: shiftRegister },
+  { id: 'ripple-counter', name: 'Ripple counter (T flip-flops)', build: rippleCounter },
   { id: 'adder', name: '4-bit adder', build: adder },
   { id: 'mux', name: '4:1 multiplexer', build: muxDemo },
-  { id: 'osc', name: 'Ring oscillator (unstable)', build: ringOscillator },
+  { id: 'oscillator', name: 'Ring oscillator (unstable)', build: ringOscillator },
 ]
+
+/** The example named by a URL path like "/intersection", if any. */
+export function exampleFromPath(pathname: string): Example | undefined {
+  const slug = decodeURIComponent(pathname.replace(/^\/+|\/+$/g, '')).toLowerCase()
+  return EXAMPLES.find((e) => e.id === slug)
+}

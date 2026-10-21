@@ -111,6 +111,17 @@ export function boundsRect(c: Comp): Rect {
   return { x, y, w: x2 - x, h: y2 - y }
 }
 
+/**
+ * Where a part's label text goes (baseline point, centred): above the part, or below it when wires come in
+ * from the top and none from the bottom, so the label doesn't sit on top of those wires.
+ */
+export function labelAnchor(c: Comp): { x: number; y: number; below: boolean } {
+  const b = boundsRect(c)
+  const pins = worldPins(c)
+  const below = pins.some((p) => p.dir.y < 0) && !pins.some((p) => p.dir.y > 0)
+  return { x: b.x + b.w / 2, y: below ? b.y + b.h + 17 : b.y - 8, below }
+}
+
 export const rectsIntersect = (a: Rect, b: Rect) =>
   a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
 

@@ -140,7 +140,7 @@ test('examples load and the welcome counter ticks', async ({ page }) => {
   // The decade counter runs at 2 Hz: the lit segments change within a second or two.
   const first = await seg.count()
   await expect.poll(async () => seg.count(), { timeout: 4000 }).not.toBe(first)
-  for (const ex of ['gates', 'sr', 'dlatch', 'shift', 'ripple', 'adder', 'mux', 'osc']) {
+  for (const ex of ['gates', 'sr-latch', 'd-latch', 'shift-register', 'ripple-counter', 'adder', 'mux', 'oscillator', 'intersection', 'dice', 'clock']) {
     await page.selectOption('select[aria-label="Load an example"]', ex)
     await expect(page.locator('.comp').first()).toBeVisible()
   }
@@ -255,4 +255,25 @@ test('switches operate on click; long-press, right-click or drag selects them in
   await expect(a).toHaveClass(/selected/)
   expect(await knob()).toContain('f1')
   expect((await a.locator('> g').boundingBox())!.y).toBeLessThan(box.y - 30)
+})
+
+test('examples have short links that open them directly', async ({ page }) => {
+  await page.goto('/intersection', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp[data-id^="led"]')).toHaveCount(16)
+  expect(new URL(page.url()).pathname).toBe('/intersection')
+
+  // Choosing an example from the menu shows its link in the address bar.
+  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await expect(page.locator('.comp[data-id^="dicedisp"]')).toHaveCount(1)
+  expect(new URL(page.url()).pathname).toBe('/dice')
+
+  // Editing leaves the example: back to the plain root, so a reload keeps the edit.
+  await page.locator('.comp').first().click({ button: 'right' })
+  await page.keyboard.press('Delete')
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/')
+
+  // Unknown paths just open the app.
+  await page.goto('/no-such-example', { waitUntil: 'networkidle' })
+  await expect(page.locator('.canvas')).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
 })

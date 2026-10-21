@@ -1,6 +1,7 @@
 import {
   GRID,
   bodyRect,
+  labelAnchor,
   findPin,
   netKey,
   worldPins,
@@ -17,6 +18,7 @@ const BEND = 6
 const CROSS = 8 // crossing another net at right angles (worth more than a bend: crossings are harder to read)
 const CLASH = 200 // overlapping / touching another net in a way that looks like a connection
 const NEAR_BODY = 0.6 // running right next to a component body
+const OVER_LABEL = 12 // running through a part's label text (allowed, e.g. to reach a top pin, but avoided)
 const MAX_EXPANSIONS = 300_000
 const MARGIN = 6 // free grid cells around everything
 
@@ -33,6 +35,8 @@ class Grid {
   h: number
   blocked: Uint8Array
   near: Uint8Array
+  /** Cells covered by part labels. */
+  label: Uint8Array
   tip: Uint8Array
   /** Net id (1-based) on the horizontal edge from cell i to i+1; -1 if several. */
   hOcc: Int32Array
@@ -60,6 +64,7 @@ class Grid {
     const n = this.w * this.h
     this.blocked = new Uint8Array(n)
     this.near = new Uint8Array(n)
+    this.label = new Uint8Array(n)
     this.tip = new Uint8Array(n)
     this.hOcc = new Int32Array(n)
     this.vOcc = new Int32Array(n)
@@ -212,6 +217,18 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
   const g = new Grid(minX, minY, maxX, maxY)
 
   for (const comp of Object.values(c.comps)) {
+    if (comp.label) {
+      // Label text is centred above or below the part (see labelAnchor): ~6.5px per character, 11px tall.
+      const a = labelAnchor(comp)
+      const half = (comp.label.length * 6.5) / 2 + 4
+      const cx = a.x
+      const rows = a.below ? [a.y - 10, a.y] : [a.y, a.y - 10]
+      for (const y of rows.map((r) => Math.round(r / GRID) * GRID))
+        for (let x = Math.floor((cx - half) / GRID) * GRID; x <= cx + half; x += GRID) {
+          const i = g.idx({ x, y })
+          if (i >= 0) g.label[i] = 1
+        }
+    }
     const r = bodyRect(comp)
     for (let y = r.y; y <= r.y + r.h; y += GRID)
       for (let x = r.x; x <= r.x + r.w; x += GRID) {
@@ -301,6 +318,7 @@ function search(g: Grid, e: Endpoints, net: number, passable?: Set<number>): Poi
         if ((h1 !== 0 && h1 !== net) || (h2 !== 0 && h2 !== net)) cost += CROSS
       }
       if (g.near[nb]) cost += NEAR_BODY
+      if (g.label[nb]) cost += OVER_LABEL
       if (d !== d0) {
         cost += BEND
         if (cell !== s && g.foreignAt(cell, net)) cost += CLASH

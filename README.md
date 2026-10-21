@@ -12,8 +12,9 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-`npm run build` writes a static site to `dist/` that works from any web server or sub-path (GitHub Pages,
-Netlify, `python3 -m http.server`). There is no backend.
+`npm run build` writes a static site to `dist/`, served from the site root. There is no backend. Example links
+such as `/intersection` need the host to answer unknown paths with `index.html`; Cloudflare Pages does that
+automatically (as long as there is no `404.html`), and so do `npm run dev` and `npm run preview`.
 
 ## Deploy (Cloudflare Pages)
 
@@ -41,6 +42,8 @@ security headers.
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
 - **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
+- **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
+  shows its link in the address bar, and Share copies it while the example is unedited.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
   H fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom.
 
