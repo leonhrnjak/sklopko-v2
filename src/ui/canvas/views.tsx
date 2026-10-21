@@ -33,7 +33,7 @@ export const ComponentView = memo(function ComponentView({ comp, selected }: { c
   )
 })
 
-export const PinsView = memo(function PinsView({ comp }: { comp: Comp }) {
+export const PinsView = memo(function PinsView({ comp, r }: { comp: Comp; r: number }) {
   return (
     <>
       {worldPins(comp).map((p) => (
@@ -42,7 +42,7 @@ export const PinsView = memo(function PinsView({ comp }: { comp: Comp }) {
           className="pin"
           cx={p.pos.x}
           cy={p.pos.y}
-          r={4}
+          r={r}
           data-kind="pin"
           data-comp={comp.id}
           data-pin={p.def.name}

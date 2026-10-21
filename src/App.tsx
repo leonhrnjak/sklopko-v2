@@ -3,6 +3,7 @@ import { Canvas } from './ui/canvas/Canvas'
 import { fitView } from './ui/canvas/viewport'
 import { Inspector } from './ui/Inspector'
 import { Palette } from './ui/Palette'
+import { SelectionBar } from './ui/SelectionBar'
 import { StatusBar, Toolbar } from './ui/Toolbar'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <div className="stage">
           <Canvas />
           <StatusBar />
+          <SelectionBar />
         </div>
         <Inspector />
       </main>

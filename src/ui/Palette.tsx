@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
 import { layoutOf } from '../engine/simulator'
@@ -33,10 +33,81 @@ const Thumb = memo(function Thumb({ def }: { def: ComponentDef }) {
   )
 })
 
+const WIDTH_KEY = 'sklopko.paletteWidth'
+const DEFAULT_WIDTH = 216
+const MIN_WIDTH = 170
+const MAX_WIDTH = 460
+
+function savedWidth() {
+  try {
+    const w = Number(localStorage.getItem(WIDTH_KEY))
+    if (w >= MIN_WIDTH && w <= MAX_WIDTH) return w
+  } catch {
+    // Storage unavailable: use the default.
+  }
+  return DEFAULT_WIDTH
+}
+
+function applyWidth(w: number) {
+  document.documentElement.style.setProperty('--palette-w', `${w}px`)
+}
+
+applyWidth(savedWidth())
+
+/** Drag handle on the palette's right edge (desktop only). Double-click resets the width. */
+function Resizer() {
+  const start = useRef<{ x: number; w: number } | null>(null)
+  const onDown = (e: RPointerEvent) => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    start.current = { x: e.clientX, w: savedWidthNow() }
+  }
+  const onMove = (e: RPointerEvent) => {
+    if (!start.current) return
+    const w = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, start.current.w + e.clientX - start.current.x))
+    applyWidth(w)
+  }
+  const onUp = () => {
+    if (!start.current) return
+    start.current = null
+    try {
+      localStorage.setItem(WIDTH_KEY, String(savedWidthNow()))
+    } catch {
+      // Not persisted; fine.
+    }
+  }
+  return (
+    <div
+      className="palette-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize parts panel"
+      title="Drag to resize · double-click to reset"
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onDoubleClick={() => {
+        applyWidth(DEFAULT_WIDTH)
+        try {
+          localStorage.removeItem(WIDTH_KEY)
+        } catch {
+          // ignore
+        }
+      }}
+    />
+  )
+}
+
+function savedWidthNow() {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--palette-w')) || DEFAULT_WIDTH
+}
+
 export function Palette() {
   const placing = useStore((s) => s.placing)
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const lastPointer = useRef('mouse')
   const q = query.trim().toLowerCase()
 
   return (
@@ -76,9 +147,16 @@ export function Palette() {
                       title={`${d.name}: ${d.description}`}
                       data-type={d.type}
                       onPointerDown={(e) => {
-                        if (e.button !== 0) return
+                        lastPointer.current = e.pointerType
+                        // Touch: let the list scroll; a tap (click) selects the part instead.
+                        if (e.pointerType !== 'mouse' || e.button !== 0) return
                         e.preventDefault()
                         Object.assign(paletteDrag, { active: true, moved: false, x: e.clientX, y: e.clientY })
+                        setPlacing(placing === d.type ? null : d.type)
+                      }}
+                      onClick={(e) => {
+                        // Taps and keyboard activation; mouse presses were handled on pointerdown.
+                        if (lastPointer.current === 'mouse' && e.detail !== 0) return
                         setPlacing(placing === d.type ? null : d.type)
                       }}
                     >
@@ -92,6 +170,7 @@ export function Palette() {
           )
         })}
       </div>
+      <Resizer />
     </aside>
   )
 }

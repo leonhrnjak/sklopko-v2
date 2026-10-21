@@ -17,7 +17,7 @@ import {
   type Rot,
   type Wire,
 } from '../model/circuit'
-import { pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
+import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
 import { sim } from './sim'
 
@@ -42,6 +42,8 @@ interface State {
   /** Part chosen in the palette and waiting to be dropped on the canvas. */
   placing: string | null
   toast: string | null
+  /** On small screens the inspector is a bottom sheet that the user opens explicitly. */
+  sheetOpen: boolean
 }
 
 export const useStore = create<State>(() => ({
@@ -55,6 +57,7 @@ export const useStore = create<State>(() => ({
   view: { x: 40, y: 40, zoom: 1 },
   placing: null,
   toast: null,
+  sheetOpen: false,
 }))
 
 const get = useStore.getState
@@ -67,10 +70,17 @@ export function checkpoint() {
   set({ past: [...past.slice(-HISTORY + 1), circuit], future: [] })
 }
 
-/** Apply a change to the circuit. `structural` triggers a simulator recompile. */
-function edit(fn: (c: Circuit) => void, structural = true) {
+/**
+ * Apply a change to the circuit. `structural` triggers a simulator recompile; so does `fn` returning true
+ * (for changes that only sometimes alter the netlist, like auto-connecting touching pins).
+ */
+function edit(fn: (c: Circuit) => boolean | void, structural = true) {
   const s = get()
-  set({ circuit: produce(s.circuit, fn), structVersion: s.structVersion + (structural ? 1 : 0) })
+  let changedNets = false
+  const circuit = produce(s.circuit, (d) => {
+    changedNets = fn(d) === true
+  })
+  set({ circuit, structVersion: s.structVersion + (structural || changedNets ? 1 : 0) })
 }
 
 export function undo() {
@@ -136,6 +146,7 @@ export function addComp(type: string, x: number, y: number): string {
     c.comps[id] = { id, type, x: snap(x), y: snap(y), rot: 0, flip: false, params: paramDefaults(getDef(type)) }
     // Wires the new part was dropped onto get out of its way.
     rerouteAround(c, [id])
+    autoConnect(c, [id])
   })
   set({ selection: [id] })
   return id
@@ -154,6 +165,7 @@ export function moveComps(ids: string[], d: Point, final: boolean) {
         k.y += d.y
       }
     updateWiresAfterMove(c, moved, d, final)
+    if (final) return autoConnect(c, ids)
   }, false)
 }
 
@@ -178,6 +190,7 @@ function transformSelection(fn: (k: Comp) => void) {
   edit((c) => {
     for (const id of ids) fn(c.comps[id])
     rerouteAround(c, ids)
+    return autoConnect(c, ids)
   }, false)
 }
 
@@ -336,6 +349,7 @@ export function paste() {
         path: w.path.map((p) => ({ x: p.x + off, y: p.y + off })),
       }
     }
+    autoConnect(c, [...map.values()])
   })
   set({ selection: newIds })
 }
@@ -348,3 +362,4 @@ export const setRunning = (running: boolean) => set({ running })
 export const setSpeed = (speed: number) => set({ speed })
 export const setView = (view: View) => set({ view })
 export const setPlacing = (placing: string | null) => set({ placing })
+export const setSheetOpen = (sheetOpen: boolean) => set({ sheetOpen })

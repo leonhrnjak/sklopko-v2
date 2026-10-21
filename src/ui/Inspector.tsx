@@ -6,10 +6,16 @@ import {
   rotateSelection,
   setLabel,
   setParam,
+  setSheetOpen,
   useStore,
 } from '../app/store'
 import { getDef } from '../engine/registry'
 import type { Comp, Wire } from '../model/circuit'
+
+function deleteAndClose() {
+  deleteSelection()
+  setSheetOpen(false)
+}
 
 function CompInspector({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
@@ -82,7 +88,7 @@ function CompInspector({ comp }: { comp: Comp }) {
         <button onClick={flipSelection} title="Flip (F)">
           ⇋ Flip
         </button>
-        <button className="danger" onClick={deleteSelection} title="Delete (Del)">
+        <button className="danger" onClick={deleteAndClose} title="Delete (Del)">
           Delete
         </button>
       </div>
@@ -102,7 +108,7 @@ function WireInspector({ wire }: { wire: Wire }) {
         <button onClick={() => resetWireRoute(wire.id)} disabled={!wire.manual} title="Double-click the wire">
           Auto-route
         </button>
-        <button className="danger" onClick={deleteSelection}>
+        <button className="danger" onClick={deleteAndClose}>
           Delete
         </button>
       </div>
@@ -130,6 +136,10 @@ function Help() {
         <li>
           <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll or pinch to zoom, H to fit.
         </li>
+        <li>
+          <b>Touch screens:</b> tap a part in the list, then tap the canvas to place it. Drag empty canvas with one
+          finger to pan, pinch to zoom. Selecting something shows Rotate, Delete and Edit buttons.
+        </li>
       </ul>
       <h3>Shortcuts</h3>
       <dl className="keys">
@@ -155,6 +165,7 @@ function Help() {
 }
 
 export function Inspector() {
+  const sheetOpen = useStore((s) => s.sheetOpen)
   const selection = useStore((s) => s.selection)
   const circuit = useStore((s) => s.circuit)
   let content
@@ -170,12 +181,19 @@ export function Inspector() {
         <h2>{selection.length} selected</h2>
         <div className="row">
           <button onClick={rotateSelection}>⟳ Rotate</button>
-          <button className="danger" onClick={deleteSelection}>
+          <button className="danger" onClick={deleteAndClose}>
             Delete
           </button>
         </div>
       </>
     )
   else content = <Help />
-  return <aside className="inspector">{content}</aside>
+  return (
+    <aside className={`inspector${sheetOpen ? ' open' : ''}`}>
+      <button className="sheet-close" onClick={() => setSheetOpen(false)} aria-label="Close">
+        ✕
+      </button>
+      {content}
+    </aside>
+  )
 }

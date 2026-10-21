@@ -42,8 +42,7 @@ async function clickComp(page: Page, id: string) {
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 }
 
-const ledOn = (page: Page, id: string) =>
-  page.locator(`.comp[data-id="${id}"] circle.led`).getAttribute('fill-opacity').then((v) => v === '1')
+const ledOn = (page: Page, id: string) => page.locator(`.comp[data-id="${id}"] .led-fill.on`).count().then((n) => n === 1)
 
 test('build an AND circuit by drag and drop, then operate it', async ({ page }) => {
   await freshEmpty(page)
@@ -161,4 +160,51 @@ test('4-bit input cycles on click and the push button resets the counter while h
   await page.waitForTimeout(1200) // held through several clock edges
   expect(await seg.count()).toBe(6)
   await page.mouse.up()
+})
+
+test('dropping a part so its pin touches another pin connects them; moving it away keeps the wire', async ({ page }) => {
+  await freshEmpty(page)
+  const g = await place(page, 'and', 200, 200)
+  const n = await place(page, 'not', 420, 340)
+  await expect(page.locator('.wire-group')).toHaveCount(0)
+
+  // Drag the NOT so its input tip lands on the AND's output tip.
+  const from = await pinCenter(page, n, 'A')
+  const to = await pinCenter(page, g, 'Y')
+  const body = (await page.locator(`.comp[data-id="${n}"] > g`).boundingBox())!
+  const sx = body.x + body.width / 2
+  const sy = body.y + body.height / 2
+  await page.mouse.move(sx, sy)
+  await page.mouse.down()
+  await page.mouse.move(sx + to.x - from.x, sy + to.y - from.y, { steps: 10 })
+  await page.mouse.up()
+  await expect(page.locator('.wire-group')).toHaveCount(1)
+
+  // Pull it away: the connection stays, now as a routed wire.
+  const b2 = (await page.locator(`.comp[data-id="${n}"] > g`).boundingBox())!
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(b2.x + b2.width / 2 + 90, b2.y + b2.height / 2 + 120, { steps: 10 })
+  await page.mouse.up()
+  await expect(page.locator('.wire-group')).toHaveCount(1)
+  const d = (await page.locator('path.wire').getAttribute('d'))!
+  expect(d.split('L').length).toBeGreaterThan(2)
+})
+
+test('the parts panel never scrolls sideways and can be resized', async ({ page }) => {
+  await fresh(page)
+  const overflow = () => page.locator('.palette-scroll').evaluate((e) => e.scrollWidth - e.clientWidth)
+  expect(await overflow()).toBe(0)
+  const panel = page.locator('.palette')
+  const before = (await panel.boundingBox())!.width
+  const handle = (await page.locator('.palette-resizer').boundingBox())!
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + 200)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 120, handle.y + 200, { steps: 6 })
+  await page.mouse.up()
+  expect((await panel.boundingBox())!.width).toBeGreaterThan(before + 100)
+  expect(await overflow()).toBe(0)
+  // Wider panel -> more columns.
+  const cols = await page.locator('.palette-grid').first().evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length)
+  expect(cols).toBeGreaterThanOrEqual(3)
 })

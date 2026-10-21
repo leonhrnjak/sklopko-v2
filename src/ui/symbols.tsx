@@ -327,20 +327,38 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       break
     }
     case 'led': {
+      // Side view of a 5mm LED: the pin is its leg, then the rim, then the domed lens pointing right.
       const v = val('A')
-      const color = LED_COLORS[String(p.color)] ?? LED_COLORS.green
+      const key = String(p.color) in LED_COLORS ? String(p.color) : 'green'
+      const color = LED_COLORS[key]
+      const on = v === 1
+      const lens = 'M5,3.5 H12 A6.5,6.5 0 0 1 12,16.5 H5 Z'
       content = (
         <>
-          <Stub pin={l.pins[0]} inner={{ x: 0, y: 10 }} />
-          {v === 1 && <circle cx={10} cy={10} r={14} fill={color} opacity={0.25} />}
-          <circle
-            cx={10}
-            cy={10}
-            r={10}
-            className={`led ${v === X ? 'led-x' : ''}`}
-            fill={color}
-            fillOpacity={v === 1 ? 1 : 0.16}
-          />
+          <defs>
+            <linearGradient id={`led-lens-${key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#fff" stopOpacity={0.9} />
+              <stop offset="0.3" stopColor={color} />
+              <stop offset="1" stopColor={color} />
+            </linearGradient>
+            <radialGradient id={`led-glow-${key}`}>
+              <stop offset="0" stopColor={color} stopOpacity={0.75} />
+              <stop offset="0.5" stopColor={color} stopOpacity={0.25} />
+              <stop offset="1" stopColor={color} stopOpacity={0} />
+            </radialGradient>
+          </defs>
+          <Stub pin={l.pins[0]} inner={{ x: 1, y: 10 }} />
+          {on && <circle className="led-glow" cx={12} cy={10} r={19} fill={`url(#led-glow-${key})`} />}
+          <g className={`led-fill${on ? ' on' : ''}`}>
+            <rect x={1} y={1.5} width={4} height={17} rx={1.5} fill={color} />
+            <path d={lens} fill={`url(#led-lens-${key})`} />
+          </g>
+          {on && <ellipse cx={12.5} cy={10} rx={3.2} ry={2.6} fill="#fff" opacity={0.65} />}
+          <g className={`led-outline${v === X ? ' led-x' : ''}`}>
+            <rect x={1} y={1.5} width={4} height={17} rx={1.5} />
+            <path d={lens} />
+          </g>
+          <path className="led-shine" d="M7,6.3 H12.5" />
         </>
       )
       break

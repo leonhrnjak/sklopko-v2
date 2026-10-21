@@ -391,7 +391,9 @@ export function routeWires(c: Circuit, ids: string[], improve = true): Record<st
   const g = gridWithout()
   for (const id of order) {
     const net = netOf(c.wires[id])
-    const path = search(g, ends.get(id)!, net) ?? fallbackPath(ends.get(id)!)
+    const e = ends.get(id)!
+    const touching = e.from.x === e.to.x && e.from.y === e.to.y
+    const path = touching ? [{ ...e.from }, { ...e.to }] : (search(g, e, net) ?? fallbackPath(e))
     paths.set(id, path)
     g.addPath(path, net)
   }

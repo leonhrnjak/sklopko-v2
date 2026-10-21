@@ -20,6 +20,7 @@ import {
   selectAll,
   selectInRect,
   setPlacing,
+  setSheetOpen,
   setView,
   setWirePath,
   undo,
@@ -46,7 +47,10 @@ import { compTransform } from '../transform'
 import { fitView, registerCanvas } from './viewport'
 
 type Op =
-  | { k: 'pan'; cx: number; cy: number; vx: number; vy: number }
+  /** Pan the view. `place` = drop the part being placed here if this turns out to be a tap. */
+  | { k: 'pan'; cx: number; cy: number; vx: number; vy: number; moved: boolean; place?: Point }
+  /** Two-finger pinch: zoom around the midpoint and pan with it. */
+  | { k: 'pinch'; d0: number; zoom0: number; anchor: Point }
   | { k: 'marquee'; start: Point; add: boolean }
   | {
       k: 'move'
@@ -63,6 +67,8 @@ type Op =
     }
   | {
       k: 'wire'
+      /** Component whose pin was pressed; a tap without dragging selects it. */
+      tapComp: string
       from: PinRef
       pos: Point
       dir: Point
@@ -75,6 +81,10 @@ type Op =
   | { k: 'segment'; id: string; drag: SegmentDrag | null; seg: number; moved: boolean; cx: number; cy: number }
 
 const DRAG_THRESHOLD = 4
+const TOUCH_THRESHOLD = 8
+
+/** Phones and tablets: bigger pin targets and finger-friendly gestures. */
+const coarsePointer = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 function nearestPin(c: Circuit, at: Point, want: 'in' | 'out', exclude: PinRef, radius: number) {
   let best: { ref: PinRef; pos: Point } | null = null
@@ -124,6 +134,11 @@ export function Canvas() {
   const [spaceDown, setSpaceDown] = useState(false)
   const [panning, setPanning] = useState(false)
   const selSet = new Set(selection)
+  /** Active pointers (client coordinates), for pinch detection. */
+  const pointers = useRef(new Map<number, Point>())
+  const touchOp = useRef(false)
+  const slop = () => (touchOp.current ? TOUCH_THRESHOLD : DRAG_THRESHOLD)
+  const pinRadius = (zoom: number) => Math.max(12, (touchOp.current ? 28 : 16) / zoom)
 
   useEffect(() => registerCanvas(ref.current), [])
 
@@ -238,29 +253,65 @@ export function Canvas() {
 
   // ---- Pointer interactions ---------------------------------------------------------------------
 
+  /** Finish whatever a first finger started when a second finger lands. */
+  const abortOp = () => {
+    const o = op.current
+    op.current = null
+    if (!o) return
+    if (o.k === 'move') {
+      if (o.pressed) sim.setState(o.clickId, { pressed: false })
+      if (o.moved) moveComps(o.ids, { x: 0, y: 0 }, true)
+    } else if (o.k === 'wire') {
+      setWirePreview(null)
+      setHiddenWire(null)
+    } else if (o.k === 'segment' && o.moved) {
+      const wire = useStore.getState().circuit.wires[o.id]
+      if (wire) setWirePath(o.id, wire.path, true)
+    } else if (o.k === 'marquee') setMarquee(null)
+    setPanning(false)
+  }
+
+  const pinchState = () => {
+    const [a, b] = [...pointers.current.values()]
+    const r = ref.current!.getBoundingClientRect()
+    return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2 - r.left, my: (a.y + b.y) / 2 - r.top }
+  }
+
   const onPointerDown = (e: RPointerEvent<SVGSVGElement>) => {
     const svg = ref.current!
     const w = toWorld(e.clientX, e.clientY)
     const s = useStore.getState()
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    svg.setPointerCapture(e.pointerId)
 
+    if (pointers.current.size === 2) {
+      abortOp()
+      const { d, mx, my } = pinchState()
+      const v = useStore.getState().view
+      op.current = { k: 'pinch', d0: Math.max(d, 1), zoom0: v.zoom, anchor: { x: (mx - v.x) / v.zoom, y: (my - v.y) / v.zoom } }
+      return
+    }
+    if (pointers.current.size > 2) return
+    touchOp.current = e.pointerType !== 'mouse'
+
+    const startPan = (place?: Point) => {
+      op.current = { k: 'pan', cx: e.clientX, cy: e.clientY, vx: s.view.x, vy: s.view.y, moved: false, place }
+    }
     if (e.button === 1 || (e.button === 0 && spaceDown)) {
-      op.current = { k: 'pan', cx: e.clientX, cy: e.clientY, vx: s.view.x, vy: s.view.y }
+      startPan()
       setPanning(true)
-      svg.setPointerCapture(e.pointerId)
       return
     }
     if (e.button !== 0) return
 
     if (s.placing) {
-      const o = ghostOrigin(s.placing, w)
-      addComp(s.placing, o.x, o.y)
-      if (!e.shiftKey) setPlacing(null)
+      // Placed on release, so a drag can still pan the view first.
+      startPan(w)
       return
     }
 
     const target = (e.target as Element).closest<SVGElement>('[data-kind]')
     const kind = target?.dataset.kind
-    svg.setPointerCapture(e.pointerId)
 
     if (kind === 'pin') {
       const comp = target!.dataset.comp!
@@ -274,6 +325,7 @@ export function Canvas() {
       const wp = worldPins(c.comps[fromRef.comp]).find((p) => p.def.name === fromRef.pin)!
       op.current = {
         k: 'wire',
+        tapComp: comp,
         from: fromRef,
         pos: wp.pos,
         dir: wp.dir,
@@ -323,17 +375,30 @@ export function Canvas() {
     }
 
     if (!e.shiftKey) select([])
-    op.current = { k: 'marquee', start: w, add: e.shiftKey }
+    setSheetOpen(false)
+    // Fingers pan the empty canvas; the mouse draws a selection rectangle.
+    if (touchOp.current) startPan()
+    else op.current = { k: 'marquee', start: w, add: e.shiftKey }
   }
 
   const onPointerMove = (e: RPointerEvent<SVGSVGElement>) => {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const o = op.current
     if (!o) return
     const w = toWorld(e.clientX, e.clientY)
-    const far = (cx: number, cy: number) => Math.hypot(e.clientX - cx, e.clientY - cy) > DRAG_THRESHOLD
+    const far = (cx: number, cy: number) => Math.hypot(e.clientX - cx, e.clientY - cy) > slop()
 
     switch (o.k) {
+      case 'pinch': {
+        if (pointers.current.size < 2) return
+        const { d, mx, my } = pinchState()
+        const zoom = Math.min(3, Math.max(0.25, (o.zoom0 * d) / o.d0))
+        setView({ zoom, x: mx - o.anchor.x * zoom, y: my - o.anchor.y * zoom })
+        break
+      }
       case 'pan':
+        if (!o.moved && !far(o.cx, o.cy)) return
+        o.moved = true
         setView({ ...useStore.getState().view, x: o.vx + e.clientX - o.cx, y: o.vy + e.clientY - o.cy })
         break
       case 'marquee':
@@ -366,7 +431,7 @@ export function Canvas() {
         }
         const c = useStore.getState().circuit
         const zoom = useStore.getState().view.zoom
-        const t = nearestPin(c, w, o.want, o.from, Math.max(12, 16 / zoom))
+        const t = nearestPin(c, w, o.want, o.from, pinRadius(zoom))
         setWirePreview({ path: previewPath(c, o, w, t?.ref ?? null), target: t?.pos ?? null, want: o.want })
         break
       }
@@ -387,14 +452,27 @@ export function Canvas() {
   }
 
   const onPointerUp = (e: RPointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId)
     const o = op.current
+    if (o?.k === 'pinch') {
+      // Lifting one finger ends the pinch; the remaining finger does nothing until lifted.
+      if (!pointers.current.size) op.current = null
+      return
+    }
     op.current = null
     if (!o) return
     const w = toWorld(e.clientX, e.clientY)
     switch (o.k) {
-      case 'pan':
+      case 'pan': {
         setPanning(false)
+        const placing = useStore.getState().placing
+        if (o.place && !o.moved && placing && e.type === 'pointerup') {
+          const at = ghostOrigin(placing, o.place)
+          addComp(placing, at.x, at.y)
+          if (!e.shiftKey) setPlacing(null)
+        }
         break
+      }
       case 'marquee':
         if (marquee && (marquee.w > 3 || marquee.h > 3)) selectInRect(marquee, o.add)
         setMarquee(null)
@@ -412,9 +490,16 @@ export function Canvas() {
       case 'wire': {
         setWirePreview(null)
         setHiddenWire(null)
-        if (!o.moved) break
+        if (!o.moved) {
+          // A tap on a pin (fingers easily land on one) means the part itself.
+          const def = getDef(useStore.getState().circuit.comps[o.tapComp]?.type ?? 'and')
+          select([o.tapComp])
+          if (e.type === 'pointerup' && (def.interactive === 'toggle' || def.interactive === 'cycle'))
+            interact(o.tapComp, e.shiftKey)
+          break
+        }
         const s = useStore.getState()
-        const t = nearestPin(s.circuit, w, o.want, o.from, Math.max(12, 16 / s.view.zoom))
+        const t = nearestPin(s.circuit, w, o.want, o.from, pinRadius(s.view.zoom))
         if (t) connect(o.from, t.ref, o.replacing)
         else if (o.replacing) deleteWire(o.replacing)
         break
@@ -441,7 +526,7 @@ export function Canvas() {
   return (
     <svg
       ref={ref}
-      className={`canvas${wiring}${spaceDown ? ' space' : ''}${panning ? ' panning' : ''}${placing ? ' placing' : ''}`}
+      className={`canvas${coarsePointer ? ' coarse' : ''}${wiring}${spaceDown ? ' space' : ''}${panning ? ' panning' : ''}${placing ? ' placing' : ''}`}
       style={{
         backgroundSize: `${gridSize}px ${gridSize}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
@@ -468,7 +553,7 @@ export function Canvas() {
         <Junctions wires={circuit.wires} />
         <g className="layer-pins">
           {comps.map((c) => (
-            <PinsView key={c.id} comp={c} />
+            <PinsView key={c.id} comp={c} r={coarsePointer ? 10 : 4} />
           ))}
         </g>
         {wirePreview && (

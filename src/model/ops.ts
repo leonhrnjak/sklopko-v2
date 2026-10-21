@@ -1,6 +1,6 @@
 import { routeWires, wireEndpoints } from '../routing/router'
 import { adjustEnds } from '../routing/path'
-import { bodyRect, findPin, type Circuit, type Point, type Rect, type Wire } from './circuit'
+import { bodyRect, findPin, newId, worldPins, type Circuit, type PinRef, type Point, type Rect, type Wire } from './circuit'
 
 /** True if any segment of the path passes through the interior of the rectangle. */
 export function pathHitsRect(path: Point[], r: Rect): boolean {
@@ -86,4 +86,40 @@ export function pruneWires(c: Circuit) {
     const tp = tc && findPin(tc, w.to.pin)
     if (!fp || !tp || fp.def.dir !== 'out' || tp.def.dir !== 'in') delete c.wires[w.id]
   }
+}
+
+/**
+ * Connect pins of the given components that sit exactly on another part's pin of the opposite direction
+ * (an output tip touching an input tip). The wire starts with zero length; moving a part away routes it
+ * like any other wire. Inputs that already have a wire are left alone. Returns true if wires were added.
+ */
+export function autoConnect(c: Circuit, ids: string[]): boolean {
+  const at = new Map<string, (PinRef & { dir: 'in' | 'out' })[]>()
+  const key = (p: Point) => `${p.x},${p.y}`
+  for (const k of Object.values(c.comps))
+    for (const p of worldPins(k)) {
+      const list = at.get(key(p.pos)) ?? []
+      list.push({ comp: k.id, pin: p.def.name, dir: p.def.dir })
+      at.set(key(p.pos), list)
+    }
+  const fed = new Set(Object.values(c.wires).map((w) => `${w.to.comp}:${w.to.pin}`))
+  let added = false
+  for (const id of ids) {
+    const k = c.comps[id]
+    if (!k) continue
+    for (const p of worldPins(k)) {
+      for (const o of at.get(key(p.pos)) ?? []) {
+        if (o.comp === id || o.dir === p.def.dir) continue
+        const mine = { comp: id, pin: p.def.name }
+        const other = { comp: o.comp, pin: o.pin }
+        const [from, to] = p.def.dir === 'out' ? [mine, other] : [other, mine]
+        if (fed.has(`${to.comp}:${to.pin}`)) continue
+        const wid = newId('w')
+        c.wires[wid] = { id: wid, from, to, path: [{ ...p.pos }, { ...p.pos }] }
+        fed.add(`${to.comp}:${to.pin}`)
+        added = true
+      }
+    }
+  }
+  return added
 }

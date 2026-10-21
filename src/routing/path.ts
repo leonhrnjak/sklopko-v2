@@ -37,6 +37,8 @@ export const dirOf = (a: Point, b: Point): Point => ({ x: Math.sign(b.x - a.x), 
  * and enters the target pin from outside.
  */
 export function validPath(path: Point[], from: Point, fromDir: Point, to: Point, toDir: Point): boolean {
+  // Touching pins: a zero-length wire.
+  if (same(from, to)) return path.length === 2 && same(path[0], from) && same(path[1], to)
   if (path.length < 2 || !same(path[0], from) || !same(path[path.length - 1], to)) return false
   if (!isOrthogonal(path)) return false
   const first = dirOf(path[0], path[1])
