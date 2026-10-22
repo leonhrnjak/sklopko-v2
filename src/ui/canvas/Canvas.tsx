@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as RPointerEvent } from 'react'
 import { getDef } from '../../engine/registry'
 import { sim } from '../../app/sim'
 import {
@@ -42,8 +42,10 @@ import {
 import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from '../../routing/path'
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
+import { useTraceOptions } from '../../app/trace'
 import { isLabel, labelsNamed } from '../../model/labels'
-import { ComponentView, GhostWire, Junctions, PinsView, WireView, HopArcs } from './views'
+import { traceCone, traceNet } from '../../model/trace'
+import { ComponentView, GhostWire, Junctions, PinsView, TraceRings, WireView, HopArcs } from './views'
 import { paletteDrag } from '../paletteDrag'
 import { compTransform } from '../transform'
 import { fitView, registerCanvas } from './viewport'
@@ -149,6 +151,14 @@ export function Canvas() {
   const [spaceDown, setSpaceDown] = useState(false)
   const [panning, setPanning] = useState(false)
   const selSet = new Set(selection)
+  // With one wire selected, trace its signal (and, if asked, the logic that feeds it).
+  const showCone = useTraceOptions((s) => s.cone)
+  const traced = useMemo(() => {
+    const wire = selection.length === 1 ? circuit.wires[selection[0]] : undefined
+    if (!wire) return null
+    const net = traceNet(circuit, wire.id)
+    return { net, cone: showCone ? traceCone(circuit, wire.id) : new Set<string>() }
+  }, [circuit, selection, showCone])
   // With one net label selected, outline the other labels that share its name.
   const related = new Set<string>()
   const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
@@ -599,7 +609,7 @@ export function Canvas() {
       <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
-            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} />,
+            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : undefined} />,
           )}
         </g>
         <g className="layer-hops">
@@ -610,6 +620,11 @@ export function Canvas() {
             <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} related={related.has(c.id)} />
           ))}
         </g>
+        {traced && (
+          <g className="layer-trace">
+            <TraceRings circuit={circuit} pins={traced.net.pins} source={traced.net.source ? `${traced.net.source.comp}:${traced.net.source.pin}` : null} />
+          </g>
+        )}
         <Junctions wires={circuit.wires} />
         <g className="layer-pins">
           {comps.map((c) => (

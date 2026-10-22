@@ -449,6 +449,26 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'breakpoint': {
+      const n = Number(p.width)
+      const equals = p.when !== 'changes'
+      const met = live && equals && toNum(ins(), 0, n) === Number(p.value)
+      content =
+        n === 1 ? (
+          <>
+            <Stub pin={l.pins[0]} inner={{ x: 0, y: 10 }} />
+            <polygon className={`break-body${met ? ' met' : ''}`} points="6,0 44,0 50,6 50,14 44,20 6,20 0,14 0,6" />
+            <Txt x={25} y={10.5} className="break-text">
+              {equals ? `STOP=${String(p.value).slice(0, 3)}` : 'STOP Δ'}
+            </Txt>
+          </>
+        ) : (
+          <g className={`break-box${met ? ' met' : ''}`}>
+            <BoxSym l={l} title={def.title!(p)} />
+          </g>
+        )
+      break
+    }
     case 'const': {
       const one = Number(p.value) === 1
       content = (

@@ -95,14 +95,35 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-12).
 
 ## Milestone 3: Debugging tools (medium)
-- [ ] **Pause on condition**: "break when" rules on a signal (`= 1`, rising edge, equals value for a group). Typical
-      use: pause at HALT, or when the output port changes.
-- [ ] **Step back**: the simulator keeps ring-buffered snapshots (state + values) per clock cycle; "Back" restores one.
-- [ ] **Grouped probes**: select several probes and group them as one trace that shows a number (hex/decimal toggle) in
-      the waveform panel.
-- [ ] **Trace a signal**: click a wire to highlight its source and every pin it feeds (and optionally its fan-in cone).
-- [ ] **Export waveforms** as PNG and as VCD.
-- Tests: break rules trigger on the exact tick; back-then-forward reproduces the same values; VCD output is valid.
+- [x] **Pause on condition.** A new *Breakpoint* part (1, 4, 8 or 16 bits, wired like a probe) pauses the simulation at
+      the exact clock edge where its signal becomes equal to a value, or changes. Done as a part, not a separate rule
+      list, so it is saved, labelled, copied and deleted like everything else. It fires only when the condition
+      *starts* to hold (Run carries on afterwards), the first look is only a baseline, and unknown inputs never fire
+      it. `sample()` may now return true to ask for a stop; `Simulator.takeBreak()` hands it over, and the run loop
+      pauses and says which breakpoint it was. `/computer` has one on HALT.
+- [x] **Step back.** *◀ Back* goes to the previous clock edge: nets, every part's state (memories, counters, clocks),
+      the time and the probes' recordings (probes trim themselves via the new `rewind` hook instead of being
+      copied). A snapshot per edge, 1000 kept; changes since the last edge (time passing, a switch, a RAM edit) are
+      undone first; after Back, running forward again replaces the history from that point. It pauses a running
+      simulation. Cleared by Reset and by editing the circuit (a new netlist can't be restored into).
+- [x] **Grouped probes.** A probe has an optional *group* and a *bit*; probes with the same group are one trace in the
+      waveform panel, drawn as a bus with the number written in each segment (hex / decimal / binary toggle).
+      Selecting several probes offers *Group N probes* (bits follow the natural order of their labels) and *Ungroup*;
+      a probe warns when another in its group uses the same bit. `/computer` now has four rows (CLK, PC, ACC, Carry)
+      instead of fourteen.
+- [x] **Trace a signal.** Selecting a wire highlights its whole signal (also across net labels) with rings on every pin
+      it reaches; *Also show what feeds it* adds the cone behind the source: through purely combinational parts, up to
+      the nearest registers, memories, clocks and inputs, capped at 400 wires.
+- [x] **Export waveforms** as PNG (the window as it is on screen) and VCD (everything recorded; groups become buses;
+      microsecond timescale; opens in GTKWave and others).
+- Not done: breakpoints on a *group* of probes (a multi-bit breakpoint is wired bit by bit instead), a "Forward"
+  button (Clock step goes forward and reproduces the same history), and breakpoints on a source line or on
+  an instruction (the part watches signals only; the computer's HALT is one such signal).
+- Tests: stepping back (every edge reproduced exactly, the limits, the history cap, moved-since-the-edge cases),
+  breakpoints (every condition, exact stop time, resume, X, step back, reset), group traces and number formats, VCD
+  output, net and cone tracing (labels, feedback, the cap), grouping in the store, the computer's groups and HALT
+  breakpoint, and e2e for Back, breakpoints, grouping, tracing and both exports.
+- **Status: done** (v0.0.1-13).
 
 ## Milestone 4: Annotations, export and embed (small–medium)
 - [ ] **Text notes** and **group frames** on the canvas (no simulation effect; saved with the circuit).

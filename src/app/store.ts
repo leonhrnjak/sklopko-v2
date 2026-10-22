@@ -1,5 +1,6 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
+import { naturalOrder } from '../engine/groups'
 import { getDef } from '../engine/registry'
 import { paramDefaults, type ParamValue, type Params } from '../engine/types'
 import {
@@ -225,6 +226,32 @@ export function setParams(id: string, patch: Params) {
       pruneWires(c)
       rerouteAround(c, [id])
     }
+  })
+}
+
+/**
+ * Put probes into one group, as a single undo step. Bit positions follow the natural order of their labels (ACC0 is
+ * bit 0, the least significant); probes without labels go top to bottom, then left to right.
+ */
+export function groupProbes(ids: string[], name: string) {
+  const c = get().circuit
+  const probes = ids.map((id) => c.comps[id]).filter((k) => k?.type === 'probe')
+  if (!probes.length || probes.length > 16) return
+  const ordered = [...probes].sort((a, b) => naturalOrder(a.label ?? '', b.label ?? '') || a.y - b.y || a.x - b.x)
+  checkpoint()
+  edit((d) => {
+    ordered.forEach((p, i) => {
+      d.comps[p.id].params.group = name
+      d.comps[p.id].params.bit = i
+    })
+  })
+}
+
+/** Take probes out of their groups: each is drawn as a trace of its own again. */
+export function ungroupProbes(ids: string[]) {
+  checkpoint()
+  edit((d) => {
+    for (const id of ids) if (d.comps[id]?.type === 'probe') d.comps[id].params.group = ''
   })
 }
 

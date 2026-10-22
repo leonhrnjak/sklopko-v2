@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
@@ -99,8 +99,14 @@ export function Toolbar() {
     return () => window.removeEventListener('pointerdown', down)
   }, [menuOpen])
 
+  const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
   const step = () => {
     sim.tick()
+    sim.publish()
+  }
+  const stepBack = () => {
+    setRunning(false)
+    sim.stepBack()
     sim.publish()
   }
   const stepClock = () => {
@@ -117,6 +123,13 @@ export function Toolbar() {
     <>
       <button onClick={step} disabled={running} title="Advance one gate delay (pause first)">
         Step
+      </button>
+      <button
+        onClick={stepBack}
+        disabled={!canBack}
+        title="Go back to the previous clock edge: every signal, memory and the time as they were then. Pauses the simulation."
+      >
+        ◀ Back
       </button>
       <button
         onClick={stepClock}

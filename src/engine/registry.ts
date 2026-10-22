@@ -1,6 +1,6 @@
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
 import { gates } from './components/gates'
-import { display, io, probe } from './components/io'
+import { breakpoint, display, io, probe } from './components/io'
 import { memoryRam, sequential } from './components/sequential'
 import type { Category, ComponentDef } from './types'
 
@@ -15,7 +15,7 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'display', name: 'Displays' },
 ]
 
-export const DEFS: ComponentDef[] = [...io, probe, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...coding, ...display]
+export const DEFS: ComponentDef[] = [...io, probe, breakpoint, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...coding, ...display]
 
 const byType = new Map(DEFS.map((d) => [d.type, d]))
 

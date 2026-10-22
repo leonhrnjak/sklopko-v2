@@ -1,10 +1,15 @@
-/** Save text as a file download. */
-export function downloadText(filename: string, text: string, type = 'text/plain') {
+/** Save a blob as a file download. */
+export function downloadBlob(filename: string, blob: Blob) {
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([text], { type }))
+  a.href = URL.createObjectURL(blob)
   a.download = filename
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+/** Save text as a file download. */
+export function downloadText(filename: string, text: string, type = 'text/plain') {
+  downloadBlob(filename, new Blob([text], { type }))
 }
 
 /** Ask for a text file and read it. Resolves to null if the person cancels (or the browser doesn't say). */

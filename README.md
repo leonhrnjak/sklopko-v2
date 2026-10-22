@@ -40,7 +40,16 @@ security headers.
   Double-click a wire to auto-route it again.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
-- **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
+- **Simulation:** Run/Pause, Step (one gate delay), **Back** (go back one clock edge: every signal, memory and the
+  time as they were; it pauses the simulation, and Clock step then goes forward again; the last 1000 edges are kept),
+  Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
+- **Breakpoints:** a *Breakpoint* part watches a signal (1 bit) or a number (4, 8 or 16 bits, wired bit by bit) and
+  pauses the simulation at the clock edge where it becomes equal to a value, or changes. It only fires when the
+  condition *starts* to hold, so Run carries on afterwards, and unknown (grey) inputs never fire it. A message says
+  which one stopped it; the `/computer` example pauses itself when the program reaches HALT.
+- **Trace a signal:** select a wire to light up the whole signal it belongs to: every wire from the same output,
+  also through net labels, with rings on every pin it reaches. *Also show what feeds it* adds the logic behind its
+  source (through gates and other purely combinational parts, back to the nearest registers, memories and inputs).
 - **Programs and memory:** a ROM's contents are hex words, or, for the 8-bit computer, a program in assembly:
   pick *A program for the Sklopko 8-bit computer* in the inspector and write `LDI 5`, `loop: ADD 3`, `JNC loop`
   (labels, `NAME = 15` constants, `;` comments, decimal / `0x` hex / `0b` binary numbers). Mistakes are listed by
@@ -54,7 +63,10 @@ security headers.
 - **Waveforms:** wire a *Probe* to any signal and give it a label. The first probe opens the waveform panel
   under the canvas (or use *Waveforms* in the toolbar), with one trace per probe in the wire colours. Pick a
   2/5/10/30 s window; while paused, drag sideways to look back in time (double-click or *Live* returns). Traces
-  are kept for the last minute of simulated time and cleared by Reset.
+  are kept for the last minute of simulated time and cleared by Reset. Select several probes to **group** them: the
+  group is drawn as one trace showing the number the bits form (hex, decimal or binary; the label order sets the bit
+  order, so ACC0 is bit 0), as in the `/computer` example's PC and ACC. *PNG* saves the window as an image, and *VCD*
+  saves everything recorded in the format that GTKWave and other waveform viewers open.
 - **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
   signals that cross show a small bridge. Stored in the browser.
 - **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
@@ -67,7 +79,7 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace), send / receive net labels |
+| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace), breakpoint, send / receive net labels |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |

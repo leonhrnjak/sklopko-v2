@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, type PointerEvent as RPointerEvent } from 'react'
 import { sim } from '../app/sim'
 import { useStore } from '../app/store'
-import { WAVE_WINDOWS, clearTraces, setViewEnd, setWaveOpen, setWindowMs, useWave } from '../app/waveform'
+import { downloadBlob } from '../app/files'
+import { WAVE_WINDOWS, buildRows, clearTraces, exportVcd, setFormat, setViewEnd, setWaveOpen, setWindowMs, useWave, type Row } from '../app/waveform'
 import type { Trace } from '../engine/components/io'
+import { formatValue, groupTrace, type NumberFormat } from '../engine/groups'
 import type { V } from '../engine/types'
 
 const ROW_H = 38
@@ -25,13 +27,54 @@ function upperBound(a: number[], x: number) {
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
-interface Row {
-  id: string
-  name: string
+/** Draw a group's number as a bus: a hexagon per value, with the value written inside when it fits. */
+function drawBus(ctx: CanvasRenderingContext2D, row: Row, top: number, x0: number, plotW: number, t0: number, end: number, windowMs: number, format: NumberFormat) {
+  const bus = groupTrace(
+    row.probes.map((p) => (sim.state(p.id) as Trace | undefined) ?? { t: [], v: [] }),
+    row.probes.map((p) => p.bit),
+  )
+  if (!bus.t.length) return
+  const px = (t: number) => x0 + ((t - t0) / windowMs) * plotW
+  const yTop = top + 9
+  const yBot = top + ROW_H - 11
+  const yMid = (yTop + yBot) / 2
+  const slant = 4
+  const right = x0 + plotW
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x0, top, plotW + PAD_R, ROW_H)
+  ctx.clip()
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (let k = Math.max(0, upperBound(bus.t, t0) - 1); k < bus.t.length && bus.t[k] <= end; k++) {
+    const a = Math.max(px(bus.t[k]), x0)
+    const b = Math.min(k + 1 < bus.t.length ? px(bus.t[k + 1]) : right, right)
+    if (b <= a) continue
+    const known = bus.v[k] >= 0
+    ctx.strokeStyle = known ? cssVar('--wire-1') : cssVar('--wire-x')
+    ctx.beginPath()
+    ctx.moveTo(a + slant, yTop)
+    ctx.lineTo(b - slant, yTop)
+    ctx.lineTo(b, yMid)
+    ctx.lineTo(b - slant, yBot)
+    ctx.lineTo(a + slant, yBot)
+    ctx.lineTo(a, yMid)
+    ctx.closePath()
+    ctx.stroke()
+    const text = formatValue(bus.v[k], row.width, format)
+    if (b - a > text.length * 7 + 4 * slant) {
+      ctx.fillStyle = known ? cssVar('--text') : cssVar('--muted')
+      ctx.fillText(text, (a + b) / 2, yMid + 0.5)
+    }
+  }
+  ctx.restore()
 }
 
 /** Draw every probe's trace and the time axis. `end` is the right edge of the window in simulated ms. */
-function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: number, end: number) {
+function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: number, end: number, format: NumberFormat, background?: string) {
   const dpr = window.devicePixelRatio || 1
   const height = rows.length * ROW_H + AXIS_H
   if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
@@ -41,6 +84,10 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
   const ctx = canvas.getContext('2d')!
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
+  if (background) {
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, width, height)
+  }
 
   const colors: Record<V, string> = { 0: cssVar('--wire-0'), 1: cssVar('--wire-1'), 2: cssVar('--wire-x') }
   const text = cssVar('--text')
@@ -85,7 +132,8 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
     ctx.font = '600 12px system-ui, sans-serif'
     ctx.fillText(row.name, 8, top + ROW_H / 2, x0 - 16)
 
-    const tr = sim.state(row.id) as Trace | undefined
+    if (row.group) return drawBus(ctx, row, top, x0, plotW, t0, end, windowMs, format)
+    const tr = sim.state(row.probes[0].id) as Trace | undefined
     if (!tr || !tr.t.length) return
     // Horizontal runs take the colour of their value, vertical edges the colour of the new value.
     const paths: Record<V, Path2D> = { 0: new Path2D(), 1: new Path2D(), 2: new Path2D() }
@@ -130,10 +178,8 @@ export function WaveformPanel() {
   const canvas = useRef<HTMLCanvasElement>(null)
   const drag = useRef<{ x: number; end: number } | null>(null)
 
-  const rows = useMemo<Row[]>(() => {
-    const probes = Object.values(comps).filter((c) => c.type === 'probe')
-    return probes.map((c, i) => ({ id: c.id, name: c.label || `Probe ${i + 1}` }))
-  }, [comps])
+  const format = useWave((s) => s.format)
+  const rows = useMemo(() => buildRows(comps), [comps])
 
   // The first probe in a circuit opens the panel.
   const seen = useRef(0)
@@ -156,22 +202,35 @@ export function WaveformPanel() {
       const el = canvas.current
       const wrap = body.current
       if (!el || !wrap) return
-      const { windowMs, viewEnd } = useWave.getState()
+      const { windowMs, viewEnd, format } = useWave.getState()
       if (useStore.getState().running && viewEnd !== null) setViewEnd(null)
       const width = wrap.clientWidth
       const end = viewEnd ?? sim.time
-      let key = `${end}|${windowMs}|${width}|${devicePixelRatio}|${cssVar('--canvas')}`
+      let key = `${end}|${windowMs}|${format}|${width}|${devicePixelRatio}|${cssVar('--canvas')}`
       for (const r of rowsRef.current) {
-        const tr = sim.state(r.id) as Trace | undefined
-        key += `|${r.name}:${tr ? tr.t.length + ',' + tr.t[tr.t.length - 1] : ''}`
+        key += `|${r.key}:${r.name}:${r.width}`
+        for (const p of r.probes) {
+          const tr = sim.state(p.id) as Trace | undefined
+          key += `,${p.bit}:${tr ? tr.t.length + '/' + tr.t[tr.t.length - 1] : ''}`
+        }
       }
       if (key === lastKey) return
       lastKey = key
-      draw(el, rowsRef.current, width, windowMs, end)
+      draw(el, rowsRef.current, width, windowMs, end, format)
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
   }, [open, rows.length])
+
+  /** The window as it is on screen, on the panel's background, as a PNG. */
+  const exportPng = () => {
+    const wrap = body.current
+    if (!wrap || !rows.length) return
+    const { windowMs, viewEnd, format } = useWave.getState()
+    const off = document.createElement('canvas')
+    draw(off, rows, Math.max(wrap.clientWidth, 480), windowMs, viewEnd ?? sim.time, format, cssVar('--panel') || '#ffffff')
+    off.toBlob((blob) => blob && downloadBlob('waveforms.png', blob), 'image/png')
+  }
 
   if (!open) return null
 
@@ -210,11 +269,27 @@ export function WaveformPanel() {
             ))}
           </select>
         </label>
+        {rows.some((r) => r.group) && (
+          <label className="wave-window">
+            <span>Numbers</span>
+            <select value={format} onChange={(e) => setFormat(e.target.value as NumberFormat)} aria-label="Number format">
+              <option value="hex">Hex</option>
+              <option value="dec">Decimal</option>
+              <option value="bin">Binary</option>
+            </select>
+          </label>
+        )}
         {viewEnd !== null && (
           <button onClick={() => setViewEnd(null)} title="Jump back to the present">
             ⏭ Live
           </button>
         )}
+        <button onClick={exportPng} disabled={!rows.length} title="Save the window as it is on screen as a PNG image">
+          PNG
+        </button>
+        <button onClick={exportVcd} disabled={!rows.length} title="Save everything recorded as a VCD file, which waveform viewers such as GTKWave open">
+          VCD
+        </button>
         <button onClick={clearTraces} disabled={!rows.length} title="Erase the recorded traces">
           Clear
         </button>

@@ -594,3 +594,149 @@ test('a ROM can switch from hex words to a program, keeping what it held', async
   await page.getByLabel('Contents are').selectOption('none')
   await expect(page.locator('.field', { hasText: 'Contents (hex words)' }).locator('textarea')).toHaveValue(/0100 0070/)
 })
+
+test('Back: steps the computer back one clock edge at a time, to the very start', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'Program')
+  const back = page.getByRole('button', { name: '◀ Back' })
+  await expect(back).toBeDisabled() // nothing to go back to yet
+  const current = page.locator('.row-listing.current .text')
+  const step = async () => page.getByRole('button', { name: 'Clock step' }).click()
+  await step() // rising edge: PC 1
+  await step() // falling edge
+  await step() // rising edge: PC 2
+  await expect(current).toHaveText('STA 15')
+  await expect(back).toBeEnabled()
+  await back.click() // after the falling edge: still PC 1
+  await expect(current).toHaveText('STA 0')
+  await back.click() // after the first rising edge
+  await expect(current).toHaveText('STA 0')
+  await back.click() // the start
+  await expect(current).toHaveText('LDI 0')
+  await expect(back).toBeDisabled()
+  // Forward again from there behaves as before.
+  await step()
+  await expect(current).toHaveText('STA 0')
+})
+
+test('Back while running pauses the simulation', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await expect(page.getByRole('button', { name: '◀ Back' })).toBeEnabled({ timeout: 5000 })
+  await page.getByRole('button', { name: '◀ Back' }).click()
+  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible() // it is paused now
+})
+
+test('breakpoint: the computer pauses by itself when it reaches HALT', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible({ timeout: 30000 }) // the label of the button while paused
+  await expect(page.locator('.toast')).toContainText('Paused at breakpoint “Pause at HALT”.')
+  const halted = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Halted$/ }) }).locator('.led-fill.on')
+  await expect(halted).toHaveCount(1)
+  // The stop sign shows that its condition holds, and Run carries on without stopping again.
+  await expect(page.locator('.break-body.met')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Run' }).click()
+  await page.waitForTimeout(1200)
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+})
+
+test('breakpoint: place one, wire it to a counter, and Run stops where it says', async ({ page }) => {
+  await freshEmpty(page)
+  const clk = await place(page, 'clock', 120, 150)
+  const cnt = await place(page, 'counter', 320, 150)
+  const bp = await place(page, 'breakpoint', 560, 150)
+  await wire(page, [clk, 'Q'], [cnt, 'CLK'])
+  await wire(page, [cnt, 'A'], [bp, 'A'])
+  await expect(page.locator('.wire-group')).toHaveCount(2)
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await expect(page.locator('.toast')).toContainText('Paused at breakpoint “Breakpoint”.', { timeout: 15000 })
+  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible()
+})
+
+test('grouping probes: two probes become one trace showing a number', async ({ page }) => {
+  await freshEmpty(page)
+  const a = await place(page, 'probe', 200, 150)
+  await page.getByPlaceholder('optional').fill('B1')
+  await page.keyboard.press('Enter')
+  const b = await place(page, 'probe', 200, 260)
+  await page.getByPlaceholder('optional').fill('B0')
+  await page.keyboard.press('Enter')
+  const canvas = page.getByTestId('wave-canvas')
+  await expect(canvas).toHaveCSS('height', `${2 * 38 + 24}px`) // two rows
+  // Select both and group them.
+  await clickComp(page, a)
+  await page.keyboard.down('Shift')
+  await clickComp(page, b)
+  await page.keyboard.up('Shift')
+  await expect(page.locator('.inspector')).toContainText('2 selected')
+  await page.getByLabel('Group name').fill('BUS')
+  await page.getByRole('button', { name: 'Group 2 probes' }).click()
+  await expect(canvas).toHaveCSS('height', `${38 + 24}px`) // one row
+  await expect(page.getByLabel('Number format')).toBeVisible()
+  // B0 is the least significant bit, whatever the order they were placed in.
+  await clickComp(page, b)
+  await expect(page.getByLabel('Bit in the group (0 = least significant)')).toHaveValue('0')
+  await expect(page.locator('.inspector')).toContainText('“BUS”: 2 probes, bits 0, 1.')
+  await clickComp(page, a)
+  await expect(page.getByLabel('Bit in the group (0 = least significant)')).toHaveValue('1')
+})
+
+test('the computer shows PC and ACC as numbers: four rows in the waveform panel', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('wave-canvas')).toHaveCSS('height', `${4 * 38 + 24}px`) // CLK, PC, ACC, Carry
+  await expect(page.getByLabel('Number format')).toBeVisible()
+})
+
+test('tracing a signal: selecting a wire lights up everything it reaches, through net labels', async ({ page }) => {
+  await page.goto('/labels', { waitUntil: 'networkidle' })
+  // Any wire that leaves a receive label belongs to the BIT signal it carries.
+  const wires = page.locator('.wire-group')
+  const count = await wires.count()
+  let found = false
+  for (let i = 0; i < count && !found; i++) {
+    await wires.nth(i).locator('.wire-hit').first().click({ force: true })
+    found = (await page.locator('.inspector').innerText()).includes('reaches 5 pins')
+  }
+  expect(found).toBe(true)
+  await expect(page.locator('.wire-trace.net')).toHaveCount(3) // into the send label, and out of two receive labels
+  await expect(page.locator('.trace-ring')).toHaveCount(6)
+  await expect(page.locator('.trace-ring.source')).toHaveCount(1)
+  await expect(page.locator('.wire-trace.cone')).toHaveCount(0)
+  // Also show what feeds it: the clock, one wire away (a counter is a register, so the cone stops there).
+  await page.getByLabel(/Also show what feeds it/).check()
+  await expect(page.locator('.wire-trace.cone')).toHaveCount(1)
+  // Deselecting clears it all.
+  await page.getByTestId('canvas').click({ position: { x: 700, y: 20 } })
+  await expect(page.locator('.wire-trace')).toHaveCount(0)
+  await expect(page.locator('.trace-ring')).toHaveCount(0)
+})
+
+test('exporting waveforms: a VCD file with the groups as buses, and a PNG', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await page.waitForTimeout(2500) // a few seconds of simulated time to record
+  await page.getByRole('button', { name: 'Pause' }).click()
+
+  const vcdDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'VCD', exact: true }).click()
+  const vcd = await vcdDownload
+  expect(vcd.suggestedFilename()).toBe('waveforms.vcd')
+  const text = readFileSync((await vcd.path())!, 'utf8')
+  expect(text).toContain('$timescale 1 us $end')
+  expect(text).toContain('$var wire 1 ! CLK $end')
+  expect(text).toContain('$var wire 4 " PC $end')
+  expect(text).toContain('$var wire 8 # ACC $end')
+  expect(text).toContain('$enddefinitions $end')
+  expect(text).toMatch(/\nb\d{4} "\n/) // the 4-bit PC changed at least once
+
+  const pngDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'PNG', exact: true }).click()
+  const png = await pngDownload
+  expect(png.suggestedFilename()).toBe('waveforms.png')
+  const bytes = readFileSync((await png.path())!)
+  expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]) // the PNG signature
+})

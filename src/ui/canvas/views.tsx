@@ -1,7 +1,8 @@
 import { memo, useMemo } from 'react'
 import { getDef } from '../../engine/registry'
 import { useCompSignature, usePinValue } from '../../app/hooks'
-import { boundsRect, compLayout, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
+import { boundsRect, compLayout, findPin, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
+import type { Circuit } from '../../model/circuit'
 import { hopArcsD, hopPathD, junctions } from '../../routing/path'
 import { CompSymbol } from '../symbols'
 import { compTransform } from '../transform'
@@ -75,16 +76,19 @@ interface WireViewProps {
   selected: boolean
   /** Crossing points where this wire hops over another. */
   hops?: Point[]
+  /** Part of the signal being traced (`net`), or of the logic feeding it (`cone`). */
+  traced?: 'net' | 'cone'
 }
 
 const sameHops = (a?: Point[], b?: Point[]) =>
   a === b || (!!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y))
 
-export const WireView = memo(function WireView({ wire, selected, hops }: WireViewProps) {
+export const WireView = memo(function WireView({ wire, selected, hops, traced }: WireViewProps) {
   const v = usePinValue(wire.from.comp, wire.from.pin)
   const d = hopPathD(wire.path, hops)
   return (
     <g data-kind="wire" data-id={wire.id} className={selected ? 'wire-group selected' : 'wire-group'}>
+      {traced && <path className={`wire-trace ${traced}`} d={d} />}
       {selected && <path className="wire-sel" d={d} />}
       <path className={`wire ${valueClass(v)}`} d={d} />
       {wire.path.slice(1).map((b, i) => {
@@ -103,7 +107,7 @@ export const WireView = memo(function WireView({ wire, selected, hops }: WireVie
       })}
     </g>
   )
-}, (a, b) => a.wire === b.wire && a.selected === b.selected && sameHops(a.hops, b.hops))
+}, (a, b) => a.wire === b.wire && a.selected === b.selected && a.traced === b.traced && sameHops(a.hops, b.hops))
 
 /** The bridges of one wire, in the wire's colour. */
 const HopArc = memo(
@@ -147,3 +151,16 @@ export const Junctions = memo(function Junctions({ wires }: { wires: Record<stri
     </>
   )
 })
+
+/** Rings round the pins a traced signal reaches; the part that drives it gets a filled one. */
+export function TraceRings({ circuit, pins, source }: { circuit: Circuit; pins: Set<string>; source: string | null }) {
+  return (
+    <>
+      {[...pins].map((k) => {
+        const [comp, pin] = k.split(':')
+        const p = circuit.comps[comp] && findPin(circuit.comps[comp], pin)
+        return p ? <circle key={k} className={`trace-ring${k === source ? ' source' : ''}`} cx={p.pos.x} cy={p.pos.y} r={7} /> : null
+      })}
+    </>
+  )
+}

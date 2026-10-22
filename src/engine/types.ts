@@ -51,6 +51,8 @@ export interface ParamDef {
   multiline?: boolean
   /** For 'text': what to tell the user when the value doesn't match the pattern. */
   hint?: string
+  /** For a single-line 'text': take the keyboard focus while it is empty (a new part asks for its name at once). */
+  focus?: boolean
   default: ParamValue
   /** Changing it alters pins or behavior that needs a recompile (false for e.g. LED color). */
   structural?: boolean
@@ -81,9 +83,15 @@ export interface ComponentDef {
   /**
    * Called after every settled step (each clock edge and each frame) with the simulated time in ms, and
    * with `ins` refreshed to the settled values. For parts that record or smooth what they see over time
-   * (waveform probes, dot-matrix persistence). Keep the result in `state`.
+   * (waveform probes, dot-matrix persistence). Keep the result in `state`. Returning true asks the simulation to
+   * stop right here (a breakpoint): see `Simulator.takeBreak`.
    */
-  sample?(inst: Instance, time: number): void
+  sample?(inst: Instance, time: number): void | boolean
+  /**
+   * Called after the simulation was stepped back to `time`, for parts that have a `sample`: forget what was
+   * recorded after it. (Parts with a `sample` are not snapshotted, since a trace can be long.)
+   */
+  rewind?(inst: Instance, time: number): void
   /** The symbol shows live values, so it redraws whenever one of its pins changes. */
   live?: boolean
   /** How the user interacts with it on the canvas. */

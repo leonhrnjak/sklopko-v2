@@ -3,16 +3,20 @@ import {
   deleteSelection,
   select,
   flipSelection,
+  groupProbes,
   resetWireRoute,
   rotateSelection,
   setLabel,
   setParam,
   setSheetOpen,
+  ungroupProbes,
   useStore,
 } from '../app/store'
 import { getDef } from '../engine/registry'
 import type { Comp, Wire } from '../model/circuit'
-import { isLabel, labelNames, labelsNamed } from '../model/labels'
+import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
+import { setCone, useTraceOptions } from '../app/trace'
+import { traceNet } from '../model/trace'
 import { RamSection, RomSection } from './MemoryInspector'
 import { TextParam } from './TextParam'
 
@@ -47,6 +51,57 @@ function LabelLinks({ comp }: { comp: Comp }) {
   )
 }
 
+/** What a probe's group looks like: how many probes make it up, and whether two of them claim the same bit. */
+function ProbeGroupInfo({ comp }: { comp: Comp }) {
+  const circuit = useStore((s) => s.circuit)
+  const name = String(comp.params.group)
+  if (!name) return <p className="desc">Probes with the same group name are drawn as one trace that shows the number they form.</p>
+  const members = probeGroups(circuit).get(name) ?? []
+  const clash = members.filter((k) => k.params.bit === comp.params.bit).length > 1
+  return (
+    <>
+      <p className="desc">
+        “{name}”: {members.length} probe{members.length === 1 ? '' : 's'}, bits {members.map((k) => k.params.bit).sort((a, b) => Number(a) - Number(b)).join(', ')}.
+      </p>
+      {clash && <p className="field-error">Another probe in this group uses bit {String(comp.params.bit)} too. Give each its own.</p>}
+      <div className="row">
+        <button onClick={() => select(members.map((k) => k.id))}>Select the group</button>
+        <button onClick={() => ungroupProbes([comp.id])}>Take out of the group</button>
+      </div>
+    </>
+  )
+}
+
+/** Several probes selected: offer to draw them as one number. */
+function GroupProbes({ ids }: { ids: string[] }) {
+  const circuit = useStore((s) => s.circuit)
+  // Suggest the part of the first label before its number: ACC0, ACC1… → ACC.
+  const first = [...ids].map((id) => circuit.comps[id].label ?? '').sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))[0] ?? ''
+  const [name, setName] = useState(first.replace(/[^A-Za-z0-9_]/g, '').replace(/\d+$/, '').slice(0, 12))
+  const valid = /^[A-Za-z0-9_]{1,12}$/.test(name)
+  const grouped = ids.some((id) => circuit.comps[id].params.group)
+  return (
+    <>
+      <p className="desc">
+        Draw these {ids.length} probes as one trace that shows the number they form. Bits follow the order of their
+        labels: ACC0 is bit 0, the least significant.
+      </p>
+      <label className="field">
+        <span>Group name</span>
+        <input value={name} maxLength={12} onChange={(e) => setName(e.target.value)} aria-invalid={!valid} className={valid ? undefined : 'invalid'} />
+        {!valid && <small className="field-error">Letters, digits and underscores, up to 12 characters.</small>}
+        {ids.length > 16 && <small className="field-error">A group holds at most 16 probes.</small>}
+      </label>
+      <div className="row">
+        <button disabled={!valid || ids.length > 16} onClick={() => groupProbes(ids, name)}>
+          Group {ids.length} probes
+        </button>
+        {grouped && <button onClick={() => ungroupProbes(ids)}>Ungroup</button>}
+      </div>
+    </>
+  )
+}
+
 function CompInspector({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
   const circuit = useStore((s) => s.circuit)
@@ -70,6 +125,8 @@ function CompInspector({ comp }: { comp: Comp }) {
       {def.params?.map((p) => {
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
         if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
+        // A breakpoint that waits for any change has no value to compare with.
+        if (comp.type === 'breakpoint' && p.key === 'value' && comp.params.when === 'changes') return null
         const v = comp.params[p.key]
         if (p.kind === 'bool')
           return (
@@ -84,7 +141,13 @@ function CompInspector({ comp }: { comp: Comp }) {
               key={`${p.key}|${String(v)}`}
               comp={comp}
               p={p}
-              suggestions={isLabel(comp.type) ? labelNames(circuit).filter((n) => n !== v) : undefined}
+              suggestions={
+                isLabel(comp.type)
+                  ? labelNames(circuit).filter((n) => n !== v)
+                  : comp.type === 'probe'
+                    ? [...probeGroups(circuit).keys()].filter((n) => n !== v)
+                    : undefined
+              }
             />
           )
         if (p.kind === 'select')
@@ -126,6 +189,7 @@ function CompInspector({ comp }: { comp: Comp }) {
       {comp.type === 'rom' && <RomSection comp={comp} />}
       {comp.type === 'ram' && <RamSection comp={comp} />}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
+      {comp.type === 'probe' && <ProbeGroupInfo comp={comp} />}
       <div className="row">
         <button onClick={rotateSelection} title="Rotate (R)">
           ⟳ Rotate
@@ -142,13 +206,27 @@ function CompInspector({ comp }: { comp: Comp }) {
 }
 
 function WireInspector({ wire }: { wire: Wire }) {
+  const circuit = useStore((s) => s.circuit)
+  const cone = useTraceOptions((s) => s.cone)
+  const net = traceNet(circuit, wire.id)
+  const name = (comp: string, pin: string) => `${circuit.comps[comp]?.label || getDef(circuit.comps[comp]?.type ?? 'switch').name} ${pin}`
+  const reached = [...net.pins].filter((k) => k !== (net.source && `${net.source.comp}:${net.source.pin}`))
   return (
     <>
       <h2>Wire</h2>
       <p className="desc">
-        {wire.from.pin} → {wire.to.pin}. Drag a segment to reshape it, or drag the wire's end at the input pin to
-        re-plug it.
+        {net.source ? (
+          <>
+            The signal from <b>{name(net.source.comp, net.source.pin)}</b> reaches {reached.length} pin{reached.length === 1 ? '' : 's'}.
+            The rings on the canvas mark them and the glow follows the wires, also through net labels.
+          </>
+        ) : null}{' '}
+        Drag a segment to reshape it, or drag the wire's end at the input pin to re-plug it.
       </p>
+      <label className="field check">
+        <input type="checkbox" checked={cone} onChange={(e) => setCone(e.target.checked)} />
+        <span>Also show what feeds it (the logic back to the nearest registers, memories and inputs)</span>
+      </label>
       <div className="row">
         <button onClick={() => resetWireRoute(wire.id)} disabled={!wire.manual} title="Double-click the wire">
           Auto-route
@@ -238,6 +316,7 @@ export function Inspector() {
     content = (
       <>
         <h2>{selection.length} selected</h2>
+        {selection.every((id) => circuit.comps[id]?.type === 'probe') && <GroupProbes key={selection.join(',')} ids={selection} />}
         <div className="row">
           <button onClick={rotateSelection}>⟳ Rotate</button>
           <button className="danger" onClick={deleteAndClose}>

@@ -48,6 +48,30 @@ interface CComp {
 
 const pinKey = (comp: string, pin: string) => `${comp}:${pin}`
 
+/** Everything needed to return to a settled moment: the nets, every part's state, and the clocks (which are state). */
+interface Snapshot {
+  time: number
+  ticks: number
+  unstable: boolean
+  values: Uint8Array
+  /** Aligned with the compiled parts. Parts that record over time (probes) are not copied: see `ComponentDef.rewind`. */
+  states: unknown[]
+}
+
+/** Part states are plain data (numbers, strings, arrays, objects), so a recursive copy is all that is needed. */
+function cloneState<T>(s: T): T {
+  if (Array.isArray(s)) return s.map(cloneState) as T
+  if (s && typeof s === 'object') {
+    const o: Record<string, unknown> = {}
+    for (const k in s) o[k] = cloneState((s as Record<string, unknown>)[k])
+    return o as T
+  }
+  return s
+}
+
+/** How many clock edges the simulator can step back over. */
+export const HISTORY_EDGES = 1000
+
 /**
  * Unit-delay, two-phase logic simulator.
  *
@@ -72,8 +96,19 @@ export class Simulator {
   /** Simulated time in ms since the last reset. Advances with the clocks while the simulation runs. */
   time = 0
   private samplers: CComp[] = []
+  /** A snapshot after each clock edge (and one before the first), for stepping back. */
+  private history: Snapshot[] = []
+  /** Which snapshot the simulation is at, when it has not moved on since (see `moved`). */
+  private cursor = -1
+  /** The breakpoint that asked the simulation to stop, until someone collects it with `takeBreak`. */
+  private hit: string | null = null
+  /** The circuit has changed since the snapshot at `cursor`: time passed, or something was operated. */
+  private moved = false
 
   load(c: SimCircuit) {
+    this.history = []
+    this.cursor = -1
+    this.moved = false
     const oldValues = new Map<string, V>()
     for (const [key, net] of this.netByOut) oldValues.set(key, this.values[net] as V)
     const oldState = new Map(this.comps.map((cc) => [cc.id, cc]))
@@ -161,6 +196,9 @@ export class Simulator {
     this.ticks = 0
     this.time = 0
     this.unstable = false
+    this.history = []
+    this.cursor = -1
+    this.moved = false
     this.dirty = true
   }
 
@@ -186,7 +224,10 @@ export class Simulator {
     this.values = next
     this.next = values
     this.ticks++
-    if (changed) this.dirty = true
+    if (changed) {
+      this.dirty = true
+      this.moved = true
+    }
     return changed
   }
 
@@ -207,7 +248,7 @@ export class Simulator {
         const n = cc.inNets[i]
         ins[i] = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
       }
-      cc.def.sample!(cc.inst, this.time)
+      if (cc.def.sample!(cc.inst, this.time) === true && this.hit === null) this.hit = cc.id
       this.dirty = true
     }
   }
@@ -220,11 +261,15 @@ export class Simulator {
   /** Advance real time by `ms`, toggling clocks at their edges and settling after each edge. */
   advance(ms: number) {
     let left = ms
+    this.hit = null // a stop is reported for the call that tripped it (see takeBreak)
     for (let edges = 0; edges < 64 && this.clocks.length; edges++) {
+      // A breakpoint stops the simulation at the edge that tripped it: no further edges, and the rest of the time is dropped.
+      if (this.hit !== null) return
       let step = Infinity
       for (const c of this.clocks) step = Math.min(step, c.def.clockHalfPeriod!(c.inst.params) - c.inst.state.elapsed)
       step = Math.max(0, step)
       if (step > left) break
+      if (!this.history.length) this.record() // so the very first edge can be stepped back over, too
       left -= step
       this.time += step
       for (const c of this.clocks) {
@@ -236,12 +281,73 @@ export class Simulator {
         }
       }
       this.settle(this.budget())
+      this.record()
     }
     for (const c of this.clocks) {
       const st = c.inst.state
       st.elapsed = Math.min(st.elapsed + left, c.def.clockHalfPeriod!(c.inst.params))
     }
     this.time += left
+    if (left > 1e-3) this.moved = true
+  }
+
+  /** Remember the settled state, dropping any snapshots after the one we stepped back to. */
+  private record() {
+    if (this.cursor < this.history.length - 1) this.history.length = this.cursor + 1
+    this.history.push({
+      time: this.time,
+      ticks: this.ticks,
+      unstable: this.unstable,
+      values: this.values.slice(),
+      states: this.comps.map((cc) => (cc.def.sample || cc.inst.state === undefined ? undefined : cloneState(cc.inst.state))),
+    })
+    if (this.history.length > HISTORY_EDGES) this.history.shift()
+    this.cursor = this.history.length - 1
+    this.moved = false
+  }
+
+  /** Is there an earlier clock edge to go back to? */
+  canStepBack(): boolean {
+    return this.history.length > 0 && this.cursor >= (this.moved ? 0 : 1)
+  }
+
+  /**
+   * Go back to the previous clock edge: the state right after it, with the time, the clocks and every memory as they
+   * were. If the circuit has moved on since the last edge (time passed, a switch was flipped), this first returns to
+   * that edge. Returns false if there is nothing to go back to.
+   */
+  stepBack(): boolean {
+    if (!this.canStepBack()) return false
+    const target = this.moved ? this.cursor : this.cursor - 1
+    const snap = this.history[target]
+    if (snap.values.length !== this.values.length || snap.states.length !== this.comps.length) return false
+    this.values.set(snap.values)
+    this.comps.forEach((cc, i) => {
+      if (cc.def.sample) cc.def.rewind?.(cc.inst, snap.time)
+      else if (snap.states[i] !== undefined) cc.inst.state = cloneState(snap.states[i])
+    })
+    this.time = snap.time
+    this.unstable = snap.unstable
+    this.cursor = target
+    this.dirty = true
+    // Settle again, in case a switch was flipped since (parameters are not part of the snapshot), and let the
+    // probes see the restored values. Either way we are now "at" this edge: another step back goes one further.
+    if (snap.unstable) this.sample()
+    else this.settle()
+    this.ticks = snap.ticks
+    this.moved = false
+    return true
+  }
+
+  /**
+   * The id of the breakpoint that stopped the last `advance`, `frame` or `stepClock`, if any (once: it is forgotten
+   * when collected, and by the next `advance`). Whoever runs the simulation calls this after advancing it and, if it
+   * returns something, stops running and says why.
+   */
+  takeBreak(): string | null {
+    const h = this.hit
+    this.hit = null
+    return h
   }
 
   /** One animation frame of a running simulation. */
@@ -313,6 +419,7 @@ export class Simulator {
     if (!cc || !mem || !(index >= 0 && index < mem.length)) return false
     mem[index] = value & (2 ** Number(cc.inst.params.dbits ?? 4) - 1)
     this.dirty = true
+    this.moved = true
     return true
   }
 

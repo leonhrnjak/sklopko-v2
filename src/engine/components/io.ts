@@ -1,5 +1,5 @@
 import { box, names } from '../layouts'
-import { writeNum, X, type ComponentDef, type ParamDef, type Params, type V } from '../types'
+import { toNum, writeNum, X, type ComponentDef, type ParamDef, type Params, type V } from '../types'
 
 /** Names of net labels: short, no spaces. An empty name is allowed and connects to nothing. */
 const labelName: ParamDef = {
@@ -10,6 +10,7 @@ const labelName: ParamDef = {
   pattern: '[A-Za-z0-9_]{0,12}',
   maxLength: 12,
   multiline: false,
+  focus: true,
   hint: 'Letters, digits and underscores, up to 12 characters.',
   structural: true, // the flag's width, and so a Receive label's pin, depends on the name
 }
@@ -159,7 +160,21 @@ export const probe: ComponentDef = {
   category: 'io',
   description:
     'Records the signal at its input and draws it in the waveform panel. Give it a label: that is the name of ' +
-    'its trace. Place several to compare signals over time.',
+    'its trace. Place several to compare signals over time. Probes with the same group name are drawn as one trace ' +
+    'that shows the number they form (select several probes to group them).',
+  params: [
+    {
+      key: 'group',
+      label: 'Group (optional)',
+      kind: 'text',
+      default: '',
+      pattern: '[A-Za-z0-9_]{0,12}',
+      maxLength: 12,
+      multiline: false,
+      hint: 'Letters, digits and underscores, up to 12 characters.',
+    },
+    { key: 'bit', label: 'Bit in the group (0 = least significant)', kind: 'number', min: 0, max: 15, default: 0 },
+  ],
   init: (): Trace => ({ t: [], v: [] }),
   layout: () => ({ w: 30, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
   sample(inst, time) {
@@ -176,6 +191,79 @@ export const probe: ComponentDef = {
       st.t.splice(0, k)
       st.v.splice(0, k)
     }
+  },
+  rewind(inst, time) {
+    const st = inst.state as Trace
+    while (st.t.length && st.t[st.t.length - 1] > time) {
+      st.t.pop()
+      st.v.pop()
+    }
+  },
+  evaluate() {},
+}
+
+/** Remembers what a breakpoint saw last. `prev` is undefined until the first look, which only sets the baseline. */
+interface BreakState {
+  prev?: number
+  met?: boolean
+}
+
+export const breakpoint: ComponentDef = {
+  type: 'breakpoint',
+  name: 'Breakpoint',
+  category: 'io',
+  description:
+    'Pauses the simulation when the signal at its input becomes equal to a value, or when it changes. Give it ' +
+    'more bits to watch a whole number (A0 is the least significant). It stops right at the clock edge that did it, ' +
+    'and fires only when the condition starts to hold, so you can press Run again and carry on. Unknown (grey) ' +
+    'inputs never trigger it.',
+  params: [
+    {
+      key: 'width',
+      label: 'Bits to watch',
+      kind: 'select',
+      default: 1,
+      structural: true,
+      options: [1, 4, 8, 16].map((v) => ({ value: v, label: v === 1 ? '1 (a single signal)' : `${v} (a number)` })),
+    },
+    {
+      key: 'when',
+      label: 'Pause when it',
+      kind: 'select',
+      default: 'equals',
+      options: [
+        { value: 'equals', label: 'becomes equal to the value' },
+        { value: 'changes', label: 'changes' },
+      ],
+    },
+    { key: 'value', label: 'Value (decimal)', kind: 'number', min: 0, max: 65535, default: 1 },
+  ],
+  init: (): BreakState => ({}),
+  layout: (p) => {
+    const n = Number(p.width)
+    return n === 1
+      ? { w: 50, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }
+      : box({ w: 60, left: names('A', n) })
+  },
+  title: (p) => `STOP\n${p.when === 'changes' ? 'changes' : `= ${p.value}`}`,
+  rewind(inst) {
+    // Stepped back in time: what it saw last is no longer what came before, so look afresh (without firing).
+    delete (inst.state as BreakState).prev
+  },
+  sample(inst) {
+    const st = inst.state as BreakState
+    const v = toNum(inst.ins, 0, inst.ins.length)
+    const equals = inst.params.when !== 'changes'
+    const now = equals ? (v >= 0 && v === Number(inst.params.value) ? 1 : 0) : v
+    const before = st.prev
+    if (equals) {
+      st.prev = now
+      // Fires when the condition starts to hold. The first look only sets the baseline.
+      return before === 0 && now === 1
+    }
+    if (v < 0) return false // unknown: neither a change nor a new baseline
+    st.prev = v
+    return before !== undefined && before !== v
   },
   evaluate() {},
 }

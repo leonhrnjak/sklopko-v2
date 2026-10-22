@@ -22,3 +22,13 @@ export function labelNames(c: Circuit): string[] {
   for (const k of Object.values(c.comps)) if (isLabel(k.type) && k.params.name) names.add(String(k.params.name))
   return [...names].sort()
 }
+
+/** The probes of each group, in circuit order. */
+export function probeGroups(c: Circuit): Map<string, Circuit['comps'][string][]> {
+  const groups = new Map<string, Circuit['comps'][string][]>()
+  for (const k of Object.values(c.comps)) {
+    const name = k.type === 'probe' ? String(k.params.group ?? '') : ''
+    if (name) groups.set(name, [...(groups.get(name) ?? []), k])
+  }
+  return groups
+}

@@ -16,6 +16,8 @@
   --wire-x: #9aa5a1;
   --select: #2563eb;
   --select-soft: rgba(37, 99, 235, 0.14);
+  --trace: #d97706;
+  --trace-cone: #7c3aed;
   --display-bg: #18191b;
   --seg-off: #2b2324;
   --seg-on: #ff3b30;
@@ -42,6 +44,8 @@
     --wire-x: #6b7672;
     --select: #60a5fa;
     --select-soft: rgba(96, 165, 250, 0.16);
+    --trace: #fbbf24;
+    --trace-cone: #a78bfa;
     --display-bg: #0b0b0c;
     --seg-off: #241c1d;
     --danger: #fb923c;
@@ -688,6 +692,24 @@ button.danger {
   stroke-dasharray: 2 3;
   opacity: 0.8;
 }
+.break-body {
+  fill: var(--body);
+  stroke: var(--danger);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.break-body.met,
+.break-box.met .sym-body {
+  fill: color-mix(in srgb, var(--danger) 30%, var(--body));
+}
+.break-box .sym-body {
+  stroke: var(--danger);
+}
+.break-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--danger);
+}
 .hexin-digit {
   font-size: 26px;
   font-weight: 700;
@@ -759,6 +781,31 @@ button.danger {
 }
 .wire.vx {
   stroke: var(--wire-x);
+}
+.wire-trace {
+  fill: none;
+  stroke: var(--trace);
+  stroke-width: 9;
+  stroke-opacity: 0.45;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.wire-trace.cone {
+  stroke: var(--trace-cone);
+  stroke-width: 7;
+  stroke-opacity: 0.4;
+  stroke-dasharray: 1 9;
+}
+.trace-ring {
+  fill: none;
+  stroke: var(--trace);
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+.trace-ring.source {
+  fill: var(--trace);
+  fill-opacity: 0.35;
 }
 .wire-sel {
   fill: none;

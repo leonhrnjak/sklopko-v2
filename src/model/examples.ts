@@ -568,6 +568,7 @@ export const COMPUTER_LAYOUT: Record<string, Spot> = {
   take: [940, 680],
   nhalt: [760, 770],
   halted: [860, 800],
+  stop: [860, 850],
   ram: [760, 100],
   addLo: [1060, 40],
   addHi: [1060, 300],
@@ -781,9 +782,15 @@ export function computerBuilder(layout: Record<string, Spot>) {
     ['Carry', `${flags}.QA`],
   ]
   signals.forEach(([label, from], i) => {
-    const p = part(`probe${i}`, 'probe', { label })
+    // The program counter and the accumulator are each drawn as one number in the waveform panel.
+    const bus = /^(PC|ACC)(\d+)$/.exec(label)
+    const p = part(`probe${i}`, 'probe', { label, ...(bus ? { params: { group: bus[1], bit: Number(bus[2]) } } : {}) })
     b.wire(from, `${p}.A`)
   })
+
+  // Pause when the program reaches HALT, so the finished state stays on screen (Run carries on).
+  const stop = part('stop', 'breakpoint', { label: 'Pause at HALT', params: { value: 1 } })
+  b.wire(`${ctl}.D7`, `${stop}.A`)
   return { b, keys }
 }
 

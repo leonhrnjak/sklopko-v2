@@ -2,7 +2,7 @@ import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { loadIntoSim, sim } from './sim'
-import { loadCircuit, showToast, useStore } from './store'
+import { loadCircuit, setRunning, showToast, useStore } from './store'
 
 const STORAGE_KEY = 'sklopko.circuit.v1'
 
@@ -91,6 +91,13 @@ export function startRuntime() {
     last = t
     const { running, speed } = useStore.getState()
     if (running) sim.frame(dt * speed)
+    // A breakpoint stopped the simulation (while running or on a single step): say which one.
+    const hit = sim.takeBreak()
+    if (hit) {
+      const name = useStore.getState().circuit.comps[hit]?.label || 'Breakpoint'
+      if (running) setRunning(false)
+      showToast(running ? `Paused at breakpoint “${name}”.` : `Breakpoint “${name}” hit.`)
+    }
     sim.publish()
     requestAnimationFrame(loop)
   }

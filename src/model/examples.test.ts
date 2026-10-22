@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect } from './circuit'
+import { buildRows } from '../app/waveform'
 import { SK8, assemble, disassemble } from '../engine/isa'
 import { CONTROL, EXAMPLES, FIBONACCI, FIBONACCI_SOURCE, SMILEY } from './examples'
 
@@ -487,6 +488,36 @@ describe('8-bit computer example', () => {
     expect(decimal()).toBe(233)
     expect(ram().slice(0, 3)).toEqual([233, 121, 121])
   }, 15000)
+
+  it('shows the program counter and the accumulator as numbers in the waveform panel', () => {
+    const rows = buildRows(example('computer').comps)
+    expect(rows.map((r) => [r.name, r.group, r.width])).toEqual([
+      ['CLK', false, 1],
+      ['PC', true, 4],
+      ['ACC', true, 8],
+      ['Carry', false, 1],
+    ])
+    // Every bit of a group has its own position.
+    for (const r of rows.filter((x) => x.group)) expect(r.probes.map((p) => p.bit).sort((a, b) => a - b)).toEqual(r.probes.map((_, i) => i))
+  })
+
+  it('a breakpoint pauses it when the program reaches HALT, with the last number on show', () => {
+    const { sim, pc, halted, out } = setup()
+    let hit: string | null = null
+    for (let i = 0; i < 40 && !hit; i++) {
+      sim.advance(8000)
+      hit = sim.takeBreak()
+    }
+    const c = example('computer')
+    expect(c.comps[hit!].label).toBe('Pause at HALT')
+    expect(halted()).toBe(1)
+    expect(pc()).toBe(14)
+    expect(out()).toBe(233)
+    // Running on (as pressing Run does) is allowed: it stays halted and does not stop again.
+    sim.advance(2000)
+    expect(sim.takeBreak()).toBeNull()
+    expect(pc()).toBe(14)
+  }, 30000)
 
   it('the toolbar reset power-cycles it: the program starts again from the top', () => {
     const { sim, cycle, pc, ram } = setup()

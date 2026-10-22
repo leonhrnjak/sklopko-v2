@@ -42,7 +42,7 @@ export function TextParam({ comp, p, suggestions }: { comp: Comp; p: ParamDef; s
             {...common}
             className={valid ? undefined : 'invalid'}
             list={suggestions ? `suggest-${p.key}` : undefined}
-            autoFocus={!saved}
+            autoFocus={!saved && !!p.focus}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
           {suggestions && (
