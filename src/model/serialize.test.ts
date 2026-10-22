@@ -46,7 +46,7 @@ describe('serialization', () => {
         { id: 'r', type: 'rom', x: 0, y: 0, params: { abits: 99, dbits: 8, data: 'xyz' } },
         { id: 'g', type: 'and', x: 100, y: 0, params: { inputs: 500 } },
         { id: 'r2', type: 'rom', x: 200, y: 0, params: { data: 'FF 0A' } },
-        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(801) } },
+        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(1401) } },
       ],
       wires: [],
     })
@@ -78,7 +78,7 @@ describe('serialization', () => {
       version: 1,
       comps: [
         { id: 'a', type: 'rom', x: 0, y: 0, params: { abits: 4, dbits: 16, isa: 'sk8', source: 'LDI 1\nHALT', data: '0100 0070' } },
-        { id: 'b', type: 'rom', x: 100, y: 0, params: { isa: 'nope', source: 'x'.repeat(6001), dbits: 12 } },
+        { id: 'b', type: 'rom', x: 100, y: 0, params: { isa: 'nope', source: 'x'.repeat(9001), dbits: 12 } },
         { id: 'c', type: 'ram', x: 200, y: 0, params: { dbits: 8 } },
         { id: 'd', type: 'ram', x: 300, y: 0, params: { dbits: 5 } },
       ],

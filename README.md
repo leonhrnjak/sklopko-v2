@@ -102,7 +102,7 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, hex keypad (0–F), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
+| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, keypad (hex digits or calculator keys), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
@@ -120,11 +120,11 @@ written with `STA 15`, via ROM tables and BCD adders) and a **calculator** (`/ca
 table, BCD adder, comparator and a memory register).
 
 A second computer adds a four-bit opcode, jump if zero, immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts and a
-128-instruction program ROM. It comes in three examples, each with only the devices it uses on the top RAM
+256-instruction program ROM. It comes in three examples, each with only the devices it uses on the top RAM
 addresses: **LCD** (`/computer-lcd`: a ball bouncing round a 16×16 screen; `STA 14` lights the pixel at the
 accumulator's (low nibble, high nibble), `STA 13` darkens it), **speaker** (`/computer-sound`: a siren; `STA 14`
-flips the speaker) and **keypad** (`/computer-calc`: a calculator for single digits with + − ×, typed on a hex keypad
-and shown on a text display; `LDA 15` reads the keypad, `STA 14` says the key has been read, `STA 15` prints a
+flips the speaker) and **keypad** (`/computer-calc`: a calculator for whole numbers up to 255 with + − × ÷, typed on a calculator
+keypad and shown on a text display; `LDA 15` reads the keypad, `STA 14` says the key has been read, `STA 15` prints a
 character). Write your own in the Program ROM's inspector (pick *A program for the Sklopko 8-bit computer 2*).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators

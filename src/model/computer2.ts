@@ -4,7 +4,7 @@ import { boundsRect, type Circuit } from './circuit'
 
 /**
  * The second 8-bit computer (instruction set `SK82`): the first one's datapath with a four-bit opcode, jump if zero,
- * immediate arithmetic, shifts and a 128-instruction program ROM. It has the devices an example asks for, on the
+ * immediate arithmetic, shifts and a 256-instruction program ROM. It has the devices an example asks for, on the
  * top RAM addresses, and only those:
  *
  *   lcd      the pixel screen: `STA 14` lights the pixel at (low nibble, high nibble) of the accumulator, `STA 13` darkens it
@@ -13,7 +13,7 @@ import { boundsRect, type Circuit } from './circuit'
  *   keypad   `LDA 15` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `STA 14` says it has been read
  */
 
-export const ROM_WORDS = 128
+export const ROM_WORDS = 256
 
 // ---- Control ROM -------------------------------------------------------------------------------
 
@@ -139,22 +139,24 @@ bottom: LDI -1
         JMP note
 `
 
-/** A calculator for single-digit numbers: digits, + - x and =. */
-export const CALC_SOURCE = `; A calculator. Keys: 0-9 digits, A +, B -, C x, D =, E clear.
-; Address 15 is the console (STA) and the keypad (LDA); STA 14 tells the keypad the key has been read.
+/** A calculator for whole numbers up to 255: + - x and /, with a keypad and a display. */
+export const CALC_SOURCE = `; A calculator for whole numbers up to 255. Keys: 0-9, + - x / (codes 10-13), = (14), C (15).
+; Address 15 is the display (STA prints a character) and the keypad (LDA reads it).
+; STA 14 tells the keypad that the key has been read.
 CON = 15
 KEYPAD = 15
 ACK = 14
 key = 0
 a = 1             ; the number before the operator
-b = 2             ; the digit typed last
-op = 3            ; 1 +, 2 -, 3 x, 0 none yet
-tmp = 4
-tens = 5
+cur = 2           ; the number being typed
+op = 3            ; 1 +, 2 -, 3 x, 4 /, 0 none yet
+t = 4
+h = 5             ; hundreds, when printing
+u = 6             ; tens, when printing
 
 reset:  LDI 0
         STA a
-        STA b
+        STA cur
         STA op
 main:   LDA KEYPAD
         SHR
@@ -169,10 +171,25 @@ main:   LDA KEYPAD
         STA ACK
         CMPI 10
         JNC command     ; 10 or more: not a digit
-        STA b           ; a digit: remember it and show it
-        ADDI 48
+
+; A digit: cur = cur x 10 + digit, unless the number would no longer fit in 8 bits.
+        LDA cur
+        CMPI 26
+        JNC main        ; 26 x 10 is already too much
+        SHL
+        STA t           ; 2 x cur
+        SHL
+        SHL             ; 8 x cur
+        ADD t           ; 10 x cur
+        ADD key
+        JNC fits
+        JMP main        ; carry: too big
+fits:   STA cur
+        LDA key
+        ADDI 48         ; digit to character
         STA CON
         JMP main
+
 command: LDA key
         CMPI 10
         JZ plus
@@ -181,8 +198,10 @@ command: LDA key
         CMPI 12
         JZ times
         CMPI 13
-        JZ equals
+        JZ divide
         CMPI 14
+        JZ equals
+        CMPI 15
         JZ clear
         JMP main
 plus:   LDI 43          ; '+'
@@ -199,9 +218,17 @@ times:  LDI 120         ; 'x'
         STA CON
         LDI 3
         STA op
-setop:  LDA b           ; the digit typed so far is the first number
+        JMP setop
+divide: LDI 47          ; '/'
+        STA CON
+        LDI 4
+        STA op
+setop:  LDA cur         ; the number typed so far is the first number
         STA a
+        LDI 0
+        STA cur
         JMP main
+
 equals: LDI 61          ; '='
         STA CON
         LDA op
@@ -211,55 +238,100 @@ equals: LDI 61          ; '='
         JZ dosub
         CMPI 3
         JZ domul
-        LDA b           ; no operator: just the digit
+        CMPI 4
+        JZ dodiv
+        LDA cur         ; no operator: just the number
         JMP show
 doadd:  LDA a
-        ADD b
-        JMP show
+        ADD cur
+        JNC show
+        JMP error       ; carry: more than 255
 dosub:  LDA a
-        SUB b
+        SUB cur
         JNC show        ; no borrow: not negative
-        STA tmp
+        STA t
         LDI 45          ; '-'
         STA CON
         LDI 0
-        SUB tmp         ; the size of the negative number
+        SUB t           ; the size of the negative number
         JMP show
 domul:  LDI 0
-        STA tmp
-mloop:  LDA b           ; add a to the total, b times
+        STA t           ; the total
+mloop:  LDA cur         ; add a to the total, cur times
         CMPI 0
         JZ mdone
         SUBI 1
-        STA b
-        LDA tmp
+        STA cur
+        LDA t
         ADD a
-        STA tmp
+        JNC mok
+        JMP error
+mok:    STA t
         JMP mloop
-mdone:  LDA tmp
-show:   STA tmp         ; print the accumulator as decimal: count the tens first
-        LDI 0
-        STA tens
-tloop:  LDA tmp
-        CMPI 10
-        JNC tsub        ; 10 or more
-        LDA tens
+mdone:  LDA t
+        JMP show
+dodiv:  LDA cur
         CMPI 0
-        JZ ones         ; no leading zero
+        JZ error        ; divide by zero
+        LDI 0
+        STA t           ; the quotient
+dloop:  LDA a           ; subtract cur from a as often as it goes
+        SUB cur
+        JNC dsub
+        LDA t
+        JMP show
+dsub:   STA a
+        LDA t
+        ADDI 1
+        STA t
+        JMP dloop
+
+; Print the accumulator as decimal, without leading zeros: count the hundreds, then the tens.
+show:   STA t
+        LDI 0
+        STA h
+        STA u
+hloop:  LDA t
+        CMPI 100
+        JNC hsub
+tloop:  LDA t
+        CMPI 10
+        JNC tsub
+        LDA h
+        CMPI 0
+        JZ nohund
         ADDI 48
         STA CON
-ones:   LDA tmp
+        JMP tens        ; after hundreds the tens digit is printed even if it is 0
+nohund: LDA u
+        CMPI 0
+        JZ ones
+tens:   LDA u
+        ADDI 48
+        STA CON
+ones:   LDA t
         ADDI 48
         STA CON
         LDI 10          ; new line
         STA CON
         JMP reset
-tsub:   SUBI 10
-        STA tmp
-        LDA tens
+hsub:   SUBI 100
+        STA t
+        LDA h
         ADDI 1
-        STA tens
+        STA h
+        JMP hloop
+tsub:   SUBI 10
+        STA t
+        LDA u
+        ADDI 1
+        STA u
         JMP tloop
+error:  LDI 69          ; 'E'
+        STA CON
+        LDI 10
+        STA CON
+        JMP reset
 clear:  LDI 10
         STA CON
         JMP reset
@@ -287,6 +359,8 @@ export interface Computer2Options {
   devices: Device[]
   /** Octaves the speaker plays up (a slow circuit makes notes too low to hear). */
   octaves?: number
+  /** The keypad's keys. */
+  keypad?: 'hex' | 'calc'
 }
 
 /** The computer, and the id of each named part. Parts are stacked in columns, left to right in the order data flows. */
@@ -321,20 +395,19 @@ export function computer2Builder(o: Computer2Options) {
   const ACC = 3260
   const DEVICES = 3560
 
-  // ---- Fetch: program counter (7 bits: two counters) and the program ROM ----------------------------
+  // ---- Fetch: program counter (8 bits: two counters) and the program ROM ----------------------------
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
   const pcLo = part(FETCH, 'pcLo', 'counterld', { label: 'PC low' })
   const pcHi = part(FETCH, 'pcHi', 'counterld', { label: 'PC high' })
   const zero = part(FETCH, 'zero0', 'const', { params: { value: 0 } })
-  const prog = part(ROM, 'prog', 'rom', { params: { abits: 7, dbits: 16, isa: SK82.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
+  const prog = part(ROM, 'prog', 'rom', { params: { abits: 8, dbits: 16, isa: SK82.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
   wireBits(pcLo, bits('Q', 4), prog, bits('A', 4))
-  for (let i = 0; i < 3; i++) wire(`${pcHi}.Q${i}`, `${prog}.A${4 + i}`)
+  for (let i = 0; i < 4; i++) wire(`${pcHi}.Q${i}`, `${prog}.A${4 + i}`)
   wire(`${clk}.Q`, `${pcLo}.CLK`)
   wire(`${clk}.Q`, `${pcHi}.CLK`)
-  // The high counter counts when the low one wraps round, and loads the upper bits of a jump target (bits 8–10 of the word).
+  // The high counter counts when the low one wraps round, and loads the upper bits of a jump target (bits 8–11 of the word).
   wire(`${pcLo}.CO`, `${pcHi}.EN`)
-  for (let i = 0; i < 3; i++) wire(`${prog}.D${8 + i}`, `${pcHi}.D${i}`)
-  wire(`${zero}.Q`, `${pcHi}.D3`)
+  for (let i = 0; i < 4; i++) wire(`${prog}.D${8 + i}`, `${pcHi}.D${i}`)
   wireBits(prog, bits('D', 4), pcLo, bits('D', 4))
 
   // ---- Decode: the control ROM, addressed by the opcode (bits 4–7) ----------------------------------------
@@ -423,7 +496,7 @@ export function computer2Builder(o: Computer2Options) {
 
   // With a keypad, address 15 reads it instead of RAM: RAM or keypad, bit by bit.
   const memOrIn: string[] = []
-  const keypad = has('keypad') ? part(INMUX, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true } }) : undefined
+  const keypad = has('keypad') ? part(INMUX, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
   for (let bit = 0; bit < 8; bit++) {
     if (!keypad) {
       memOrIn.push(`${ram}.Q${bit}`)
@@ -529,6 +602,7 @@ export interface Program {
   hz: number
   devices: Device[]
   octaves?: number
+  keypad?: 'hex' | 'calc'
   note: string
 }
 
@@ -554,13 +628,14 @@ export const PROGRAMS: Program[] = [
     id: 'computer-calc',
     name: 'Computer 2 + keypad: calculator',
     source: CALC_SOURCE,
-    hz: 256,
+    hz: 512,
     devices: ['console', 'keypad'],
-    note: 'The second 8-bit computer with a keypad and a display. Click keys to type a sum with single digits, for example 7 × 8 =. The keys are 0–9 for digits, A +, B −, C ×, D =, E clear. LDA 15 reads the keypad (the key in bits 0–3, bit 4 set while a press is waiting), STA 14 tells it the key has been read, and STA 15 prints a character. The program turns the result into decimal digits by subtracting tens.',
+    keypad: 'calc',
+    note: 'The second 8-bit computer with a calculator keypad and a display. Click keys to type a sum of whole numbers up to 255, such as 23 + 10, then = (E means too big or divided by zero; C clears). The keypad sends each key as a number; LDA 15 reads it, STA 14 says it has been read, STA 15 prints a character. A digit does cur × 10 + digit with shifts; × and ÷ are repeated addition and subtraction; the answer is turned into digits by subtracting hundreds and tens.',
   },
 ]
 
 export function buildComputer2(p: Program): Circuit {
-  const { b } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves })
+  const { b } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves, keypad: p.keypad })
   return b.build(0)
 }

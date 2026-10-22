@@ -217,13 +217,14 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
       what fits.
 - [x] **Computer 2** (`src/model/computer2.ts`, instruction set `SK82`): four opcode bits, `JZ`, `ADDI`, `SUBI`,
       `CMPI`, `SHL`, `SHR`; the first computer's opcodes are unchanged. A jump target has seven bits (the upper
-      three in bits 8–10), the program counter is two counters, so programs are 128 instructions. It is built
+      four in bits 8–11), the program counter is two counters, so programs are 256 instructions. It is built
       with only the devices an example asks for (`computer2Builder({ devices })`), so no example has a part that
       does nothing; address decoding is built only for the addresses used: 13 and 14 for the LCD (light, darken),
       14 for the speaker (flips a T flip-flop), 15 for the console (write) and the keypad (read, with 14 as its
       acknowledge). Three examples: LCD with a bouncing ball (`/computer-lcd`), speaker with a siren
       (`/computer-sound`, the speaker plays four octaves up because a 1 kHz computer is slow), keypad with a
-      single-digit calculator (`/computer-calc`: + − ×, negative results, clear). The first computer is untouched.
+      calculator (`/computer-calc`: whole numbers up to 255, + − × ÷, negative results, E for overflow or
+      division by zero, clear). The keypad has two layouts, hex digits and calculator keys. The first computer is untouched.
       A sticky keypad now latches each new press (and quick taps), so a held key counts once.
 - Not done: a multi-channel or waveform-selectable speaker, sampled sound; keypad keys from the computer's keyboard;
   a "fill from expression" button for the lookup table; 4-colour use in the computer (the part supports it);
@@ -234,7 +235,7 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
   lit, the siren's flip gaps shrink then grow, the calculator on a dozen sums including negatives and a held key);
   e2e tests for the calculator by mouse, the LCD and sound examples (and that they have only their own devices),
   LUT editing, muting a speaker, 8-bit RAM.
-- **Status: done** (v0.0.1-18).
+- **Status: done** (v0.0.1-19).
 
 ## Milestone 8: Router performance (medium)
 Routing time grows with wires × area (about 25 ms per wire on the 8-bit computer). Options, in order of risk:

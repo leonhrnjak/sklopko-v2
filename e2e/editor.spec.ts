@@ -1170,8 +1170,9 @@ test('challenges: rules, labels, solutions and memory steps', async ({ page }) =
 
 test('computers: the calculator takes its sums from the keypad and shows them on the display', async ({ page }) => {
   await page.goto('/computer-calc', { waitUntil: 'networkidle' })
-  const key = async (label: string) => {
-    const k = page.locator(`.comp[data-id^="keypad"] [data-key="${parseInt(label, 16)}"]`).first()
+  // The keys of the calculator keypad send 0-9 for the digits, 10-13 for + - × ÷, 14 for = and 15 for C.
+  const key = async (code: number) => {
+    const k = page.locator(`.comp[data-id^="keypad"] [data-key="${code}"]`).first()
     const b = (await k.boundingBox())!
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
     await page.mouse.down()
@@ -1179,12 +1180,12 @@ test('computers: the calculator takes its sums from the keypad and shows them on
     await page.mouse.up()
     await page.waitForTimeout(700) // the program reads the key and shows it
   }
-  for (const k of ['7', 'C', '8', 'D']) await key(k) // 7 × 8 =
-  await expect(page.locator('.comp[data-id^="console"] .console-text').first()).toContainText('7x8=56', { timeout: 10000 })
+  for (const k of [2, 3, 10, 1, 0, 14]) await key(k) // 23 + 10 =
+  await expect(page.locator('.comp[data-id^="console"] .console-text').first()).toContainText('23+10=33', { timeout: 15000 })
   const console_ = page.locator('.comp[data-id^="console"]')
   const box = (await console_.locator('> g').boundingBox())!
   await page.mouse.click(box.x + box.width / 2, box.y + box.height - 6)
-  await expect(page.getByLabel('Console text')).toHaveText(/^7x8=56\s*$/)
+  await expect(page.getByLabel('Console text')).toHaveText(/^23\+10=33\s*$/)
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await expect(page.getByLabel('Console text')).toHaveText(/^\s*$/)
 })

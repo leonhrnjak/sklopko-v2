@@ -102,6 +102,18 @@ export interface KeypadState {
   latched: boolean
 }
 
+/**
+ * What each key of a keypad shows and sends, in reading order. The hex keypad sends 0–15 as it reads; the calculator
+ * keypad sends the digits as themselves, + − × ÷ as 10–13, = as 14 and C as 15.
+ */
+export const KEYPAD_LAYOUTS: Record<string, { labels: string[]; codes: number[] }> = {
+  hex: { labels: Array.from({ length: 16 }, (_, i) => i.toString(16).toUpperCase()), codes: Array.from({ length: 16 }, (_, i) => i) },
+  calc: {
+    labels: ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', 'C', '0', '=', '+'],
+    codes: [7, 8, 9, 13, 4, 5, 6, 12, 1, 2, 3, 11, 15, 0, 14, 10],
+  },
+}
+
 export const devices: ComponentDef[] = [
   {
     type: 'console',
@@ -217,13 +229,26 @@ export const devices: ComponentDef[] = [
   },
   {
     type: 'keypad',
-    name: 'Hex keypad',
+    name: 'Keypad',
     category: 'io',
     description:
-      'Sixteen keys, 0–F. K0–K3 hold the code of the key pressed last, and P is 1 while a key is held down. ' +
+      'Sixteen keys, laid out as hex digits 0–F or as a calculator (digits, + − × ÷, = and C, sent as codes 0–9, ' +
+      '10–13, 14 and 15). K0–K3 hold the code of the key pressed last, and P is 1 while a key is held down. ' +
       'With "Sticky" on, P instead goes to 1 at each new press and stays there until RST goes to 1, so a slow ' +
       'program does not miss a press (and a key held down counts once).',
-    params: [{ key: 'sticky', label: 'Sticky', kind: 'bool', default: false }],
+    params: [
+      { key: 'sticky', label: 'Sticky', kind: 'bool', default: false },
+      {
+        key: 'layout',
+        label: 'Keys',
+        kind: 'select',
+        default: 'hex',
+        options: [
+          { value: 'hex', label: 'Hex digits 0–F' },
+          { value: 'calc', label: 'Calculator' },
+        ],
+      },
+    ],
     interactive: 'momentary',
     live: true,
     init: (): KeypadState => ({ pressed: false, prev: false, key: 0, latched: false }),

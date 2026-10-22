@@ -33,7 +33,7 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
     run(n: number) {
       for (let i = 0; i < n; i++) cycle()
     },
-    pc: () => reg('PC low', ['Q0', 'Q1', 'Q2', 'Q3']) | (reg('PC high', ['Q0', 'Q1', 'Q2']) << 4),
+    pc: () => reg('PC low', ['Q0', 'Q1', 'Q2', 'Q3']) | (reg('PC high', ['Q0', 'Q1', 'Q2', 'Q3']) << 4),
     acc: () => reg('ACC low') | (reg('ACC high') << 4),
     carry: () => sim.pinValue(id('Flags'), 'QA'),
     zero: () => sim.pinValue(id('Flags'), 'QB'),
@@ -118,11 +118,13 @@ describe('computer 2: instructions', () => {
     expect(run('LDI 0x80\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR', 9).acc).toBe(0)
   })
 
-  it('JMP, JNC and JZ jump to targets up to 127', () => {
+  it('JMP, JNC and JZ jump to targets up to 255', () => {
     expect(run('JMP 5', 1).pc).toBe(5)
     expect(run('JMP 31', 1).pc).toBe(31)
     expect(run('JMP 100', 1).pc).toBe(100)
     expect(run('JMP 127', 1).pc).toBe(127)
+    expect(run('JMP 255', 1).pc).toBe(255)
+    expect(run('JMP 200', 1).pc).toBe(200)
     expect(run('LDI 1\nADDI 1\nJNC 20', 3).pc).toBe(20)
     expect(run('LDI 255\nADDI 1\nJNC 20', 3).pc).toBe(3)
     expect(run('LDI 3\nCMPI 3\nJZ 70', 3).pc).toBe(70)
@@ -233,54 +235,75 @@ describe('computer 2: the programs', () => {
   }, 60000)
 
   describe('the calculator', () => {
-    /** Type keys, giving the program time after each to read the key and show it. */
-    const type = (keys: number[]) => {
+    const PLUS = 10
+    const MINUS = 11
+    const TIMES = 12
+    const DIVIDE = 13
+    const EQUALS = 14
+    const CLEAR = 15
+    /** Type a sum like "23+10=" (digits as themselves, + - * / = c), giving the program time after each key. */
+    const type = (keys: string) => {
       const m = machine(CALC_SOURCE)
-      for (const k of keys) {
-        m.press(k)
-        m.run(400)
+      const code: Record<string, number> = { '+': PLUS, '-': MINUS, '*': TIMES, '/': DIVIDE, '=': EQUALS, c: CLEAR }
+      for (const ch of keys) {
+        m.press(code[ch] ?? Number(ch))
+        m.run(ch === '=' ? 2500 : 40)
       }
       return m.text()
     }
-    const A = 10
-    const B = 11
-    const C = 12
-    const D = 13
-    const E = 14
 
-    it('adds', () => {
-      expect(type([3, A, 4, D])).toBe('3+4=7\n')
-      expect(type([9, A, 9, D])).toBe('9+9=18\n')
+    it('adds numbers of any length up to 255', () => {
+      expect(type('23+10=')).toBe('23+10=33\n')
+      expect(type('3+4=')).toBe('3+4=7\n')
+      expect(type('99+99=')).toBe('99+99=198\n')
+      expect(type('200+55=')).toBe('200+55=255\n')
+      expect(type('100+5=')).toBe('100+5=105\n') // a zero tens digit after hundreds is printed
     })
 
     it('subtracts, with a minus sign for a negative answer', () => {
-      expect(type([9, B, 5, D])).toBe('9-5=4\n')
-      expect(type([2, B, 6, D])).toBe('2-6=-4\n')
-      expect(type([5, B, 5, D])).toBe('5-5=0\n')
+      expect(type('50-8=')).toBe('50-8=42\n')
+      expect(type('9-5=')).toBe('9-5=4\n')
+      expect(type('2-26=')).toBe('2-26=-24\n')
+      expect(type('120-120=')).toBe('120-120=0\n')
     })
 
     it('multiplies', () => {
-      expect(type([7, C, 8, D])).toBe('7x8=56\n')
-      expect(type([9, C, 9, D])).toBe('9x9=81\n')
-      expect(type([6, C, 0, D])).toBe('6x0=0\n')
+      expect(type('12*12=')).toBe('12*12=144\n'.replace('*', 'x'))
+      expect(type('15*17=')).toBe('15x17=255\n')
+      expect(type('6*0=')).toBe('6x0=0\n')
     })
 
-    it('does one sum after another, and clears', () => {
-      expect(type([1, A, 2, D, 4, C, 5, D])).toBe('1+2=3\n4x5=20\n')
-      expect(type([7, C, E, 2, A, 2, D])).toBe('7x\n2+2=4\n')
+    it('divides, dropping the remainder', () => {
+      expect(type('100/7=')).toBe('100/7=14\n')
+      expect(type('9/3=')).toBe('9/3=3\n')
+      expect(type('5/9=')).toBe('5/9=0\n')
+      expect(type('250/50=')).toBe('250/50=5\n')
     })
 
-    it('reads a key held down only once, and ignores keys that are not on the calculator', () => {
+    it('shows E for an answer that is too big and for dividing by zero', () => {
+      expect(type('200+100=')).toBe('200+100=E\n')
+      expect(type('15*18=')).toBe('15x18=E\n')
+      expect(type('7/0=')).toBe('7/0=E\n')
+    })
+
+    it('does not take a number past 255, and a longer sum works after clearing', () => {
+      expect(type('2556=')).toBe('255=255\n') // the 6 would make 2556: ignored
+      expect(type('260=')).toBe('26=26\n') // 260 does not fit: the 0 is ignored
+      expect(type('7*c2+2=')).toBe('7x\n2+2=4\n')
+    })
+
+    it('does one sum after another', () => {
+      expect(type('1+2=4*5=')).toBe('1+2=3\n4x5=20\n')
+    })
+
+    it('reads a key held down only once, and ignores keys that are not used', () => {
       const m = machine(CALC_SOURCE)
-      m.sim.setState(m.id('Keypad'), { pressed: true, key: 5 })
+      m.sim.setState(m.id('Keypad'), { pressed: true, tapped: true, key: 5 })
       m.sim.settle()
       m.run(600) // held down for a long time
       m.sim.setState(m.id('Keypad'), { pressed: false })
       m.sim.settle()
       m.run(50)
-      expect(m.text()).toBe('5')
-      m.press(15)
-      m.run(300)
       expect(m.text()).toBe('5')
     })
   })

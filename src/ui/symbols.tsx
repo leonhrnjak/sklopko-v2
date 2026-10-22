@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
-import { CONSOLE_ROWS, FB_SIZE, speakerPitch, type ConsoleState, type FramebufferState, type KeypadState, type SpeakerState } from '../engine/components/devices'
+import { CONSOLE_ROWS, FB_SIZE, KEYPAD_LAYOUTS, speakerPitch, type ConsoleState, type FramebufferState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
@@ -699,17 +699,19 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     }
     case 'keypad': {
       const st: KeypadState | undefined = live ? sim.state(comp.id) : undefined
+      const layout = KEYPAD_LAYOUTS[String(p.layout)] ?? KEYPAD_LAYOUTS.hex
       content = (
         <BoxSym l={l}>
-          {Array.from({ length: 16 }, (_, i) => {
+          {layout.labels.map((label, i) => {
             const x = 32 + (i % 4) * 21
             const y = 14 + (i >> 2) * 21
-            const down = !!st?.pressed && st.key === i
+            const code = layout.codes[i]
+            const down = !!st?.pressed && st.key === code
             return (
-              <g key={i} data-key={i} className={`key${down ? ' down' : ''}`}>
-                <rect data-key={i} x={x} y={y} width={19} height={19} rx={3} className="key-cap" />
+              <g key={i} data-key={code} className={`key${down ? ' down' : ''}`}>
+                <rect data-key={code} x={x} y={y} width={19} height={19} rx={3} className="key-cap" />
                 <Txt x={x + 9.5} y={y + 10} className="key-label">
-                  {i.toString(16).toUpperCase()}
+                  {label}
                 </Txt>
               </g>
             )

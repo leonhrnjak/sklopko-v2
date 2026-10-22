@@ -190,7 +190,7 @@ describe('instruction set registry', () => {
 })
 
 describe('the second instruction set (SK82)', () => {
-  const asm2 = (source: string, capacity = 128) => assemble(SK82, source, capacity)
+  const asm2 = (source: string, capacity = 256) => assemble(SK82, source, capacity)
 
   it('is offered as a program type, and keeps the first set\'s opcodes', () => {
     expect(getIsa('sk82')).toBe(SK82)
@@ -204,11 +204,11 @@ describe('the second instruction set (SK82)', () => {
     expect(r.words.slice(0, 6)).toEqual([0x0083, 0x0590, 0x80a0, 0x00b0, 0x00c0, 0x01d0])
   })
 
-  it('stores the upper bits of a jump target in bits 8-10, so programs can be 128 instructions long', () => {
-    const r = asm2('JMP 31\nJZ 16\nJNC 15\nJMP 127\nJZ 64')
+  it('stores the upper bits of a jump target in bits 8-11, so programs can be 256 instructions long', () => {
+    const r = asm2('JMP 31\nJZ 16\nJNC 15\nJMP 127\nJZ 64\nJMP 255')
     expect(r.errors).toEqual([])
-    expect(r.words.slice(0, 5)).toEqual([0x013f, 0x0180, 0x006f, 0x073f, 0x0480])
-    expect(asm2('JMP 128').errors[0].message).toBe('JMP: the jump target 128 is out of range, it must be from 0 to 127.')
+    expect(r.words.slice(0, 6)).toEqual([0x013f, 0x0180, 0x006f, 0x073f, 0x0480, 0x0f3f])
+    expect(asm2('JMP 256').errors[0].message).toBe('JMP: the jump target 256 is out of range, it must be from 0 to 255.')
     expect(asm2('LDA 16').errors[0].message).toBe('LDA: the address 16 is out of range, it must be from 0 to 15.')
     expect(asm2('JMP').errors[0].message).toBe('JMP needs a jump target.')
   })
@@ -226,7 +226,7 @@ describe('the second instruction set (SK82)', () => {
     const r = asm2(source.join('\n'))
     expect(source.map((_, i) => disassemble(SK82, r.words[i]))).toEqual(source)
     expect(disassemble(SK82, 0x00e0)).toBe('.word 0x00E0') // unused opcode
-    expect(disassemble(SK82, 0x0f30)).toBe('.word 0x0F30') // stray bits that no instruction uses
+    expect(disassemble(SK82, 0x1030)).toBe('.word 0x1030') // stray bits that no instruction uses
   })
 
   it('refuses a name that is an instruction of this set', () => {
