@@ -374,40 +374,44 @@ describe('4-bit computer example', () => {
     sim.settle()
     const byLabel = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
     const reg = (id: string, pins = ['QA', 'QB', 'QC', 'QD']) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
-    const [pc, acc, flags] = [byLabel('PC'), byLabel('ACC'), byLabel('Flags')]
+    const [pc, acc, flags, outPort] = [byLabel('PC'), byLabel('ACC'), byLabel('Flags'), byLabel('Output port')]
     const ram = byLabel('Data RAM')
     /** One full clock cycle: rising edge, then falling edge. */
     const cycle = () => {
       sim.stepClock()
       sim.stepClock()
     }
-    return { sim, c, cycle, pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']), acc: () => reg(acc), carry: () => sim.pinValue(flags, 'QA'), halted: () => sim.pinValue(byLabel('Halted'), 'A'), ram: () => sim.state(ram).mem as number[], byLabel }
+    return { sim, c, cycle, pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']), acc: () => reg(acc), out: () => reg(outPort), carry: () => sim.pinValue(flags, 'QA'), halted: () => sim.pinValue(byLabel('Halted'), 'A'), ram: () => sim.state(ram).mem as number[], byLabel }
   }
 
   it('encodes the Fibonacci program as ROM words', () => {
-    expect(FIBONACCI).toBe('00 20 01 21 10 41 22 11 20 12 21 64 70')
+    expect(FIBONACCI).toBe('00 20 2F 01 21 11 2F 40 22 11 20 12 21 65 70')
     expect(CONTROL.split(' ')).toHaveLength(8)
     expect(CONTROL).toBe('01 05 08 20 13 13 40 80')
   })
 
   it('runs Fibonacci, writing each sum to RAM, and halts on the carry', () => {
-    const { cycle, pc, acc, carry, halted, ram } = setup()
+    const { cycle, pc, acc, out, carry, halted, ram } = setup()
     const sums: number[] = []
+    const shown: number[] = [] // what the Output display reads after each STA 15
     let cycles = 0
     while (!halted() && cycles++ < 200) {
       const at = pc()
       cycle()
-      if (at === 5) sums.push(acc()) // the ADD instruction has just run
+      if (at === 7) sums.push(acc()) // the ADD instruction has just run
+      if (at === 2 || at === 6) shown.push(out())
     }
     expect(halted()).toBe(1)
     expect(sums).toEqual([1, 2, 3, 5, 8, 13, 5]) // 21 does not fit in 4 bits: 21 mod 16 = 5, with carry
+    expect(shown).toEqual([0, 1, 1, 2, 3, 5, 8, 13]) // 0 1 1 2 3 5 8 D on the display, never an intermediate value
     expect(carry()).toBe(1)
-    expect(pc()).toBe(12)
+    expect(pc()).toBe(14)
     expect(ram().slice(0, 3)).toEqual([13, 5, 5])
-    expect(cycles).toBe(4 + 7 * 8) // set-up, then seven loops of eight instructions, then it sits on HALT
+    expect(cycles).toBe(5 + 7 * 9) // set-up, then seven loops of nine instructions, then it sits on HALT
     // Halted: more clock cycles change nothing.
     for (let i = 0; i < 5; i++) cycle()
-    expect(pc()).toBe(12)
+    expect(pc()).toBe(14)
+    expect(out()).toBe(13)
     expect(ram().slice(0, 3)).toEqual([13, 5, 5])
   })
 
@@ -434,7 +438,7 @@ describe('4-bit computer example', () => {
       for (let i = 0; i < cycles * 2; i++) sim.stepClock()
       const id = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
       const reg = (label: string, pins = ['QA', 'QB', 'QC', 'QD']) => pins.reduce((n, p, i) => n | (sim.pinValue(id(label), p) << i), 0)
-      return { acc: reg('ACC'), pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']), carry: sim.pinValue(id('Flags'), 'QA'), zero: sim.pinValue(id('Flags'), 'QB'), ram: sim.state(id('Data RAM')).mem as number[] }
+      return { out: reg('Output port'), acc: reg('ACC'), pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']), carry: sim.pinValue(id('Flags'), 'QA'), zero: sim.pinValue(id('Flags'), 'QB'), ram: sim.state(id('Data RAM')).mem as number[] }
     }
     expect(run('09', 1).acc).toBe(9) // LDI 9
     expect(run('09 25 00 15', 4)).toMatchObject({ acc: 9 }) // LDI 9, STA [5], LDI 0, LDA [5]
@@ -446,5 +450,8 @@ describe('4-bit computer example', () => {
     expect(run('01 20 40 66', 4).pc).toBe(6) // 1 + 1: no carry, so JNC 6 jumps
     expect(run('0F 20 40 66', 4).pc).toBe(4) // 15 + 15 carries, so JNC falls through
     expect(run('70', 5).pc).toBe(0) // HALT stays where it is
+    expect(run('0A 2F', 2).out).toBe(10) // LDI 10, STA 15: address 15 is the output port
+    expect(run('0A 2E', 2).out).toBe(0) // any other address leaves it alone
+    expect(run('0A 2F 03 1F', 4)).toMatchObject({ out: 10, acc: 10 }) // LDA 15 reads the RAM, not the port
   })
 })

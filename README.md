@@ -68,7 +68,7 @@ security headers.
 
 The *Examples* menu includes two showpieces built only from these parts: a **4-bit computer** (`/computer`: program
 counter, program ROM, control ROM, ALU, RAM, accumulator and a carry flag, running a Fibonacci program that you can
-edit as hex in the ROM) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup table, BCD adder,
+edit as hex in the ROM, and shows each number on an output port, written with `STA 15`) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup table, BCD adder,
 comparator and a memory register).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators

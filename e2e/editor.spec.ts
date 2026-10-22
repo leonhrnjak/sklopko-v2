@@ -413,7 +413,7 @@ test('4-bit computer example: runs its program to the HALT instruction', async (
   await page.selectOption('select[aria-label="Simulation speed"]', '4')
   const halted = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Halted$/ }) }).locator('.led-fill.on')
   await expect(halted).toHaveCount(0)
-  // 60 clock cycles at 4 Hz × 4 speed.
+  // 68 clock cycles at 4 Hz × 4 speed.
   await expect(halted).toHaveCount(1, { timeout: 25000 })
   // The waveform panel showed up with the example's probes.
   await expect(page.getByTestId('waves')).toBeVisible()

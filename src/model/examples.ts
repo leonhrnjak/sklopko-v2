@@ -517,20 +517,28 @@ export const OPCODES = { LDI: 0, LDA: 1, STA: 2, JMP: 3, ADD: 4, SUB: 5, JNC: 6,
 const instr = (op: keyof typeof OPCODES, operand = 0) =>
   ((OPCODES[op] << 4) | operand).toString(16).toUpperCase().padStart(2, '0')
 
-/** Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Stops when a sum no longer fits in 4 bits (carry). */
+/** Address of the output port: `STA 15` writes the accumulator to the Output register, as well as to RAM. */
+export const OUT_PORT = 15
+
+/**
+ * Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Each number is written to the output port as soon as it is
+ * known, so the Output display reads 0 1 1 2 3 5 8 D (13). The next sum no longer fits in 4 bits (carry): it stops.
+ */
 export const FIBONACCI = [
   instr('LDI', 0),
   instr('STA', 0), // a = 0
+  instr('STA', OUT_PORT), // output 0
   instr('LDI', 1),
   instr('STA', 1), // b = 1
-  instr('LDA', 0), // 4: loop
-  instr('ADD', 1), //    acc = a + b, sets the carry flag
+  instr('LDA', 1), // 5: loop
+  instr('STA', OUT_PORT), //    output b
+  instr('ADD', 0), //    acc = b + a, sets the carry flag
   instr('STA', 2), //    t = a + b
   instr('LDA', 1),
   instr('STA', 0), //    a = b
   instr('LDA', 2),
   instr('STA', 1), //    b = t
-  instr('JNC', 4), //    no carry: next number
+  instr('JNC', 5), //    no carry: next number
   instr('HALT'),
 ].join(' ')
 
@@ -575,6 +583,9 @@ export const COMPUTER_LAYOUT: Record<string, [number, number, boolean?]> = {
   probe7: [1500, 120],
   probe8: [1500, 160],
   probe9: [1500, 260],
+  outAnd: [1080, 620],
+  out: [1260, 560],
+  outDisp: [1420, 560],
 }
 
 /** The computer's parts and wires, positioned by `layout` (every part by its key). */
@@ -643,6 +654,17 @@ export function computerBuilder(layout: Record<string, [number, number, boolean?
   })
   b.wire(`${ctl}.D0`, `${acc}.LD`)
   b.wire(`${clk}.Q`, `${acc}.CLK`)
+
+  // ---- Output port: STA 15 (RAM write, address 15) also loads the Output register --------------------
+  const outAnd = part('outAnd', 'and', { params: { inputs: 5 }, label: 'write to port' })
+  b.wire(`${ctl}.D3`, `${outAnd}.A`)
+  n4('D').forEach((p, i) => b.wire(`${prog}.${p}`, `${outAnd}.${String.fromCharCode(66 + i)}`))
+  const out = part('out', 'register', { label: 'Output port' })
+  wireBits(b, acc, Q, out, NIB)
+  b.wire(`${outAnd}.Y`, `${out}.LD`)
+  b.wire(`${clk}.Q`, `${out}.CLK`)
+  const outDisp = part('outDisp', 'hexdisp', { label: 'Output' })
+  wireBits(b, out, Q, outDisp, NIB)
 
   // ---- Flags --------------------------------------------------------------------------------
   b.wire(`${alu}.Co`, `${flags}.A`)
