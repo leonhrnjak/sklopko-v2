@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SK8, assemble, disassemble, getIsa, parseNumber, toHexWords } from './isa'
+import { SK8, SK82, assemble, disassemble, getIsa, parseNumber, toHexWords } from './isa'
 
 const asm = (source: string, capacity = 16) => assemble(SK8, source, capacity)
 const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SK8.bits)
@@ -186,5 +186,50 @@ describe('instruction set registry', () => {
   it('hex words are zero-padded to the word width', () => {
     expect(toHexWords([1, 0xabc, 0xffff], 16)).toBe('0001 0ABC FFFF')
     expect(toHexWords([1, 0xab], 8)).toBe('01 AB')
+  })
+})
+
+describe('the second instruction set (SK82)', () => {
+  const asm2 = (source: string, capacity = 32) => assemble(SK82, source, capacity)
+
+  it('is offered as a program type, and keeps the first set\'s opcodes', () => {
+    expect(getIsa('sk82')).toBe(SK82)
+    for (const [name, op] of Object.entries(SK8.ops)) expect(SK82.ops[name].code, name).toBe(op.code)
+    expect(asm2('LDI 200\nLDA 3\nSTA 15\nJMP 7\nADD 1\nSUB 2\nJNC 9\nHALT').words.slice(0, 8)).toEqual(asm('LDI 200\nLDA 3\nSTA 15\nJMP 7\nADD 1\nSUB 2\nJNC 9\nHALT').words.slice(0, 8))
+  })
+
+  it('encodes the new instructions with a four-bit opcode', () => {
+    const r = asm2('JZ 3\nADDI 5\nCMPI 0x80\nSHL\nSHR\nSUBI 1')
+    expect(r.errors).toEqual([])
+    expect(r.words.slice(0, 6)).toEqual([0x0083, 0x0590, 0x80a0, 0x00b0, 0x00c0, 0x01d0])
+  })
+
+  it('stores the fifth bit of a jump target in bit 8, so programs can be 32 instructions long', () => {
+    const r = asm2('JMP 31\nJZ 16\nJNC 15')
+    expect(r.errors).toEqual([])
+    expect(r.words.slice(0, 3)).toEqual([0x013f, 0x0180, 0x006f])
+    expect(asm2('JMP 32').errors[0].message).toBe('JMP: the jump target 32 is out of range, it must be from 0 to 31.')
+    expect(asm2('LDA 16').errors[0].message).toBe('LDA: the address 16 is out of range, it must be from 0 to 15.')
+    expect(asm2('JMP').errors[0].message).toBe('JMP needs a jump target.')
+  })
+
+  it('takes labels past address 15 as jump targets', () => {
+    const lines = [...Array.from({ length: 20 }, () => 'SHL'), 'far: HALT', 'JMP far']
+    const r = asm2(lines.join('\n'))
+    expect(r.errors).toEqual([])
+    expect(r.symbols.far).toBe(20)
+    expect(disassemble(SK82, r.words[21])).toBe('JMP 20')
+  })
+
+  it('disassembles every instruction back to what was written', () => {
+    const source = ['LDI 200', 'LDA 3', 'STA 15', 'JMP 30', 'ADD 1', 'SUB 2', 'JNC 9', 'HALT', 'JZ 17', 'ADDI 255', 'CMPI 58', 'SHL', 'SHR', 'SUBI 10']
+    const r = asm2(source.join('\n'))
+    expect(source.map((_, i) => disassemble(SK82, r.words[i]))).toEqual(source)
+    expect(disassemble(SK82, 0x00e0)).toBe('.word 0x00E0') // unused opcode
+    expect(disassemble(SK82, 0x0f30)).toBe('.word 0x0F30') // stray bits that no instruction uses
+  })
+
+  it('refuses a name that is an instruction of this set', () => {
+    expect(asm2('SHL = 5').errors[0].message).toContain('instruction name')
   })
 })

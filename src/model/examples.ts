@@ -1,5 +1,6 @@
 import { SK8, assemble, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
+import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { boundsRect, snap, type Circuit, type Rot } from './circuit'
 
 export interface Example {
@@ -845,6 +846,19 @@ function computer(): Circuit {
   return b.build(0)
 }
 
+/** The second computer running one of its programs, with notes and frames that name its parts. */
+function computer2(p: Program): Circuit {
+  const { b, keys } = computer2Builder({ source: p.source, hz: p.hz })
+  const ids = (...parts: string[]) => parts.map((k) => keys[k]).filter(Boolean)
+  frameAround(b, 'Fetch: PC and program ROM', ids('pcLo', 'pcHi', 'prog'))
+  frameAround(b, 'Decode: opcode to control signals', ids('ctl', 'ncarry', 'jnc', 'jz', 'take', 'nhalt'), 'yellow')
+  frameAround(b, 'Which device? (addresses 13, 14, 15)', ids('na0', 'na1', 'sel15', 'sel14', 'sel13', 'conWe', 'fbSel', 'fbWe'), 'green')
+  frameAround(b, 'ACC input: which source?', ids(...Array.from({ length: 8 }, (_, i) => `amux${i}`)), 'blue')
+  frameAround(b, 'Devices', ids('console', 'screen'), 'green')
+  note(b, 0, -300, p.note, 60)
+  return b.build(0)
+}
+
 /** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
 export const SMILEY = ['3C', '42', 'A5', '81', 'A5', '99', '42', '3C']
 
@@ -901,6 +915,7 @@ export const EXAMPLES: Example[] = [
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
   { id: 'computer', name: '8-bit computer (runs Fibonacci)', build: computer },
+  ...PROGRAMS.map((p): Example => ({ id: p.id, name: p.name, build: () => computer2(p) })),
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
   { id: 'gates', name: 'Basic gates', build: basicGates },

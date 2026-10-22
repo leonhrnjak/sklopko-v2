@@ -1167,3 +1167,70 @@ test('challenges: rules, labels, solutions and memory steps', async ({ page }) =
   await panel.getByTestId('challenge-check').click()
   await expect(panel).toContainText('All 6 steps came out right')
 })
+
+test('devices: the computer prints on its console, and the console can be read in the inspector', async ({ page }) => {
+  await page.goto('/computer2-count', { waitUntil: 'networkidle' })
+  // It pauses by itself when the program reaches HALT.
+  await expect(page.getByText('Paused at breakpoint')).toBeVisible({ timeout: 30000 })
+  await expect(page.locator('.console-text').last()).toContainText('')
+  const console_ = page.locator('.comp[data-id^="console"]')
+  const box = (await console_.locator('> g').boundingBox())!
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 6)
+  await expect(page.getByLabel('Console text')).toHaveText(/^0123456789\s*$/)
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await expect(page.getByLabel('Console text')).toHaveText(/^\s*$/)
+})
+
+test('devices: the keypad is read by the computer, one key at a time', async ({ page }) => {
+  await page.goto('/computer2-keys', { waitUntil: 'networkidle' })
+  await page.getByTestId('run').click() // (it runs already: this pauses it)
+  await page.getByTestId('run').click()
+  const key = async (label: string) => {
+    const k = page.locator(`.comp[data-id^="keypad"] [data-key="${parseInt(label, 16)}"]`).first()
+    const b = (await k.boundingBox())!
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(900)
+    await page.mouse.up()
+    await page.waitForTimeout(500)
+  }
+  await key('7')
+  await key('A')
+  const console_ = page.locator('.comp[data-id^="console"]')
+  const box = (await console_.locator('> g').boundingBox())!
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 6)
+  await expect(page.getByLabel('Console text')).toHaveText(/^7A\s*$/)
+})
+
+test('devices: a lookup table is edited cell by cell, and a speaker is muted with a click', async ({ page }) => {
+  await freshEmpty(page)
+  const lut = await place(page, 'lut', 300, 200)
+  await expect(page.getByRole('table', { name: 'Lookup table' }).locator('tbody tr')).toHaveCount(8)
+  // Majority of three to begin with: rows 3, 5, 6, 7 are 1.
+  const values = () => page.getByRole('table', { name: 'Lookup table' }).locator('td.out').allTextContents()
+  expect(await values()).toEqual(['0', '0', '0', '1', '0', '1', '1', '1'])
+  await page.getByRole('button', { name: 'Row 0, Y' }).click()
+  await page.getByRole('button', { name: 'Row 7, Y' }).click()
+  expect(await values()).toEqual(['1', '0', '0', '1', '0', '1', '1', '0'])
+  await page.getByRole('button', { name: 'All 0' }).click()
+  expect(await values()).toEqual(Array(8).fill('0'))
+  await page.getByLabel('Inputs').selectOption('4')
+  await expect(page.getByRole('table', { name: 'Lookup table' }).locator('tbody tr')).toHaveCount(16)
+  expect(lut).toBeTruthy()
+
+  const speaker = await place(page, 'speaker', 600, 300)
+  await expect(page.locator(`.comp[data-id="${speaker}"] .speaker-muted`)).toHaveCount(0)
+  await clickComp(page, speaker)
+  await expect(page.locator(`.comp[data-id="${speaker}"] .speaker-muted`)).toHaveCount(1)
+  await clickComp(page, speaker)
+  await expect(page.locator(`.comp[data-id="${speaker}"] .speaker-muted`)).toHaveCount(0)
+})
+
+test('devices: RAM and ROM can have 8 address bits', async ({ page }) => {
+  await freshEmpty(page)
+  const ram = await place(page, 'ram', 300, 200)
+  await page.getByLabel('Address bits').selectOption('8')
+  await expect(page.locator(`circle.pin[data-comp="${ram}"][data-pin="A7"]`)).toHaveCount(1)
+  await expect(page.locator(`.comp[data-id="${ram}"]`)).toContainText('RAM 256×4')
+  await expect(page.locator('.ram-word')).toHaveCount(256)
+})

@@ -54,7 +54,7 @@ export const io: ComponentDef[] = [
         label: 'Frequency (Hz)',
         kind: 'select',
         default: 1,
-        options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256].map((v) => ({ value: v, label: `${v} Hz` })),
+        options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].map((v) => ({ value: v, label: `${v} Hz` })),
       },
     ],
     init: () => ({ phase: 0 as V, elapsed: 0 }),

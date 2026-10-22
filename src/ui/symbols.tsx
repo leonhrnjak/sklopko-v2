@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
+import { CONSOLE_ROWS, FB_SIZE, speakerPitch, type ConsoleState, type FramebufferState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
-import { TABLE_ROW_H, TABLE_TOP, parseWords, tableShape } from '../engine/components/memory'
+import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
 import { X, toNum, type Layout, type PinDef, type V } from '../engine/types'
 import { useSettings } from '../app/settings'
@@ -207,6 +208,7 @@ function MemSym({ l, title, words, digits, addr }: { l: Layout; title: string; w
   // Upright text doesn't fit the short side of a turned box, so the name is left out there.
   const sideways = useContext(Orient).rot % 2 === 1
   const x0 = (l.w - cols * cellW) / 2
+  if (!showsTable(words.length)) return <BoxSym l={l} title={title} />
   return (
     <BoxSym l={l}>
       {words.map((v, i) => {
@@ -284,6 +286,12 @@ function Digit({ x, y, w, h, segs, dp }: { x: number; y: number; w: number; h: n
       {dp !== undefined && <circle cx={R + t * 0.9} cy={B} r={t / 2} className={dp ? 'seg on' : 'seg'} />}
     </g>
   )
+}
+
+/** Pixel colours of the pixel screen, by number of colours. */
+const FB_COLORS: Record<number, string[]> = {
+  2: ['#0b1220', '#facc15'],
+  4: ['#0b1220', '#ef4444', '#22c55e', '#f8fafc'],
 }
 
 const LED_COLORS: Record<string, string> = {
@@ -638,6 +646,78 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     case 'matrix':
       content = <MatrixSym comp={comp} l={l} live={live} />
       break
+    case 'console': {
+      const st: ConsoleState | undefined = live ? sim.state(comp.id) : undefined
+      const lines = (st?.lines ?? ['']).slice(-CONSOLE_ROWS)
+      const last = lines.length - 1
+      content = (
+        <BoxSym l={l}>
+          <rect className="screen-body" x={44} y={12} width={l.w - 54} height={CONSOLE_ROWS * 16 + 8} rx={3} />
+          {lines.map((line, i) => (
+            <text key={i} x={50} y={28 + i * 16} className="console-text">
+              {line}
+              {i === last && live && <tspan className="console-cursor">▌</tspan>}
+            </text>
+          ))}
+          <Title text="Text console" x={44 + (l.w - 54) / 2} y={CONSOLE_ROWS * 16 + 34} />
+        </BoxSym>
+      )
+      break
+    }
+    case 'framebuffer': {
+      const st: FramebufferState | undefined = live ? sim.state(comp.id) : undefined
+      const colors = FB_COLORS[Number(p.colors) === 4 ? 4 : 2]
+      const cell = 10
+      content = (
+        <BoxSym l={l}>
+          <rect className="screen-body" x={44} y={12} width={FB_SIZE * cell} height={FB_SIZE * cell} rx={2} />
+          {st?.px.map((v, i) =>
+            v ? <rect key={i} x={44 + (i % FB_SIZE) * cell} y={12 + Math.floor(i / FB_SIZE) * cell} width={cell} height={cell} fill={colors[v] ?? colors[1]} /> : null,
+          )}
+          <Title text={`Pixel screen 16×16, ${Number(p.colors) === 4 ? '4 colours' : '1 bit'}`} x={44 + (FB_SIZE * cell) / 2} y={FB_SIZE * cell + 32} />
+        </BoxSym>
+      )
+      break
+    }
+    case 'speaker': {
+      const on = !!p.on
+      const st: SpeakerState | undefined = live ? sim.state(comp.id) : undefined
+      const sounding = on && !!st && speakerPitch(st.edges, sim.time) > 0
+      content = (
+        <>
+          <Stub pin={l.pins[0]} inner={{ x: 0, y: 20 }} />
+          <rect x={0} y={0} width={40} height={40} rx={4} className="sym-body" />
+          <path className={`speaker-cone${sounding ? ' on' : ''}`} d="M8,16 h6 l9,-7 v22 l-9,-7 h-6 z" />
+          {on ? (
+            <path className={`sym-line speaker-wave${sounding ? ' on' : ''}`} d="M27,15 q5,5 0,10 M31,11 q9,9 0,18" />
+          ) : (
+            <path className="sym-line speaker-muted" d="M27,15 l9,10 M36,15 l-9,10" />
+          )}
+        </>
+      )
+      break
+    }
+    case 'keypad': {
+      const st: KeypadState | undefined = live ? sim.state(comp.id) : undefined
+      content = (
+        <BoxSym l={l}>
+          {Array.from({ length: 16 }, (_, i) => {
+            const x = 32 + (i % 4) * 21
+            const y = 14 + (i >> 2) * 21
+            const down = !!st?.pressed && st.key === i
+            return (
+              <g key={i} data-key={i} className={`key${down ? ' down' : ''}`}>
+                <rect data-key={i} x={x} y={y} width={19} height={19} rx={3} className="key-cap" />
+                <Txt x={x + 9.5} y={y + 10} className="key-label">
+                  {i.toString(16).toUpperCase()}
+                </Txt>
+              </g>
+            )
+          })}
+        </BoxSym>
+      )
+      break
+    }
     case 'bar': {
       const vs = ins()
       content = (
@@ -670,8 +750,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     }
     case 'ram': {
       const bits = Number(p.dbits)
-      const mem: number[] = (live && sim.state(comp.id)?.mem) || new Array(16).fill(0)
-      content = <MemSym l={l} title={def.title!(p)} words={mem} digits={bits / 4} addr={live ? toNum(ins(), bits + 2, 4) : -1} />
+      const abits = Number(p.abits) || 4
+      const mem: number[] = (live && sim.state(comp.id)?.mem) || new Array(2 ** abits).fill(0)
+      content = <MemSym l={l} title={def.title!(p)} words={mem} digits={bits / 4} addr={live ? toNum(ins(), bits + 2, abits) : -1} />
       break
     }
     case 'mux':

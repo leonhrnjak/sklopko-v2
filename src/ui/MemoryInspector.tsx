@@ -3,6 +3,7 @@ import { useCompSignature } from '../app/hooks'
 import { downloadText, openTextFile } from '../app/files'
 import { sim } from '../app/sim'
 import { pokeWord, setParams, showToast, useStore } from '../app/store'
+import type { ConsoleState } from '../engine/components/devices'
 import { HEX_WORDS, parseWords } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexWords, type Isa } from '../engine/isa'
@@ -193,11 +194,13 @@ function useMemoryWords(id: string): number[] {
 
 export function RamSection({ comp }: { comp: Comp }) {
   const bits = Number(comp.params.dbits)
+  const abits = Number(comp.params.abits) || 4
   const digits = bits / 4
+  const addrDigits = Math.ceil(abits / 4)
   const running = useStore((s) => s.running)
   const mem = useMemoryWords(comp.id)
   useCompSignature(comp.id, true)
-  const addr = toNum(sim.inputValues(comp.id), bits + 2, 4)
+  const addr = toNum(sim.inputValues(comp.id), bits + 2, abits)
   const [editing, setEditing] = useState<number | null>(null)
   const cancelled = useRef(false) // Escape: the blur that follows must not apply the text
 
@@ -216,11 +219,11 @@ export function RamSection({ comp }: { comp: Comp }) {
       <div className="ram-grid" role="grid" aria-label="RAM contents">
         {mem.map((v, i) => (
           <div key={i} className={`ram-word${i === addr ? ' current' : ''}`} role="gridcell">
-            <span className="addr">{hexOf(i, 1)}</span>
+            <span className="addr">{hexOf(i, addrDigits)}</span>
             {editing === i && !running ? (
               <input
                 autoFocus
-                aria-label={`Word ${hexOf(i, 1)}`}
+                aria-label={`Word ${hexOf(i, addrDigits)}`}
                 defaultValue={hexOf(v, digits)}
                 maxLength={digits}
                 spellCheck={false}
@@ -252,6 +255,103 @@ export function RamSection({ comp }: { comp: Comp }) {
         <button disabled={running} onClick={() => mem.forEach((_, i) => pokeWord(comp.id, i, 0))}>
           Clear all
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ---- Lookup table ------------------------------------------------------------------------------
+
+/** The rows of a lookup table, with a clickable cell for every output bit. */
+export function LutSection({ comp }: { comp: Comp }) {
+  const n = Number(comp.params.inputs)
+  const m = Number(comp.params.outputs)
+  const rows = 2 ** n
+  const words = parseWords(String(comp.params.data), rows, m)
+  const digits = Math.ceil(m / 4)
+  const names = Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i))
+  const outNames = m === 1 ? ['Y'] : Array.from({ length: m }, (_, i) => `Y${i}`)
+  const write = (next: number[]) => setParams(comp.id, { data: next.map((w) => hexOf(w, digits)).join(' ') })
+  const flip = (row: number, bit: number) => write(words.map((w, r) => (r === row ? w ^ (1 << bit) : w)))
+  return (
+    <div className="field">
+      <span>Truth table</span>
+      <div className="listing lut-grid">
+        <table className="truth" aria-label="Lookup table">
+          <thead>
+            <tr>
+              {names.map((a) => (
+                <th key={a} className="in">
+                  {a}
+                </th>
+              ))}
+              {outNames.map((y) => (
+                <th key={y} className="out">
+                  {y}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {words.map((w, row) => (
+              <tr key={row}>
+                {names.map((a, i) => (
+                  <td key={a} className="in">
+                    {(row >> (n - 1 - i)) & 1}
+                  </td>
+                ))}
+                {outNames.map((y, o) => {
+                  const bit = (w >> o) & 1
+                  return (
+                    <td key={y} className={`out v${bit}`}>
+                      <button className="cellbtn" aria-label={`Row ${row}, ${y}`} onClick={() => flip(row, o)}>
+                        {bit}
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <small>Click a value to flip it. The inputs pick the row (A is the leftmost bit).</small>
+      <div className="row">
+        <button onClick={() => write(words.map(() => 0))}>All 0</button>
+        <button onClick={() => write(words.map(() => 2 ** m - 1))}>All 1</button>
+      </div>
+    </div>
+  )
+}
+
+// ---- Text console ------------------------------------------------------------------------------
+
+/** Everything the console has printed, and buttons to clear or copy it. */
+export function ConsoleSection({ comp }: { comp: Comp }) {
+  useCompSignature(comp.id, true)
+  const st = sim.state(comp.id) as ConsoleState | undefined
+  const text = (st?.lines ?? ['']).join('\n')
+  const clear = () => {
+    sim.setState(comp.id, { lines: [''], rev: (st?.rev ?? 0) + 1 })
+    sim.publish()
+  }
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast('Copied the console text.')
+    } catch {
+      showToast('Could not copy: the browser did not allow it.')
+    }
+  }
+  return (
+    <div className="field">
+      <span>Text so far</span>
+      <pre className="console-view" aria-label="Console text">
+        {text || ' '}
+      </pre>
+      <div className="row">
+        <button onClick={clear}>Clear</button>
+        <button onClick={copy}>Copy text</button>
       </div>
     </div>
   )

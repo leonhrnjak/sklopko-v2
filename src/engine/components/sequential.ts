@@ -1,5 +1,5 @@
 import { box, names, type PinSpec } from '../layouts'
-import { X, inv, toNum, writeNum, type ComponentDef, type Instance, type V } from '../types'
+import { X, inv, toNum, writeNum, type ComponentDef, type Instance, type Params, type V } from '../types'
 import { tableBox } from './memory'
 
 const CLK: PinSpec = { name: 'CLK', clock: true }
@@ -292,13 +292,17 @@ function resetBits(kind: string): V[] {
 }
 
 
+/** Address bits of a RAM (an older saved part has no such parameter: 4). */
+export const ramBits = (p: Params) => Number(p.abits) || 4
+
 export const memoryRam: ComponentDef[] = [
   {
     type: 'ram',
     name: 'RAM',
     category: 'memory',
     description:
-      'Read/write memory with 16 words of 4 or 8 bits. The word addressed by A0–A3 is always on Q. On a rising CLK ' +
+      'Read/write memory of 4 or 8 bit words (16 words, or up to 256 with more address bits). The word addressed by ' +
+      'A is always on Q. On a rising CLK ' +
       'with WE=1 the data inputs D are written to that address (not when the address or data is unknown). ' +
       'Contents are cleared by Reset. While the simulation is paused you can edit the words in the inspector.',
     params: [
@@ -310,27 +314,39 @@ export const memoryRam: ComponentDef[] = [
         structural: true,
         options: [4, 8].map((v) => ({ value: v, label: `${v} (${v / 4} hex digit${v > 4 ? 's' : ''})` })),
       },
+      {
+        key: 'abits',
+        label: 'Address bits',
+        kind: 'select',
+        default: 4,
+        structural: true,
+        options: [4, 5, 6, 7, 8].map((v) => ({ value: v, label: `${v} (${2 ** v} words)` })),
+      },
     ],
-    title: (p) => `RAM 16×${p.dbits}`,
+    title: (p) => `RAM ${2 ** ramBits(p)}×${p.dbits}`,
     live: true,
-    init: () => ({ mem: new Array<number>(16).fill(0), pc: X as V }),
+    init: (p) => ({ mem: new Array<number>(2 ** ramBits(p)).fill(0), pc: X as V }),
     layout: (p) => {
       const n = Number(p.dbits)
-      const { w, minRows } = tableBox(16, n / 4)
+      const a = ramBits(p)
+      const { w, minRows } = tableBox(2 ** a, n / 4)
       return box({
         w,
         minRows,
         left: [...names('D', n), { name: 'WE', def: 0 }, CLK],
-        top: names('A', 4),
+        top: names('A', a),
         right: names('Q', n),
       })
     },
     evaluate(inst) {
       const { ins, outs } = inst
       const st = inst.state as { mem: number[]; pc: V }
+      // The words kept from before the address size was changed are cut or padded with zeros.
+      const words = 2 ** ramBits(inst.params)
+      if (st.mem.length !== words) st.mem = Array.from({ length: words }, (_, i) => st.mem[i] ?? 0)
       // Pin order: left D0…, WE, CLK, then top A0–A3.
       const n = Number(inst.params.dbits)
-      const addr = toNum(ins, n + 2, 4)
+      const addr = toNum(ins, n + 2, ramBits(inst.params))
       if (rising(st, ins[n + 1]) && ins[n] === 1) {
         const data = toNum(ins, 0, n)
         if (addr >= 0 && data >= 0) st.mem[addr] = data

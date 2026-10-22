@@ -15,8 +15,8 @@
 
 const WORD = '.WORD'
 
-/** What follows the mnemonic: nothing, a memory address / jump target, or an immediate value. */
-export type ArgKind = 'none' | 'addr' | 'imm'
+/** What follows the mnemonic: nothing, a memory address, a jump target (which may reach further than an address), or an immediate value. */
+export type ArgKind = 'none' | 'addr' | 'target' | 'imm'
 
 export interface Op {
   code: number
@@ -29,8 +29,9 @@ export interface Isa {
   /** Width of one instruction word in bits (the ROM's data bits). */
   bits: number
   ops: Record<string, Op>
-  /** Largest value of an address operand, and of an immediate operand. */
+  /** Largest value of an address operand, of a jump target (if the set has any 'target' operands), and of an immediate operand. */
   maxAddr: number
+  maxTarget?: number
   maxImm: number
   encode(op: Op, arg: number): number
   /** The opcode and operand of a word, or null if its opcode is not an instruction. */
@@ -69,7 +70,51 @@ export const SK8: Isa = {
   },
 }
 
-export const ISAS: Isa[] = [SK8]
+/**
+ * The second computer: the same word, with a fourth opcode bit (bits 4–7) and more instructions. A jump target has
+ * five bits (the fifth is stored in bit 8, which only LDI and the immediate instructions otherwise use), so programs
+ * can be 32 instructions long. Addresses 13, 14 and 15 are devices: `STA 15` prints the accumulator as a character,
+ * `STA 14` lights the pixel at (low nibble, high nibble) of the accumulator and `STA 13` darkens it, and `LDA 15`
+ * reads the keypad (the key in bits 0–3, and bit 4 set while one is held).
+ */
+const SK82_OPS: Record<string, Op> = {
+  LDI: { code: 0, arg: 'imm' },
+  LDA: { code: 1, arg: 'addr' },
+  STA: { code: 2, arg: 'addr' },
+  JMP: { code: 3, arg: 'target' },
+  ADD: { code: 4, arg: 'addr' },
+  SUB: { code: 5, arg: 'addr' },
+  JNC: { code: 6, arg: 'target' },
+  HALT: { code: 7, arg: 'none' },
+  JZ: { code: 8, arg: 'target' },
+  ADDI: { code: 9, arg: 'imm' },
+  CMPI: { code: 10, arg: 'imm' },
+  SHL: { code: 11, arg: 'none' },
+  SHR: { code: 12, arg: 'none' },
+  SUBI: { code: 13, arg: 'imm' },
+}
+
+export const SK82: Isa = {
+  id: 'sk82',
+  name: 'Sklopko 8-bit computer 2',
+  bits: 16,
+  ops: SK82_OPS,
+  maxAddr: 15,
+  maxTarget: 31,
+  maxImm: 255,
+  encode: (op, arg) =>
+    (op.arg === 'imm' ? arg << 8 : op.arg === 'target' ? ((arg >> 4) & 1) << 8 : 0) | (op.code << 4) | (op.arg === 'addr' ? arg : op.arg === 'target' ? arg & 15 : 0),
+  decode(word) {
+    const code = (word >> 4) & 15
+    const found = Object.entries(SK82_OPS).find(([, op]) => op.code === code)
+    if (!found) return null
+    const [mnemonic, op] = found
+    const arg = op.arg === 'imm' ? (word >> 8) & 255 : op.arg === 'addr' ? word & 15 : op.arg === 'target' ? (word & 15) | (((word >> 8) & 1) << 4) : 0
+    return { mnemonic, arg }
+  },
+}
+
+export const ISAS: Isa[] = [SK8, SK82]
 
 export const getIsa = (id: string): Isa | undefined => ISAS.find((i) => i.id === id)
 
@@ -170,18 +215,18 @@ export function assemble(isa: Isa, source: string, capacity: number): AsmResult 
       words[address] = isa.encode(op, 0)
       return
     }
-    if (operand === undefined) return err(line, `${mnemonic} needs ${op.arg === 'imm' ? 'a value' : 'an address'}.`)
+    if (operand === undefined) return err(line, `${mnemonic} needs ${op.arg === 'imm' ? 'a value' : op.arg === 'target' ? 'a jump target' : 'an address'}.`)
     const value = parseNumber(operand) ?? (operand in symbols ? symbols[operand] : null)
     if (value === null) return err(line, IDENT.test(operand) ? `Unknown name “${operand}”.` : `“${operand}” is not a number or a name.`)
     // An immediate may be negative, written in two's complement: LDI -1 loads 255.
     const min = op.arg === 'imm' ? -(isa.maxImm + 1) / 2 : 0
-    const max = op.arg === 'imm' ? isa.maxImm : isa.maxAddr
+    const max = op.arg === 'imm' ? isa.maxImm : op.arg === 'target' ? (isa.maxTarget ?? isa.maxAddr) : isa.maxAddr
     if (value < min || value > max)
       return err(
         line,
         op.arg === 'imm'
           ? `${mnemonic}: the value ${value} doesn't fit, it must be from ${min} to ${max}.`
-          : `${mnemonic}: the address ${value} is out of range, it must be from 0 to ${max}.`,
+          : `${mnemonic}: the ${op.arg === 'target' ? 'jump target' : 'address'} ${value} is out of range, it must be from 0 to ${max}.`,
       )
     const arg = value < 0 ? value + isa.maxImm + 1 : value
     words[address] = isa.encode(op, arg) % mask

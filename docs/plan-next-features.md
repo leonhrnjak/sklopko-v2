@@ -201,13 +201,34 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-16).
 
 ## Milestone 7: New parts and I/O (medium)
-- [ ] **Speaker**: a clock-driven square wave through WebAudio, with a mute toggle.
-- [ ] **Text console**: memory-mapped output that prints characters to a small terminal panel.
-- [ ] **Pixel framebuffer** (e.g. 16×16, 1 bit or 4 colours) written through a RAM-like port.
-- [ ] **Keypad / switch bank input** for programs to read (an input port for the computer).
-- [ ] **Lookup table (LUT)** part with editable contents, and **RAM/ROM with 8 address bits**.
-- [ ] **Computer v2 example**: input port, jump-if-zero, shifts, and a program that uses the new devices
-      (a counter, a multiplication table, a bouncing pixel).
+- [x] **Speaker**: one input; a tone while it keeps changing. The pitch comes from the time between the last few
+      changes (`sample` records them, `rewind` drops them when stepping back), scaled by the speed setting, and
+      drives a WebAudio square-wave oscillator (`src/app/audio.ts`). Audio starts after the first click or key
+      (browser rule); clicking the speaker mutes it. Clock options now go up to 1024 Hz so a clock can be a note.
+- [x] **Text console** (`console`): D0–D7, WE, CLK; prints ASCII (10 new line, 8 backspace, 12 clear), 28 columns,
+      100 lines kept. The symbol shows the last six lines; the inspector shows all of it, with Clear and Copy.
+- [x] **Pixel screen** (`framebuffer`): 16×16, one bit or four colours, written by X, Y, D, WE and CLK, blanked by CLR.
+- [x] **Hex keypad** (`keypad`): sixteen keys, K0–K3 hold the last key, P is 1 while one is held (or until RST,
+      with *Sticky*). Pressing a key on the canvas sets the part's state like a push button does. The existing
+      *4-bit input* stays the "switch bank".
+- [x] **Lookup table** (`lut`): 2–8 inputs, 1–8 outputs, edited as a truth table in the inspector (A is the most
+      significant bit, like the Logic panel's tables); **RAM and ROM with up to 8 address bits** (a memory over 32
+      words is not drawn as a table in its symbol; read it in the inspector). A RAM whose size is changed keeps
+      what fits.
+- [x] **Computer 2** (`src/model/computer2.ts`, instruction set `SK82`): four opcode bits, `JZ`, `ADDI`, `SUBI`,
+      `CMPI`, `SHL`, `SHR`; the first computer's opcodes are unchanged. A jump target has five bits (the fifth in
+      bit 8), the program counter is two counters, so programs are 32 instructions. Devices are memory mapped:
+      13 and 14 write the pixel screen, 15 writes the console and `LDA 15` reads the keypad. Four examples share
+      the circuit: bouncing pixel (`/computer2`), count, 7 times table, keypad echo.
+- Not done: a multi-channel or waveform-selectable speaker, sampled sound; keypad keys from the computer's keyboard;
+  a "fill from expression" button for the lookup table; 4-colour use in the computer (the part supports it);
+  nesting subroutines (`CALL`/`RET`) and a stack for the computer.
+- Tests: console codes and wrapping, screen writes, speaker pitch and tone, keypad and sticky, LUT rows, 8-bit RAM
+  and ROM; the assembler for `SK82` (encodings, 5-bit targets, round trip); the whole computer simulated: every new
+  instruction, the devices, and each of the four programs (digits printed, table printed, one pixel always lit and
+  all sixteen columns visited, keys echoed once per press); 4 e2e tests (console in the inspector, the keypad by
+  mouse, LUT editing and muting a speaker, 8-bit RAM).
+- **Status: done** (v0.0.1-17).
 
 ## Milestone 8: Router performance (medium)
 Routing time grows with wires × area (about 25 ms per wire on the 8-bit computer). Options, in order of risk:

@@ -17,7 +17,7 @@ import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { traceNet } from '../model/trace'
-import { RamSection, RomSection } from './MemoryInspector'
+import { ConsoleSection, LutSection, RamSection, RomSection } from './MemoryInspector'
 import { TextParam } from './TextParam'
 
 function deleteAndClose() {
@@ -127,6 +127,7 @@ function CompInspector({ comp }: { comp: Comp }) {
       {def.params?.map((p) => {
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
         if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
+        if (comp.type === 'lut' && p.key === 'data') return null // edited in the table below
         // A breakpoint that waits for any change has no value to compare with.
         if (comp.type === 'breakpoint' && p.key === 'value' && comp.params.when === 'changes') return null
         const v = comp.params[p.key]
@@ -190,6 +191,8 @@ function CompInspector({ comp }: { comp: Comp }) {
       })}
       {comp.type === 'rom' && <RomSection comp={comp} />}
       {comp.type === 'ram' && <RamSection comp={comp} />}
+      {comp.type === 'lut' && <LutSection comp={comp} />}
+      {comp.type === 'console' && <ConsoleSection comp={comp} />}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
       {comp.type === 'probe' && <ProbeGroupInfo comp={comp} />}
       <div className="row">

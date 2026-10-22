@@ -1,6 +1,7 @@
 import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
+import { unlockAudio, updateAudio } from './audio'
 import { isEmbed } from './embed'
 import { loadIntoSim, sim } from './sim'
 import { loadCircuit, setRunning, showToast, useStore } from './store'
@@ -102,9 +103,12 @@ export function startRuntime() {
       showToast(running ? `Paused at breakpoint “${name}”.` : `Breakpoint “${name}” hit.`)
     }
     sim.publish()
+    updateAudio(useStore.getState().circuit, running, speed)
     requestAnimationFrame(loop)
   }
   requestAnimationFrame(loop)
+  window.addEventListener('pointerdown', unlockAudio)
+  window.addEventListener('keydown', unlockAudio)
 }
 
 export async function shareLink() {

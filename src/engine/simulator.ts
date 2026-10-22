@@ -396,7 +396,9 @@ export class Simulator {
       s += n >= 0 ? this.values[n] : cc.inDefaults[i]
     }
     for (let o = 0; o < cc.outNets.length; o++) s += this.values[cc.outNets[o]]
-    return s
+    // Parts with a screen of their own (console, pixel screen) count their changes, so a write redraws them.
+    const rev = (cc.inst.state as { rev?: number } | undefined)?.rev
+    return rev === undefined ? s : `${s}#${rev}`
   }
 
   /** All input values of a component, in layout order. */

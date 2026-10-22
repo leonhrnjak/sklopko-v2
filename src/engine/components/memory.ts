@@ -3,6 +3,9 @@
 export const TABLE_ROW_H = 12
 export const TABLE_TOP = 22
 const TABLE_MAX_ROWS = 8
+/** Larger memories are not drawn as a table in their symbol: it would not fit. Read them in the inspector. */
+export const TABLE_MAX_WORDS = 32
+export const showsTable = (words: number) => words <= TABLE_MAX_WORDS
 
 /** How a memory's words are laid out in the table drawn inside its symbol (column-major). */
 export function tableShape(words: number, digits: number) {
@@ -14,6 +17,7 @@ export function tableShape(words: number, digits: number) {
 
 /** Body width and minimum pin rows so the table fits inside the box. */
 export function tableBox(words: number, digits: number) {
+  if (!showsTable(words)) return { w: 100, minRows: 2 }
   const { rows, cols, cellW } = tableShape(words, digits)
   return {
     // Leave 22px each side for the pin labels, and room below the table for the title.

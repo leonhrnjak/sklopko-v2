@@ -432,7 +432,7 @@ export const memoryRom: ComponentDef[] = [
       'Enter the contents as hexadecimal words separated by spaces, one per address; missing words are 0. ' +
       'For a program, pick an instruction set and write it as assembly instead.',
     params: [
-      selectParam('abits', 'Address bits', [2, 3, 4, 5], 4, (v) => `${v} (${2 ** v} words)`),
+      selectParam('abits', 'Address bits', [2, 3, 4, 5, 6, 7, 8], 4, (v) => `${v} (${2 ** v} words)`),
       selectParam('dbits', 'Data bits', [4, 8, 16], 4, (v) => `${v} (${v / 4} hex digit${v > 4 ? 's' : ''})`),
       {
         key: 'data',

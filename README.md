@@ -102,14 +102,14 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace), breakpoint, send / receive net labels |
+| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, hex keypad (0–F), LED, speaker (a tone from the square wave on its input), probe (waveform trace), breakpoint, send / receive net labels |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
-| Memory | ROM (2–5 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM 16×4 or 16×8 |
+| Memory | ROM (2–8 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM (4–8 address bits, 4 or 8 data bits), lookup table (2–8 inputs, 1–8 outputs, edited as a truth table) |
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
-| Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |
+| Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar, text console (ASCII, 28 columns), 16×16 pixel screen (1 bit or 4 colours) |
 | Notes & frames | note, frame (annotations: no pins, no effect on the simulation) |
 
 The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: program
@@ -118,6 +118,13 @@ adder/subtractor, two RAMs and two registers for the high and low halves of the 
 Fibonacci program that you can edit as hex in the ROMs; it shows each number (up to 233) in decimal on an output port,
 written with `STA 15`, via ROM tables and BCD adders) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup
 table, BCD adder, comparator and a memory register).
+
+A second computer (`/computer2`, with `-count`, `-table` and `-keys` variants) adds a four-bit opcode, jump if zero,
+immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts, a 32-instruction program ROM and three devices on RAM addresses
+13–15: `STA 15` prints a character on the console, `STA 14` / `STA 13` light and darken the pixel at (low nibble,
+high nibble) of the accumulator on the screen, and `LDA 15` reads the keypad. Its programs print a count and the
+7 times table, bounce a pixel across the screen, and echo the keys you press. Write your own in the Program ROM's
+inspector (pick *A program for the Sklopko 8-bit computer 2*).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.
