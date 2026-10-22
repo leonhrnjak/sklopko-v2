@@ -1,6 +1,6 @@
 # Milestone 9: timing view and state machine editor (detailed plan)
 
-> **Status: 9a done (v0.0.1-22); 9b–9e not started.** Read `CLAUDE.md` first (version bump and the full checklist on every push).
+> **Status: 9a done (v0.0.1-22), 9b done (not yet pushed); 9c–9e not started.** Read `CLAUDE.md` first (version bump and the full checklist on every push).
 > Work sub-milestone by sub-milestone, in order. Each ends in a working, tested state; stop and report after each.
 > Push to `main` only when asked.
 
@@ -44,7 +44,7 @@
   ring oscillator period = 2 × total delay; settle with pending outputs; clock→Q; step back across delayed parts;
   reset; serialise round trip (old files load, delay 1 is not written); copy/paste keeps delays.
 
-## 9b. Static timing: critical path (small–medium)
+## 9b. Static timing: critical path (small–medium) — done
 - `src/model/timing.ts`, a pure function on a `Circuit` (like `analyze.ts`):
   - Start points: switches, constants, clocks, and the outputs of state-holding parts (flip-flops, latches, registers,
     counters, memories), launched at their own delay.

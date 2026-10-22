@@ -15,13 +15,18 @@ interface WaveState {
   viewEnd: number | null
   /** How grouped probes write their number. */
   format: NumberFormat
+  /** What the drawer shows: the traces of the probes, or the timing of the circuit. */
+  view: 'waves' | 'timing'
 }
 
 export const WAVE_WINDOWS = [2000, 5000, 10000, 30000]
 
-export const useWave = create<WaveState>(() => ({ open: false, windowMs: 10000, viewEnd: null, format: 'hex' }))
+export const useWave = create<WaveState>(() => ({ open: false, windowMs: 10000, viewEnd: null, format: 'hex', view: 'waves' }))
 
 export const setWaveOpen = (open: boolean) => useWave.setState({ open })
+export const setWaveView = (view: WaveState['view']) => useWave.setState({ view })
+/** Open the drawer on the timing view, or close it if that is what it is showing. */
+export const toggleTiming = () => useWave.setState((s) => (s.open && s.view === 'timing' ? { open: false } : { open: true, view: 'timing' }))
 export const setWindowMs = (windowMs: number) => useWave.setState({ windowMs })
 export const setFormat = (format: NumberFormat) => useWave.setState({ format })
 export const setViewEnd = (viewEnd: number | null) => useWave.setState({ viewEnd })

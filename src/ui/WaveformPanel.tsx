@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, type PointerEvent as RPointerEvent } from '
 import { sim } from '../app/sim'
 import { useStore } from '../app/store'
 import { downloadBlob } from '../app/files'
-import { WAVE_WINDOWS, buildRows, clearTraces, exportVcd, setFormat, setViewEnd, setWaveOpen, setWindowMs, useWave, type Row } from '../app/waveform'
+import { WAVE_WINDOWS, buildRows, clearTraces, exportVcd, setFormat, setViewEnd, setWaveOpen, setWaveView, setWindowMs, useWave, type Row } from '../app/waveform'
+import { TimingView } from './TimingView'
 import type { Trace } from '../engine/components/io'
 import { formatValue, groupTrace, type NumberFormat } from '../engine/groups'
 import type { V } from '../engine/types'
@@ -171,6 +172,7 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
 
 export function WaveformPanel() {
   const open = useWave((s) => s.open)
+  const view = useWave((s) => s.view)
   const windowMs = useWave((s) => s.windowMs)
   const viewEnd = useWave((s) => s.viewEnd)
   const comps = useStore((s) => s.circuit.comps)
@@ -184,7 +186,10 @@ export function WaveformPanel() {
   // The first probe in a circuit opens the panel.
   const seen = useRef(0)
   useEffect(() => {
-    if (rows.length > 0 && seen.current === 0) setWaveOpen(true)
+    if (rows.length > 0 && seen.current === 0) {
+      setWaveOpen(true)
+      setWaveView('waves')
+    }
     seen.current = rows.length
   }, [rows.length])
 
@@ -220,7 +225,7 @@ export function WaveformPanel() {
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [open, rows.length])
+  }, [open, rows.length, view])
 
   /** The window as it is on screen, on the panel's background, as a PNG. */
   const exportPng = () => {
@@ -256,9 +261,18 @@ export function WaveformPanel() {
   }
 
   return (
-    <section className="wave-panel" aria-label="Waveforms" data-testid="waves">
+    <section className="wave-panel" aria-label={view === 'timing' ? 'Timing' : 'Waveforms'} data-testid="waves">
       <header className="wave-head">
-        <strong>Waveforms</strong>
+        <div className="seg" role="tablist" aria-label="Panel">
+          <button role="tab" aria-selected={view === 'waves'} className={view === 'waves' ? 'active' : ''} onClick={() => setWaveView('waves')}>
+            Waveforms
+          </button>
+          <button role="tab" aria-selected={view === 'timing'} className={view === 'timing' ? 'active' : ''} onClick={() => setWaveView('timing')}>
+            Timing
+          </button>
+        </div>
+        {view === 'waves' && (
+        <>
         <label className="wave-window">
           <span>Window</span>
           <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} aria-label="Time window">
@@ -293,11 +307,18 @@ export function WaveformPanel() {
         <button onClick={clearTraces} disabled={!rows.length} title="Erase the recorded traces">
           Clear
         </button>
+        </>
+        )}
         <button className="wave-close" onClick={() => setWaveOpen(false)} aria-label="Close waveforms">
           ✕
         </button>
       </header>
-      <div className="wave-body" ref={body}>
+      {view === 'timing' && (
+        <div className="wave-body">
+          <TimingView />
+        </div>
+      )}
+      <div className="wave-body" ref={body} hidden={view === 'timing'}>
         {rows.length ? (
           <canvas
             ref={canvas}

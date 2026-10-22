@@ -1,4 +1,5 @@
 :root {
+  --path: #e11d48;
   --accent: #3fa98a;
   --accent-strong: #2c8a6f;
   --accent-ink: #ffffff;
@@ -923,6 +924,14 @@ button.danger {
   stroke-width: 7;
   stroke-opacity: 0.4;
   stroke-dasharray: 1 9;
+}
+.wire-trace.path {
+  stroke: var(--path);
+  stroke-width: 11;
+  stroke-opacity: 0.5;
+}
+.layer-trace.path .trace-ring {
+  stroke: var(--path);
 }
 .trace-ring {
   fill: none;
@@ -1893,4 +1902,96 @@ table.truth td.in.changed {
 .modal.ref .modal-head .seg {
   max-width: 100%;
   overflow-x: auto;
+}
+
+/* ---- Timing view ---- */
+
+.wave-body[hidden] {
+  display: none;
+}
+.timing {
+  padding: 8px 14px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: auto;
+}
+.timing p {
+  margin: 0 0 8px;
+}
+.timing h4 {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.timing-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.timing-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.timing-controls input {
+  width: 5.5em;
+}
+.timing-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 28px;
+}
+.timing-cols h4:first-child {
+  margin-top: 0;
+}
+.timing-path,
+.timing-clocks,
+.timing-loops ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.timing-path li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  max-width: 28em;
+}
+.timing-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.timing-clocks li.bad {
+  color: var(--danger);
+}
+.timing-part {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.timing-table {
+  border-collapse: collapse;
+  min-width: 18em;
+}
+.timing-table td {
+  padding: 1px 16px 1px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.timing-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .timing-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

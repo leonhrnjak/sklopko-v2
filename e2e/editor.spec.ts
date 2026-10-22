@@ -1314,3 +1314,36 @@ test('the beginner computer runs its program: the listing follows the PC, and it
   await expect(page.locator('.row-listing.current .text')).toHaveText('HALT')
   await expect(halted).toHaveCount(1)
 })
+
+test('timing: the slowest path, a changed delay, and the path marked on the circuit', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 100, 200)
+  const n1 = await place(page, 'not', 250, 200)
+  const n2 = await place(page, 'not', 400, 200)
+  const led = await place(page, 'led', 560, 200)
+  await wire(page, [sw, 'Q'], [n1, 'A'])
+  await wire(page, [n1, 'Y'], [n2, 'A'])
+  await wire(page, [n2, 'Y'], [led, 'A'])
+
+  await page.getByTestId('timing-toggle').click()
+  const timing = page.getByTestId('timing')
+  await expect(timing.getByTestId('timing-delay')).toHaveText('2 gate delays')
+  await expect(timing.getByTestId('timing-fmax')).toContainText('20 ns at 10 ns each') // 2 × 10 ns
+  await expect(page.getByRole('list', { name: 'The slowest path' }).locator('li')).toHaveCount(4) // switch, two inverters, LED
+
+  // A slower inverter makes the path longer.
+  await clickComp(page, n1)
+  await page.getByLabel('Delay (gate delays)').fill('5')
+  await expect(timing.getByTestId('timing-delay')).toHaveText('6 gate delays')
+
+  // The path is marked on the circuit when asked.
+  await expect(page.locator('.wire-trace.path')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show path' }).click()
+  await expect(page.locator('.wire-trace.path')).toHaveCount(3)
+  await page.getByLabel('Nanoseconds per gate delay').fill('100')
+  await expect(timing.getByTestId('timing-fmax')).toContainText('600 ns at 100 ns each')
+
+  // Back to the waveforms: the marks go away.
+  await page.getByRole('tab', { name: 'Waveforms' }).click()
+  await expect(page.locator('.wire-trace.path')).toHaveCount(0)
+})

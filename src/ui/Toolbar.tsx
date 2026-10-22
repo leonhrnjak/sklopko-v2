@@ -5,7 +5,7 @@ import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
-import { setWaveOpen, useWave } from '../app/waveform'
+import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
 import {
   clearAll,
@@ -89,7 +89,8 @@ export function Toolbar() {
   const speed = useStore((s) => s.speed)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
-  const waveOpen = useWave((s) => s.open)
+  const waveOpen = useWave((s) => s.open && s.view === 'waves')
+  const timingOpen = useWave((s) => s.open && s.view === 'timing')
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -155,12 +156,21 @@ export function Toolbar() {
       </button>
       <button
         className={waveOpen ? 'active' : ''}
-        onClick={() => setWaveOpen(!waveOpen)}
+        onClick={() => (waveOpen ? setWaveOpen(false) : useWave.setState({ open: true, view: 'waves' }))}
         aria-pressed={waveOpen}
         title="Show or hide the waveform panel (traces of Probe parts over time)"
         data-testid="waves-toggle"
       >
         Waveforms
+      </button>
+      <button
+        className={timingOpen ? 'active' : ''}
+        onClick={toggleTiming}
+        aria-pressed={timingOpen}
+        title="How long the signals take to get through the circuit: the slowest path, how fast a clock can run, feedback loops"
+        data-testid="timing-toggle"
+      >
+        Timing
       </button>
       <select
         value={speed}

@@ -47,6 +47,8 @@ import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from 
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
 import { useTraceOptions } from '../../app/trace'
+import { timingOf, useTiming } from '../../app/timing'
+import { useWave } from '../../app/waveform'
 import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
 import { traceCone, traceNet } from '../../model/trace'
@@ -166,6 +168,12 @@ export function Canvas() {
     const net = traceNet(circuit, wire.id)
     return { net, cone: showCone ? traceCone(circuit, wire.id) : new Set<string>() }
   }, [circuit, selection, showCone])
+  // While the timing view shows the slowest path, mark it.
+  const showPath = useTiming((s) => s.showPath)
+  const timingShown = useWave((s) => s.open && s.view === 'timing')
+  const pathOn = showPath && timingShown
+  const slowest = useMemo(() => (pathOn ? timingOf(circuit).critical : null), [pathOn, circuit])
+  const slowWires = useMemo(() => new Set(slowest?.wires ?? []), [slowest])
   // With one net label selected, outline the other labels that share its name.
   const related = new Set<string>()
   const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
@@ -656,7 +664,7 @@ export function Canvas() {
         </g>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
-            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : undefined} />,
+            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : slowWires.has(wire.id) ? 'path' : undefined} />,
           )}
         </g>
         <g className="layer-hops">
@@ -672,6 +680,11 @@ export function Canvas() {
             <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} />
           ))}
         </g>
+        {slowest && (
+          <g className="layer-trace path">
+            <TraceRings circuit={circuit} pins={slowest.pins} source={null} />
+          </g>
+        )}
         {traced && (
           <g className="layer-trace">
             <TraceRings circuit={circuit} pins={traced.net.pins} source={traced.net.source ? `${traced.net.source.comp}:${traced.net.source.pin}` : null} />
