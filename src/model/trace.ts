@@ -1,7 +1,7 @@
 import { getDef, hasDef } from '../engine/registry'
 import { RECV, SEND, resolveLabels } from '../engine/netlabels'
 import type { SimCircuit } from '../engine/simulator'
-import type { Circuit, PinRef, Wire } from './circuit'
+import { simComps, type Circuit, type PinRef, type Wire } from './circuit'
 
 export interface Trace {
   /** The output pin that really drives the signal (label hops followed), or null for an unknown wire. */
@@ -18,7 +18,7 @@ export const CONE_LIMIT = 400
 const key = (p: PinRef) => `${p.comp}:${p.pin}`
 
 const asSim = (c: Circuit): SimCircuit => ({
-  comps: Object.values(c.comps).map(({ id, type, params }) => ({ id, type, params })),
+  comps: simComps(c),
   wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })),
 })
 

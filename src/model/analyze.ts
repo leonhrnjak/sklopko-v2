@@ -2,7 +2,7 @@ import { getDef, hasDef } from '../engine/registry'
 import { resolveLabels } from '../engine/netlabels'
 import { Simulator, type SimCircuit } from '../engine/simulator'
 import { rowBits, type Cell, type TruthTable } from '../logic/table'
-import type { Circuit, Comp } from './circuit'
+import { simComps, type Circuit, type Comp } from './circuit'
 
 /** The most inputs a circuit is swept over (2⁸ = 256 rows). */
 export const MAX_ANALYZE_INPUTS = 8
@@ -14,7 +14,7 @@ export interface Port {
 }
 
 const asSim = (c: Circuit): SimCircuit => ({
-  comps: Object.values(c.comps).map(({ id, type, params }) => ({ id, type, params })),
+  comps: simComps(c),
   wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })),
 })
 

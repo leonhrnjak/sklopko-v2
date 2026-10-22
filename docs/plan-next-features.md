@@ -270,7 +270,7 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - [ ] **Per-part propagation delay** (default 1) and a **timing view** that highlights the longest path and shows
       glitches/hazards in the waveform panel.
 - [ ] **State machine editor**: draw states and transitions, choose an encoding, generate flip-flops and logic.
-- Needs its own detailed plan before starting.
+- Detailed plan: `plan-m9-timing-fsm.md` (sub-milestones 9a–9e). 9a (per-part delay) is done.
 
 ## Milestone 10: Buses and tri-state (large)
 - [ ] Multi-bit wires with split/merge parts and width-parameterised register, adder, RAM, mux.

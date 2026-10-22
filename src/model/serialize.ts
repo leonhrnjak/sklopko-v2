@@ -1,5 +1,6 @@
 import LZString from 'lz-string'
 import { getDef, hasDef } from '../engine/registry'
+import { MAX_DELAY } from '../engine/simulator'
 import { paramDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
@@ -15,6 +16,7 @@ interface SavedComp {
   flip?: boolean
   params?: Params
   label?: string
+  delay?: number
 }
 interface SavedWire {
   id: string
@@ -43,6 +45,7 @@ export function serialize(c: Circuit): SavedCircuit {
       ...(k.flip ? { flip: true } : {}),
       params: k.params,
       ...(k.label ? { label: k.label } : {}),
+      ...(k.delay && k.delay > 1 ? { delay: k.delay } : {}),
     })),
     wires: Object.values(c.wires).map((w) => ({
       id: w.id,
@@ -90,6 +93,7 @@ export function deserialize(data: unknown): Circuit {
       flip: !!s.flip,
       params,
       ...(typeof s.label === 'string' && s.label ? { label: s.label.slice(0, 40) } : {}),
+      ...(Number.isInteger(s.delay) && s.delay! > 1 ? { delay: Math.min(MAX_DELAY, s.delay!) } : {}),
     }
   }
   const taken = new Set<string>()

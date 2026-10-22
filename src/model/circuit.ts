@@ -1,5 +1,5 @@
 import { getDef, hasDef } from '../engine/registry'
-import { layoutOf, type PinRef } from '../engine/simulator'
+import { layoutOf, type PinRef, type SimComp } from '../engine/simulator'
 import type { Layout, Params, PinDef, Side } from '../engine/types'
 
 export type { PinRef }
@@ -31,6 +31,8 @@ export interface Comp {
   flip: boolean
   params: Params
   label?: string
+  /** Propagation delay in gate delays, when it isn't the default of 1. */
+  delay?: number
 }
 
 export interface Wire {
@@ -49,6 +51,10 @@ export interface Circuit {
   comps: Record<string, Comp>
   wires: Record<string, Wire>
 }
+
+/** The parts of a circuit as the simulator wants them. */
+export const simComps = (c: Circuit): SimComp[] =>
+  Object.values(c.comps).map(({ id, type, params, delay }) => (delay && delay > 1 ? { id, type, params, delay } : { id, type, params }))
 
 export const emptyCircuit = (): Circuit => ({ comps: {}, wires: {} })
 

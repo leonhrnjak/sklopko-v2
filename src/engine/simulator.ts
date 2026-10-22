@@ -6,6 +6,8 @@ export interface SimComp {
   id: string
   type: string
   params: Params
+  /** Propagation delay in ticks (default 1, at most MAX_DELAY): how long after its inputs change its outputs follow. */
+  delay?: number
 }
 export interface PinRef {
   comp: string
@@ -19,6 +21,9 @@ export interface SimCircuit {
   comps: SimComp[]
   wires: SimWire[]
 }
+
+/** The largest propagation delay a part can be given, in gate delays. */
+export const MAX_DELAY = 16
 
 const layoutCache = new Map<string, Layout>()
 
@@ -44,6 +49,11 @@ interface CComp {
   inNets: Int32Array
   inDefaults: V[]
   outNets: Int32Array
+  /**
+   * Parts slower than one gate delay: the outputs computed in the last `delay - 1` ticks, oldest first, one group of
+   * outputs per tick. Each tick the oldest group is committed. Undefined for the (common) delay of 1.
+   */
+  pipe?: Uint8Array
 }
 
 const pinKey = (comp: string, pin: string) => `${comp}:${pin}`
@@ -56,6 +66,8 @@ interface Snapshot {
   values: Uint8Array
   /** Aligned with the compiled parts. Parts that record over time (probes) are not copied: see `ComponentDef.rewind`. */
   states: unknown[]
+  /** Aligned with the compiled parts: the delay pipelines (copied), or undefined. */
+  pipes: (Uint8Array | undefined)[]
 }
 
 /** Part states are plain data (numbers, strings, arrays, objects), so a recursive copy is all that is needed. */
@@ -83,6 +95,8 @@ export class Simulator {
   private comps: CComp[] = []
   private byId = new Map<string, CComp>()
   private clocks: CComp[] = []
+  /** The parts with a delay of more than one tick. */
+  private slow: CComp[] = []
   private netByOut = new Map<string, number>()
   private values = new Uint8Array(0)
   private next = new Uint8Array(0)
@@ -142,6 +156,7 @@ export class Simulator {
         inNets: new Int32Array(ins.length).fill(-1),
         inDefaults: ins.map((p) => p.def ?? X),
         outNets: new Int32Array(outs.length),
+        pipe: sc.delay && sc.delay > 1 && outs.length ? new Uint8Array((Math.min(MAX_DELAY, Math.round(sc.delay)) - 1) * outs.length) : undefined,
       }
     }
     const own = (cc: CComp) => {
@@ -184,6 +199,9 @@ export class Simulator {
       if (v !== undefined) this.values[net] = v
     }
     this.next = new Uint8Array(nets)
+    // A slow part starts out showing what its outputs show now, so loading a circuit does not make anything move.
+    this.slow = this.comps.filter((cc) => cc.pipe)
+    for (const cc of this.slow) this.fillPipe(cc)
     this.clocks = this.comps.filter((cc) => cc.def.clockHalfPeriod)
     this.samplers = this.comps.filter((cc) => cc.def.sample)
     this.dirty = true
@@ -193,6 +211,7 @@ export class Simulator {
   reset() {
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
+    for (const cc of this.slow) this.fillPipe(cc)
     this.ticks = 0
     this.time = 0
     this.unstable = false
@@ -202,7 +221,17 @@ export class Simulator {
     this.dirty = true
   }
 
-  /** Advance one gate delay. Returns true if any net changed. */
+  /** Fill a part's delay pipeline with the values its outputs have now. */
+  private fillPipe(cc: CComp) {
+    const pipe = cc.pipe!
+    const n = cc.outNets.length
+    for (let k = 0; k < pipe.length; k++) pipe[k] = this.values[cc.outNets[k % n]]
+  }
+
+  /**
+   * Advance one gate delay. Returns true if the circuit is still moving: a net changed, or a slow part has an output
+   * on its way that differs from what it shows now.
+   */
   tick(): boolean {
     const { values, next } = this
     for (const cc of this.comps) {
@@ -212,7 +241,16 @@ export class Simulator {
         ins[i] = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
       }
       cc.def.evaluate(cc.inst)
-      for (let o = 0; o < outs.length; o++) next[cc.outNets[o]] = outs[o]
+      const pipe = cc.pipe
+      if (pipe === undefined) {
+        for (let o = 0; o < outs.length; o++) next[cc.outNets[o]] = outs[o]
+      } else {
+        // Commit what was computed `delay - 1` ticks ago, and queue what was computed now.
+        const n = outs.length
+        for (let o = 0; o < n; o++) next[cc.outNets[o]] = pipe[o]
+        pipe.copyWithin(0, n)
+        for (let o = 0; o < n; o++) pipe[pipe.length - n + o] = outs[o]
+      }
     }
     let changed = false
     for (let i = 0; i < next.length; i++) {
@@ -228,7 +266,20 @@ export class Simulator {
       this.dirty = true
       this.moved = true
     }
-    return changed
+    // Not settled while a slow part still has a different value on its way.
+    let pending = false
+    for (const cc of this.slow) {
+      const pipe = cc.pipe!
+      if (pending) break
+      const n = cc.outNets.length
+      for (let k = 0; k < pipe.length; k++) {
+        if (pipe[k] !== next[cc.outNets[k % n]]) {
+          pending = true
+          break
+        }
+      }
+    }
+    return changed || pending
   }
 
   /** Tick until nothing changes or the budget runs out. Returns true if the circuit settled. */
@@ -300,6 +351,7 @@ export class Simulator {
       unstable: this.unstable,
       values: this.values.slice(),
       states: this.comps.map((cc) => (cc.def.sample || cc.inst.state === undefined ? undefined : cloneState(cc.inst.state))),
+      pipes: this.comps.map((cc) => cc.pipe?.slice()),
     })
     if (this.history.length > HISTORY_EDGES) this.history.shift()
     this.cursor = this.history.length - 1
@@ -325,6 +377,8 @@ export class Simulator {
     this.comps.forEach((cc, i) => {
       if (cc.def.sample) cc.def.rewind?.(cc.inst, snap.time)
       else if (snap.states[i] !== undefined) cc.inst.state = cloneState(snap.states[i])
+      const saved = snap.pipes[i]
+      if (cc.pipe && saved && saved.length === cc.pipe.length) cc.pipe.set(saved)
     })
     this.time = snap.time
     this.unstable = snap.unstable

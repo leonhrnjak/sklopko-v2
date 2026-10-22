@@ -2,6 +2,7 @@ import { produce } from 'immer'
 import { create } from 'zustand'
 import { naturalOrder } from '../engine/groups'
 import { getDef } from '../engine/registry'
+import { MAX_DELAY } from '../engine/simulator'
 import { paramDefaults, type ParamValue, type Params } from '../engine/types'
 import {
   boundsRect,
@@ -21,6 +22,7 @@ import {
   type Wire,
 } from '../model/circuit'
 import { circuitRect } from '../model/bounds'
+import { hasDelay, realisticDelay } from '../model/delays'
 import { isInside } from '../model/frames'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
@@ -221,6 +223,34 @@ export function setParam(id: string, key: string, value: ParamValue) {
     if (pd?.structural) {
       pruneWires(c)
       rerouteAround(c, [id])
+    }
+  })
+}
+
+/** Set the propagation delay (in gate delays) of some parts, as a single undo step. 1 is the default and is not stored. */
+export function setDelay(ids: string[], delay: number) {
+  const d = Math.min(MAX_DELAY, Math.max(1, Math.round(delay)))
+  const targets = ids.filter((id) => get().circuit.comps[id] && hasDelay(get().circuit.comps[id]))
+  if (!targets.length) return
+  checkpoint()
+  edit((c) => {
+    for (const id of targets) {
+      if (d > 1) c.comps[id].delay = d
+      else delete c.comps[id].delay
+    }
+  })
+}
+
+/** Give parts the delays of real chips (see `realisticDelay`), or, with `back`, put them all back to 1. One undo step. */
+export function applyRealisticDelays(ids: string[], back = false) {
+  const targets = ids.filter((id) => get().circuit.comps[id] && hasDelay(get().circuit.comps[id]))
+  if (!targets.length) return
+  checkpoint()
+  edit((c) => {
+    for (const id of targets) {
+      const d = back ? 1 : realisticDelay(c.comps[id])
+      if (d > 1) c.comps[id].delay = d
+      else delete c.comps[id].delay
     }
   })
 }

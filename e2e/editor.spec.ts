@@ -1235,3 +1235,25 @@ test('devices: RAM and ROM can have 8 address bits', async ({ page }) => {
   await expect(page.locator(`.comp[data-id="${ram}"]`)).toContainText('RAM 256×4')
   await expect(page.locator('.ram-word')).toHaveCount(256)
 })
+
+test('a part has a delay that can be set, and "realistic delays" fills them in', async ({ page }) => {
+  await freshEmpty(page)
+  const g = await place(page, 'and', 300, 200)
+  const delay = page.getByLabel('Delay (gate delays)')
+
+  await clickComp(page, g)
+  await expect(delay).toHaveValue('1')
+  await delay.fill('9')
+  await expect(delay).toHaveValue('9')
+
+  // With nothing selected, the help panel offers real-chip delays for every part: an AND takes 3.
+  await page.getByTestId('canvas').click({ position: { x: 60, y: 420 } })
+  await page.getByRole('button', { name: 'Realistic delays' }).click()
+  await clickComp(page, g)
+  await expect(delay).toHaveValue('3')
+
+  await page.getByTestId('canvas').click({ position: { x: 60, y: 420 } })
+  await page.getByRole('button', { name: 'Set all to 1' }).click()
+  await clickComp(page, g)
+  await expect(delay).toHaveValue('1')
+})

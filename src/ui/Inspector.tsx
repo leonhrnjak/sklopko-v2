@@ -6,6 +6,8 @@ import {
   groupProbes,
   resetWireRoute,
   rotateSelection,
+  applyRealisticDelays,
+  setDelay,
   setLabel,
   setParam,
   setSheetOpen,
@@ -14,6 +16,7 @@ import {
 } from '../app/store'
 import { getDef } from '../engine/registry'
 import { isAnnotation, type Comp, type Wire } from '../model/circuit'
+import { hasDelay, MAX_DELAY } from '../model/delays'
 import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { traceNet } from '../model/trace'
@@ -97,6 +100,47 @@ function GroupProbes({ ids }: { ids: string[] }) {
           Group {ids.length} probes
         </button>
         {grouped && <button onClick={() => ungroupProbes(ids)}>Ungroup</button>}
+      </div>
+    </>
+  )
+}
+
+/** How long a part takes to react, in gate delays. */
+function DelayField({ comp }: { comp: Comp }) {
+  return (
+    <label className="field" title="How many gate delays this part takes to change its outputs after its inputs change. The timing view uses it.">
+      <span>Delay (gate delays)</span>
+      <input
+        type="number"
+        min={1}
+        max={MAX_DELAY}
+        step={1}
+        value={comp.delay ?? 1}
+        onChange={(e) => {
+          const n = Math.round(Number(e.target.value))
+          if (Number.isFinite(n)) setDelay([comp.id], n)
+        }}
+      />
+    </label>
+  )
+}
+
+/** Set many delays at once: to the delays of real chips, or back to 1. */
+function DelayTools({ ids, scope }: { ids: string[]; scope: string }) {
+  const circuit = useStore((s) => s.circuit)
+  const targets = ids.filter((id) => circuit.comps[id] && hasDelay(circuit.comps[id]))
+  if (!targets.length) return null
+  return (
+    <>
+      <h3>Delays</h3>
+      <p className="desc">Every part takes one gate delay unless you change it. Real chips differ: an inverter is quick, an XOR is slow.</p>
+      <div className="row">
+        <button onClick={() => applyRealisticDelays(targets)} title={`Give ${scope} the delays of real chips`}>
+          Realistic delays
+        </button>
+        <button onClick={() => applyRealisticDelays(targets, true)} disabled={!targets.some((id) => circuit.comps[id].delay)}>
+          Set all to 1
+        </button>
       </div>
     </>
   )
@@ -189,6 +233,7 @@ function CompInspector({ comp }: { comp: Comp }) {
           </label>
         )
       })}
+      {hasDelay(comp) && <DelayField comp={comp} />}
       {comp.type === 'rom' && <RomSection comp={comp} />}
       {comp.type === 'ram' && <RamSection comp={comp} />}
       {comp.type === 'lut' && <LutSection comp={comp} />}
@@ -249,6 +294,7 @@ function WireInspector({ wire }: { wire: Wire }) {
 }
 
 function Help() {
+  const circuit = useStore((s) => s.circuit)
   return (
     <>
       <h2>How to</h2>
@@ -297,6 +343,7 @@ function Help() {
       <div className="legend">
         <span className="swatch v1" /> 1 <span className="swatch v0" /> 0 <span className="swatch vx" /> unknown
       </div>
+      <DelayTools ids={Object.keys(circuit.comps)} scope="every part" />
     </>
   )
 }
@@ -326,6 +373,7 @@ export function Inspector() {
       <>
         <h2>{selection.length} selected</h2>
         {selection.every((id) => circuit.comps[id]?.type === 'probe') && <GroupProbes key={selection.join(',')} ids={selection} />}
+        <DelayTools ids={selection} scope="the selected parts" />
         <div className="row">
           <button onClick={rotateSelection}>⟳ Rotate</button>
           <button className="danger" onClick={deleteAndClose}>
