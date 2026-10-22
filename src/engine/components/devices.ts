@@ -82,9 +82,9 @@ export function speakerPitch(edges: number[], now: number): number {
 export const TONE_MIN_HZ = 20
 export const TONE_MAX_HZ = 12000
 
-/** The tone to play in real Hz, or 0 for silence: the simulated pitch scaled by the speed setting, if sound is on and the simulation runs. */
-export function speakerTone(pitch: number, speed: number, on: boolean, running: boolean): number {
-  const hz = pitch * speed
+/** The tone to play in real Hz, or 0 for silence: the simulated pitch scaled by the speed setting and the octaves up, if sound is on and the simulation runs. */
+export function speakerTone(pitch: number, speed: number, on: boolean, running: boolean, octaves = 0): number {
+  const hz = pitch * speed * 2 ** octaves
   return on && running && hz >= TONE_MIN_HZ && hz <= TONE_MAX_HZ ? hz : 0
 }
 
@@ -92,9 +92,13 @@ export function speakerTone(pitch: number, speed: number, on: boolean, running: 
 
 export interface KeypadState {
   pressed: boolean
+  /** Was a key down at the last evaluation (a new press is a change from not down to down). */
+  prev: boolean
   /** The key pressed last, 0–15. */
   key: number
-  /** A key has been pressed since the last reset on RST (used when the keypad is sticky). */
+  /** Set when a key is pressed: counts as a press even if the key is let go again before the next evaluation (a quick tap). */
+  tapped?: boolean
+  /** A key has been pressed since RST was last high (what P shows when the keypad is sticky). */
   latched: boolean
 }
 
@@ -177,9 +181,19 @@ export const devices: ComponentDef[] = [
     category: 'io',
     description:
       'Plays a tone while its input A keeps changing: the tone is the square wave on A, so drive it from a fast ' +
-      'clock (a 256 Hz clock gives a 256 Hz tone) or from a counter bit for a lower note. Click it to mute or ' +
-      'unmute. The sound starts after your first click on the page, and follows the speed setting.',
-    params: [{ key: 'on', label: 'Sound on', kind: 'bool', default: true }],
+      'clock (a 256 Hz clock gives a 256 Hz tone) or from a counter bit for a lower note. A slow circuit makes ' +
+      'notes too low to hear: "Octaves up" raises the pitch by whole octaves. Click it to mute or unmute. The sound ' +
+      'starts after your first click on the page, and follows the speed setting.',
+    params: [
+      { key: 'on', label: 'Sound on', kind: 'bool', default: true },
+      {
+        key: 'octaves',
+        label: 'Octaves up',
+        kind: 'select',
+        default: 0,
+        options: [0, 1, 2, 3, 4].map((v) => ({ value: v, label: v === 0 ? 'None' : `${v} (×${2 ** v})` })),
+      },
+    ],
     interactive: 'toggle',
     live: true,
     init: (): SpeakerState => ({ last: X, edges: [], rev: 0 }),
@@ -207,18 +221,21 @@ export const devices: ComponentDef[] = [
     category: 'io',
     description:
       'Sixteen keys, 0–F. K0–K3 hold the code of the key pressed last, and P is 1 while a key is held down. ' +
-      'With "Sticky" on, P stays 1 after the key is let go until RST goes to 1, so a slow program does not miss a press.',
+      'With "Sticky" on, P instead goes to 1 at each new press and stays there until RST goes to 1, so a slow ' +
+      'program does not miss a press (and a key held down counts once).',
     params: [{ key: 'sticky', label: 'Sticky', kind: 'bool', default: false }],
     interactive: 'momentary',
     live: true,
-    init: (): KeypadState => ({ pressed: false, key: 0, latched: false }),
+    init: (): KeypadState => ({ pressed: false, prev: false, key: 0, latched: false }),
     layout: () => box({ w: 140, minRows: 5, left: [{ name: 'RST', def: 0 }], right: [...names('K', 4), 'P'] }),
     evaluate(inst) {
       const st = inst.state as KeypadState
-      if (st.pressed) st.latched = true
-      if (inst.ins[0] === 1 && !st.pressed) st.latched = false
+      if ((st.pressed && !st.prev) || st.tapped) st.latched = true // a new press
+      st.tapped = false
+      st.prev = st.pressed
+      if (inst.ins[0] === 1) st.latched = false
       for (let i = 0; i < 4; i++) inst.outs[i] = ((st.key >> i) & 1) as V
-      inst.outs[4] = st.pressed || (inst.params.sticky === true && st.latched) ? 1 : 0
+      inst.outs[4] = (inst.params.sticky === true ? st.latched : st.pressed) ? 1 : 0
     },
   },
   {

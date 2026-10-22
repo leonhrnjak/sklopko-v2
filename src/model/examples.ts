@@ -848,13 +848,16 @@ function computer(): Circuit {
 
 /** The second computer running one of its programs, with notes and frames that name its parts. */
 function computer2(p: Program): Circuit {
-  const { b, keys } = computer2Builder({ source: p.source, hz: p.hz })
+  const { b, keys } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves })
   const ids = (...parts: string[]) => parts.map((k) => keys[k]).filter(Boolean)
-  frameAround(b, 'Fetch: PC and program ROM', ids('pcLo', 'pcHi', 'prog'))
-  frameAround(b, 'Decode: opcode to control signals', ids('ctl', 'ncarry', 'jnc', 'jz', 'take', 'nhalt'), 'yellow')
-  frameAround(b, 'Which device? (addresses 13, 14, 15)', ids('na0', 'na1', 'sel15', 'sel14', 'sel13', 'conWe', 'fbSel', 'fbWe'), 'green')
-  frameAround(b, 'ACC input: which source?', ids(...Array.from({ length: 8 }, (_, i) => `amux${i}`)), 'blue')
-  frameAround(b, 'Devices', ids('console', 'screen'), 'green')
+  const frame = (title: string, parts: string[], color?: string) => {
+    if (parts.length) frameAround(b, title, parts, color)
+  }
+  frame('Fetch: PC and program ROM', ids('pcLo', 'pcHi', 'prog'))
+  frame('Decode: opcode to control signals', ids('ctl', 'ncarry', 'jnc', 'jz', 'take', 'nhalt'), 'yellow')
+  frame('Which device? (address decoding)', ids('na0', 'na1', 'na2', 'na3', 'sel13', 'sel14', 'sel15', 'we14', 'we15', 'fbSel', 'fbWe'), 'green')
+  frame('ACC input: which source?', ids(...Array.from({ length: 8 }, (_, i) => `amux${i}`)), 'blue')
+  frame('Devices', ids('console', 'screen', 'toggle', 'speaker'), 'green')
   note(b, 0, -300, p.note, 60)
   return b.build(0)
 }

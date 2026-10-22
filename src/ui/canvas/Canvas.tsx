@@ -436,7 +436,7 @@ export function Canvas() {
       if (pressed) {
         // A keypad says which of its keys is under the pointer.
         const key = (e.target as Element).closest<SVGElement>('[data-key]')?.dataset.key
-        if (key !== undefined) sim.setState(id, { pressed: true, key: Number(key) })
+        if (key !== undefined) sim.setState(id, { pressed: true, tapped: true, key: Number(key) })
         else if (def.type !== 'keypad') sim.setState(id, { pressed: true })
       }
       const o: Extract<Op, { k: 'move' }> = {

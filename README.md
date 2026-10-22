@@ -102,7 +102,7 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, hex keypad (0–F), LED, speaker (a tone from the square wave on its input), probe (waveform trace), breakpoint, send / receive net labels |
+| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, hex keypad (0–F), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
@@ -119,12 +119,13 @@ Fibonacci program that you can edit as hex in the ROMs; it shows each number (up
 written with `STA 15`, via ROM tables and BCD adders) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup
 table, BCD adder, comparator and a memory register).
 
-A second computer (`/computer2`, with `-count`, `-table` and `-keys` variants) adds a four-bit opcode, jump if zero,
-immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts, a 32-instruction program ROM and three devices on RAM addresses
-13–15: `STA 15` prints a character on the console, `STA 14` / `STA 13` light and darken the pixel at (low nibble,
-high nibble) of the accumulator on the screen, and `LDA 15` reads the keypad. Its programs print a count and the
-7 times table, bounce a pixel across the screen, and echo the keys you press. Write your own in the Program ROM's
-inspector (pick *A program for the Sklopko 8-bit computer 2*).
+A second computer adds a four-bit opcode, jump if zero, immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts and a
+128-instruction program ROM. It comes in three examples, each with only the devices it uses on the top RAM
+addresses: **LCD** (`/computer-lcd`: a ball bouncing round a 16×16 screen; `STA 14` lights the pixel at the
+accumulator's (low nibble, high nibble), `STA 13` darkens it), **speaker** (`/computer-sound`: a siren; `STA 14`
+flips the speaker) and **keypad** (`/computer-calc`: a calculator for single digits with + − ×, typed on a hex keypad
+and shown on a text display; `LDA 15` reads the keypad, `STA 14` says the key has been read, `STA 15` prints a
+character). Write your own in the Program ROM's inspector (pick *A program for the Sklopko 8-bit computer 2*).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.

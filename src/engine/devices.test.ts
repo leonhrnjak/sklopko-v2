@@ -171,6 +171,29 @@ describe('keypad', () => {
     expect(k.step({ RST: 1 })[4]).toBe(0)
     expect(k.step({})[4]).toBe(0)
   })
+
+  it('when sticky, a tap that is over before the part is evaluated still counts', () => {
+    const k = part('keypad', { sticky: true })
+    k.inst.state.tapped = true // pressed and released between two evaluations
+    k.inst.state.key = 6
+    expect(k.step({})[4]).toBe(1)
+    expect(k.step({})[4]).toBe(1)
+    expect(k.step({ RST: 1 })[4]).toBe(0)
+  })
+
+  it('when sticky, a key that is still held counts once: RST clears it and it does not come back', () => {
+    const k = part('keypad', { sticky: true })
+    k.inst.state.pressed = true
+    k.inst.state.key = 9
+    expect(k.step({})[4]).toBe(1)
+    expect(k.step({ RST: 1 })[4]).toBe(0) // acknowledged while the key is still down
+    expect(k.step({})[4]).toBe(0)
+    expect(k.step({})[4]).toBe(0)
+    k.inst.state.pressed = false
+    k.step({})
+    k.inst.state.pressed = true // a new press
+    expect(k.step({})[4]).toBe(1)
+  })
 })
 
 describe('lookup table', () => {
@@ -237,6 +260,8 @@ describe('speaker tone', () => {
     expect(speakerTone(5, 1, true, true)).toBe(0) // too slow to be a tone
     expect(speakerTone(20000, 1, true, true)).toBe(0)
     expect(speakerTone(0, 4, true, true)).toBe(0)
+    expect(speakerTone(25, 1, true, true, 3)).toBe(200) // three octaves up: ×8
+    expect(speakerTone(5, 1, true, true, 2)).toBe(20)
   })
 })
 

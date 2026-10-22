@@ -440,7 +440,7 @@ export const memoryRom: ComponentDef[] = [
         kind: 'text',
         default: '0 1 2 3 4 5 6 7 8 9 A B C D E F',
         pattern: HEX_WORDS.source,
-        maxLength: 400,
+        maxLength: 800,
         hint: 'Only hexadecimal digits (0–9, A–F), spaces and commas.',
       },
       {
@@ -451,7 +451,7 @@ export const memoryRom: ComponentDef[] = [
         options: [{ value: 'none', label: 'Hex words' }, ...ISAS.map((i) => ({ value: i.id, label: `A program for the ${i.name}` }))],
       },
       // The assembly text of a program. `data` is always what the circuit runs; it is assembled from this.
-      { key: 'source', label: 'Program', kind: 'text', default: '', maxLength: 3000 },
+      { key: 'source', label: 'Program', kind: 'text', default: '', maxLength: 6000 },
     ],
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
     live: true,

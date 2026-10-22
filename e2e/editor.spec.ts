@@ -1168,38 +1168,38 @@ test('challenges: rules, labels, solutions and memory steps', async ({ page }) =
   await expect(panel).toContainText('All 6 steps came out right')
 })
 
-test('devices: the computer prints on its console, and the console can be read in the inspector', async ({ page }) => {
-  await page.goto('/computer2-count', { waitUntil: 'networkidle' })
-  // It pauses by itself when the program reaches HALT.
-  await expect(page.getByText('Paused at breakpoint')).toBeVisible({ timeout: 30000 })
-  await expect(page.locator('.console-text').last()).toContainText('')
-  const console_ = page.locator('.comp[data-id^="console"]')
-  const box = (await console_.locator('> g').boundingBox())!
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 6)
-  await expect(page.getByLabel('Console text')).toHaveText(/^0123456789\s*$/)
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
-  await expect(page.getByLabel('Console text')).toHaveText(/^\s*$/)
-})
-
-test('devices: the keypad is read by the computer, one key at a time', async ({ page }) => {
-  await page.goto('/computer2-keys', { waitUntil: 'networkidle' })
-  await page.getByTestId('run').click() // (it runs already: this pauses it)
-  await page.getByTestId('run').click()
+test('computers: the calculator takes its sums from the keypad and shows them on the display', async ({ page }) => {
+  await page.goto('/computer-calc', { waitUntil: 'networkidle' })
   const key = async (label: string) => {
     const k = page.locator(`.comp[data-id^="keypad"] [data-key="${parseInt(label, 16)}"]`).first()
     const b = (await k.boundingBox())!
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
     await page.mouse.down()
-    await page.waitForTimeout(900)
+    await page.waitForTimeout(60)
     await page.mouse.up()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(700) // the program reads the key and shows it
   }
-  await key('7')
-  await key('A')
+  for (const k of ['7', 'C', '8', 'D']) await key(k) // 7 × 8 =
+  await expect(page.locator('.comp[data-id^="console"] .console-text').first()).toContainText('7x8=56', { timeout: 10000 })
   const console_ = page.locator('.comp[data-id^="console"]')
   const box = (await console_.locator('> g').boundingBox())!
   await page.mouse.click(box.x + box.width / 2, box.y + box.height - 6)
-  await expect(page.getByLabel('Console text')).toHaveText(/^7A\s*$/)
+  await expect(page.getByLabel('Console text')).toHaveText(/^7x8=56\s*$/)
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await expect(page.getByLabel('Console text')).toHaveText(/^\s*$/)
+})
+
+test('computers: the LCD example draws a ball, and the sound example sounds', async ({ page }) => {
+  await page.goto('/computer-lcd', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp[data-id^="framebuffer"] rect[fill="#facc15"]').first()).toBeVisible({ timeout: 15000 })
+  // The devices of an example are the ones it uses: no keypad and no speaker here.
+  await expect(page.locator('.comp[data-id^="keypad"]')).toHaveCount(0)
+  await expect(page.locator('.comp[data-id^="speaker"]')).toHaveCount(0)
+
+  await page.goto('/computer-sound', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp[data-id^="speaker"] .speaker-wave.on')).toHaveCount(1, { timeout: 15000 })
+  await expect(page.locator('.comp[data-id^="keypad"]')).toHaveCount(0)
+  await expect(page.locator('.comp[data-id^="framebuffer"]')).toHaveCount(0)
 })
 
 test('devices: a lookup table is edited cell by cell, and a speaker is muted with a click', async ({ page }) => {

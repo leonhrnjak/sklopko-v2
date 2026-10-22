@@ -72,10 +72,9 @@ export const SK8: Isa = {
 
 /**
  * The second computer: the same word, with a fourth opcode bit (bits 4–7) and more instructions. A jump target has
- * five bits (the fifth is stored in bit 8, which only LDI and the immediate instructions otherwise use), so programs
- * can be 32 instructions long. Addresses 13, 14 and 15 are devices: `STA 15` prints the accumulator as a character,
- * `STA 14` lights the pixel at (low nibble, high nibble) of the accumulator and `STA 13` darkens it, and `LDA 15`
- * reads the keypad (the key in bits 0–3, and bit 4 set while one is held).
+ * seven bits (the upper three are stored in bits 8–10, which only LDI and the immediate instructions otherwise use),
+ * so programs can be 128 instructions long. Addresses 13, 14 and 15 belong to the devices a given computer has
+ * (see `computer2.ts`): a console, a screen, a speaker, a keypad.
  */
 const SK82_OPS: Record<string, Op> = {
   LDI: { code: 0, arg: 'imm' },
@@ -100,16 +99,16 @@ export const SK82: Isa = {
   bits: 16,
   ops: SK82_OPS,
   maxAddr: 15,
-  maxTarget: 31,
+  maxTarget: 127,
   maxImm: 255,
   encode: (op, arg) =>
-    (op.arg === 'imm' ? arg << 8 : op.arg === 'target' ? ((arg >> 4) & 1) << 8 : 0) | (op.code << 4) | (op.arg === 'addr' ? arg : op.arg === 'target' ? arg & 15 : 0),
+    (op.arg === 'imm' ? arg << 8 : op.arg === 'target' ? ((arg >> 4) & 7) << 8 : 0) | (op.code << 4) | (op.arg === 'addr' ? arg : op.arg === 'target' ? arg & 15 : 0),
   decode(word) {
     const code = (word >> 4) & 15
     const found = Object.entries(SK82_OPS).find(([, op]) => op.code === code)
     if (!found) return null
     const [mnemonic, op] = found
-    const arg = op.arg === 'imm' ? (word >> 8) & 255 : op.arg === 'addr' ? word & 15 : op.arg === 'target' ? (word & 15) | (((word >> 8) & 1) << 4) : 0
+    const arg = op.arg === 'imm' ? (word >> 8) & 255 : op.arg === 'addr' ? word & 15 : op.arg === 'target' ? (word & 15) | (((word >> 8) & 7) << 4) : 0
     return { mnemonic, arg }
   },
 }

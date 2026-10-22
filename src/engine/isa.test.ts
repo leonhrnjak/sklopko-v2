@@ -190,7 +190,7 @@ describe('instruction set registry', () => {
 })
 
 describe('the second instruction set (SK82)', () => {
-  const asm2 = (source: string, capacity = 32) => assemble(SK82, source, capacity)
+  const asm2 = (source: string, capacity = 128) => assemble(SK82, source, capacity)
 
   it('is offered as a program type, and keeps the first set\'s opcodes', () => {
     expect(getIsa('sk82')).toBe(SK82)
@@ -204,25 +204,25 @@ describe('the second instruction set (SK82)', () => {
     expect(r.words.slice(0, 6)).toEqual([0x0083, 0x0590, 0x80a0, 0x00b0, 0x00c0, 0x01d0])
   })
 
-  it('stores the fifth bit of a jump target in bit 8, so programs can be 32 instructions long', () => {
-    const r = asm2('JMP 31\nJZ 16\nJNC 15')
+  it('stores the upper bits of a jump target in bits 8-10, so programs can be 128 instructions long', () => {
+    const r = asm2('JMP 31\nJZ 16\nJNC 15\nJMP 127\nJZ 64')
     expect(r.errors).toEqual([])
-    expect(r.words.slice(0, 3)).toEqual([0x013f, 0x0180, 0x006f])
-    expect(asm2('JMP 32').errors[0].message).toBe('JMP: the jump target 32 is out of range, it must be from 0 to 31.')
+    expect(r.words.slice(0, 5)).toEqual([0x013f, 0x0180, 0x006f, 0x073f, 0x0480])
+    expect(asm2('JMP 128').errors[0].message).toBe('JMP: the jump target 128 is out of range, it must be from 0 to 127.')
     expect(asm2('LDA 16').errors[0].message).toBe('LDA: the address 16 is out of range, it must be from 0 to 15.')
     expect(asm2('JMP').errors[0].message).toBe('JMP needs a jump target.')
   })
 
   it('takes labels past address 15 as jump targets', () => {
-    const lines = [...Array.from({ length: 20 }, () => 'SHL'), 'far: HALT', 'JMP far']
+    const lines = [...Array.from({ length: 100 }, () => 'SHL'), 'far: HALT', 'JMP far']
     const r = asm2(lines.join('\n'))
     expect(r.errors).toEqual([])
-    expect(r.symbols.far).toBe(20)
-    expect(disassemble(SK82, r.words[21])).toBe('JMP 20')
+    expect(r.symbols.far).toBe(100)
+    expect(disassemble(SK82, r.words[101])).toBe('JMP 100')
   })
 
   it('disassembles every instruction back to what was written', () => {
-    const source = ['LDI 200', 'LDA 3', 'STA 15', 'JMP 30', 'ADD 1', 'SUB 2', 'JNC 9', 'HALT', 'JZ 17', 'ADDI 255', 'CMPI 58', 'SHL', 'SHR', 'SUBI 10']
+    const source = ['LDI 200', 'LDA 3', 'STA 15', 'JMP 100', 'ADD 1', 'SUB 2', 'JNC 9', 'HALT', 'JZ 17', 'ADDI 255', 'CMPI 58', 'SHL', 'SHR', 'SUBI 10']
     const r = asm2(source.join('\n'))
     expect(source.map((_, i) => disassemble(SK82, r.words[i]))).toEqual(source)
     expect(disassemble(SK82, 0x00e0)).toBe('.word 0x00E0') // unused opcode

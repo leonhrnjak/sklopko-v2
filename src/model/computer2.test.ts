@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { SK82, assemble } from '../engine/isa'
-import type { ConsoleState, FramebufferState } from '../engine/components/devices'
+import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BOUNCE_SOURCE, COUNT_SOURCE, KEYS_SOURCE, PROGRAMS, TABLE_SOURCE, buildComputer2, programWords } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 
 const NIB = ['QA', 'QB', 'QC', 'QD']
-let baseCircuit: Circuit | undefined
+const bases = new Map<string, Circuit>()
 
-/** The computer running a program, with helpers to look at it. */
-function machine(source: string, hz = 16) {
-  // Routing the wires takes seconds, so the circuit is built once and only the program is swapped.
-  const base = (baseCircuit ??= buildComputer2({ id: 'test', name: 'test', source: COUNT_SOURCE, hz, note: '' }))
+/** The computer with some devices running a program. Routing the wires takes seconds, so each kind is built once and only the program is swapped. */
+function machine(source: string, devices: Device[] = ['console', 'keypad']) {
+  const key = devices.join('+')
+  let base = bases.get(key)
+  if (!base) bases.set(key, (base = buildComputer2({ id: 'test', name: 'test', source: 'HALT', hz: 16, devices, note: '' })))
   const data = programWords(source)
   const comps = Object.values(base.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, source, data } } : k))
   const c: Circuit = { ...base, comps: Object.fromEntries(comps.map((k) => [k.id, k])) }
@@ -24,7 +25,7 @@ function machine(source: string, hz = 16) {
     sim.stepClock()
     sim.stepClock()
   }
-  return {
+  const m = {
     c,
     sim,
     id,
@@ -32,43 +33,45 @@ function machine(source: string, hz = 16) {
     run(n: number) {
       for (let i = 0; i < n; i++) cycle()
     },
-    pc: () => reg('PC low', ['Q0', 'Q1', 'Q2', 'Q3']) | (sim.pinValue(id('PC high'), 'Q0') << 4),
+    pc: () => reg('PC low', ['Q0', 'Q1', 'Q2', 'Q3']) | (reg('PC high', ['Q0', 'Q1', 'Q2']) << 4),
     acc: () => reg('ACC low') | (reg('ACC high') << 4),
     carry: () => sim.pinValue(id('Flags'), 'QA'),
     zero: () => sim.pinValue(id('Flags'), 'QB'),
     halted: () => sim.pinValue(id('Halted'), 'A'),
     ram: () => sim.state(id('Data RAM')).mem as number[],
-    text: () => (sim.state(id('Console')) as ConsoleState).lines.join('\n'),
+    text: () => (sim.state(id('LCD text display')) as ConsoleState).lines.join('\n'),
     pixels: () => {
-      const px = (sim.state(id('Screen')) as FramebufferState).px
+      const px = (sim.state(id('LCD')) as FramebufferState).px
       return px.map((v, i) => (v ? [i % 16, Math.floor(i / 16)] : null)).filter(Boolean) as number[][]
     },
+    /** Press a key and let go again, a few cycles later (a sticky keypad remembers it). */
+    press(key: number) {
+      sim.setState(id('Keypad'), { pressed: true, key })
+      sim.settle()
+      m.run(2)
+      sim.setState(id('Keypad'), { pressed: false })
+      sim.settle()
+    },
   }
-}
-
-/** Run until the machine halts (or `limit` cycles); the number of cycles it took. */
-function runToHalt(m: ReturnType<typeof machine>, limit = 2000) {
-  let n = 0
-  while (!m.halted() && n < limit) {
-    m.cycle()
-    n++
-  }
-  return n
+  return m
 }
 
 describe('computer 2: programs', () => {
-  it('all assemble for SK82 and fit in 32 words', () => {
+  it('all assemble for SK82 and fit in the ROM', () => {
     for (const p of PROGRAMS) {
-      const r = assemble(SK82, p.source, 32)
+      const r = assemble(SK82, p.source, ROM_WORDS)
       expect(r.errors, p.id).toEqual([])
-      expect(r.lineOf.length, p.id).toBeLessThanOrEqual(32)
+      expect(r.lineOf.length, p.id).toBeLessThanOrEqual(ROM_WORDS)
     }
-    expect(programWords(COUNT_SOURCE).split(' ')).toHaveLength(32)
+    expect(programWords('HALT').split(' ')).toHaveLength(ROM_WORDS)
   })
 
-  it('have unique ids, which are example slugs', () => {
+  it('have unique ids, and each connects what it needs (and nothing it does not use)', () => {
     expect(new Set(PROGRAMS.map((p) => p.id)).size).toBe(PROGRAMS.length)
-    for (const p of PROGRAMS) expect(p.id).toMatch(/^computer2/)
+    for (const p of PROGRAMS) {
+      const used = (d: string) => p.source.includes(d === 'lcd' ? 'ON = 14' : d === 'speaker' ? 'SPK = 14' : d === 'console' ? 'CON = 15' : 'KEYPAD = 15')
+      for (const d of ['lcd', 'speaker', 'console', 'keypad'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
+    }
   })
 })
 
@@ -80,7 +83,7 @@ describe('computer 2: instructions', () => {
     return { acc: m.acc(), carry: m.carry(), zero: m.zero(), pc: m.pc(), ram: m.ram(), m }
   }
 
-  it('LDI, LDA, STA and ADD work on 8-bit values like the first computer', () => {
+  it('LDI, LDA, STA, ADD and SUB work on 8-bit values like the first computer', () => {
     expect(run('LDI 200', 1).acc).toBe(200)
     expect(run('LDI 0xA5\nSTA 5\nLDI 0\nLDA 5', 4).acc).toBe(0xa5)
     expect(run('LDI 0xA5\nSTA 5', 2).ram[5]).toBe(0xa5)
@@ -93,43 +96,43 @@ describe('computer 2: instructions', () => {
   it('ADDI and SUBI take their operand from the instruction', () => {
     expect(run('LDI 100\nADDI 55', 2)).toMatchObject({ acc: 155, carry: 0, zero: 0 })
     expect(run('LDI 200\nADDI 100', 2)).toMatchObject({ acc: 44, carry: 1 })
-    expect(run('LDI 0x0F\nADDI 1', 2).acc).toBe(0x10) // carry from the low to the high half
+    expect(run('LDI 0x0F\nADDI 1', 2).acc).toBe(0x10)
     expect(run('LDI 10\nSUBI 3', 2)).toMatchObject({ acc: 7, carry: 0, zero: 0 })
-    expect(run('LDI 3\nSUBI 10', 2)).toMatchObject({ acc: 249, carry: 1 }) // borrow
+    expect(run('LDI 3\nSUBI 10', 2)).toMatchObject({ acc: 249, carry: 1 })
     expect(run('LDI 9\nSUBI 9', 2)).toMatchObject({ acc: 0, carry: 0, zero: 1 })
     expect(run('LDI 5\nADDI -1', 2).acc).toBe(4)
   })
 
   it('CMPI sets the flags and leaves the accumulator alone', () => {
     expect(run('LDI 58\nCMPI 58', 2)).toMatchObject({ acc: 58, zero: 1, carry: 0 })
-    expect(run('LDI 57\nCMPI 58', 2)).toMatchObject({ acc: 57, zero: 0, carry: 1 }) // less: borrow
+    expect(run('LDI 57\nCMPI 58', 2)).toMatchObject({ acc: 57, zero: 0, carry: 1 })
     expect(run('LDI 60\nCMPI 58', 2)).toMatchObject({ acc: 60, zero: 0, carry: 0 })
   })
 
   it('SHL and SHR shift the accumulator, filling with 0', () => {
     expect(run('LDI 0x35\nSHL', 2).acc).toBe(0x6a)
-    expect(run('LDI 0xC1\nSHL', 2).acc).toBe(0x82) // the top bit falls off
+    expect(run('LDI 0xC1\nSHL', 2).acc).toBe(0x82)
     expect(run('LDI 0x35\nSHR', 2).acc).toBe(0x1a)
     expect(run('LDI 0x81\nSHR', 2).acc).toBe(0x40)
     expect(run('LDI 1\nSHL\nSHL\nSHL\nSHL\nSHL\nSHL\nSHL', 8).acc).toBe(0x80)
     expect(run('LDI 0x80\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR\nSHR', 9).acc).toBe(0)
   })
 
-  it('JMP, JNC and JZ jump to targets up to 31', () => {
+  it('JMP, JNC and JZ jump to targets up to 127', () => {
     expect(run('JMP 5', 1).pc).toBe(5)
     expect(run('JMP 31', 1).pc).toBe(31)
-    expect(run('JMP 17', 1).pc).toBe(17)
-    expect(run('LDI 1\nADDI 1\nJNC 20', 3).pc).toBe(20) // no carry
-    expect(run('LDI 255\nADDI 1\nJNC 20', 3).pc).toBe(3) // carry: falls through
-    expect(run('LDI 3\nCMPI 3\nJZ 25', 3).pc).toBe(25)
-    expect(run('LDI 3\nCMPI 4\nJZ 25', 3).pc).toBe(3)
-    expect(run('LDI 4\nSUBI 4\nJZ 9', 3).pc).toBe(9)
+    expect(run('JMP 100', 1).pc).toBe(100)
+    expect(run('JMP 127', 1).pc).toBe(127)
+    expect(run('LDI 1\nADDI 1\nJNC 20', 3).pc).toBe(20)
+    expect(run('LDI 255\nADDI 1\nJNC 20', 3).pc).toBe(3)
+    expect(run('LDI 3\nCMPI 3\nJZ 70', 3).pc).toBe(70)
+    expect(run('LDI 3\nCMPI 4\nJZ 70', 3).pc).toBe(3)
   })
 
-  it('the program counter counts past 15 into the second half of the ROM', () => {
-    const nops = Array.from({ length: 20 }, () => 'SHL').join('\n')
-    const r = run(`${nops}\nLDI 42`, 21)
-    expect(r.pc).toBe(21)
+  it('the program counter counts on past 15 and 63 through the whole ROM', () => {
+    const nops = Array.from({ length: 100 }, () => 'SHL').join('\n')
+    const r = run(`${nops}\nLDI 42`, 101)
+    expect(r.pc).toBe(101)
     expect(r.acc).toBe(42)
   })
 
@@ -143,79 +146,142 @@ describe('computer 2: instructions', () => {
   it('STA 15 prints the accumulator as a character', () => {
     expect(run('LDI 72\nSTA 15\nLDI 105\nSTA 15', 4).m.text()).toBe('Hi')
     expect(run('LDI 65\nSTA 15\nLDI 10\nSTA 15\nLDI 66\nSTA 15', 6).m.text()).toBe('A\nB')
+    expect(run('LDI 72\nSTA 12', 2).m.text()).toBe('') // other addresses write only to RAM
   })
 
-  it('STA 14 lights the pixel at (low nibble, high nibble) and STA 13 darkens it', () => {
-    expect(run('LDI 0x52\nSTA 14', 2).m.pixels()).toEqual([[2, 5]])
-    expect(run('LDI 0x52\nSTA 14\nLDI 0xF0\nSTA 14', 4).m.pixels()).toEqual([[0, 15], [2, 5]].sort((a, b) => a[1] * 16 + a[0] - (b[1] * 16 + b[0])))
-    expect(run('LDI 0x52\nSTA 14\nSTA 13', 3).m.pixels()).toEqual([])
-    // Other addresses write only to RAM.
-    expect(run('LDI 0x52\nSTA 12', 2).m.pixels()).toEqual([])
-    expect(run('LDI 72\nSTA 12', 2).m.text()).toBe('')
-  })
-
-  it('LDA 15 reads the keypad: the key in bits 0-3, and bit 4 while one is held', () => {
-    const m = machine('LDA 15\nSTA 0\nLDA 15\nSTA 1\nLDA 0')
-    const keypad = m.id('Keypad')
-    m.sim.setState(keypad, { pressed: true, key: 11 })
-    m.sim.settle() // let the new key reach the pins before the first clock edge
-    m.run(2)
+  it('LDA 15 reads the keypad (key in bits 0-3, bit 4 while a press is waiting) and STA 14 says it has been read', () => {
+    const m = machine('LDA 15\nSTA 0\nSTA 14\nLDA 15\nSTA 1\nLDA 0')
+    m.press(11)
+    m.run(8)
     expect(m.ram()[0]).toBe(0x10 | 11)
-    m.sim.setState(keypad, { pressed: false })
-    m.sim.settle()
-    m.run(2)
-    expect(m.ram()[1]).toBe(11) // the last key stays, but it is no longer held
+    expect(m.ram()[1]).toBe(11) // read after the acknowledgement: the last key stays, nothing is waiting
+  })
+})
+
+describe('computer 2: the other devices', () => {
+  it('STA 14 lights the pixel at (low nibble, high nibble) and STA 13 darkens it', () => {
+    const run = (source: string, cycles: number) => {
+      const m = machine(source, ['lcd'])
+      m.run(cycles)
+      return m.pixels()
+    }
+    expect(run('LDI 0x52\nSTA 14', 2)).toEqual([[2, 5]])
+    expect(run('LDI 0x52\nSTA 14\nSTA 13', 3)).toEqual([])
+    expect(run('LDI 0x52\nSTA 12', 2)).toEqual([])
+  })
+
+  it('STA 14 flips the speaker, and a repeating program makes a tone', () => {
+    const m = machine('STA 14\nSTA 14\nSTA 14', ['speaker'])
+    const level = () => m.sim.pinValue(m.id('Speaker flip-flop'), 'Q')
+    expect(level()).toBe(0)
+    m.cycle()
+    expect(level()).toBe(1)
+    m.cycle()
+    expect(level()).toBe(0)
+    m.cycle()
+    expect(level()).toBe(1)
+    // A loop of N instructions flipping once makes a flip every N cycles; the speaker hears it as a pitch.
+    const loop = machine('l: STA 14\nSHL\nSHL\nJMP l', ['speaker'])
+    for (let i = 0; i < 80; i++) loop.cycle()
+    const st = loop.sim.state(loop.id('Speaker')) as SpeakerState
+    expect(speakerPitch(st.edges, loop.sim.time)).toBeGreaterThan(0)
+    expect(st.edges.length).toBeGreaterThanOrEqual(3)
   })
 })
 
 describe('computer 2: the programs', () => {
-  it('count prints 0123456789 and a newline, then halts', () => {
-    const m = machine(COUNT_SOURCE)
-    const n = runToHalt(m)
-    expect(m.halted()).toBe(1)
-    expect(m.text()).toBe('0123456789\n')
-    expect(n).toBeLessThan(80)
-  })
-
-  it('table prints the 7 times table as two-digit numbers, then halts', () => {
-    const m = machine(TABLE_SOURCE)
-    runToHalt(m, 1000)
-    expect(m.halted()).toBe(1)
-    expect(m.text()).toBe('07 14 21 28 35 42 49 56 63 ')
-  })
-
-  it('bounce keeps one pixel on the middle row, going out and back', () => {
-    const m = machine(BOUNCE_SOURCE)
-    const seen: number[] = []
-    for (let i = 0; i < 400; i++) {
+  it('the ball stays on the screen, bouncing off all four edges, with always a pixel lit', () => {
+    const m = machine(BALL_SOURCE, ['lcd'])
+    const xs: number[] = []
+    const ys: number[] = []
+    for (let i = 0; i < 2500; i++) {
       m.cycle()
       const px = m.pixels()
-      // Between the lighting of the new pixel and the darkening of the old one there are two; never none after the first.
-      if (i > 5) expect(px.length, `cycle ${i}`).toBeGreaterThanOrEqual(1)
+      if (i > 12) expect(px.length, `cycle ${i}`).toBeGreaterThanOrEqual(1)
       expect(px.length).toBeLessThanOrEqual(2)
       for (const [x, y] of px) {
-        expect(y).toBe(7)
-        seen.push(x)
+        xs.push(x)
+        ys.push(y)
       }
     }
-    expect(Math.min(...seen)).toBe(0)
-    expect(Math.max(...seen)).toBe(15)
-    // It goes right, turns round at 15, comes back to 0 and turns again: a full lap visits every column twice or more.
-    expect(new Set(seen).size).toBe(16)
+    expect([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]).toEqual([0, 15, 0, 15])
   }, 60000)
 
-  it('keys echoes the key held down as a hexadecimal digit, once per press', () => {
-    const m = machine(KEYS_SOURCE)
-    const keypad = m.id('Keypad')
-    m.run(10)
-    expect(m.text()).toBe('') // nothing pressed yet
-    for (const [key, ch] of [[7, '7'], [10, 'A'], [15, 'F'], [0, '0']] as const) {
-      m.sim.setState(keypad, { pressed: true, key })
-      m.run(14) // held for a while: still printed once
-      m.sim.setState(keypad, { pressed: false })
-      m.run(14)
-      expect(m.text().endsWith(ch), `key ${key}`).toBe(true)
+  it('the siren goes up and down: the pause between flips shrinks, then grows', () => {
+    const m = machine(SIREN_SOURCE, ['speaker'])
+    const q = m.id('Speaker flip-flop')
+    const flips: number[] = []
+    let last = m.sim.pinValue(q, 'Q')
+    for (let i = 0; i < 9000; i++) {
+      m.cycle()
+      const v = m.sim.pinValue(q, 'Q')
+      if (v !== last) flips.push(i)
+      last = v
     }
-    expect(m.text()).toBe('7AF0')
+    const gaps = flips.slice(1).map((f, i) => f - flips[i])
+    expect(gaps.length).toBeGreaterThan(100)
+    // Starts at the lowest note (the longest gap), reaches a highest note, and comes down again.
+    expect(Math.max(...gaps.slice(0, 20))).toBeGreaterThanOrEqual(30)
+    const shortest = Math.min(...gaps)
+    expect(shortest).toBeLessThanOrEqual(13)
+    expect(shortest).toBeGreaterThanOrEqual(9)
+    const at = gaps.indexOf(shortest)
+    expect(at).toBeGreaterThan(20)
+    expect(gaps.slice(at + 1).some((g) => g >= 25)).toBe(true)
+    // Within a note the gap is the same every time.
+    expect(new Set(gaps.slice(0, 14)).size).toBeLessThanOrEqual(2)
   }, 60000)
+
+  describe('the calculator', () => {
+    /** Type keys, giving the program time after each to read the key and show it. */
+    const type = (keys: number[]) => {
+      const m = machine(CALC_SOURCE)
+      for (const k of keys) {
+        m.press(k)
+        m.run(400)
+      }
+      return m.text()
+    }
+    const A = 10
+    const B = 11
+    const C = 12
+    const D = 13
+    const E = 14
+
+    it('adds', () => {
+      expect(type([3, A, 4, D])).toBe('3+4=7\n')
+      expect(type([9, A, 9, D])).toBe('9+9=18\n')
+    })
+
+    it('subtracts, with a minus sign for a negative answer', () => {
+      expect(type([9, B, 5, D])).toBe('9-5=4\n')
+      expect(type([2, B, 6, D])).toBe('2-6=-4\n')
+      expect(type([5, B, 5, D])).toBe('5-5=0\n')
+    })
+
+    it('multiplies', () => {
+      expect(type([7, C, 8, D])).toBe('7x8=56\n')
+      expect(type([9, C, 9, D])).toBe('9x9=81\n')
+      expect(type([6, C, 0, D])).toBe('6x0=0\n')
+    })
+
+    it('does one sum after another, and clears', () => {
+      expect(type([1, A, 2, D, 4, C, 5, D])).toBe('1+2=3\n4x5=20\n')
+      expect(type([7, C, E, 2, A, 2, D])).toBe('7x\n2+2=4\n')
+    })
+
+    it('reads a key held down only once, and ignores keys that are not on the calculator', () => {
+      const m = machine(CALC_SOURCE)
+      m.sim.setState(m.id('Keypad'), { pressed: true, key: 5 })
+      m.sim.settle()
+      m.run(600) // held down for a long time
+      m.sim.setState(m.id('Keypad'), { pressed: false })
+      m.sim.settle()
+      m.run(50)
+      expect(m.text()).toBe('5')
+      m.press(15)
+      m.run(300)
+      expect(m.text()).toBe('5')
+    })
+  })
 })

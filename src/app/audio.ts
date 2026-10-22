@@ -35,7 +35,7 @@ export function updateAudio(circuit: Circuit, running: boolean, speed: number) {
     if (k.type !== 'speaker') continue
     seen.add(k.id)
     const st = sim.state(k.id) as SpeakerState | undefined
-    const hz = st ? speakerTone(speakerPitch(st.edges, sim.time), speed, k.params.on !== false, running) : 0
+    const hz = st ? speakerTone(speakerPitch(st.edges, sim.time), speed, k.params.on !== false, running, Number(k.params.octaves) || 0) : 0
     let v = voices.get(k.id)
     if (!v) {
       if (!hz) continue

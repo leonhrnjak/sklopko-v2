@@ -4,9 +4,16 @@ import { boundsRect, type Circuit } from './circuit'
 
 /**
  * The second 8-bit computer (instruction set `SK82`): the first one's datapath with a four-bit opcode, jump if zero,
- * immediate arithmetic, shifts, a 32-instruction program ROM, and three devices on the top RAM addresses: a text
- * console (`STA 15`), a pixel screen (`STA 14` lights a pixel, `STA 13` darkens it) and a keypad (`LDA 15`).
+ * immediate arithmetic, shifts and a 128-instruction program ROM. It has the devices an example asks for, on the
+ * top RAM addresses, and only those:
+ *
+ *   lcd      the pixel screen: `STA 14` lights the pixel at (low nibble, high nibble) of the accumulator, `STA 13` darkens it
+ *   speaker  `STA 14` flips it
+ *   console  `STA 15` prints the accumulator as a character
+ *   keypad   `LDA 15` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `STA 14` says it has been read
  */
+
+export const ROM_WORDS = 128
 
 // ---- Control ROM -------------------------------------------------------------------------------
 
@@ -37,129 +44,229 @@ export const CONTROL2 = CONTROL2_WORDS.map((w) => w.toString(16).toUpperCase().p
 
 // ---- Programs ----------------------------------------------------------------------------------
 
-export const COUNT_SOURCE = `; Count: print the digits 0 to 9 on the console.
-; Address 15 is the console: STA 15 prints the accumulator as a character (ASCII).
-CON = 15
+/** A ball bounces round the LCD: both directions turn round at the edges. */
+export const BALL_SOURCE = `; A ball bounces round the 16x16 screen.
+; Address 14 lights the pixel at (x = low nibble, y = high nibble) of the accumulator, address 13 darkens it.
+; The position is one byte, y*16 + x, so moving right is +1 and moving down is +16.
+ON = 14
+OFF = 13
+pos = 0
+sx = 1            ; +1 right, -1 left
+sy = 2            ; +16 down, -16 up
+next = 3
 
-        LDI 48          ; the character '0'
-loop:   STA CON         ; print it
-        ADDI 1          ; the next character
-        CMPI 58         ; one past '9'? (compare only: the accumulator stays)
-        JZ done
-        JMP loop
-done:   LDI 10          ; a new line
-        STA CON
-        HALT
+        LDI 0x35
+        STA pos
+        LDI 1
+        STA sx
+        LDI 16
+        STA sy
+        LDA pos
+        STA ON
+move:   LDA pos
+        ADD sx
+        ADD sy
+        STA next
+        STA ON          ; light the new pixel before darkening the old one
+        LDA pos
+        STA OFF
+        LDA next
+        STA pos
+        SHL
+        SHL
+        SHL
+        SHL             ; x is now in the high nibble
+        CMPI 0xF0       ; at the right edge?
+        JZ flipx
+        CMPI 0          ; at the left edge?
+        JZ flipx
+ycheck: LDA pos
+        SHR
+        SHR
+        SHR
+        SHR             ; y
+        CMPI 15         ; at the bottom?
+        JZ flipy
+        CMPI 0          ; at the top?
+        JZ flipy
+        JMP move
+flipx:  LDI 0
+        SUB sx          ; sx = -sx
+        STA sx
+        JMP ycheck
+flipy:  LDI 0
+        SUB sy
+        STA sy
+        JMP move
 `
 
-export const TABLE_SOURCE = `; The 7 times table, printed as 07 14 21 ... 63 on the console.
-; The product is kept as two decimal digits: RAM[2] tens and RAM[1] ones, so no division is needed.
-CON = 15
-left = 0          ; how many numbers are still to print
-ones = 1
-tens = 2
+/** A siren: the speaker is flipped over and over with a pause between, and the pause changes. */
+export const SIREN_SOURCE = `; A siren. STA 14 flips the speaker; a note is the speaker flipped 16 times with a pause
+; between flips, and the shorter the pause, the higher the note. The notes glide up, then down.
+SPK = 14
+wait = 0          ; the pause: counted down in the loop below
+dir = 1           ; added to the pause after each note: -1 higher, +1 lower
+left = 2          ; flips left in this note
 
-        LDI 9
+        LDI 12
+        STA wait        ; start low
+        LDI -1
+        STA dir
+note:   LDI 16
         STA left
-        LDI 0
-        STA ones
-        STA tens
-next:   LDA ones
-        ADDI 7          ; ones + 7
-        CMPI 10         ; 10 or more? (carry is clear when it is)
-        JNC wrap
-        STA ones
-        JMP show
-wrap:   SUBI 10         ; carry into the tens
-        STA ones
-        LDA tens
-        ADDI 1
-        STA tens
-show:   LDA tens
-        ADDI 48         ; digit to character
-        STA CON
-        LDA ones
-        ADDI 48
-        STA CON
-        LDI 32          ; a space
-        STA CON
+flip:   STA SPK         ; flip the speaker
+        LDA wait
+pause:  SUBI 1
+        JNC pause       ; about 2 x wait cycles
         LDA left
         SUBI 1
         STA left
-        JZ end          ; the zero flag is from SUBI
-        JMP next
-end:    HALT
+        JZ notedone
+        JMP flip
+notedone: LDA wait
+        ADD dir
+        STA wait
+        CMPI 1
+        JZ top          ; shortest pause: highest note, turn round
+        CMPI 12
+        JZ bottom
+        JMP note
+top:    LDI 1
+        STA dir
+        JMP note
+bottom: LDI -1
+        STA dir
+        JMP note
 `
 
-export const BOUNCE_SOURCE = `; A pixel bounces along the middle row of the screen.
-; Address 14 lights the pixel at (x = low nibble, y = high nibble) of the accumulator, address 13 darkens it.
-; The pixel is kept as one byte: y = 7 in the high nibble, x in the low one.
-ON = 14
-OFF = 13
-pixel = 0
-step = 1          ; +1 or -1
-next = 2
-
-        LDI 0x70
-        STA pixel
-        LDI 1
-        STA step
-        LDA pixel
-        STA ON
-loop:   LDA pixel
-        ADD step        ; the next position
-        STA next
-        STA ON          ; light it before darkening the old one, so there is always a pixel
-        LDA pixel
-        STA OFF
-        LDA next
-        STA pixel
-        CMPI 0x7F       ; at the right edge?
-        JZ goleft
-        CMPI 0x70       ; at the left edge?
-        JZ goright
-        JMP loop
-goleft: LDI -1
-        STA step
-        JMP loop
-goright: LDI 1
-        STA step
-        JMP loop
-`
-
-export const KEYS_SOURCE = `; Echo: print the hexadecimal digit of each key pressed on the keypad.
-; LDA 15 reads the keypad: the key in bits 0-3 and bit 4 set while a key is held down.
+/** A calculator for single-digit numbers: digits, + - x and =. */
+export const CALC_SOURCE = `; A calculator. Keys: 0-9 digits, A +, B -, C x, D =, E clear.
+; Address 15 is the console (STA) and the keypad (LDA); STA 14 tells the keypad the key has been read.
 CON = 15
-code = 0
+KEYPAD = 15
+ACK = 14
+key = 0
+a = 1             ; the number before the operator
+b = 2             ; the digit typed last
+op = 3            ; 1 +, 2 -, 3 x, 0 none yet
+tmp = 4
+tens = 5
 
-wait:   LDA CON
+reset:  LDI 0
+        STA a
+        STA b
+        STA op
+main:   LDA KEYPAD
         SHR
         SHR
         SHR
-        SHR             ; bit 4 is now bit 0: 1 while a key is held
-        ADDI 0          ; sets the zero flag
-        JZ wait
-        LDA CON
-        SUBI 16         ; drop the "held" bit: the key, 0-15
-        STA code
-        CMPI 10
-        JNC letter      ; 10 or more: A-F
-        ADDI 48
-        JMP print
-letter: ADDI 55         ; 'A' is 65
-print:  STA CON
-release: LDA CON
-        SHR
-        SHR
-        SHR
-        SHR
+        SHR             ; bit 4 of the keypad word is 1 when a key is waiting
         ADDI 0
-        JZ wait         ; the key has been let go
-        JMP release
+        JZ main
+        LDA KEYPAD
+        SUBI 16         ; the key, 0-15
+        STA key
+        STA ACK
+        CMPI 10
+        JNC command     ; 10 or more: not a digit
+        STA b           ; a digit: remember it and show it
+        ADDI 48
+        STA CON
+        JMP main
+command: LDA key
+        CMPI 10
+        JZ plus
+        CMPI 11
+        JZ minus
+        CMPI 12
+        JZ times
+        CMPI 13
+        JZ equals
+        CMPI 14
+        JZ clear
+        JMP main
+plus:   LDI 43          ; '+'
+        STA CON
+        LDI 1
+        STA op
+        JMP setop
+minus:  LDI 45          ; '-'
+        STA CON
+        LDI 2
+        STA op
+        JMP setop
+times:  LDI 120         ; 'x'
+        STA CON
+        LDI 3
+        STA op
+setop:  LDA b           ; the digit typed so far is the first number
+        STA a
+        JMP main
+equals: LDI 61          ; '='
+        STA CON
+        LDA op
+        CMPI 1
+        JZ doadd
+        CMPI 2
+        JZ dosub
+        CMPI 3
+        JZ domul
+        LDA b           ; no operator: just the digit
+        JMP show
+doadd:  LDA a
+        ADD b
+        JMP show
+dosub:  LDA a
+        SUB b
+        JNC show        ; no borrow: not negative
+        STA tmp
+        LDI 45          ; '-'
+        STA CON
+        LDI 0
+        SUB tmp         ; the size of the negative number
+        JMP show
+domul:  LDI 0
+        STA tmp
+mloop:  LDA b           ; add a to the total, b times
+        CMPI 0
+        JZ mdone
+        SUBI 1
+        STA b
+        LDA tmp
+        ADD a
+        STA tmp
+        JMP mloop
+mdone:  LDA tmp
+show:   STA tmp         ; print the accumulator as decimal: count the tens first
+        LDI 0
+        STA tens
+tloop:  LDA tmp
+        CMPI 10
+        JNC tsub        ; 10 or more
+        LDA tens
+        CMPI 0
+        JZ ones         ; no leading zero
+        ADDI 48
+        STA CON
+ones:   LDA tmp
+        ADDI 48
+        STA CON
+        LDI 10          ; new line
+        STA CON
+        JMP reset
+tsub:   SUBI 10
+        STA tmp
+        LDA tens
+        ADDI 1
+        STA tens
+        JMP tloop
+clear:  LDI 10
+        STA CON
+        JMP reset
 `
 
 export const programWords = (source: string) => {
-  const r = assemble(SK82, source, 32)
+  const r = assemble(SK82, source, ROM_WORDS)
   if (r.errors.length) throw new Error(`Program does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
   return toHexWords(r.words, SK82.bits)
 }
@@ -170,14 +277,22 @@ const NIB = ['A', 'B', 'C', 'D']
 const Q = ['QA', 'QB', 'QC', 'QD']
 const bits = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
 
+export type Device = 'lcd' | 'speaker' | 'console' | 'keypad'
+
 export interface Computer2Options {
   source: string
   /** Clock rate in Hz. */
   hz: number
+  /** What is connected. The speaker and the LCD both use address 14, so not both. */
+  devices: Device[]
+  /** Octaves the speaker plays up (a slow circuit makes notes too low to hear). */
+  octaves?: number
 }
 
 /** The computer, and the id of each named part. Parts are stacked in columns, left to right in the order data flows. */
 export function computer2Builder(o: Computer2Options) {
+  const has = (d: Device) => o.devices.includes(d)
+  if (has('lcd') && has('speaker')) throw new Error('The LCD and the speaker both use address 14')
   const b = new CircuitBuilder()
   const keys: Record<string, string> = {}
   const cols: Record<string, { x: number; y: number }> = {}
@@ -206,20 +321,20 @@ export function computer2Builder(o: Computer2Options) {
   const ACC = 3260
   const DEVICES = 3560
 
-  // ---- Fetch: program counter (5 bits: two counters) and the program ROM ----------------------------
+  // ---- Fetch: program counter (7 bits: two counters) and the program ROM ----------------------------
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
   const pcLo = part(FETCH, 'pcLo', 'counterld', { label: 'PC low' })
   const pcHi = part(FETCH, 'pcHi', 'counterld', { label: 'PC high' })
   const zero = part(FETCH, 'zero0', 'const', { params: { value: 0 } })
-  const prog = part(ROM, 'prog', 'rom', { params: { abits: 5, dbits: 16, isa: SK82.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
+  const prog = part(ROM, 'prog', 'rom', { params: { abits: 7, dbits: 16, isa: SK82.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
   wireBits(pcLo, bits('Q', 4), prog, bits('A', 4))
-  wire(`${pcHi}.Q0`, `${prog}.A4`)
+  for (let i = 0; i < 3; i++) wire(`${pcHi}.Q${i}`, `${prog}.A${4 + i}`)
   wire(`${clk}.Q`, `${pcLo}.CLK`)
   wire(`${clk}.Q`, `${pcHi}.CLK`)
-  // The high counter counts when the low one wraps round, and loads bit 4 of a jump target (bit 8 of the word).
+  // The high counter counts when the low one wraps round, and loads the upper bits of a jump target (bits 8–10 of the word).
   wire(`${pcLo}.CO`, `${pcHi}.EN`)
-  wire(`${prog}.D8`, `${pcHi}.D0`)
-  for (const i of [1, 2, 3]) wire(`${zero}.Q`, `${pcHi}.D${i}`)
+  for (let i = 0; i < 3; i++) wire(`${prog}.D${8 + i}`, `${pcHi}.D${i}`)
+  wire(`${zero}.Q`, `${pcHi}.D3`)
   wireBits(prog, bits('D', 4), pcLo, bits('D', 4))
 
   // ---- Decode: the control ROM, addressed by the opcode (bits 4–7) ----------------------------------------
@@ -249,29 +364,31 @@ export function computer2Builder(o: Computer2Options) {
   const stop = part(FETCH, 'stop', 'breakpoint', { label: 'Pause at HALT', params: { value: 1 } })
   wire(`${ctl}.D9`, `${stop}.A`)
 
-  // ---- Devices on addresses 13, 14 and 15 ------------------------------------------------------------
+  // ---- Which device is addressed: only the decoding the devices need --------------------------------
   const a = (i: number) => `${prog}.D${i}`
-  const na0 = part(DECODE, 'na0', 'not', { label: 'not A0' }, 20)
-  const na1 = part(DECODE, 'na1', 'not', { label: 'not A1' }, 20)
-  wire(a(0), `${na0}.A`)
-  wire(a(1), `${na1}.A`)
-  const sel = (key: string, label: string, pins: string[]) => {
-    const g = part(DECODE, key, 'and', { params: { inputs: 4 }, label }, 20)
+  const gates: Record<string, string> = {}
+  const not = (key: string, label: string, from: string) =>
+    (gates[key] ??= (() => {
+      const g = part(DECODE, key, 'not', { label }, 20)
+      wire(from, `${g}.A`)
+      return `${g}.Y`
+    })())
+  /** The output of an AND that is 1 when the address field is `n` (13, 14 or 15). */
+  const select = (n: 13 | 14 | 15) => {
+    const key = `sel${n}`
+    if (gates[key]) return gates[key]
+    const pins = [0, 1, 2, 3].map((i) => ((n >> i) & 1 ? a(i) : not(`na${i}`, `not A${i}`, a(i))))
+    const g = part(DECODE, key, 'and', { params: { inputs: 4 }, label: `address ${n}` }, 20)
     pins.forEach((p, i) => wire(p, `${g}.${String.fromCharCode(65 + i)}`))
-    return g
+    return (gates[key] = `${g}.Y`)
   }
-  const sel15 = sel('sel15', 'address 15', [a(0), a(1), a(2), a(3)])
-  const sel14 = sel('sel14', 'address 14', [`${na0}.Y`, a(1), a(2), a(3)])
-  const sel13 = sel('sel13', 'address 13', [a(0), `${na1}.Y`, a(2), a(3)])
-  const conWe = part(DECODE, 'conWe', 'and', { label: 'write to console' }, 20)
-  wire(`${ctl}.D4`, `${conWe}.A`)
-  wire(`${sel15}.Y`, `${conWe}.B`)
-  const fbSel = part(DECODE, 'fbSel', 'or', { label: 'address 13 or 14' }, 20)
-  wire(`${sel14}.Y`, `${fbSel}.A`)
-  wire(`${sel13}.Y`, `${fbSel}.B`)
-  const fbWe = part(DECODE, 'fbWe', 'and', { label: 'write to screen' }, 20)
-  wire(`${ctl}.D4`, `${fbWe}.A`)
-  wire(`${fbSel}.Y`, `${fbWe}.B`)
+  /** 1 for the cycle in which the program writes to address `n`. */
+  const writeTo = (n: 13 | 14 | 15, label: string) => {
+    const g = part(DECODE, `we${n}`, 'and', { label }, 20)
+    wire(`${ctl}.D4`, `${g}.A`)
+    wire(select(n), `${g}.B`)
+    return `${g}.Y`
+  }
 
   // ---- Execute: RAM, adder/subtractor, accumulator ---------------------------------------------------
   const ram = part(MEM, 'ram', 'ram', { params: { dbits: 8 }, label: 'Data RAM' })
@@ -304,15 +421,18 @@ export function computer2Builder(o: Computer2Options) {
   wire(`${ctl}.D10`, `${addLo}.Ci`)
   wire(`${addLo}.Co`, `${addHi}.Ci`)
 
-  // The keypad is read through address 15: RAM or keypad, bit by bit.
-  const keypad = part(INMUX, 'keypad', 'keypad', { label: 'Keypad' })
-  const inbit = (bit: number) => (bit < 4 ? `${keypad}.K${bit}` : bit === 4 ? `${keypad}.P` : `${zero}.Q`)
+  // With a keypad, address 15 reads it instead of RAM: RAM or keypad, bit by bit.
   const memOrIn: string[] = []
+  const keypad = has('keypad') ? part(INMUX, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true } }) : undefined
   for (let bit = 0; bit < 8; bit++) {
+    if (!keypad) {
+      memOrIn.push(`${ram}.Q${bit}`)
+      continue
+    }
     const m = part(INMUX, `in${bit}`, 'mux', { params: { n: 2 }, label: `RAM or keypad, bit ${bit}` }, 20)
     wire(`${ram}.Q${bit}`, `${m}.I0`)
-    wire(inbit(bit), `${m}.I1`)
-    wire(`${sel15}.Y`, `${m}.S0`)
+    wire(bit < 4 ? `${keypad}.K${bit}` : bit === 4 ? `${keypad}.P` : `${zero}.Q`, `${m}.I1`)
+    wire(select(15), `${m}.S0`)
     memOrIn.push(`${m}.Y`)
   }
 
@@ -348,20 +468,42 @@ export function computer2Builder(o: Computer2Options) {
   wire(`${clk}.Q`, `${flags}.CLK`)
 
   // ---- The devices ---------------------------------------------------------------------------------
-  const con = part(DEVICES, 'console', 'console', { label: 'Console' })
-  wire(`${conWe}.Y`, `${con}.WE`)
-  wire(`${clk}.Q`, `${con}.CLK`)
-  const screen = part(DEVICES, 'screen', 'framebuffer', { params: { colors: 2 }, label: 'Screen' })
-  for (let i = 0; i < 4; i++) {
-    wire(`${accLo}.${Q[i]}`, `${screen}.X${i}`)
-    wire(`${accHi}.${Q[i]}`, `${screen}.Y${i}`)
+  if (has('console')) {
+    const con = part(DEVICES, 'console', 'console', { label: 'LCD text display' })
+    wire(writeTo(15, 'write to console'), `${con}.WE`)
+    wire(`${clk}.Q`, `${con}.CLK`)
+    for (let i = 0; i < 4; i++) {
+      wire(`${accLo}.${Q[i]}`, `${con}.D${i}`)
+      wire(`${accHi}.${Q[i]}`, `${con}.D${i + 4}`)
+    }
   }
-  wire(`${sel14}.Y`, `${screen}.D`)
-  wire(`${fbWe}.Y`, `${screen}.WE`)
-  wire(`${clk}.Q`, `${screen}.CLK`)
-  for (let i = 0; i < 4; i++) {
-    wire(`${accLo}.${Q[i]}`, `${con}.D${i}`)
-    wire(`${accHi}.${Q[i]}`, `${con}.D${i + 4}`)
+  if (has('lcd')) {
+    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { colors: 2 }, label: 'LCD' })
+    for (let i = 0; i < 4; i++) {
+      wire(`${accLo}.${Q[i]}`, `${screen}.X${i}`)
+      wire(`${accHi}.${Q[i]}`, `${screen}.Y${i}`)
+    }
+    wire(select(14), `${screen}.D`)
+    const fbSel = part(DECODE, 'fbSel', 'or', { label: 'address 13 or 14' }, 20)
+    wire(select(14), `${fbSel}.A`)
+    wire(select(13), `${fbSel}.B`)
+    const fbWe = part(DECODE, 'fbWe', 'and', { label: 'write to screen' }, 20)
+    wire(`${ctl}.D4`, `${fbWe}.A`)
+    wire(`${fbSel}.Y`, `${fbWe}.B`)
+    wire(`${fbWe}.Y`, `${screen}.WE`)
+    wire(`${clk}.Q`, `${screen}.CLK`)
+  }
+  if (has('speaker') || keypad) {
+    const we14 = writeTo(14, 'write to address 14')
+    // A write to address 14 flips the speaker's T flip-flop, or tells the keypad its key has been read.
+    if (has('speaker')) {
+      const toggle = part(DEVICES, 'toggle', 'tff', { label: 'Speaker flip-flop' })
+      wire(we14, `${toggle}.T`)
+      wire(`${clk}.Q`, `${toggle}.CLK`)
+      const spk = part(DEVICES, 'speaker', 'speaker', { label: 'Speaker', params: { octaves: o.octaves ?? 0 } })
+      wire(`${toggle}.Q`, `${spk}.A`)
+    }
+    if (keypad) wire(we14, `${keypad}.RST`)
   }
 
   // ---- Readouts ------------------------------------------------------------------------------------
@@ -369,7 +511,7 @@ export function computer2Builder(o: Computer2Options) {
     const d = part(col, key, 'hexdisp', label ? { label } : {})
     wireBits(from, pins, d, NIB)
   }
-  hexOf(FETCH, 'pcLoDisp', pcLo, Q.map((_, i) => `Q${i}`), 'PC')
+  hexOf(FETCH, 'pcLoDisp', pcLo, bits('Q', 4), 'PC')
   hexOf(ACC, 'accHiDisp', accHi, Q, 'ACC')
   hexOf(ACC, 'accLoDisp', accLo, Q)
   const carry = part(ACC, 'carry', 'led', { label: 'Carry', params: { color: 'yellow' } })
@@ -379,47 +521,46 @@ export function computer2Builder(o: Computer2Options) {
   return { b, keys }
 }
 
-/** A program on the computer: a title for the note, and the speed it looks best at. */
+/** A program on the computer: what is connected, how fast it runs, and a note that says what to look at. */
 export interface Program {
   id: string
   name: string
   source: string
   hz: number
+  devices: Device[]
+  octaves?: number
   note: string
 }
 
 export const PROGRAMS: Program[] = [
   {
-    id: 'computer2',
-    name: '8-bit computer 2: bouncing pixel',
-    source: BOUNCE_SOURCE,
-    hz: 32,
-    note: 'The second computer. A pixel bounces along the middle row of the screen: the program adds +1 or −1 to its position and turns round at the edges (JZ). Writing to RAM address 14 lights a pixel, address 13 darkens one; 15 is the console. Click the Program ROM to read or change the assembly.',
-  },
-  {
-    id: 'computer2-count',
-    name: '8-bit computer 2: counting on the console',
-    source: COUNT_SOURCE,
-    hz: 16,
-    note: 'Prints 0123456789 on the console. STA 15 sends the accumulator to the console as an ASCII character; ADDI adds a constant and CMPI compares with one (JZ then jumps if they are equal). Select the console to read its text.',
-  },
-  {
-    id: 'computer2-table',
-    name: '8-bit computer 2: multiplication table',
-    source: TABLE_SOURCE,
+    id: 'computer-lcd',
+    name: 'Computer 2 + LCD: bouncing ball',
+    source: BALL_SOURCE,
     hz: 64,
-    note: 'Prints the 7 times table. The product is kept as two decimal digits, so no division is needed: add 7 to the ones, and when it reaches 10 subtract 10 and add 1 to the tens (the carry flag tells). Change the 7 in the program for another table.',
+    devices: ['lcd'],
+    note: 'The second 8-bit computer with an LCD. Its program keeps the ball’s position as one byte (row × 16 + column) and adds a step of +1 or −1 for sideways and ±16 for up and down. A write to RAM address 14 lights the pixel at that position, address 13 darkens it. SHL moves the column into the high nibble so CMPI can test for an edge, and JZ turns the ball round. Click the Program ROM to read the assembly.',
   },
   {
-    id: 'computer2-keys',
-    name: '8-bit computer 2: keypad echo',
-    source: KEYS_SOURCE,
-    hz: 64,
-    note: 'Press keys on the keypad (click and hold) and their digits appear on the console. LDA 15 reads the keypad: the key in bits 0–3 and bit 4 set while one is held. The program shifts bit 4 down with SHR to test it.',
+    id: 'computer-sound',
+    name: 'Computer 2 + speaker: siren',
+    source: SIREN_SOURCE,
+    hz: 1024,
+    devices: ['speaker'],
+    octaves: 4,
+    note: 'The second 8-bit computer with a speaker. A write to RAM address 14 flips a flip-flop that drives the speaker, so the program makes a note by writing over and over with a short pause (a countdown loop) between: the shorter the pause, the higher the note. The siren glides up and down. Press Run and click the page once to allow sound; the speaker’s “Octaves up” setting lifts the notes into the audible range, because this computer is slow.',
+  },
+  {
+    id: 'computer-calc',
+    name: 'Computer 2 + keypad: calculator',
+    source: CALC_SOURCE,
+    hz: 256,
+    devices: ['console', 'keypad'],
+    note: 'The second 8-bit computer with a keypad and a display. Click keys to type a sum with single digits, for example 7 × 8 =. The keys are 0–9 for digits, A +, B −, C ×, D =, E clear. LDA 15 reads the keypad (the key in bits 0–3, bit 4 set while a press is waiting), STA 14 tells it the key has been read, and STA 15 prints a character. The program turns the result into decimal digits by subtracting tens.',
   },
 ]
 
 export function buildComputer2(p: Program): Circuit {
-  const { b } = computer2Builder({ source: p.source, hz: p.hz })
+  const { b } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves })
   return b.build(0)
 }
