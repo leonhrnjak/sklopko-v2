@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
+import { updateSettings, useSettings } from '../app/settings'
+import { setWaveOpen, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
 import {
   clearAll,
@@ -16,11 +18,74 @@ import {
 import { EXAMPLES } from '../model/examples'
 import { fitView } from './canvas/viewport'
 
+/** Labelled display options; used in the settings popover and in the phone menu. */
+function SettingsFields() {
+  const gateStyle = useSettings((s) => s.gateStyle)
+  const hops = useSettings((s) => s.hops)
+  return (
+    <>
+      <label className="setting">
+        <span>Gate symbols</span>
+        <select
+          value={gateStyle}
+          onChange={(e) => updateSettings({ gateStyle: e.target.value === 'iec' ? 'iec' : 'us' })}
+          data-testid="setting-gates"
+        >
+          <option value="us">US (curved)</option>
+          <option value="iec">IEC (rectangles)</option>
+        </select>
+      </label>
+      <label className="setting">
+        <span>Wire hops</span>
+        <select
+          value={hops ? 'on' : 'off'}
+          onChange={(e) => updateSettings({ hops: e.target.value === 'on' })}
+          data-testid="setting-hops"
+        >
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+    </>
+  )
+}
+
+function SettingsPopover() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const down = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('pointerdown', down)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('pointerdown', down)
+      window.removeEventListener('keydown', key)
+    }
+  }, [open])
+  return (
+    <div className="settings-wrap" ref={ref}>
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Settings" title="Settings" data-testid="settings">
+        ⚙
+      </button>
+      {open && (
+        <div className="settings-pop" role="dialog" aria-label="Settings">
+          <SettingsFields />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Toolbar() {
   const running = useStore((s) => s.running)
   const speed = useStore((s) => s.speed)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
+  const waveOpen = useWave((s) => s.open)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -61,6 +126,15 @@ export function Toolbar() {
       </button>
       <button onClick={reset} title="Power-cycle: all signals and memories return to their initial state">
         Reset
+      </button>
+      <button
+        className={waveOpen ? 'active' : ''}
+        onClick={() => setWaveOpen(!waveOpen)}
+        aria-pressed={waveOpen}
+        title="Show or hide the waveform panel (traces of Probe parts over time)"
+        data-testid="waves-toggle"
+      >
+        Waveforms
       </button>
       <select
         value={speed}
@@ -142,6 +216,9 @@ export function Toolbar() {
         <button onClick={fitView} title="Fit circuit to screen (H)">
           Fit
         </button>
+        <span className="wide-only">
+          <SettingsPopover />
+        </span>
       </div>
       <div className="group wide-only">{fileControls}</div>
       <div className="menu-wrap narrow-only" ref={menuRef}>
@@ -163,6 +240,9 @@ export function Toolbar() {
           >
             <div className="menu-section">{simControls}</div>
             <div className="menu-section">{fileControls}</div>
+            <div className="menu-section settings-section">
+              <SettingsFields />
+            </div>
             <div className="menu-section">
               <button
                 onClick={() => {

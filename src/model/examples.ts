@@ -86,11 +86,20 @@ function nandDLatch(): Circuit {
   return b.build()
 }
 
+/** A row of labelled probes (for the waveform panel) at (x, y), each wired to the given output pin. */
+function probes(b: CircuitBuilder, signals: [label: string, from: string][], x: number, y: number) {
+  signals.forEach(([label, from], i) => {
+    const p = b.add('probe', x + i * 100, y, { label })
+    b.wire(from, `${p}.A`)
+  })
+}
+
 function shiftRegister(): Circuit {
   const b = new CircuitBuilder()
   const data = b.add('switch', 20, 10, { label: 'Data', params: { on: true } })
   const clk = b.add('clock', 0, 120, { params: { hz: 1 } })
   let prev = `${data}.Q`
+  const q: string[] = []
   for (let i = 0; i < 4; i++) {
     const x = 100 + i * 150
     const ff = b.add('dff', x, 0)
@@ -99,7 +108,10 @@ function shiftRegister(): Circuit {
     const led = b.add('led', x + 120, -70, { label: `Q${i}` })
     b.wire(`${ff}.Q`, `${led}.A`)
     prev = `${ff}.Q`
+    q.push(prev)
   }
+  // Waveforms: the data ripples one stage per clock edge.
+  probes(b, [['CLK', `${clk}.Q`], ...q.map((s, i): [string, string] => [`Q${i}`, s])], 0, 220)
   return b.build()
 }
 
@@ -160,6 +172,7 @@ function rippleCounter(): Circuit {
   // Ripple counter: each stage is clocked by the inverted output of the previous one.
   for (let i = 1; i < 4; i++) b.wire(`${ffs[i - 1]}.NQ`, `${ffs[i]}.CLK`)
   ffs.forEach((f, i) => b.wire(`${f}.Q`, `${disp}.${'ABCD'[i]}`))
+  probes(b, [['CLK', `${clk}.Q`], ...ffs.map((f, i): [string, string] => [`Q${i}`, `${f}.Q`])], 0, 220)
   return b.build()
 }
 
@@ -219,6 +232,16 @@ function digitalClock(): Circuit {
   b.wire(`${cnt.hu}.C`, `${at24}.B`)
   b.wire(`${at24}.Y`, `${cnt.ht}.R`)
   b.wire(`${at24}.Y`, `${cnt.hu}.R`)
+
+  // Waveforms: the tick, and the carries that make the next digit count.
+  for (const [label, from, x] of [
+    ['1 Hz', `${clk}.Q`, -220],
+    ['Seconds tens', `${cnt.su}.CO`, 1700],
+    ['Minutes', `${cnt.st}.CO`, 1400],
+  ] as const) {
+    const p = b.add('probe', x, 420, { label })
+    b.wire(from, `${p}.A`)
+  }
   return b.build()
 }
 
@@ -380,11 +403,36 @@ function dice(): Circuit {
   return b.build()
 }
 
+/** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
+export const SMILEY = ['3C', '42', 'A5', '81', 'A5', '99', '42', '3C']
+
+function matrixSmiley(): Circuit {
+  const b = new CircuitBuilder()
+  // A counter walks through the rows. The decoder lights one row at a time, while the ROM holds the pixels
+  // of that row and drives the columns. Scanned fast, the persistence of the display shows the whole image.
+  const clk = b.add('clock', 0, 60, { params: { hz: 128 }, label: 'Scan clock' })
+  const cnt = b.add('counter', 120, 40, { params: { mod: 8 }, label: 'Row counter' })
+  const rom = b.add('rom', 320, 0, { params: { abits: 3, dbits: 8, data: SMILEY.join(' ') }, label: 'Image' })
+  const dec = b.add('decoder', 320, 240, { params: { n: 3 }, label: 'Row select' })
+  const mat = b.add('matrix', 620, 160)
+  b.wire(`${clk}.Q`, `${cnt}.CLK`)
+  ;['A', 'B', 'C'].forEach((p, i) => {
+    b.wire(`${cnt}.${p}`, `${rom}.A${i}`)
+    b.wire(`${cnt}.${p}`, `${dec}.A${i}`)
+  })
+  for (let i = 0; i < 8; i++) {
+    b.wire(`${rom}.D${i}`, `${mat}.C${i}`)
+    b.wire(`${dec}.Y${i}`, `${mat}.R${i}`)
+  }
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
   { id: 'intersection', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
   { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
+  { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },

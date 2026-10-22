@@ -39,11 +39,14 @@ export type Params = Record<string, ParamValue>
 export interface ParamDef {
   key: string
   label: string
-  kind: 'select' | 'number' | 'bool'
+  kind: 'select' | 'number' | 'bool' | 'text'
   options?: { value: ParamValue; label: string }[]
   min?: number
   max?: number
   step?: number
+  /** For 'text': regular expression (source) the whole value must match, and the maximum length. */
+  pattern?: string
+  maxLength?: number
   default: ParamValue
   /** Changing it alters pins or behavior that needs a recompile (false for e.g. LED color). */
   structural?: boolean
@@ -57,7 +60,7 @@ export interface Instance {
   params: Params
 }
 
-export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'routing' | 'coding' | 'display'
+export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'coding' | 'display'
 
 export interface ComponentDef {
   type: string
@@ -71,6 +74,14 @@ export interface ComponentDef {
   evaluate(inst: Instance): void
   /** Text drawn inside generic box symbols. */
   title?: (p: Params) => string
+  /**
+   * Called after every settled step (each clock edge and each frame) with the simulated time in ms, and
+   * with `ins` refreshed to the settled values. For parts that record or smooth what they see over time
+   * (waveform probes, dot-matrix persistence). Keep the result in `state`.
+   */
+  sample?(inst: Instance, time: number): void
+  /** The symbol shows live values, so it redraws whenever one of its pins changes. */
+  live?: boolean
   /** How the user interacts with it on the canvas. */
   interactive?: 'toggle' | 'momentary' | 'cycle'
   /** Half-period in ms for clock sources, or undefined for everything else. */

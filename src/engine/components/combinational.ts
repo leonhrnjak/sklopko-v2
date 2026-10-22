@@ -1,6 +1,7 @@
 import { box, names } from '../layouts'
-import { X, toNum, type ComponentDef, type Params, type V } from '../types'
+import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
+import { HEX_WORDS, parseWords, tableBox } from './memory'
 
 /**
  * Wraps a pure boolean function. If any input is X every output is X,
@@ -20,6 +21,9 @@ function comb(fn: (ins: number[], p: Params) => (number | boolean)[]): Component
 const bitsOf = (n: number, count: number) => Array.from({ length: count }, (_, i) => (n >> i) & 1)
 const num = (ins: number[], start: number, n: number) => toNum(ins as V[], start, n)
 const AB = [...names('A', 4), ...names('B', 4)]
+
+/** Operations of the 4-bit ALU, indexed by the select code S2 S1 S0. */
+export const ALU_OPS = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'NOT A', 'A+1', 'A−1']
 
 export const arithmetic: ComponentDef[] = [
   {
@@ -113,16 +117,118 @@ export const arithmetic: ComponentDef[] = [
       return [a > b, a === b, a < b]
     }),
   },
+  {
+    type: 'alu',
+    name: 'ALU',
+    category: 'arithmetic',
+    description:
+      '4-bit arithmetic logic unit. Select lines S2 S1 S0 pick the operation on A and B: ' +
+      '0 ADD, 1 SUB, 2 AND, 3 OR, 4 XOR, 5 NOT A, 6 A+1, 7 A−1. Co is the carry (ADD, A+1) or borrow ' +
+      '(SUB, A−1) out, Z is 1 when the result F is zero. B is ignored by NOT A, A+1 and A−1.',
+    title: () => 'ALU',
+    live: true,
+    layout: () =>
+      box({
+        left: AB,
+        bottom: [
+          { name: 'S2', def: 0 },
+          { name: 'S1', def: 0 },
+          { name: 'S0', def: 0 },
+        ],
+        right: [...names('F', 4), 'Co', 'Z'],
+      }),
+    evaluate(inst) {
+      const { ins, outs } = inst
+      const a = num(ins, 0, 4)
+      const b = num(ins, 4, 4)
+      const op = num(ins, 8, 3)
+      // S2 is the most significant select bit: it sits first on the bottom row.
+      const code = op < 0 ? -1 : ((op & 1) << 2) | (op & 2) | (op >> 2)
+      if (code < 0 || a < 0 || (code < 5 && b < 0)) {
+        outs.fill(X)
+        return
+      }
+      let r = 0
+      let co = 0
+      switch (code) {
+        case 0:
+          r = a + b
+          co = r > 15 ? 1 : 0
+          break
+        case 1:
+          r = a - b
+          co = r < 0 ? 1 : 0
+          break
+        case 2:
+          r = a & b
+          break
+        case 3:
+          r = a | b
+          break
+        case 4:
+          r = a ^ b
+          break
+        case 5:
+          r = ~a
+          break
+        case 6:
+          r = a + 1
+          co = r > 15 ? 1 : 0
+          break
+        case 7:
+          r = a - 1
+          co = r < 0 ? 1 : 0
+          break
+      }
+      r &= 15
+      writeNum(outs, 0, 4, r)
+      outs[4] = co as V
+      outs[5] = r === 0 ? 1 : 0
+    },
+  },
+  {
+    type: 'mul',
+    name: 'Multiplier',
+    category: 'arithmetic',
+    description: 'Multiplies A by B (bit 0 = least significant). 2×2 gives a 4-bit product, 4×4 an 8-bit one.',
+    params: [sizeParam('Size', [2, 4], 4, (v) => `${v}×${v} bits`)],
+    title: (p) => `×\n${p.n}×${p.n}`,
+    layout: (p) => {
+      const n = Number(p.n)
+      return box({ left: [...names('A', n), ...names('B', n)], right: names('P', 2 * n) })
+    },
+    evaluate: comb((ins, p) => {
+      const n = Number(p.n)
+      return bitsOf(num(ins, 0, n) * num(ins, n, n), 2 * n)
+    }),
+  },
+  {
+    type: 'bcdadd',
+    name: 'BCD adder',
+    category: 'arithmetic',
+    description:
+      'Adds two BCD digits A and B plus carry-in, giving a BCD digit S and a carry-out Co (adds 6 when the sum ' +
+      'goes past 9). Inputs above 9 are not valid BCD.',
+    title: () => 'BCD\nΣ',
+    layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
+    evaluate: comb((ins) => {
+      let z = num(ins, 0, 4) + num(ins, 4, 4) + ins[8]
+      if (z > 9) z += 6
+      return [...bitsOf(z & 15, 4), z > 15]
+    }),
+  },
 ]
 
-const sizeParam = (label: string, values: number[], def: number) => ({
-  key: 'n',
-  label,
-  kind: 'select' as const,
-  default: def,
-  structural: true,
-  options: values.map((v) => ({ value: v, label: String(v) })),
-})
+function sizeParam(label: string, values: number[], def: number, fmt: (v: number) => string = String) {
+  return {
+    key: 'n',
+    label,
+    kind: 'select' as const,
+    default: def,
+    structural: true,
+    options: values.map((v) => ({ value: v, label: fmt(v) })),
+  }
+}
 
 const log2 = (n: number) => Math.round(Math.log2(n))
 
@@ -303,5 +409,50 @@ export const coding: ComponentDef[] = [
       const odd = ins.reduce((a, b) => a ^ b, 0)
       return [odd, !odd]
     }),
+  },
+]
+
+const selectParam = (key: string, label: string, values: number[], def: number, fmt: (v: number) => string) => ({
+  key,
+  label,
+  kind: 'select' as const,
+  default: def,
+  structural: true,
+  options: values.map((v) => ({ value: v, label: fmt(v) })),
+})
+
+export const memoryRom: ComponentDef[] = [
+  {
+    type: 'rom',
+    name: 'ROM',
+    category: 'memory',
+    description:
+      'Read-only memory. The address inputs A select a word, which appears on the data outputs D right away. ' +
+      'Enter the contents as hexadecimal words separated by spaces, one per address; missing words are 0.',
+    params: [
+      selectParam('abits', 'Address bits', [2, 3, 4, 5], 4, (v) => `${v} (${2 ** v} words)`),
+      selectParam('dbits', 'Data bits', [4, 8], 4, (v) => `${v} (${v / 4} hex digit${v > 4 ? 's' : ''})`),
+      {
+        key: 'data',
+        label: 'Contents (hex words)',
+        kind: 'text',
+        default: '0 1 2 3 4 5 6 7 8 9 A B C D E F',
+        pattern: HEX_WORDS.source,
+        maxLength: 400,
+      },
+    ],
+    title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
+    live: true,
+    layout: (p) => {
+      const { w, minRows } = tableBox(2 ** Number(p.abits), Number(p.dbits) / 4)
+      return box({ w, minRows, left: names('A', Number(p.abits)), right: names('D', Number(p.dbits)) })
+    },
+    evaluate(inst) {
+      const abits = Number(inst.params.abits)
+      const dbits = Number(inst.params.dbits)
+      const addr = toNum(inst.ins, 0, abits)
+      if (addr < 0) inst.outs.fill(X)
+      else writeNum(inst.outs, 0, dbits, parseWords(String(inst.params.data), 2 ** abits, dbits)[addr])
+    },
   },
 ]

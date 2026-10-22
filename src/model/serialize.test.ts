@@ -38,6 +38,24 @@ describe('serialization', () => {
     expect(c.wires.w1.path.at(-1)).toEqual({ x: 90, y: 110 })
   })
 
+  it('drops saved parameter values that do not fit the part', () => {
+    const c = deserialize({
+      app: 'sklopko',
+      version: 1,
+      comps: [
+        { id: 'r', type: 'rom', x: 0, y: 0, params: { abits: 99, dbits: 8, data: 'xyz' } },
+        { id: 'g', type: 'and', x: 100, y: 0, params: { inputs: 500 } },
+        { id: 'r2', type: 'rom', x: 200, y: 0, params: { data: 'FF 0A' } },
+        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(500) } },
+      ],
+      wires: [],
+    })
+    expect(c.comps.r.params).toMatchObject({ abits: 4, dbits: 8, data: '0 1 2 3 4 5 6 7 8 9 A B C D E F' })
+    expect(c.comps.g.params.inputs).toBe(2)
+    expect(c.comps.r2.params.data).toBe('FF 0A')
+    expect(c.comps.r3.params.data).toBe('0 1 2 3 4 5 6 7 8 9 A B C D E F')
+  })
+
   it('rejects files that are not circuits', () => {
     expect(() => deserialize({ hello: 'world' })).toThrow()
   })

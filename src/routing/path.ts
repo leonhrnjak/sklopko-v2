@@ -116,6 +116,70 @@ export function junctions(wires: Wire[]): Junction[] {
   return out
 }
 
+/**
+ * Crossings between wires of different signals, per wire id. A crossing is a point strictly inside a
+ * horizontal segment of one wire and strictly inside a vertical segment of another, so bends and
+ * T-junctions never count. The horizontal wire hops over the vertical one. Points are sorted by x.
+ */
+export function crossings(wires: Wire[]): Map<string, Point[]> {
+  interface Seg {
+    id: string
+    net: string
+    fixed: number
+    lo: number
+    hi: number
+  }
+  const hs: Seg[] = []
+  const vs: Seg[] = []
+  for (const w of wires) {
+    const net = netKey(w.from)
+    for (let i = 1; i < w.path.length; i++) {
+      const a = w.path[i - 1]
+      const b = w.path[i]
+      if (a.y === b.y && a.x !== b.x) hs.push({ id: w.id, net, fixed: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) })
+      else if (a.x === b.x && a.y !== b.y) vs.push({ id: w.id, net, fixed: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) })
+    }
+  }
+  const out = new Map<string, Point[]>()
+  for (const h of hs)
+    for (const v of vs) {
+      if (v.net === h.net) continue
+      if (v.fixed <= h.lo || v.fixed >= h.hi || h.fixed <= v.lo || h.fixed >= v.hi) continue
+      let list = out.get(h.id)
+      if (!list) out.set(h.id, (list = []))
+      // Wires of one signal often share a trunk, so the same crossing can be met more than once.
+      if (!list.some((p) => p.x === v.fixed && p.y === h.fixed)) list.push({ x: v.fixed, y: h.fixed })
+    }
+  return out
+}
+
+/**
+ * SVG path data for a wire with a gap of `2r` at each crossing point, where the wire hops over another.
+ * The hops themselves are drawn by `hopArcsD`, in a layer above all wires so they are never covered.
+ */
+export function hopPathD(pts: Point[], hops: Point[] | undefined, r = 4): string {
+  let d = ''
+  pts.forEach((p, i) => {
+    if (i === 0) {
+      d = `M${p.x},${p.y}`
+      return
+    }
+    const a = pts[i - 1]
+    if (hops?.length && a.y === p.y) {
+      const dir = Math.sign(p.x - a.x)
+      const here = hops.filter((h) => h.y === p.y && (h.x - a.x) * dir > 0 && (p.x - h.x) * dir > 0)
+      here.sort((u, v) => (u.x - v.x) * dir)
+      for (const h of here) d += ` L${h.x - dir * r},${h.y} M${h.x + dir * r},${h.y}`
+    }
+    d += ` L${p.x},${p.y}`
+  })
+  return d
+}
+
+/** SVG path data for the semicircular bridges at the given crossing points. */
+export const hopArcsD = (hops: Point[], r = 4) =>
+  hops.map((h) => `M${h.x - r},${h.y} A${r},${r} 0 0 1 ${h.x + r},${h.y}`).join(' ')
+
 export interface SegmentDrag {
   /** Working copy of the path with helper points inserted. */
   path: Point[]

@@ -1,7 +1,10 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
+import { ALU_OPS } from '../engine/components/combinational'
 import { SEG_HEX } from '../engine/components/io'
+import { TABLE_ROW_H, TABLE_TOP, parseWords, tableShape } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
 import { X, toNum, type Layout, type PinDef, type V } from '../engine/types'
+import { useSettings } from '../app/settings'
 import { sim } from '../app/sim'
 import type { Comp } from '../model/circuit'
 
@@ -58,7 +61,33 @@ const edgePoint = (pin: PinDef, l: Layout) => {
 
 // ---- Gates -------------------------------------------------------------------------------------
 
+/** IEC 60617 qualifying symbol drawn inside the rectangle of each gate. */
+const IEC_MARK: Record<string, string> = {
+  and: '&',
+  nand: '&',
+  or: '≥1',
+  nor: '≥1',
+  xor: '=1',
+  xnor: '=1',
+  not: '1',
+  buf: '1',
+}
+
+function IecGateSym({ type, l }: { type: string; l: Layout }) {
+  return (
+    <>
+      {l.pins.map((p) => (
+        <Stub key={p.name} pin={p} inner={edgePoint(p, l)} />
+      ))}
+      <rect className="sym-body" x={0} y={0} width={l.w} height={l.h} />
+      <Title text={IEC_MARK[type]} x={l.w / 2} y={l.h / 2} />
+    </>
+  )
+}
+
 function GateSym({ type, l }: { type: string; l: Layout }) {
+  const iec = useSettings((s) => s.gateStyle === 'iec')
+  if (iec) return <IecGateSym type={type} l={l} />
   const { w, h } = l
   const shape = /^(n?and)$/.test(type) ? 'and' : /^(n?or)$/.test(type) ? 'or' : /^xn?or$/.test(type) ? 'xor' : 'buf'
   let body: string
@@ -171,6 +200,32 @@ function BoxSym({ l, title, children }: { l: Layout; title?: string; children?: 
   )
 }
 
+/** Memory symbol: a small table of all words, the addressed one highlighted. */
+function MemSym({ l, title, words, digits, addr }: { l: Layout; title: string; words: number[]; digits: number; addr: number }) {
+  const { rows, cols, cellW } = tableShape(words.length, digits)
+  // Upright text doesn't fit the short side of a turned box, so the name is left out there.
+  const sideways = useContext(Orient).rot % 2 === 1
+  const x0 = (l.w - cols * cellW) / 2
+  return (
+    <BoxSym l={l}>
+      {words.map((v, i) => {
+        const cx = x0 + Math.floor(i / rows) * cellW
+        const cy = TABLE_TOP + (i % rows) * TABLE_ROW_H
+        const hl = i === addr
+        return (
+          <g key={i}>
+            {hl && <rect className="mem-hl" x={cx + 1} y={cy} width={cellW - 2} height={TABLE_ROW_H} rx={2} />}
+            <Txt x={cx + cellW / 2} y={cy + TABLE_ROW_H / 2 + 0.5} className={`mem-cell${hl ? ' hl' : ''}`}>
+              {v.toString(16).toUpperCase().padStart(digits, '0')}
+            </Txt>
+          </g>
+        )
+      })}
+      {!sideways && <Title text={title} x={l.w / 2} y={l.h - 10} />}
+    </BoxSym>
+  )
+}
+
 function MuxSym({ l, title, demux }: { l: Layout; title: string; demux: boolean }) {
   const { w, h } = l
   const k = 14
@@ -238,6 +293,68 @@ const LED_COLORS: Record<string, string> = {
   white: '#f1f5f9',
 }
 
+/** How long a dot-matrix pixel keeps glowing after it was last lit, in simulated ms. */
+const GLOW_MS = 250
+
+function MatrixSym({ comp, l, live }: { comp: Comp; l: Layout; live: boolean }) {
+  const [, redraw] = useReducer((n: number) => n + 1, 0)
+  const lit: Float64Array | undefined = live ? sim.state(comp.id)?.lit : undefined
+  const vs = live ? sim.inputValues(comp.id) : []
+  const now = sim.time
+  let fading = false
+  const levels: number[] = []
+  for (let i = 0; i < 64; i++) {
+    const r = i >> 3
+    const c = i & 7
+    let level = 0
+    if (vs[r] === 1 && vs[8 + c] === 1) level = 1
+    else if (lit) {
+      // A negative age means the time was reset since the pixel last lit.
+      const age = now - lit[i]
+      if (age >= 0 && age < GLOW_MS) {
+        level = 1 - age / GLOW_MS
+        fading = true
+      }
+    }
+    levels.push(level)
+  }
+  // Pixels fade as simulated time passes, even when no pin changes, so keep redrawing while any glows.
+  useEffect(() => {
+    if (!fading) return
+    let id = requestAnimationFrame(function poll() {
+      if (sim.time !== now) redraw()
+      else id = requestAnimationFrame(poll)
+    })
+    return () => cancelAnimationFrame(id)
+  })
+  return (
+    <>
+      {l.pins.map((q) => (
+        <Stub key={q.name} pin={q} inner={edgePoint(q, l)} />
+      ))}
+      <rect className="display-body" x={0} y={0} width={l.w} height={l.h} rx={4} />
+      {l.pins.map((q) => (
+        <Txt key={q.name} x={q.side === 'l' ? 6 : q.x} y={q.side === 'l' ? q.y : 8} anchor={q.side === 'l' ? 'start' : 'middle'} className="pin-label display-label">
+          {q.name}
+        </Txt>
+      ))}
+      {levels.map((level, i) => {
+        // Pixels sit where their row pin (left) and column pin (top) line up.
+        const cx = 30 + (i & 7) * 20
+        const cy = 20 + (i >> 3) * 20
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={cy} r={7} className="seg" />
+            {level > 0 && (
+              <circle cx={cx} cy={cy} r={7} className="seg on px" style={{ opacity: level }} />
+            )}
+          </g>
+        )
+      })}
+    </>
+  )
+}
+
 // ---- Entry point -------------------------------------------------------------------------------
 
 interface Props {
@@ -295,6 +412,17 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
           <rect x={0} y={0} width={40} height={40} rx={4} className="sym-body" />
           <path className="sym-line" d="M7,27 h7 v-14 h12 v14 h7" />
           <rect x={14} y={30} width={12} height={5} rx={2} className={`clock-led ${vClass(v)}`} />
+        </>
+      )
+      break
+    }
+    case 'probe': {
+      content = (
+        <>
+          <Stub pin={l.pins[0]} inner={{ x: 0, y: 10 }} />
+          <rect x={0} y={0} width={30} height={20} rx={4} className="sym-body" />
+          <path className="sym-line" d="M5,15 h5 v-9 h7 v9 h3" />
+          <circle cx={25} cy={6} r={2.6} className={`clock-led ${vClass(val('A'))}`} />
         </>
       )
       break
@@ -437,6 +565,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'matrix':
+      content = <MatrixSym comp={comp} l={l} live={live} />
+      break
     case 'bar': {
       const vs = ins()
       content = (
@@ -450,6 +581,26 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
           ))}
         </>
       )
+      break
+    }
+    case 'alu': {
+      const [s2, s1, s0] = ins().slice(8, 11)
+      const op = s2 === X || s1 === X || s0 === X ? '?' : ALU_OPS[s2 * 4 + s1 * 2 + s0]
+      content = <BoxSym l={l} title={live ? `ALU\n${op}` : 'ALU'} />
+      break
+    }
+    case 'rom': {
+      const abits = Number(p.abits)
+      const dbits = Number(p.dbits)
+      const addr = live ? toNum(ins(), 0, abits) : -1
+      content = (
+        <MemSym l={l} title={def.title!(p)} words={parseWords(String(p.data), 2 ** abits, dbits)} digits={dbits / 4} addr={addr} />
+      )
+      break
+    }
+    case 'ram': {
+      const mem: number[] = (live && sim.state(comp.id)?.mem) || new Array(16).fill(0)
+      content = <MemSym l={l} title={def.title!(p)} words={mem} digits={1} addr={live ? toNum(ins(), 6, 4) : -1} />
       break
     }
     case 'mux':

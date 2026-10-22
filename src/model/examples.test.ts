@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect } from './circuit'
-import { EXAMPLES } from './examples'
+import { EXAMPLES, SMILEY } from './examples'
 
 describe('digital clock example', () => {
   const setup = () => {
@@ -215,5 +215,58 @@ describe('electronic dice example', () => {
     const stopped = value()
     sim.advance(2000)
     expect(value()).toBe(stopped)
+  })
+})
+
+describe('dot matrix example', () => {
+  const setup = () => {
+    const c = EXAMPLES.find((e) => e.id === 'matrix')!.build()
+    const sim = new Simulator()
+    sim.load({ comps: Object.values(c.comps), wires: Object.values(c.wires) })
+    sim.settle()
+    const id = (type: string) => Object.values(c.comps).find((k) => k.type === type)!.id
+    /** Run like the app does: in animation-frame sized steps (an advance handles at most 64 clock edges). */
+    const run = (ms: number) => {
+      for (let left = ms; left > 0; left -= 16) sim.frame(Math.min(16, left))
+    }
+    return { sim, matrix: id('matrix'), run }
+  }
+
+  it('shows one image row at a time: the lit row and its columns follow the counter', () => {
+    const { sim, matrix } = setup()
+    const rows = new Set<number>()
+    for (let step = 0; step < 24; step++) {
+      sim.stepClock() // one clock edge (rising or falling)
+      const r = Array.from({ length: 8 }, (_, i) => sim.pinValue(matrix, `R${i}`))
+      const lit = r.flatMap((v, i) => (v === 1 ? [i] : []))
+      expect(lit.length).toBe(1)
+      rows.add(lit[0])
+      const cols = Array.from({ length: 8 }, (_, i) => sim.pinValue(matrix, `C${i}`))
+      expect(cols.reduce<number>((n, v, i) => n | (v << i), 0)).toBe(parseInt(SMILEY[lit[0]], 16))
+    }
+    expect(rows.size).toBe(8)
+  })
+
+  it('draws the whole smiley after a few scans thanks to persistence', () => {
+    const { sim, matrix, run } = setup()
+    run(400)
+    const lit = sim.state(matrix).lit as Float64Array
+    // Every pixel that is part of the image was lit within the last scan (8 rows × 7.8 ms), the others never.
+    SMILEY.forEach((word, r) => {
+      for (let c = 0; c < 8; c++) {
+        const on = (parseInt(word, 16) >> c) & 1
+        const age = sim.time - lit[r * 8 + c]
+        if (on) expect(age, `pixel ${r},${c}`).toBeLessThan(70)
+        else expect(lit[r * 8 + c], `pixel ${r},${c}`).toBe(-Infinity)
+      }
+    })
+  })
+
+  it('forgets what was lit when the simulation is reset', () => {
+    const { sim, matrix, run } = setup()
+    run(400)
+    sim.reset()
+    expect(sim.time).toBe(0)
+    expect((sim.state(matrix).lit as Float64Array).every((t) => t === -Infinity)).toBe(true)
   })
 })

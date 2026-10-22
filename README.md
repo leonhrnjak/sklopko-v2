@@ -41,6 +41,12 @@ security headers.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
+- **Waveforms:** wire a *Probe* to any signal and give it a label. The first probe opens the waveform panel
+  under the canvas (or use *Waveforms* in the toolbar), with one trace per probe in the wire colours. Pick a
+  2/5/10/30 s window; while paused, drag sideways to look back in time (double-click or *Live* returns). Traces
+  are kept for the last minute of simulated time and cleared by Reset.
+- **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
+  signals that cross show a small bridge. Stored in the browser.
 - **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
 - **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
   shows its link in the address bar, and Share copies it while the example is unedited.
@@ -51,13 +57,14 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–32 Hz), constant 0/1, 4-bit input, LED |
+| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace) |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
-| Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator |
+| Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
+| Memory | ROM (2–5 address bits, 4 or 8 data bits, contents as hex text), RAM 16×4 |
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
-| Displays | 7-segment display, hex display, dice display, LED bar |
+| Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.
@@ -80,6 +87,11 @@ deterministically and flip-flops sharing a clock never race. Everything starts a
 shows "unknown" until it is set or reset, as in real hardware. A loop that never settles, such as a ring
 oscillator, is flagged *Oscillating* and keeps animating. Clocks run in real time. Between clock edges the
 circuit is settled instantly.
+
+**Time and sampling.** The simulator keeps a clock of simulated milliseconds (it follows the speed setting
+and stops while paused). Parts that record over time implement `sample`, which runs after every settled step,
+for example after each clock edge: probes store their transitions and the dot matrix remembers when each pixel
+last lit, so fast scanning shows a steady image.
 
 **Routing.** Wires are orthogonal paths found by A* search on the 10px grid. The search avoids component
 bodies and pins, penalises bends and crossings, and forbids running along a wire of a different signal.

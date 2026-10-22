@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react'
 import { getDef } from '../../engine/registry'
 import { useCompSignature, usePinValue } from '../../app/hooks'
 import { boundsRect, compLayout, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
-import { junctions } from '../../routing/path'
+import { hopArcsD, hopPathD, junctions } from '../../routing/path'
 import { CompSymbol } from '../symbols'
 import { compTransform } from '../transform'
 
@@ -12,7 +12,7 @@ export const ComponentView = memo(function ComponentView({ comp, selected }: { c
   const def = getDef(comp.type)
   const l = compLayout(comp)
   // Only parts that show their values need to re-render while the simulation runs.
-  useCompSignature(comp.id, LIVE_CATEGORIES.has(def.category) || comp.type === 'button')
+  useCompSignature(comp.id, LIVE_CATEGORIES.has(def.category) || !!def.live || comp.type === 'button')
   const b = boundsRect(comp)
   const label = labelAnchor(comp)
   return (
@@ -60,9 +60,19 @@ const pathD = (pts: Point[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}
 
 const valueClass = (v: number) => (v === 1 ? 'v1' : v === 0 ? 'v0' : 'vx')
 
-export const WireView = memo(function WireView({ wire, selected }: { wire: Wire; selected: boolean }) {
+interface WireViewProps {
+  wire: Wire
+  selected: boolean
+  /** Crossing points where this wire hops over another. */
+  hops?: Point[]
+}
+
+const sameHops = (a?: Point[], b?: Point[]) =>
+  a === b || (!!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y))
+
+export const WireView = memo(function WireView({ wire, selected, hops }: WireViewProps) {
   const v = usePinValue(wire.from.comp, wire.from.pin)
-  const d = pathD(wire.path)
+  const d = hopPathD(wire.path, hops)
   return (
     <g data-kind="wire" data-id={wire.id} className={selected ? 'wire-group selected' : 'wire-group'}>
       {selected && <path className="wire-sel" d={d} />}
@@ -83,7 +93,28 @@ export const WireView = memo(function WireView({ wire, selected }: { wire: Wire;
       })}
     </g>
   )
-})
+}, (a, b) => a.wire === b.wire && a.selected === b.selected && sameHops(a.hops, b.hops))
+
+/** The bridges of one wire, in the wire's colour. */
+const HopArc = memo(
+  function HopArc({ wire, hops }: { wire: Wire; hops: Point[] }) {
+    const v = usePinValue(wire.from.comp, wire.from.pin)
+    return <path className={`wire ${valueClass(v)}`} d={hopArcsD(hops)} />
+  },
+  (a, b) => a.wire.from === b.wire.from && sameHops(a.hops, b.hops),
+)
+
+/** All bridges, drawn above every wire so a hop is never hidden by the wire it passes over. */
+export function HopArcs({ wires, hops, hidden }: { wires: Record<string, Wire>; hops: Map<string, Point[]>; hidden?: string | null }) {
+  return (
+    <>
+      {Object.values(wires).map((w) => {
+        const h = hops.get(w.id)
+        return h && w.id !== hidden ? <HopArc key={w.id} wire={w} hops={h} /> : null
+      })}
+    </>
+  )
+}
 
 /** Preview of a wire being edited or drawn (no simulator value). */
 export function GhostWire({ path, ok }: { path: Point[]; ok?: boolean }) {

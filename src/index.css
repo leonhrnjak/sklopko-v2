@@ -220,8 +220,15 @@ input:focus-visible {
   display: none;
 }
 .stage {
-  position: relative;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.stage-view {
+  position: relative;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
@@ -349,6 +356,27 @@ input:focus-visible {
   border: 1px solid var(--panel-border);
   background: var(--bg);
 }
+.field textarea {
+  font-size: 13px;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  resize: vertical;
+  width: 100%;
+}
+.field textarea.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+.field textarea.invalid {
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+.field-error {
+  color: var(--danger);
+}
 .field.check {
   flex-direction: row;
   align-items: center;
@@ -462,6 +490,19 @@ button.danger {
   font-size: 10px;
   fill: var(--ink);
   font-family: system-ui, sans-serif;
+}
+.mem-cell {
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  fill: var(--muted);
+}
+.mem-cell.hl {
+  fill: var(--ink);
+  font-weight: 700;
+}
+.mem-hl {
+  fill: var(--select-soft);
+  stroke: var(--select);
+  stroke-width: 1;
 }
 .title {
   font-size: 12px;
@@ -582,6 +623,10 @@ button.danger {
 }
 .seg {
   fill: var(--seg-off);
+}
+/* Dot-matrix pixels are numerous and redrawn constantly: no blur filter on them. */
+.seg.on.px {
+  filter: none;
 }
 .seg.on {
   fill: var(--seg-on);
@@ -773,6 +818,95 @@ button.danger {
   flex: 1 1 auto;
 }
 
+/* ---- Waveform panel ---- */
+
+.toolbar button.active {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+.wave-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-height: 45%;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  z-index: 15;
+}
+.wave-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 13px;
+}
+.wave-head strong {
+  margin-right: auto;
+}
+.wave-window {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.wave-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+.wave-body canvas {
+  display: block;
+  width: 100%;
+  touch-action: pan-y;
+  cursor: ew-resize;
+}
+.wave-empty {
+  margin: 0;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---- Settings ---- */
+
+.settings-wrap {
+  position: relative;
+}
+.settings-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 230px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.toolbar .settings-pop select {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--panel-border);
+}
+.settings-section .setting {
+  flex: 1 1 100%;
+  color: #fff;
+}
+
 .action-bar {
   position: absolute;
   left: 50%;
@@ -837,6 +971,18 @@ button.danger {
 }
 
 @media (max-width: 760px) {
+  /* Waveforms become a bottom sheet over the parts list. */
+  .wave-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 48dvh;
+    z-index: 35;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   .wide-only {
     display: none !important;
   }

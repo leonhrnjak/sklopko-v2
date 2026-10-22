@@ -22,3 +22,7 @@ npm run e2e       # Playwright, desktop + emulated phone
 ```
 
 Pushing to `main` deploys to Cloudflare Pages.
+
+## Current work
+
+The next features are planned in `docs/plan-stretch-features.md` (milestones 1–5, then a challenges mode).

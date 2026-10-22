@@ -1,4 +1,4 @@
-import { box } from '../layouts'
+import { box, names } from '../layouts'
 import { writeNum, type ComponentDef, type V } from '../types'
 
 export const io: ComponentDef[] = [
@@ -37,7 +37,7 @@ export const io: ComponentDef[] = [
         label: 'Frequency (Hz)',
         kind: 'select',
         default: 1,
-        options: [0.25, 0.5, 1, 2, 4, 8, 16, 32].map((v) => ({ value: v, label: `${v} Hz` })),
+        options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256].map((v) => ({ value: v, label: `${v} Hz` })),
       },
     ],
     init: () => ({ phase: 0 as V, elapsed: 0 }),
@@ -100,6 +100,42 @@ export const io: ComponentDef[] = [
   },
 ]
 
+/** How much history a probe keeps, in simulated ms. */
+export const TRACE_KEEP_MS = 60_000
+
+/** A probe's recorded signal: value `v[i]` holds from time `t[i]` (ms) until the next transition. */
+export interface Trace {
+  t: number[]
+  v: V[]
+}
+
+export const probe: ComponentDef = {
+  type: 'probe',
+  name: 'Probe',
+  category: 'io',
+  description:
+    'Records the signal at its input and draws it in the waveform panel. Give it a label: that is the name of ' +
+    'its trace. Place several to compare signals over time.',
+  init: (): Trace => ({ t: [], v: [] }),
+  layout: () => ({ w: 30, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
+  sample(inst, time) {
+    const st = inst.state as Trace
+    const v = inst.ins[0]
+    if (st.v.length && st.v[st.v.length - 1] === v) return
+    st.t.push(time)
+    st.v.push(v)
+    // Forget old history in batches, but keep the value that was in effect at the start of the window.
+    const cutoff = time - TRACE_KEEP_MS
+    if (st.t.length > 2 && st.t[1] < cutoff - 5000) {
+      let k = 1
+      while (k + 1 < st.t.length && st.t[k + 1] < cutoff) k++
+      st.t.splice(0, k)
+      st.v.splice(0, k)
+    }
+  },
+  evaluate() {},
+}
+
 /** Segment patterns a..g for hex digits 0-F (bit 0 = a). */
 export const SEG_HEX = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71]
 
@@ -128,6 +164,26 @@ export const display: ComponentDef[] = [
       'A die face with seven pips, one input each: top-left, top-right, middle-left, centre, middle-right, ' +
       'bottom-left, bottom-right.',
     layout: () => box({ w: 160, left: ['TL', 'TR', 'ML', 'C', 'MR', 'BL', 'BR'] }),
+    evaluate() {},
+  },
+  {
+    type: 'matrix',
+    name: 'Dot matrix 8×8',
+    category: 'display',
+    description:
+      'An 8×8 grid of LEDs. Pixel (row, column) lights while its row input R and its column input C are both 1. ' +
+      'Pixels glow for a moment after they go dark, so an image drawn one row at a time by a fast scan looks steady.',
+    layout: () => box({ w: 200, left: names('R', 8), top: names('C', 8) }),
+    // Simulated time each pixel was last lit (row-major), for the glow.
+    init: () => ({ lit: new Float64Array(64).fill(-Infinity) }),
+    sample(inst, time) {
+      const { ins } = inst
+      const lit = inst.state.lit as Float64Array
+      for (let r = 0; r < 8; r++) {
+        if (ins[r] !== 1) continue
+        for (let c = 0; c < 8; c++) if (ins[8 + c] === 1) lit[r * 8 + c] = time
+      }
+    },
     evaluate() {},
   },
   {

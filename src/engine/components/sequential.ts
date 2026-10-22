@@ -1,5 +1,6 @@
-import { box, type PinSpec } from '../layouts'
+import { box, names, type PinSpec } from '../layouts'
 import { X, inv, toNum, writeNum, type ComponentDef, type Instance, type V } from '../types'
+import { tableBox } from './memory'
 
 const CLK: PinSpec = { name: 'CLK', clock: true }
 const SET: PinSpec = { name: 'S', def: 0 }
@@ -258,3 +259,40 @@ function resetBits(kind: string): V[] {
   return kind === 'johnson' ? [0, 0, 0, 0] : [1, 0, 0, 0]
 }
 
+
+export const memoryRam: ComponentDef[] = [
+  {
+    type: 'ram',
+    name: 'RAM 16×4',
+    category: 'memory',
+    description:
+      'Read/write memory with 16 words of 4 bits. The word addressed by A0–A3 is always on Q. On a rising CLK ' +
+      'with WE=1 the data inputs D are written to that address (not when the address or data is unknown). ' +
+      'Contents are cleared by Reset.',
+    title: () => 'RAM 16×4',
+    live: true,
+    init: () => ({ mem: new Array<number>(16).fill(0), pc: X as V }),
+    layout: () => {
+      const { w, minRows } = tableBox(16, 1)
+      return box({
+        w,
+        minRows,
+        left: [...names('D', 4), { name: 'WE', def: 0 }, CLK],
+        top: names('A', 4),
+        right: names('Q', 4),
+      })
+    },
+    evaluate(inst) {
+      const { ins, outs } = inst
+      const st = inst.state as { mem: number[]; pc: V }
+      // Pin order: left D0–D3, WE, CLK, then top A0–A3.
+      const addr = toNum(ins, 6, 4)
+      if (rising(st, ins[5]) && ins[4] === 1) {
+        const data = toNum(ins, 0, 4)
+        if (addr >= 0 && data >= 0) st.mem[addr] = data
+      }
+      if (addr < 0) outs.fill(X)
+      else writeNum(outs, 0, 4, st.mem[addr])
+    },
+  },
+]

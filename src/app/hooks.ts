@@ -1,5 +1,8 @@
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import type { V } from '../engine/types'
+import type { Point, Wire } from '../model/circuit'
+import { crossings } from '../routing/path'
+import { useSettings } from './settings'
 import { sim } from './sim'
 
 const noSubscribe = () => () => {}
@@ -17,4 +20,10 @@ export function useCompSignature(comp: string, enabled: boolean): string {
 /** Re-render on every simulator publish; for small status displays. */
 export function useSimStatus(): string {
   return useSyncExternalStore(sim.subscribe, () => `${sim.unstable ? 'u' : 's'}`)
+}
+
+/** Where each wire hops over another, or an empty map when hops are off. */
+export function useHops(wires: Record<string, Wire>): Map<string, Point[]> {
+  const on = useSettings((s) => s.hops)
+  return useMemo(() => (on ? crossings(Object.values(wires)) : new Map<string, Point[]>()), [on, wires])
 }

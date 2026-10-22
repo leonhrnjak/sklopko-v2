@@ -26,6 +26,7 @@ export function layoutOf(type: string, params: Params): Layout {
   const key = type + JSON.stringify(params)
   let l = layoutCache.get(key)
   if (!l) {
+    if (layoutCache.size > 500) layoutCache.clear()
     l = getDef(type).layout(params)
     layoutCache.set(key, l)
   }
@@ -67,6 +68,9 @@ export class Simulator {
   unstable = false
   /** Total ticks simulated since the last reset. */
   ticks = 0
+  /** Simulated time in ms since the last reset. Advances with the clocks while the simulation runs. */
+  time = 0
+  private samplers: CComp[] = []
 
   load(c: SimCircuit) {
     const oldValues = new Map<string, V>()
@@ -123,6 +127,7 @@ export class Simulator {
     }
     this.next = new Uint8Array(nets)
     this.clocks = this.comps.filter((cc) => cc.def.clockHalfPeriod)
+    this.samplers = this.comps.filter((cc) => cc.def.sample)
     this.dirty = true
   }
 
@@ -131,6 +136,7 @@ export class Simulator {
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
     this.ticks = 0
+    this.time = 0
     this.unstable = false
     this.dirty = true
   }
@@ -163,14 +169,24 @@ export class Simulator {
 
   /** Tick until nothing changes or the budget runs out. Returns true if the circuit settled. */
   settle(maxTicks = 1000): boolean {
-    for (let i = 0; i < maxTicks; i++) {
-      if (!this.tick()) {
-        this.unstable = false
-        return true
+    let settled = false
+    for (let i = 0; i < maxTicks && !settled; i++) settled = !this.tick()
+    this.unstable = !settled
+    this.sample()
+    return settled
+  }
+
+  /** Let parts that record over time (probes, dot matrices) look at the settled values. */
+  private sample() {
+    for (const cc of this.samplers) {
+      const { ins } = cc.inst
+      for (let i = 0; i < ins.length; i++) {
+        const n = cc.inNets[i]
+        ins[i] = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
       }
+      cc.def.sample!(cc.inst, this.time)
+      this.dirty = true
     }
-    this.unstable = true
-    return false
   }
 
   /** Budget for a settle: an oscillating circuit gets a few ticks per call so it animates visibly. */
@@ -187,6 +203,7 @@ export class Simulator {
       step = Math.max(0, step)
       if (step > left) break
       left -= step
+      this.time += step
       for (const c of this.clocks) {
         const st = c.inst.state
         st.elapsed += step
@@ -201,6 +218,7 @@ export class Simulator {
       const st = c.inst.state
       st.elapsed = Math.min(st.elapsed + left, c.def.clockHalfPeriod!(c.inst.params))
     }
+    this.time += left
   }
 
   /** One animation frame of a running simulation. */
@@ -216,6 +234,11 @@ export class Simulator {
     for (const c of this.clocks) step = Math.min(step, c.def.clockHalfPeriod!(c.inst.params) - c.inst.state.elapsed)
     this.advance(Math.max(step, 0) + 1e-6)
     this.settle(this.budget())
+  }
+
+  /** Ids of all components of a type, in circuit order. */
+  idsOfType(type: string): string[] {
+    return this.comps.filter((cc) => cc.def.type === type).map((cc) => cc.id)
   }
 
   get hasClocks() {

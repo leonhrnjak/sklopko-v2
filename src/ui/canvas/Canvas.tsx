@@ -26,6 +26,7 @@ import {
   undo,
   useStore,
 } from '../../app/store'
+import { useHops } from '../../app/hooks'
 import { layoutOf } from '../../engine/simulator'
 import { paramDefaults } from '../../engine/types'
 import {
@@ -41,7 +42,7 @@ import {
 import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from '../../routing/path'
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
-import { ComponentView, GhostWire, Junctions, PinsView, WireView } from './views'
+import { ComponentView, GhostWire, Junctions, PinsView, WireView, HopArcs } from './views'
 import { paletteDrag } from '../paletteDrag'
 import { compTransform } from '../transform'
 import { fitView, registerCanvas } from './viewport'
@@ -133,6 +134,7 @@ function previewPath(c: Circuit, op: Extract<Op, { k: 'wire' }>, cursor: Point, 
 export function Canvas() {
   const ref = useRef<SVGSVGElement>(null)
   const circuit = useStore((s) => s.circuit)
+  const hops = useHops(circuit.wires)
   const selection = useStore((s) => s.selection)
   const view = useStore((s) => s.view)
   const placing = useStore((s) => s.placing)
@@ -589,8 +591,11 @@ export function Canvas() {
       <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
-            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} />,
+            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} />,
           )}
+        </g>
+        <g className="layer-hops">
+          <HopArcs wires={circuit.wires} hops={hops} hidden={hiddenWire} />
         </g>
         <g className="layer-comps">
           {comps.map((c) => (

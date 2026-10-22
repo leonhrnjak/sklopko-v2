@@ -404,3 +404,33 @@ describe('reload', () => {
     expect(s.pinValue('u', 'B')).toBe(1)
   })
 })
+
+describe('simulated time and sampling', () => {
+  it('time follows the clocks and a probe records the clock edges', () => {
+    const s = new Simulator()
+    s.load(build({ c: ['clock', { hz: 4 }], p: 'probe' }, [['c.Q', 'p.A']]))
+    s.settle()
+    expect(s.time).toBe(0)
+    for (let i = 0; i < 10; i++) s.frame(100) // one second
+    expect(s.time).toBeCloseTo(1000, 6)
+    const tr = s.state('p') as { t: number[]; v: V[] }
+    // A 4 Hz clock toggles every 125 ms.
+    expect(tr.t.slice(1, 5).map((t) => Math.round(t))).toEqual([125, 250, 375, 500])
+    expect(tr.v.slice(1, 5)).toEqual([1, 0, 1, 0])
+    s.reset()
+    expect(s.time).toBe(0)
+    expect((s.state('p') as { t: number[] }).t).toEqual([])
+  })
+
+  it('time also passes in circuits without clocks', () => {
+    const s = new Simulator()
+    s.load(build({ a: 'switch', p: 'probe' }, [['a.Q', 'p.A']]))
+    s.frame(500)
+    s.setParams('a', { on: true })
+    s.frame(500)
+    expect(s.time).toBe(1000)
+    const tr = s.state('p') as { t: number[]; v: V[] }
+    expect(tr.v).toEqual([0, 1])
+    expect(tr.t[1]).toBe(500 + 500) // seen at the end of the frame in which it changed
+  })
+})

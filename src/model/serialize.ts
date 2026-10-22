@@ -1,6 +1,6 @@
 import LZString from 'lz-string'
 import { getDef, hasDef } from '../engine/registry'
-import { paramDefaults, type Params } from '../engine/types'
+import { paramDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
 import { emptyCircuit, type Circuit, type Point, type Rot } from './circuit'
@@ -56,6 +56,16 @@ export function serialize(c: Circuit): SavedCircuit {
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
+/** Does a saved value fit the parameter (type, allowed option, range, text pattern and length)? */
+function validParam(p: ParamDef, v: unknown): v is ParamValue {
+  if (typeof v !== typeof p.default) return false
+  if (p.kind === 'select') return !!p.options?.some((o) => o.value === v)
+  if (p.kind === 'number') return isNum(v) && (p.min === undefined || v >= p.min) && (p.max === undefined || v <= p.max)
+  if (p.kind === 'text')
+    return typeof v === 'string' && v.length <= (p.maxLength ?? 1000) && (!p.pattern || new RegExp(`^(?:${p.pattern})$`).test(v))
+  return true
+}
+
 /** Parse and validate saved data. Unknown parts and broken wires are dropped; missing routes are recomputed. */
 export function deserialize(data: unknown): Circuit {
   const d = data as Partial<SavedCircuit>
@@ -69,7 +79,7 @@ export function deserialize(data: unknown): Circuit {
     const params = { ...paramDefaults(def) }
     for (const p of def.params ?? []) {
       const v = s.params?.[p.key]
-      if (typeof v === typeof p.default) params[p.key] = v as never
+      if (validParam(p, v)) params[p.key] = v
     }
     c.comps[s.id] = {
       id: s.id,

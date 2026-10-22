@@ -5,6 +5,7 @@ import { Inspector } from './ui/Inspector'
 import { Palette } from './ui/Palette'
 import { SelectionBar } from './ui/SelectionBar'
 import { StatusBar, Toolbar } from './ui/Toolbar'
+import { WaveformPanel } from './ui/WaveformPanel'
 
 export default function App() {
   useEffect(() => {
@@ -16,9 +17,12 @@ export default function App() {
       <main className="main">
         <Palette />
         <div className="stage">
-          <Canvas />
-          <StatusBar />
-          <SelectionBar />
+          <div className="stage-view">
+            <Canvas />
+            <StatusBar />
+            <SelectionBar />
+          </div>
+          <WaveformPanel />
         </div>
         <Inspector />
       </main>

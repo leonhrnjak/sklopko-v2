@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   deleteSelection,
   flipSelection,
@@ -10,11 +10,52 @@ import {
   useStore,
 } from '../app/store'
 import { getDef } from '../engine/registry'
+import type { ParamDef } from '../engine/types'
 import type { Comp, Wire } from '../model/circuit'
 
 function deleteAndClose() {
   deleteSelection()
   setSheetOpen(false)
+}
+
+/**
+ * Free text parameter (e.g. ROM contents). Edits stay local until the field loses focus or the selection
+ * changes, so typing is one undo step. Text that doesn't match the pattern is flagged and never applied.
+ */
+function TextParam({ comp, p }: { comp: Comp; p: ParamDef }) {
+  const saved = String(comp.params[p.key])
+  const [draft, setDraft] = useState(saved)
+  const latest = useRef({ draft, saved })
+  useEffect(() => {
+    latest.current.draft = draft
+    latest.current.saved = saved
+  })
+  const valid = !p.pattern || new RegExp(`^(?:${p.pattern})$`).test(draft)
+  const commit = () => {
+    const { draft: d, saved: s } = latest.current
+    if (d === s || (p.pattern && !new RegExp(`^(?:${p.pattern})$`).test(d))) return
+    latest.current.saved = d // the remount that follows must not apply it a second time
+    setParam(comp.id, p.key, d)
+  }
+  // Apply a pending edit when the inspector goes away (another part gets selected).
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => commit, [])
+  return (
+    <label className="field">
+      <span>{p.label}</span>
+      <textarea
+        className={`mono${valid ? '' : ' invalid'}`}
+        rows={4}
+        spellCheck={false}
+        maxLength={p.maxLength}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        aria-invalid={!valid}
+      />
+      {!valid && <small className="field-error">Only hexadecimal digits (0–9, A–F), spaces and commas.</small>}
+    </label>
+  )
 }
 
 function CompInspector({ comp }: { comp: Comp }) {
@@ -45,6 +86,7 @@ function CompInspector({ comp }: { comp: Comp }) {
               <span>{p.label}</span>
             </label>
           )
+        if (p.kind === 'text') return <TextParam key={`${p.key}|${String(v)}`} comp={comp} p={p} />
         if (p.kind === 'select')
           return (
             <label key={p.key} className="field">

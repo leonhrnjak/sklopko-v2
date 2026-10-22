@@ -17,6 +17,7 @@ async function freshEmpty(page: Page) {
 /** Drag a part from the palette and drop it at canvas-relative coordinates; returns its id. */
 async function place(page: Page, type: string, x: number, y: number): Promise<string> {
   const item = page.locator(`.palette-item[data-type="${type}"]`)
+  await item.scrollIntoViewIfNeeded()
   const canvas = await page.getByTestId('canvas').boundingBox()
   const box = (await item.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -276,4 +277,122 @@ test('examples have short links that open them directly', async ({ page }) => {
   await page.goto('/no-such-example', { waitUntil: 'networkidle' })
   await expect(page.locator('.canvas')).toBeVisible()
   expect(new URL(page.url()).pathname).toBe('/')
+})
+
+test('settings: IEC gate symbols and wire hops', async ({ page }) => {
+  await freshEmpty(page)
+  const gate = await place(page, 'and', 300, 120)
+  const gateBody = page.locator(`.comp[data-id="${gate}"] .sym-body`)
+  expect(await gateBody.evaluate((n) => n.tagName)).toBe('path')
+
+  await page.getByTestId('settings').click()
+  await page.getByTestId('setting-gates').selectOption('iec')
+  expect(await gateBody.evaluate((n) => n.tagName)).toBe('rect')
+  await expect(page.locator(`.comp[data-id="${gate}"] .title`)).toHaveText('&')
+  // The choice survives a reload (after the debounced autosave of the circuit).
+  await page.waitForTimeout(600)
+  await page.reload({ waitUntil: 'networkidle' })
+  await expect(page.locator(`.comp[data-id="${gate}"]`)).toHaveCount(1)
+  expect(await gateBody.evaluate((n) => n.tagName)).toBe('rect')
+  await page.getByTestId('settings').click()
+  await page.getByTestId('setting-gates').selectOption('us')
+  await expect.poll(() => gateBody.evaluate((n) => n.tagName)).toBe('path')
+
+  // Two wires that have to cross: the horizontal one hops over the other.
+  await page.getByRole('button', { name: 'New' }).click()
+  const s1 = await place(page, 'switch', 120, 120)
+  const s2 = await place(page, 'switch', 120, 320)
+  const l1 = await place(page, 'led', 520, 320)
+  const l2 = await place(page, 'led', 520, 120)
+  await wire(page, [s1, 'Q'], [l1, 'A'])
+  await wire(page, [s2, 'Q'], [l2, 'A'])
+  const hasHop = () => page.locator('path.wire').evaluateAll((ps) => ps.some((p) => / A4,4 /.test(p.getAttribute('d') ?? '')))
+  await expect.poll(hasHop).toBe(true)
+
+  await page.getByTestId('settings').click()
+  await page.getByTestId('setting-hops').selectOption('off')
+  await expect.poll(hasHop).toBe(false)
+})
+
+test('ROM: contents are edited as hex text in the inspector and shown in the table', async ({ page }) => {
+  await freshEmpty(page)
+  const rom = await place(page, 'rom', 300, 200)
+  const cell = (n: number) => page.locator(`.comp[data-id="${rom}"] .mem-cell`).nth(n)
+  await expect(cell(3)).toHaveText('3')
+
+  const box = page.getByLabel('Contents (hex words)')
+  await box.fill('A B xyz')
+  await expect(page.getByText('Only hexadecimal digits')).toBeVisible()
+  await page.getByLabel('Label').click() // blur: invalid text is not applied
+  await expect(cell(0)).toHaveText('0')
+
+  await box.fill('A B C')
+  await page.getByLabel('Label').click()
+  await expect(cell(0)).toHaveText('A')
+  await expect(cell(2)).toHaveText('C')
+  await expect(cell(3)).toHaveText('0')
+})
+
+test('dot matrix example: the scanned image shows as a steady smiley', async ({ page }) => {
+  await page.goto('/matrix', { waitUntil: 'networkidle' })
+  const lit = page.locator('.comp[data-id^="matrix"] circle.seg.on')
+  // 26 pixels make up the smiley; they stay lit thanks to persistence although only one row is on at a time.
+  await expect.poll(() => lit.count(), { timeout: 5000 }).toBe(26)
+  await page.waitForTimeout(300)
+  expect(await lit.count()).toBe(26)
+  // Paused: simulated time stops, so the image is frozen rather than fading away.
+  await page.getByTestId('run').click()
+  await page.waitForTimeout(500)
+  const frozen = await lit.count()
+  await page.waitForTimeout(500)
+  expect(await lit.count()).toBe(frozen)
+  expect(frozen).toBeGreaterThan(0)
+})
+
+test('waveforms: a probe on a clock opens the panel and draws its edges', async ({ page }) => {
+  await freshEmpty(page)
+  await expect(page.getByTestId('waves')).toHaveCount(0)
+  const clk = await place(page, 'clock', 120, 120)
+  await page.getByLabel('Frequency (Hz)').selectOption('16')
+  const probe = await place(page, 'probe', 420, 130)
+  // The first probe opens the panel by itself.
+  await expect(page.getByTestId('waves')).toBeVisible()
+  await wire(page, [clk, 'Q'], [probe, 'A'])
+  await page.waitForTimeout(1500)
+
+  /** Number of vertical edges in the first trace: runs of coloured pixels half way between the two levels. */
+  const edges = () =>
+    page.getByTestId('wave-canvas').evaluate((c: HTMLCanvasElement) => {
+      const dpr = c.width / c.getBoundingClientRect().width
+      const y = Math.round(19 * dpr)
+      const row = c.getContext('2d')!.getImageData(0, y, c.width, 1).data
+      let runs = 0
+      let inRun = false
+      for (let x = 0; x < c.width; x++) {
+        const on = row[x * 4 + 3] > 128 && row[x * 4 + 1] + row[x * 4] > 0 && x > 130 * dpr
+        if (on && !inRun) runs++
+        inRun = on
+      }
+      return runs
+    })
+  await expect.poll(edges).toBeGreaterThanOrEqual(6)
+
+  // Window, clear and hide.
+  await page.getByLabel('Time window').selectOption('2000')
+  await page.getByTestId('waves').getByRole('button', { name: 'Clear', exact: true }).click()
+  await page.getByTestId('waves-toggle').click()
+  await expect(page.getByTestId('waves')).toHaveCount(0)
+  await page.getByTestId('waves-toggle').click()
+  await expect(page.getByTestId('waves')).toBeVisible()
+
+  // Paused: dragging scrolls back in time and "Live" returns to the present.
+  await page.getByTestId('run').click()
+  await page.waitForTimeout(300)
+  const c = (await page.getByTestId('wave-canvas').boundingBox())!
+  await page.mouse.move(c.x + 400, c.y + 20)
+  await page.mouse.down()
+  await page.mouse.move(c.x + 600, c.y + 20, { steps: 5 })
+  await page.mouse.up()
+  await page.getByRole('button', { name: /Live/ }).click()
+  await expect(page.getByRole('button', { name: /Live/ })).toHaveCount(0)
 })
