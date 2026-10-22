@@ -175,9 +175,30 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-15).
 
 ## Milestone 6: Challenges mode (medium–large)
-As described at the end of `plan-stretch-features.md`: lessons plus "build a circuit matching this truth table",
-checked automatically by sweeping labelled switches and comparing labelled LEDs. Reuses the sweep and the expression
-tools from milestone 5. Needs its own detailed plan before starting.
+- [x] **Challenge list.** *Challenges* in the toolbar: 17 challenges in four groups (getting started, combining gates,
+      arithmetic and selection, memory), each with a short lesson and one task. Picking one replaces the canvas with
+      a starting circuit (the labelled switches and LEDs, unwired; undo brings the old circuit back) and opens a panel
+      under the canvas. Solved challenges are ticked; progress is kept in `localStorage` (`sklopko.challenges.v1`).
+- [x] **Checking.** Switches and LEDs are found by their labels (as in the Logic panel). *Combinational* challenges
+      sweep the switches in a separate simulator (`analyzeCircuit`) and compare with the goal's truth table
+      (`compareTables`), listing the wrong rows. *Memory* challenges run steps in order from everything off (set
+      some switches, settle, read the LEDs) and list the steps that failed. A missing label is named in the
+      message.
+- [x] **Rules.** A challenge may limit the parts (only NAND; only AND/OR/NOT; at most two gates) so that it can teach
+      a method (XOR from basics, everything from NAND, using a many-input gate) and so that a ready-made latch part
+      can't stand in for the gates. Switches, LEDs, constants, labels, displays and notes are never counted.
+- [x] **Help.** *Hint* (one sentence) and *Show a solution* (replaces the canvas with a reference circuit; undoable).
+      A result is hidden once the circuit's structure changes (flipping a switch doesn't), with a note to check again.
+- Decisions: goals are written as expressions (`src/model/challenges.ts`), so the Build tab's synthesiser also makes
+  the reference solutions of unrestricted challenges; restricted and memory ones are hand-built. Panel reuses the
+  waveform panel's look (a bottom sheet on phones). Not available in embed mode.
+- Not done: challenges that need a clock or a counter (the memory steps only toggle switches), a score or limit on
+  gates beyond a hard maximum, challenges shared as links (`/challenge/<id>`), authoring your own challenges,
+  more than a one-sentence hint.
+- Tests: for every challenge, the starter has exactly its labelled parts and fails, the solution follows the rules
+  and passes, and removing any one wire of the solution makes it fail; rule and label messages; step failures;
+  2 e2e tests (start, fail, wire, solve, next, progress after reload; rule violation, solution, memory steps).
+- **Status: done** (v0.0.1-16).
 
 ## Milestone 7: New parts and I/O (medium)
 - [ ] **Speaker**: a clock-driven square wave through WebAudio, with a mute toggle.

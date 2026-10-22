@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import { isEmbed } from './app/embed'
+import { ChallengeList } from './ui/challenges/ChallengeList'
+import { ChallengePanel } from './ui/challenges/ChallengePanel'
 import { Canvas } from './ui/canvas/Canvas'
 import { EmbedBar } from './ui/EmbedBar'
 import { LogicPanel } from './ui/logic/LogicPanel'
@@ -36,10 +38,12 @@ export default function App() {
             <SelectionBar />
           </div>
           <WaveformPanel />
+          <ChallengePanel />
         </div>
         <Inspector />
       </main>
       <LogicPanel />
+      <ChallengeList />
     </div>
   )
 }

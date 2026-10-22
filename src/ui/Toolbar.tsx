@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
+import { openChallengeList } from '../app/challenges'
 import { openLogic } from '../app/logic'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
@@ -144,6 +145,9 @@ export function Toolbar() {
       </button>
       <button onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
         Logic…
+      </button>
+      <button onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
+        Challenges
       </button>
       <button
         className={waveOpen ? 'active' : ''}

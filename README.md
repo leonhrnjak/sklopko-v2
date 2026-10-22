@@ -72,6 +72,11 @@ security headers.
   expression such as `Sum = A ⊕ B ⊕ Cin` or a truth table (with don't-cares) into wired, laid-out gates on the
   canvas. *Compare* checks the circuit against an expression or a circuit file over all inputs and lists the rows
   that differ.
+- **Challenges:** *Challenges* in the toolbar has 17 short lessons, each ending in something to build: from wiring a
+  switch to an LED, through gates, adders and multiplexers, to an SR latch and a gated D latch. Picking one puts
+  labelled switches and LEDs on the canvas; *Check my circuit* tries every combination of the switches (or, for a
+  latch, a sequence of steps) and shows which answers are wrong. Some limit the gates you may use. *Hint* and *Show a
+  solution* help when stuck; solved challenges are ticked and remembered in your browser.
 - **Notes and frames:** the *Notes & frames* group of the parts panel has a *Note* (text that wraps at the width you
   choose, in five colours) and a *Frame* (a titled, tinted box drawn behind everything). Neither has pins or any
   effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it

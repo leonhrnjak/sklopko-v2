@@ -1600,3 +1600,118 @@ table.truth td.out.v2 {
     flex-wrap: wrap;
   }
 }
+
+/* ---- Challenges ---- */
+
+.challenge-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+.challenge-intro {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.challenge-group h3 {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.challenge-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.challenge-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+}
+.challenge-item.current {
+  border-color: var(--accent);
+}
+.challenge-item .tick {
+  flex: none;
+  width: 18px;
+  color: var(--wire-1);
+  font-weight: 700;
+}
+.challenge-item .what {
+  display: grid;
+  gap: 2px;
+}
+.challenge-item small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.link-button {
+  margin-top: 14px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0;
+}
+.challenge-panel .solved-badge {
+  color: var(--wire-1);
+}
+.challenge-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
+  gap: 8px 18px;
+  padding: 10px 14px 14px;
+  overflow: auto;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.challenge-text p {
+  margin: 0 0 8px;
+}
+.challenge-text .lesson {
+  color: var(--muted);
+}
+.challenge-text .rules {
+  font-weight: 600;
+}
+.challenge-text .challenge-hint {
+  background: var(--note-yellow);
+  color: var(--note-ink);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.challenge-text .row {
+  margin: 8px 0;
+}
+.challenge-goal h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.challenge-goal .truth-wrap {
+  max-height: 220px;
+  overflow: auto;
+}
+.challenge-goal small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+table.truth td.in.changed {
+  color: var(--text);
+  font-weight: 700;
+  background: var(--select-soft);
+}
+@media (max-width: 760px) {
+  .challenge-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
