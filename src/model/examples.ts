@@ -848,7 +848,7 @@ function computer(): Circuit {
 
 /** The second computer running one of its programs, with notes and frames that name its parts. */
 function computer2(p: Program): Circuit {
-  const { b, keys } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves })
+  const { b, keys } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves, keypad: p.keypad })
   const ids = (...parts: string[]) => parts.map((k) => keys[k]).filter(Boolean)
   const frame = (title: string, parts: string[], color?: string) => {
     if (parts.length) frameAround(b, title, parts, color)
@@ -857,7 +857,7 @@ function computer2(p: Program): Circuit {
   frame('Decode: opcode to control signals', ids('ctl', 'ncarry', 'jnc', 'jz', 'take', 'nhalt'), 'yellow')
   frame('Which device? (address decoding)', ids('na0', 'na1', 'na2', 'na3', 'sel13', 'sel14', 'sel15', 'we14', 'we15', 'fbSel', 'fbWe'), 'green')
   frame('ACC input: which source?', ids(...Array.from({ length: 8 }, (_, i) => `amux${i}`)), 'blue')
-  frame('Devices', ids('console', 'screen', 'toggle', 'speaker'), 'green')
+  frame('Devices', ids('keypad', 'console', 'screen', 'toggle', 'speaker'), 'green')
   note(b, 0, -300, p.note, 60)
   return b.build(0)
 }

@@ -235,7 +235,7 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
   lit, the siren's flip gaps shrink then grow, the calculator on a dozen sums including negatives and a held key);
   e2e tests for the calculator by mouse, the LCD and sound examples (and that they have only their own devices),
   LUT editing, muting a speaker, 8-bit RAM.
-- **Status: done** (v0.0.1-19).
+- **Status: done** (v0.0.1-20).
 
 ## Milestone 8: Router performance (medium)
 Routing time grows with wires × area (about 25 ms per wire on the 8-bit computer). Options, in order of risk:

@@ -496,7 +496,7 @@ export function computer2Builder(o: Computer2Options) {
 
   // With a keypad, address 15 reads it instead of RAM: RAM or keypad, bit by bit.
   const memOrIn: string[] = []
-  const keypad = has('keypad') ? part(INMUX, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
+  const keypad = has('keypad') ? part(DEVICES, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
   for (let bit = 0; bit < 8; bit++) {
     if (!keypad) {
       memOrIn.push(`${ram}.Q${bit}`)

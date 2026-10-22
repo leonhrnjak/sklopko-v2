@@ -4,6 +4,7 @@ import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerSta
 import { Simulator } from '../engine/simulator'
 import { BALL_SOURCE, CALC_SOURCE, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
+import { EXAMPLES } from './examples'
 
 const NIB = ['QA', 'QB', 'QC', 'QD']
 const bases = new Map<string, Circuit>()
@@ -307,4 +308,15 @@ describe('computer 2: the programs', () => {
       expect(m.text()).toBe('5')
     })
   })
+})
+
+describe('computer 2: the examples as built', () => {
+  it('the calculator example has a calculator keypad, sitting right above its display', () => {
+    const c = EXAMPLES.find((e) => e.id === 'computer-calc')!.build()
+    const keypad = Object.values(c.comps).find((k) => k.type === 'keypad')!
+    const display = Object.values(c.comps).find((k) => k.type === 'console')!
+    expect(keypad.params).toMatchObject({ layout: 'calc', sticky: true })
+    expect(keypad.x).toBe(display.x) // the same column
+    expect(Math.abs(display.y - keypad.y)).toBeLessThan(400)
+  }, 30000)
 })
