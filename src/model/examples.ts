@@ -2,6 +2,7 @@ import { CircuitBuilder } from './builder'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
+import { hazard, ripple } from './timing-examples'
 import type { Circuit, Rot } from './circuit'
 
 export interface Example {
@@ -604,6 +605,8 @@ export const EXAMPLES: Example[] = [
   { id: 'ripple-counter', name: 'Ripple counter (T flip-flops)', build: rippleCounter },
   { id: 'adder', name: '4-bit adder', build: adder },
   { id: 'mux', name: '4:1 multiplexer', build: muxDemo },
+  { id: 'hazard', name: 'Glitch: a hazard, and its fix', build: hazard },
+  { id: 'ripple', name: 'Ripple-carry adder: the carry chain and flicker', build: ripple },
   { id: 'oscillator', name: 'Ring oscillator (unstable)', build: ringOscillator },
 ]
 

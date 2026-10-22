@@ -3,6 +3,7 @@ import { clockChecks, formatHz, formatNs, setNsPerDelay, setShowPath, timingOf, 
 import { select, useStore } from '../app/store'
 import { getDef } from '../engine/registry'
 import { partName } from '../model/timing'
+import { TickDiagram } from './TickDiagram'
 
 /** The timing of the circuit: its slowest path, what a clock can do with it, and any feedback loops. */
 export function TimingView() {
@@ -47,6 +48,17 @@ export function TimingView() {
               </button>
             </div>
           </div>
+        </>
+      ) : (
+        <p className="wave-empty">
+          {loops.length > 0
+            ? 'The only paths here are inside feedback loops, which cannot be timed (see below).'
+            : 'Nothing to time yet. Wire some gates between a switch (or a clock, or a register) and an output, and the slowest path appears here. Every part takes one gate delay unless you give it another in the inspector.'}
+        </p>
+      )}
+      <TickDiagram />
+      {critical && (
+        <>
           <div className="timing-cols">
             <section>
               <h4>The slowest path</h4>
@@ -100,12 +112,6 @@ export function TimingView() {
             </section>
           </div>
         </>
-      ) : (
-        <p className="wave-empty">
-          {loops.length > 0
-            ? 'The only paths here are inside feedback loops, which cannot be timed (see below).'
-            : 'Nothing to time yet. Wire some gates between a switch (or a clock, or a register) and an output, and the slowest path appears here. Every part takes one gate delay unless you give it another in the inspector.'}
-        </p>
       )}
       {loops.length > 0 && (
         <section className="timing-loops">

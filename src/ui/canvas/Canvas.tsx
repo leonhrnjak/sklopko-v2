@@ -47,6 +47,7 @@ import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from 
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
 import { useTraceOptions } from '../../app/trace'
+import { glitchingWires, useCapture } from '../../app/glitches'
 import { timingOf, useTiming } from '../../app/timing'
 import { useWave } from '../../app/waveform'
 import { withFrameContents } from '../../model/frames'
@@ -174,6 +175,9 @@ export function Canvas() {
   const pathOn = showPath && timingShown
   const slowest = useMemo(() => (pathOn ? timingOf(circuit).critical : null), [pathOn, circuit])
   const slowWires = useMemo(() => new Set(slowest?.wires ?? []), [slowest])
+  // The timing view records the ticks of each change; mark the wires whose signal glitched.
+  const capture = useCapture()
+  const glitchWires = useMemo(() => (timingShown ? glitchingWires(circuit, capture) : new Set<string>()), [timingShown, circuit, capture])
   // With one net label selected, outline the other labels that share its name.
   const related = new Set<string>()
   const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
@@ -664,7 +668,7 @@ export function Canvas() {
         </g>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
-            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : slowWires.has(wire.id) ? 'path' : undefined} />,
+            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : slowWires.has(wire.id) ? 'path' : glitchWires.has(wire.id) ? 'glitch' : undefined} />,
           )}
         </g>
         <g className="layer-hops">

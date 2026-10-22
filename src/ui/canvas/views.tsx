@@ -82,7 +82,7 @@ interface WireViewProps {
   /** Crossing points where this wire hops over another. */
   hops?: Point[]
   /** Part of the signal being traced (`net`), of the logic feeding it (`cone`), or of the slowest path (`path`). */
-  traced?: 'net' | 'cone' | 'path'
+  traced?: 'net' | 'cone' | 'path' | 'glitch'
 }
 
 const sameHops = (a?: Point[], b?: Point[]) =>

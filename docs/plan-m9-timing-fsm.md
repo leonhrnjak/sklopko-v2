@@ -1,6 +1,6 @@
 # Milestone 9: timing view and state machine editor (detailed plan)
 
-> **Status: 9a done (v0.0.1-22), 9b done (not yet pushed); 9c–9e not started.** Read `CLAUDE.md` first (version bump and the full checklist on every push).
+> **Status: 9a, 9b done and pushed; 9c done (not yet pushed); 9d–9e not started.** Read `CLAUDE.md` first (version bump and the full checklist on every push).
 > Work sub-milestone by sub-milestone, in order. Each ends in a working, tested state; stop and report after each.
 > Push to `main` only when asked.
 
@@ -64,7 +64,7 @@
   throwing, delays honoured.
 - **e2e:** open an example, open Timing, press Show path, see rings; change a delay and see the number change.
 
-## 9c. Glitches: tick-level capture (medium)
+## 9c. Glitches: tick-level capture (medium) — done
 - `Simulator` gets an opt-in **capture**: while enabled, `settle()` records the value of every net after each tick for
   the most recent settle only (bounded: at most 256 ticks and about 1 MB). Nothing is recorded when the Timing tab is
   closed, so there is no cost otherwise.

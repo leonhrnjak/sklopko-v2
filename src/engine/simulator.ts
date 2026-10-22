@@ -81,6 +81,24 @@ function cloneState<T>(s: T): T {
   return s
 }
 
+/** How many ticks of one settle a capture keeps (see `Simulator.setCapture`). */
+export const CAPTURE_TICKS = 256
+
+/**
+ * Every net's value at each tick of one settle: how the circuit got from one steady state to the next. A signal that
+ * changes more often than the difference between where it began and where it ended is a glitch (see `glitch.ts`).
+ */
+export interface Capture {
+  /** `frames[0]` is every net before the first tick, `frames[k]` after tick k. Indexed by net (see `netNames`). */
+  frames: Uint8Array[]
+  /** The settle went on for more ticks than `CAPTURE_TICKS`: the rest is not in `frames`. */
+  truncated: boolean
+  /** Simulated time in ms when it began. */
+  time: number
+  /** What started it: a clock edge, or something else (an input was operated, the circuit was loaded...). */
+  cause: 'clock' | 'input'
+}
+
 /** How many clock edges the simulator can step back over. */
 export const HISTORY_EDGES = 1000
 
@@ -103,6 +121,13 @@ export class Simulator {
   private listeners = new Set<() => void>()
   private dirty = true
 
+  /** Record the ticks of each settle (only the latest one in which something changed is kept). Off by default: it costs a copy of every net per tick. */
+  private capturing = false
+  private lastCapture: Capture | null = null
+  private nextCause: Capture['cause'] = 'input'
+  /** Bumped whenever a new capture is kept or the old one is dropped, so a view can tell. */
+  captureVersion = 0
+
   /** True when the last settle hit its tick budget, i.e. the circuit keeps changing on its own. */
   unstable = false
   /** Total ticks simulated since the last reset. */
@@ -120,6 +145,7 @@ export class Simulator {
   private moved = false
 
   load(c: SimCircuit) {
+    this.dropCapture()
     this.history = []
     this.cursor = -1
     this.moved = false
@@ -209,6 +235,7 @@ export class Simulator {
 
   /** Forget all values and internal state, as if the circuit was just switched on. */
   reset() {
+    this.dropCapture()
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
     for (const cc of this.slow) this.fillPipe(cc)
@@ -282,12 +309,65 @@ export class Simulator {
     return changed || pending
   }
 
+  private dropCapture() {
+    if (this.lastCapture) this.captureVersion++
+    this.lastCapture = null
+  }
+
+  /** Start or stop recording the ticks of each settle (see `Capture`). Stopping forgets the last one. */
+  setCapture(on: boolean) {
+    this.capturing = on
+    if (!on) this.dropCapture()
+  }
+
+  /** The ticks of the latest settle in which anything changed, if recording is on and there has been one. */
+  getCapture(): Capture | null {
+    return this.lastCapture
+  }
+
+  /** For each net, the output pin that drives it (`comp:pin`): the names used with a `Capture`. */
+  netNames(): string[] {
+    const names = new Array<string>(this.values.length).fill('')
+    for (const [key, net] of this.netByOut) if (!names[net]) names[net] = key
+    return names
+  }
+
+  /** The net an output pin drives, or an input pin reads (-1 if it is unconnected or unknown). */
+  netOf(compId: string, pin: string): number {
+    const out = this.netByOut.get(pinKey(compId, pin))
+    if (out !== undefined) return out
+    const cc = this.byId.get(compId)
+    const i = cc ? cc.inNames.indexOf(pin) : -1
+    return cc && i >= 0 ? cc.inNets[i] : -1
+  }
+
   /** Tick until nothing changes or the budget runs out. Returns true if the circuit settled. */
   settle(maxTicks = 1000): boolean {
+    const cause = this.nextCause
+    this.nextCause = 'input'
+    const rec: Capture | null = this.capturing ? { frames: [this.values.slice()], truncated: false, time: this.time, cause } : null
+    let changed = false
     let settled = false
-    for (let i = 0; i < maxTicks && !settled; i++) settled = !this.tick()
+    for (let i = 0; i < maxTicks && !settled; i++) {
+      settled = !this.tick()
+      if (!rec) continue
+      if (rec.frames.length > CAPTURE_TICKS) {
+        rec.truncated = true
+        changed = true
+        continue
+      }
+      const now = this.values.slice()
+      const before = rec.frames[rec.frames.length - 1]
+      if (!changed) for (let n = 0; n < now.length; n++) if (now[n] !== before[n]) changed = true
+      rec.frames.push(now)
+    }
     this.unstable = !settled
     this.sample()
+    if (rec && changed) {
+      this.lastCapture = rec
+      this.captureVersion++
+      this.dirty = true
+    }
     return settled
   }
 
@@ -331,6 +411,7 @@ export class Simulator {
           st.phase = st.phase === 1 ? 0 : 1
         }
       }
+      this.nextCause = 'clock'
       this.settle(this.budget())
       this.record()
     }

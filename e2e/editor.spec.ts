@@ -1360,3 +1360,46 @@ test('timing: the slowest path, a changed delay, and the path marked on the circ
   await page.getByRole('tab', { name: 'Waveforms' }).click()
   await expect(page.locator('.wire-trace.path')).toHaveCount(0)
 })
+
+/** Click a part by the label shown above it (a switch or an input toggles; this operates, it does not select). */
+async function clickLabelled(page: Page, label: string) {
+  const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
+  const b = (await g.boundingBox())!
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+}
+
+test('glitches: the hazard example dips for a moment, it is marked on the circuit, and the fixed copy holds', async ({ page }) => {
+  await page.goto('/hazard', { waitUntil: 'networkidle' })
+  await page.getByTestId('timing-toggle').click()
+  await expect(page.getByTestId('tick-info')).toHaveCount(0) // nothing has changed yet
+
+  await clickLabelled(page, 'A') // A falls
+  await expect(page.getByTestId('tick-info')).toContainText('a change of an input')
+  await expect(page.getByTestId('glitch-count')).toHaveText('1 signal glitched.')
+  await expect(page.getByRole('list', { name: 'Glitches' })).toContainText('static-1')
+  await expect(page.getByTestId('tick-canvas')).toBeVisible()
+  await expect(page.locator('.wire-trace.glitch').first()).toBeVisible()
+
+  await clickLabelled(page, 'A') // A rises again: no glitch this way round
+  await expect(page.getByTestId('glitch-count')).toHaveText('No signal glitched.')
+  await expect(page.locator('.wire-trace.glitch')).toHaveCount(0)
+
+  // Leaving the timing view stops recording and takes the marks away.
+  await clickLabelled(page, 'A')
+  await expect(page.locator('.wire-trace.glitch').first()).toBeVisible()
+  await page.getByRole('tab', { name: 'Waveforms' }).click()
+  await expect(page.locator('.wire-trace.glitch')).toHaveCount(0)
+})
+
+test('glitches: in the ripple-carry adder three sum bits flicker, one after another, and the slowest path is the carry chain', async ({ page }) => {
+  await page.goto('/ripple', { waitUntil: 'networkidle' })
+  await page.getByTestId('timing-toggle').click()
+  await expect(page.getByTestId('timing-delay')).toHaveText('24 gate delays')
+  await clickLabelled(page, 'A') // 5 -> 6
+  // Three sum bits and two of the carries between the adders.
+  await expect(page.getByTestId('glitch-count')).toHaveText('5 signals glitched.')
+  await expect(page.getByTestId('tick-info')).toContainText('25 gate delays')
+  await expect(page.getByRole('list', { name: 'Glitches' }).locator('li')).toHaveCount(5)
+  await page.getByLabel('Glitches only').check()
+  await expect(page.getByTestId('tick-canvas')).toBeVisible()
+})

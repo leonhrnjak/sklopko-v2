@@ -930,6 +930,12 @@ button.danger {
   stroke-width: 11;
   stroke-opacity: 0.5;
 }
+.wire-trace.glitch {
+  stroke: var(--trace);
+  stroke-width: 10;
+  stroke-opacity: 0.65;
+  stroke-dasharray: 6 5;
+}
 .layer-trace.path .trace-ring {
   stroke: var(--path);
 }
@@ -2058,4 +2064,25 @@ table.truth td.in.changed {
   .fmt-bit small {
     display: none;
   }
+}
+
+.tick-diagram {
+  margin-top: 6px;
+}
+.tick-wrap canvas {
+  display: block;
+  width: 100%;
+}
+.tick-readout {
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 1.4em;
+}
+.glitch-list {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.glitch-hint {
+  color: var(--muted);
+  font-size: 12px;
 }
