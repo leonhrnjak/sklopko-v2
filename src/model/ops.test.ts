@@ -3,6 +3,7 @@ import { Simulator } from '../engine/simulator'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
 import { CircuitBuilder } from './builder'
+import { findPin } from './circuit'
 import { autoConnect, updateWiresAfterMove } from './ops'
 
 describe('auto-connect', () => {
@@ -70,5 +71,46 @@ describe('auto-connect', () => {
     b.add('switch', 0, 0)
     const c = b.build()
     expect(autoConnect(c, [a])).toBe(false)
+  })
+})
+
+describe('net label helpers', () => {
+  // A part with pins on all four sides: a ROM has address pins on the left and data pins on the right; a RAM has
+  // address pins on top. Flipped, a part has its inputs on the right.
+  it('tag and tap put a label next to the pin, facing it, whichever way the pin points', () => {
+    const b = new CircuitBuilder()
+    const ram = b.add('ram', 200, 200)
+    const flipped = b.add('and', 600, 200, { flip: true })
+    const spots = [`${ram}.D0`, `${ram}.A1`, `${ram}.Q0`, `${flipped}.A`, `${flipped}.Y`]
+    for (const at of spots) {
+      const [id, pin] = at.split('.')
+      const target = findPin(b.c.comps[id], pin)!
+      const isOut = target.def.dir === 'out'
+      const label = (isOut ? b.tap(at, 'N') : b.tag(at, 'N'))!
+      expect(label, `room beside ${at}`).toBeDefined()
+      const mine = findPin(b.c.comps[label], isOut ? 'A' : 'Y')!
+      // 20px away along the pin's outward direction, and facing back at it.
+      expect(mine.pos, at).toEqual({ x: target.pos.x + target.dir.x * 20, y: target.pos.y + target.dir.y * 20 })
+      expect(mine.dir, at).toEqual({ x: -target.dir.x + 0, y: -target.dir.y + 0 })
+    }
+    const c = b.build()
+    for (const w of Object.values(c.wires)) {
+      const e = wireEndpoints(c, w)!
+      expect(validPath(w.path, e.from, e.fromDir, e.to, e.toDir), w.id).toBe(true)
+    }
+  })
+})
+
+describe('net label helpers with no room', () => {
+  it('add nothing when the label would run into another part', () => {
+    const b = new CircuitBuilder()
+    const a = b.add('and', 0, 0)
+    b.add('and', 70, 0) // right where a Send label for the first gate's output would go
+    b.add('and', 70, 30)
+    b.add('and', 70, -30)
+    const before = Object.keys(b.c.comps).length
+    expect(b.tap(`${a}.Y`, 'N')).toBeUndefined()
+    expect(Object.keys(b.c.comps)).toHaveLength(before)
+    expect(Object.keys(b.c.wires)).toHaveLength(0)
   })
 })

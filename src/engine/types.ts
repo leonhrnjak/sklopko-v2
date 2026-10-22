@@ -47,6 +47,10 @@ export interface ParamDef {
   /** For 'text': regular expression (source) the whole value must match, and the maximum length. */
   pattern?: string
   maxLength?: number
+  /** For 'text': a multi-line box (default) or a single-line field. */
+  multiline?: boolean
+  /** For 'text': what to tell the user when the value doesn't match the pattern. */
+  hint?: string
   default: ParamValue
   /** Changing it alters pins or behavior that needs a recompile (false for e.g. LED color). */
   structural?: boolean

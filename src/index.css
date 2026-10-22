@@ -370,6 +370,7 @@ input:focus-visible {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.04em;
 }
+.field input.invalid,
 .field textarea.invalid {
   border-color: var(--danger);
   outline-color: var(--danger);
@@ -577,6 +578,24 @@ button.danger {
 }
 .const-text.t0 {
   fill: var(--wire-0);
+}
+.net-name {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.net-name.empty {
+  font-weight: 400;
+  font-style: italic;
+  fill: var(--muted);
+}
+.rel-outline {
+  fill: none;
+  stroke: var(--select);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 3;
+  opacity: 0.8;
 }
 .hexin-digit {
   font-size: 26px;

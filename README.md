@@ -41,6 +41,9 @@ security headers.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
+- **Net labels:** a *Send label* publishes the signal wired into it under a name, and every *Receive label* with
+  the same name carries that signal, with no wire in between. Like a wire, a label adds no delay. Select one to see
+  the other labels of its name outlined, and *Select all* to find them. The *Net labels* example (`/labels`) shows it.
 - **Waveforms:** wire a *Probe* to any signal and give it a label. The first probe opens the waveform panel
   under the canvas (or use *Waveforms* in the toolbar), with one trace per probe in the wire colours. Pick a
   2/5/10/30 s window; while paused, drag sideways to look back in time (double-click or *Live* returns). Traces
@@ -57,7 +60,7 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace) |
+| Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace), send / receive net labels |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |

@@ -830,6 +830,24 @@ function matrixSmiley(): Circuit {
   return b.build()
 }
 
+function netLabels(): Circuit {
+  // The counter and everything that reads it are far apart and have no wires between them: each of the four counter
+  // bits is published under a name, and receive labels with the same name bring it back.
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 60, { params: { hz: 2 }, label: 'Clock' })
+  const cnt = b.add('counter', 120, 40, { params: { mod: 16 }, label: 'Counter' })
+  b.wire(`${clk}.Q`, `${cnt}.CLK`)
+  const disp = b.add('hexdisp', 760, 20, { label: 'Hex display' })
+  NIB.forEach((pin, i) => {
+    b.tap(`${cnt}.${pin}`, `BIT${i}`)
+    b.tag(`${disp}.${pin}`, `BIT${i}`)
+    // The same name can be received as often as you like.
+    const led = b.add('led', 780, 180 + i * 50, { label: `Bit ${i}` })
+    b.tag(`${led}.A`, `BIT${i}`)
+  })
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
   { id: 'intersection', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
@@ -838,6 +856,7 @@ export const EXAMPLES: Example[] = [
   { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
   { id: 'computer', name: '8-bit computer (runs Fibonacci)', build: computer },
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
+  { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },

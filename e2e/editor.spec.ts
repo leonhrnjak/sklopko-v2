@@ -418,3 +418,49 @@ test('8-bit computer example: runs its program to the HALT instruction', async (
   // The waveform panel showed up with the example's probes.
   await expect(page.getByTestId('waves')).toBeVisible()
 })
+
+test('net labels: a switch drives an LED through a send/receive pair, and renaming breaks the link', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 120, 150)
+  // A new label asks for its name straight away.
+  const tx = await place(page, 'netsend', 300, 150)
+  await page.keyboard.type('GO')
+  await page.keyboard.press('Enter')
+  const rx = await place(page, 'netrecv', 300, 320)
+  await page.keyboard.type('GO')
+  await page.keyboard.press('Enter')
+  const led = await place(page, 'led', 520, 320)
+  await expect(page.locator('.net-name', { hasText: 'GO' })).toHaveCount(2)
+
+  await wire(page, [sw, 'Q'], [tx, 'A'])
+  await wire(page, [rx, 'Y'], [led, 'A'])
+  await expect(page.locator('.wire-group')).toHaveCount(2) // and nothing between the two labels
+
+  expect(await ledOn(page, led)).toBe(false)
+  await clickComp(page, sw)
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+
+  // Selecting a label says what it is linked to.
+  await clickComp(page, rx)
+  await expect(page.locator('.inspector')).toContainText('“GO”: 1 send, 1 receive.')
+  // Rename the receiving end: it no longer hears the sender.
+  await page.getByLabel('Name', { exact: true }).fill('NOPE')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.inspector')).toContainText('“NOPE”: 0 sends, 1 receive.')
+  await expect(page.locator('.inspector')).toContainText('No Send label has this name yet')
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  // And back again.
+  await page.getByLabel('Name', { exact: true }).fill('GO')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+})
+
+test('net labels example: the counter shows on a display with no wires between them', async ({ page }) => {
+  await page.goto('/labels', { waitUntil: 'networkidle' })
+  await expect(page.locator('.net-name', { hasText: 'BIT3' })).toHaveCount(3) // one send, two receives
+  await page.locator('.comp', { has: page.locator('.net-name', { hasText: 'BIT3' }) }).first().click({ position: { x: 20, y: 10 }, force: true })
+  await expect(page.locator('.inspector')).toContainText('“BIT3”: 1 send, 2 receives.')
+  await expect(page.locator('.rel-outline')).toHaveCount(2)
+  await page.getByRole('button', { name: /Select all 3/ }).click()
+  await expect(page.locator('.comp.selected')).toHaveCount(3)
+})

@@ -439,6 +439,7 @@ export const memoryRom: ComponentDef[] = [
         default: '0 1 2 3 4 5 6 7 8 9 A B C D E F',
         pattern: HEX_WORDS.source,
         maxLength: 400,
+        hint: 'Only hexadecimal digits (0–9, A–F), spaces and commas.',
       },
     ],
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,

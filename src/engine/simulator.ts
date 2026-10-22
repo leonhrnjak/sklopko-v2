@@ -1,3 +1,4 @@
+import { resolveLabels } from './netlabels'
 import { getDef, hasDef } from './registry'
 import { X, type ComponentDef, type Instance, type Layout, type Params, type V } from './types'
 
@@ -82,14 +83,17 @@ export class Simulator {
     this.netByOut.clear()
     let nets = 0
 
-    for (const sc of c.comps) {
-      if (!hasDef(sc.type)) continue
+    // Receive labels that share the net of the signal they carry are set up after the other parts.
+    const aliases = resolveLabels(c)
+    const deferred: { sc: SimComp; src: PinRef }[] = []
+
+    const build = (sc: SimComp): CComp => {
       const def = getDef(sc.type)
       const layout = layoutOf(sc.type, sc.params)
       const ins = layout.pins.filter((p) => p.dir === 'in')
       const outs = layout.pins.filter((p) => p.dir === 'out')
       const prev = oldState.get(sc.id)
-      const cc: CComp = {
+      return {
         id: sc.id,
         def,
         inst: {
@@ -104,12 +108,31 @@ export class Simulator {
         inDefaults: ins.map((p) => p.def ?? X),
         outNets: new Int32Array(outs.length),
       }
-      outs.forEach((p, i) => {
+    }
+    const own = (cc: CComp) => {
+      cc.outNames.forEach((name, i) => {
         cc.outNets[i] = nets
-        this.netByOut.set(pinKey(sc.id, p.name), nets++)
+        this.netByOut.set(pinKey(cc.id, name), nets++)
       })
       this.comps.push(cc)
-      this.byId.set(sc.id, cc)
+      this.byId.set(cc.id, cc)
+    }
+
+    for (const sc of c.comps) {
+      if (!hasDef(sc.type)) continue
+      const src = aliases.get(sc.id)
+      if (src) deferred.push({ sc, src })
+      else own(build(sc))
+    }
+    for (const { sc, src } of deferred) {
+      const cc = build(sc)
+      const net = this.netByOut.get(pinKey(src.comp, src.pin))
+      if (net === undefined) own(cc) // the driver isn't in the simulation: an ordinary label, reading X
+      else {
+        cc.outNets[0] = net
+        this.netByOut.set(pinKey(sc.id, cc.outNames[0]), net)
+        this.byId.set(sc.id, cc) // visible to pinValue and signature, but never evaluated
+      }
     }
 
     for (const w of c.wires) {

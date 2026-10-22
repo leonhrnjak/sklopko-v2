@@ -56,6 +56,22 @@ describe('serialization', () => {
     expect(c.comps.r3.params.data).toBe('0 1 2 3 4 5 6 7 8 9 A B C D E F')
   })
 
+  it('keeps net label names and drops names that are not allowed', () => {
+    const c = deserialize({
+      app: 'sklopko',
+      version: 1,
+      comps: [
+        { id: 'a', type: 'netsend', x: 0, y: 0, params: { name: 'CLK_2' } },
+        { id: 'b', type: 'netrecv', x: 100, y: 0, params: { name: 'has space' } },
+        { id: 'c', type: 'netrecv', x: 200, y: 0, params: { name: 'WAY_TOO_LONG_A_NAME' } },
+      ],
+      wires: [],
+    })
+    expect(c.comps.a.params.name).toBe('CLK_2')
+    expect(c.comps.b.params.name).toBe('')
+    expect(c.comps.c.params.name).toBe('')
+  })
+
   it('rejects files that are not circuits', () => {
     expect(() => deserialize({ hello: 'world' })).toThrow()
   })

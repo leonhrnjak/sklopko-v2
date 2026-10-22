@@ -21,6 +21,9 @@ npm run build     # type-check + production build
 npm run e2e       # Playwright, desktop + emulated phone
 ```
 
+If Playwright says its Chromium build is missing, point it at an installed one instead of downloading:
+`PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e`.
+
 Pushing to `main` deploys to Cloudflare Pages.
 
 ## Current work

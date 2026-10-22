@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   deleteSelection,
+  select,
   flipSelection,
   resetWireRoute,
   rotateSelection,
@@ -12,6 +13,7 @@ import {
 import { getDef } from '../engine/registry'
 import type { ParamDef } from '../engine/types'
 import type { Comp, Wire } from '../model/circuit'
+import { isLabel, labelNames, labelsNamed } from '../model/labels'
 
 function deleteAndClose() {
   deleteSelection()
@@ -22,7 +24,7 @@ function deleteAndClose() {
  * Free text parameter (e.g. ROM contents). Edits stay local until the field loses focus or the selection
  * changes, so typing is one undo step. Text that doesn't match the pattern is flagged and never applied.
  */
-function TextParam({ comp, p }: { comp: Comp; p: ParamDef }) {
+function TextParam({ comp, p, suggestions }: { comp: Comp; p: ParamDef; suggestions?: string[] }) {
   const saved = String(comp.params[p.key])
   const [draft, setDraft] = useState(saved)
   const latest = useRef({ draft, saved })
@@ -40,26 +42,71 @@ function TextParam({ comp, p }: { comp: Comp; p: ParamDef }) {
   // Apply a pending edit when the inspector goes away (another part gets selected).
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => commit, [])
+  const common = {
+    spellCheck: false,
+    maxLength: p.maxLength,
+    value: draft,
+    onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
+    onBlur: commit,
+    'aria-invalid': !valid,
+  }
   return (
     <label className="field">
       <span>{p.label}</span>
-      <textarea
-        className={`mono${valid ? '' : ' invalid'}`}
-        rows={4}
-        spellCheck={false}
-        maxLength={p.maxLength}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        aria-invalid={!valid}
-      />
-      {!valid && <small className="field-error">Only hexadecimal digits (0–9, A–F), spaces and commas.</small>}
+      {p.multiline === false ? (
+        <>
+          <input
+            {...common}
+            className={valid ? undefined : 'invalid'}
+            list={suggestions ? `suggest-${p.key}` : undefined}
+            autoFocus={!saved}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+          {suggestions && (
+            <datalist id={`suggest-${p.key}`}>
+              {suggestions.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          )}
+        </>
+      ) : (
+        <textarea {...common} className={`mono${valid ? '' : ' invalid'}`} rows={4} />
+      )}
+      {!valid && <small className="field-error">{p.hint ?? 'Not a valid value.'}</small>}
     </label>
+  )
+}
+
+/** What a net label is linked to: the other labels of its name, and what is wrong if the link is broken. */
+function LabelLinks({ comp }: { comp: Comp }) {
+  const circuit = useStore((s) => s.circuit)
+  const name = String(comp.params.name)
+  if (!name) return <p className="desc">Give it a name. Labels with the same name carry the same signal.</p>
+  const { sends, recvs } = labelsNamed(circuit, name)
+  const all = [...sends, ...recvs]
+  const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`
+  let warning = ''
+  if (!sends.length) warning = 'No Send label has this name yet, so Receive labels read unknown.'
+  else if (sends.length > 1) warning = 'Several Send labels share this name. Only the first one that is driven is used.'
+  return (
+    <>
+      <p className="desc">
+        “{name}”: {count(sends.length, 'send')}, {count(recvs.length, 'receive')}.
+      </p>
+      {warning && <p className="field-error">{warning}</p>}
+      {all.length > 1 && (
+        <div className="row">
+          <button onClick={() => select(all)}>Select all {all.length}</button>
+        </div>
+      )}
+    </>
   )
 }
 
 function CompInspector({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
+  const circuit = useStore((s) => s.circuit)
   const [label, setLabelDraft] = useState(comp.label ?? '')
 
   return (
@@ -86,7 +133,15 @@ function CompInspector({ comp }: { comp: Comp }) {
               <span>{p.label}</span>
             </label>
           )
-        if (p.kind === 'text') return <TextParam key={`${p.key}|${String(v)}`} comp={comp} p={p} />
+        if (p.kind === 'text')
+          return (
+            <TextParam
+              key={`${p.key}|${String(v)}`}
+              comp={comp}
+              p={p}
+              suggestions={isLabel(comp.type) ? labelNames(circuit).filter((n) => n !== v) : undefined}
+            />
+          )
         if (p.kind === 'select')
           return (
             <label key={p.key} className="field">
@@ -123,6 +178,7 @@ function CompInspector({ comp }: { comp: Comp }) {
           </label>
         )
       })}
+      {isLabel(comp.type) && <LabelLinks comp={comp} />}
       <div className="row">
         <button onClick={rotateSelection} title="Rotate (R)">
           ⟳ Rotate
@@ -175,6 +231,9 @@ function Help() {
         <li>
           <b>Switches &amp; buttons:</b> click to operate (buttons stay pressed while held). To edit one instead,
           long-press it, right-click it, or drag it.
+        </li>
+        <li>
+          <b>Net labels:</b> a Send label and a Receive label with the same name act as one wire, however far apart.
         </li>
         <li>
           <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll or pinch to zoom, H to fit.

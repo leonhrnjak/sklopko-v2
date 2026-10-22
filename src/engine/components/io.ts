@@ -1,5 +1,21 @@
 import { box, names } from '../layouts'
-import { writeNum, type ComponentDef, type V } from '../types'
+import { writeNum, X, type ComponentDef, type ParamDef, type Params, type V } from '../types'
+
+/** Names of net labels: short, no spaces. An empty name is allowed and connects to nothing. */
+const labelName: ParamDef = {
+  key: 'name',
+  label: 'Name',
+  kind: 'text',
+  default: '',
+  pattern: '[A-Za-z0-9_]{0,12}',
+  maxLength: 12,
+  multiline: false,
+  hint: 'Letters, digits and underscores, up to 12 characters.',
+  structural: true, // the flag's width, and so a Receive label's pin, depends on the name
+}
+
+/** Width of a label flag: wide enough for its name (or the "name" placeholder shown while it is empty), on the 10px grid. */
+const flagWidth = (p: Params) => Math.ceil((Math.max(String(p.name).length, 4) * 8 + 22) / 10) * 10
 
 export const io: ComponentDef[] = [
   {
@@ -67,6 +83,34 @@ export const io: ComponentDef[] = [
     layout: () => ({ w: 20, h: 20, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 30, y: 10 }] }),
     evaluate(inst) {
       inst.outs[0] = Number(inst.params.value) ? 1 : 0
+    },
+  },
+  {
+    type: 'netsend',
+    name: 'Send label',
+    category: 'io',
+    description:
+      'Publishes its input under a name. Every Receive label with the same name carries this signal, with no wire ' +
+      'in between and no delay. If several Send labels share a name, the first one that is driven wins.',
+    params: [labelName],
+    layout: (p) => ({ w: flagWidth(p), h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
+    evaluate() {},
+  },
+  {
+    type: 'netrecv',
+    name: 'Receive label',
+    category: 'io',
+    description:
+      'Carries the signal that the Send label with the same name publishes. Unknown (grey) when no driven Send ' +
+      'label has that name.',
+    params: [labelName],
+    layout: (p) => {
+      const w = flagWidth(p)
+      return { w, h: 20, pins: [{ name: 'Y', dir: 'out', side: 'r', x: w + 10, y: 10 }] }
+    },
+    evaluate(inst) {
+      // Only reached when nothing publishes this name; a matched label shares the sender's net instead.
+      inst.outs[0] = X
     },
   },
   {

@@ -11,6 +11,20 @@ function example(id: string) {
   return c
 }
 
+describe('all examples', () => {
+  it('have no parts on top of each other', () => {
+    for (const e of EXAMPLES) {
+      const rects = Object.values(example(e.id).comps).map((k) => ({ k, r: boundsRect(k) }))
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) {
+          const [a, b] = [rects[i].r, rects[j].r]
+          const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+          expect(overlap, `${e.id}: ${rects[i].k.label ?? rects[i].k.type} / ${rects[j].k.label ?? rects[j].k.type}`).toBe(false)
+        }
+    }
+  }, 60000)
+})
+
 describe('digital clock example', () => {
   const setup = () => {
     const c = EXAMPLES.find((e) => e.id === 'clock')!.build()
@@ -363,6 +377,30 @@ describe('calculator example', () => {
         expect(led('A = B')).toBe(a === b ? 1 : 0)
         expect(led('A < B')).toBe(a < b ? 1 : 0)
       }
+  })
+})
+
+describe('net labels example', () => {
+  it('shows the counter far away on the display and the LEDs, with no wire in between', () => {
+    const c = example('labels')
+    const sim = new Simulator()
+    sim.load({ comps: Object.values(c.comps), wires: Object.values(c.wires) })
+    sim.settle()
+    const byLabel = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
+    const [counter, disp] = [byLabel('Counter'), byLabel('Hex display')]
+    const value = (id: string, pins: string[]) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
+    const leds = [0, 1, 2, 3].map((i) => byLabel(`Bit ${i}`))
+    // No wire joins the counter to anything but its clock's label flags.
+    const wiredToCounter = Object.values(c.wires).filter((w) => w.from.comp === counter).map((w) => c.comps[w.to.comp].type)
+    expect(new Set(wiredToCounter)).toEqual(new Set(['netsend']))
+    for (let n = 1; n <= 20; n++) {
+      sim.stepClock()
+      sim.stepClock()
+      const count = value(counter, ['A', 'B', 'C', 'D'])
+      expect(count).toBe(n % 16)
+      expect(value(disp, ['A', 'B', 'C', 'D'])).toBe(count)
+      expect(leds.map((l) => sim.pinValue(l, 'A'))).toEqual([0, 1, 2, 3].map((i) => (count >> i) & 1))
+    }
   })
 })
 

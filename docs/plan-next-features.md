@@ -19,7 +19,7 @@ Out of scope for now: reusable parts, Croatian UI, real-time collaboration.
 | # | Milestone | Size | Why now |
 |---|---|---|---|
 | 0 | Dev housekeeping | tiny | e2e runs here need a hand-made config |
-| 1 | Net labels (tunnels) | small | Declutters big circuits, speeds up routing |
+| 1 | Net labels (tunnels) | small | Declutters circuits with far-apart connections |
 | 2 | Assembler and memory tools | medium | Makes the computer programmable |
 | 3 | Debugging tools | medium | Breakpoints, step back, bus-value traces |
 | 4 | Annotations, export, embed | small–medium | Examples explain themselves; sharing |
@@ -31,9 +31,9 @@ Out of scope for now: reusable parts, Croatian UI, real-time collaboration.
 | 10 | Buses and tri-state | large | Multi-bit wires, shared data bus |
 
 ## Milestone 0: Dev housekeeping (tiny)
-- [ ] `playwright.config.ts` reads the browser path from an env var (`PW_CHROMIUM`), so `npm run e2e` works when the
+- [x] `playwright.config.ts` reads the browser path from an env var (`PW_CHROMIUM`), so `npm run e2e` works when the
       installed Playwright wants a different Chromium build than the machine has. Default behaviour is unchanged.
-- [ ] Note it in `CLAUDE.md` ("Before pushing").
+- [x] Noted in `CLAUDE.md` ("Before pushing").
 
 ## Milestone 1: Net labels (small)
 A wireless connection: wires that share a name are one signal, without drawing the line between them.
@@ -55,11 +55,21 @@ race the data it clocks. So the labels never reach the simulator as components:
 **UI.** Palette entries under I/O. The label text shows on the flag. Selecting a label highlights every label with the
 same name; the inspector lists them and has a "go to" button. Autocomplete of existing names in the `name` field.
 
-**Examples.** Rework `/computer` to use labels for the control signals (CLK, SUB, the ACC-input select lines) and
-re-measure routing time. Expect it to drop well under 2 s.
+**Builder helpers.** `CircuitBuilder.tap(pin, name)` and `.tag(pin, name)` put a Send / Receive label next to a pin,
+turned to face it. They add nothing (and return `undefined`) when the label would run into another part, so a caller
+falls back to a plain wire.
+
+**Examples.** A new `/labels` example (a counter read by a display and four LEDs with no wires between them).
+*Reworking `/computer` to use labels was tried and not done:* its layout is packed around long wires, so labels fit
+beside only a handful of pins (2 sends and 6 receives of about 40 wanted), and even with the layout spread out 1.4×
+routing time did not improve (2.4 s vs 2.5 s). Doing it properly means re-spacing the whole layout; that belongs with
+the buses rework (milestone 10), which would remove most of those wires anyway.
 
 **Tests.** Unit: a send/receive pair equals a plain wire (same values, same tick count) over a clocked circuit; unknown
-name → X; duplicate sends; aliases survive `reset()` and reload. Serialize round-trip. e2e: place a pair, wire, operate.
+name → X; duplicate sends; chains and loops; state survives reload and `reset()`. Builder helpers on pins facing every
+way. Serialize round-trip. Every example has no overlapping parts. e2e: place a pair, name it, wire, operate, rename.
+
+**Status: done** (v0.0.1-11).
 
 ## Milestone 2: Assembler and memory tools (medium)
 - [ ] **Assembler** in the ROM inspector for ROMs marked as program memory: type `LDI 5`, `ADD 3`, `JNC loop` with
@@ -116,6 +126,9 @@ Routing time grows with wires × area (about 25 ms per wire on the 8-bit compute
 - [ ] Route in a Web Worker and show the circuit with provisional wires while it finishes.
 - Measure first with the computer example; keep the existing router tests green and the paths of the small examples
   unchanged unless a change is an improvement.
+- Measured at milestone 1: on the 8-bit computer the median routed wire is 1.4× its straight-line distance, but the
+  90th percentile is 4.6× (long detours around congestion), and the search is spread evenly over ~240 wires at 7–25 ms
+  each. The detours are probably both a quality problem and the reason searches explore so much.
 
 ## Milestone 9: Timing view and state machine editor (large)
 - [ ] **Per-part propagation delay** (default 1) and a **timing view** that highlights the longest path and shows

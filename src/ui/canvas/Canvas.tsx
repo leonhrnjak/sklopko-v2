@@ -42,6 +42,7 @@ import {
 import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from '../../routing/path'
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
+import { isLabel, labelsNamed } from '../../model/labels'
 import { ComponentView, GhostWire, Junctions, PinsView, WireView, HopArcs } from './views'
 import { paletteDrag } from '../paletteDrag'
 import { compTransform } from '../transform'
@@ -148,6 +149,13 @@ export function Canvas() {
   const [spaceDown, setSpaceDown] = useState(false)
   const [panning, setPanning] = useState(false)
   const selSet = new Set(selection)
+  // With one net label selected, outline the other labels that share its name.
+  const related = new Set<string>()
+  const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
+  if (only && isLabel(only.type)) {
+    const { sends, recvs } = labelsNamed(circuit, String(only.params.name))
+    for (const id of [...sends, ...recvs]) related.add(id)
+  }
   /** Active pointers (client coordinates), for pinch detection. */
   const pointers = useRef(new Map<number, Point>())
   const touchOp = useRef(false)
@@ -599,7 +607,7 @@ export function Canvas() {
         </g>
         <g className="layer-comps">
           {comps.map((c) => (
-            <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} />
+            <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} related={related.has(c.id)} />
           ))}
         </g>
         <Junctions wires={circuit.wires} />

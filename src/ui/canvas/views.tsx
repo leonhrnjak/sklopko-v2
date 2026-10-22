@@ -8,7 +8,16 @@ import { compTransform } from '../transform'
 
 const LIVE_CATEGORIES = new Set(['io', 'display'])
 
-export const ComponentView = memo(function ComponentView({ comp, selected }: { comp: Comp; selected: boolean }) {
+export const ComponentView = memo(function ComponentView({
+  comp,
+  selected,
+  related = false,
+}: {
+  comp: Comp
+  selected: boolean
+  /** Another net label with the same name as the selected one. */
+  related?: boolean
+}) {
   const def = getDef(comp.type)
   const l = compLayout(comp)
   // Only parts that show their values need to re-render while the simulation runs.
@@ -22,6 +31,7 @@ export const ComponentView = memo(function ComponentView({ comp, selected }: { c
       data-id={comp.id}
     >
       {selected && <rect className="sel-outline" x={b.x - 5} y={b.y - 5} width={b.w + 10} height={b.h + 10} rx={4} />}
+      {related && !selected && <rect className="rel-outline" x={b.x - 5} y={b.y - 5} width={b.w + 10} height={b.h + 10} rx={4} />}
       <g transform={compTransform(comp, l)}>
         <CompSymbol comp={comp} layout={l} live />
       </g>
