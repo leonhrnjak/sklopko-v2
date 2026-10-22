@@ -72,6 +72,38 @@ describe('serialization', () => {
     expect(c.comps.c.params.name).toBe('')
   })
 
+  it('keeps a ROM program with its instruction set, and a wide RAM; drops unknown or oversized values', () => {
+    const c = deserialize({
+      app: 'sklopko',
+      version: 1,
+      comps: [
+        { id: 'a', type: 'rom', x: 0, y: 0, params: { abits: 4, dbits: 16, isa: 'sk8', source: 'LDI 1\nHALT', data: '0100 0070' } },
+        { id: 'b', type: 'rom', x: 100, y: 0, params: { isa: 'nope', source: 'x'.repeat(3001), dbits: 12 } },
+        { id: 'c', type: 'ram', x: 200, y: 0, params: { dbits: 8 } },
+        { id: 'd', type: 'ram', x: 300, y: 0, params: { dbits: 5 } },
+      ],
+      wires: [],
+    })
+    expect(c.comps.a.params).toMatchObject({ dbits: 16, isa: 'sk8', source: 'LDI 1\nHALT', data: '0100 0070' })
+    expect(c.comps.b.params).toMatchObject({ isa: 'none', source: '', dbits: 4 })
+    expect(c.comps.c.params.dbits).toBe(8)
+    expect(c.comps.d.params.dbits).toBe(4)
+  })
+
+  it('circuits saved before programs and wide memories still load: no instruction set, 4-bit RAM', () => {
+    const c = deserialize({
+      app: 'sklopko',
+      version: 1,
+      comps: [
+        { id: 'r', type: 'rom', x: 0, y: 0, params: { abits: 4, dbits: 8, data: '00 20 2F' } },
+        { id: 'm', type: 'ram', x: 100, y: 0, params: {} },
+      ],
+      wires: [],
+    })
+    expect(c.comps.r.params).toMatchObject({ abits: 4, dbits: 8, data: '00 20 2F', isa: 'none', source: '' })
+    expect(c.comps.m.params.dbits).toBe(4)
+  })
+
   it('rejects files that are not circuits', () => {
     expect(() => deserialize({ hello: 'world' })).toThrow()
   })

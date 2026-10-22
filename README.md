@@ -41,6 +41,13 @@ security headers.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), Clock step (flip the clocks to their next level now), Reset (power-cycle), speed ¼×–4×.
+- **Programs and memory:** a ROM's contents are hex words, or, for the 8-bit computer, a program in assembly:
+  pick *A program for the Sklopko 8-bit computer* in the inspector and write `LDI 5`, `loop: ADD 3`, `JNC loop`
+  (labels, `NAME = 15` constants, `;` comments, decimal / `0x` hex / `0b` binary numbers). Mistakes are listed by
+  line as you type; the program is applied when you click away from the box (the circuit keeps running the last good
+  one meanwhile). The listing under it shows every word with its instruction and marks the one being read now, so it
+  follows the program counter. *Open…* and *Save…* read and write `.asm` (or `.hex`) files. Select a RAM to see all
+  its words live; while paused, click a word to change it (hex). Reset clears it.
 - **Net labels:** a *Send label* publishes the signal wired into it under a name, and every *Receive label* with
   the same name carries that signal, with no wire in between. Like a wire, a label adds no delay. Select one to see
   the other labels of its name outlined, and *Select all* to find them. The *Net labels* example (`/labels`) shows it.
@@ -64,7 +71,7 @@ security headers.
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
-| Memory | ROM (2–5 address bits, 4 or 8 data bits, contents as hex text), RAM 16×4 |
+| Memory | ROM (2–5 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM 16×4 or 16×8 |
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |

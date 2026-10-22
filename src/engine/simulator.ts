@@ -303,6 +303,19 @@ export class Simulator {
     return this.byId.get(compId)?.inst.state
   }
 
+  /**
+   * Overwrite one word of a memory part's contents from outside (the memory editor). The value is cut to the part's
+   * word size. Returns false if the part has no such word.
+   */
+  writeWord(compId: string, index: number, value: number): boolean {
+    const cc = this.byId.get(compId)
+    const mem = (cc?.inst.state as { mem?: number[] } | undefined)?.mem
+    if (!cc || !mem || !(index >= 0 && index < mem.length)) return false
+    mem[index] = value & (2 ** Number(cc.inst.params.dbits ?? 4) - 1)
+    this.dirty = true
+    return true
+  }
+
   /** Change params that don't affect the pin layout (switch position, input value, clock rate...). */
   setParams(compId: string, params: Params) {
     const cc = this.byId.get(compId)

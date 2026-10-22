@@ -621,8 +621,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       break
     }
     case 'ram': {
+      const bits = Number(p.dbits)
       const mem: number[] = (live && sim.state(comp.id)?.mem) || new Array(16).fill(0)
-      content = <MemSym l={l} title={def.title!(p)} words={mem} digits={1} addr={live ? toNum(ins(), 6, 4) : -1} />
+      content = <MemSym l={l} title={def.title!(p)} words={mem} digits={bits / 4} addr={live ? toNum(ins(), bits + 2, 4) : -1} />
       break
     }
     case 'mux':

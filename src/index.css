@@ -179,7 +179,7 @@ input:focus-visible {
 .main {
   flex: 1;
   display: grid;
-  grid-template-columns: var(--palette-w, 216px) minmax(0, 1fr) 250px;
+  grid-template-columns: var(--palette-w, 216px) minmax(0, 1fr) var(--inspector-w, 250px);
   min-height: 0;
   overflow: hidden;
 }
@@ -374,6 +374,97 @@ input:focus-visible {
 .field textarea.invalid {
   border-color: var(--danger);
   outline-color: var(--danger);
+}
+.field textarea.asm {
+  font-size: 12px;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+}
+.asm-errors {
+  margin: 0;
+  padding: 0 0 0 16px;
+  color: var(--danger);
+  font-size: 12px;
+}
+.asm-errors .note {
+  list-style: none;
+  margin-left: -16px;
+  color: var(--muted);
+}
+.listing {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  margin-bottom: 12px;
+  max-height: 22em;
+  overflow: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+.row-listing {
+  display: grid;
+  grid-template-columns: 2.2em 5.5em 1fr;
+  gap: 6px;
+  padding: 1px 8px;
+  color: var(--text);
+}
+.row-listing .addr {
+  color: var(--muted);
+}
+.row-listing .text {
+  font-weight: 600;
+}
+.row-listing.current {
+  background: var(--select-soft);
+  box-shadow: inset 3px 0 0 var(--select);
+}
+.ram-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.ram-word {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 0;
+}
+.ram-word.current {
+  border-color: var(--select);
+  background: var(--select-soft);
+}
+.ram-word .addr {
+  font-size: 9px;
+  color: var(--muted);
+}
+.ram-word .val,
+.ram-word input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+}
+.ram-word .val:not(:disabled) {
+  cursor: pointer;
+}
+.ram-word .val:not(:disabled):hover {
+  color: var(--select);
+}
+.ram-word input {
+  outline: 1px solid var(--select);
+  border-radius: 3px;
 }
 .field-error {
   color: var(--danger);

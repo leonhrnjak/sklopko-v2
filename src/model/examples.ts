@@ -1,3 +1,4 @@
+import { SK8, assemble, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
 import type { Circuit, Rot } from './circuit'
 
@@ -508,23 +509,7 @@ function calculator(): Circuit {
   return b.build()
 }
 
-/**
- * Instruction set of the 8-bit computer. An instruction is two bytes at the same address in two ROMs: the instruction
- * byte `opcode (3 bits) | address (4 bits)`, opcode in bits 4–6, and the immediate byte, used by LDI.
- * Bit 0 of ADD (4) / SUB (5) is wired straight to the adder's subtract line, which is why they are neighbours.
- */
-export const OPCODES = { LDI: 0, LDA: 1, STA: 2, JMP: 3, ADD: 4, SUB: 5, JNC: 6, HALT: 7 } as const
-
 const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0')
-
-/**
- * Assembles `[opcode, operand]` pairs into the two ROMs' contents (hex words). The operand of LDI is the 8-bit constant
- * to load; for every other instruction it is a RAM address or jump target (0–15).
- */
-export const assemble = (code: [keyof typeof OPCODES, number?][]) => ({
-  program: code.map(([op, n = 0]) => hex2((OPCODES[op] << 4) | (op === 'LDI' ? 0 : n))).join(' '),
-  immediate: code.map(([op, n = 0]) => hex2(op === 'LDI' ? n : 0)).join(' '),
-})
 
 /** The decimal digits of 16 × n for n = 0–15 (the high nibble's value), as two ROMs: tens and ones, then hundreds. */
 const sixteens = Array.from({ length: 16 }, (_, n) => n * 16)
@@ -539,23 +524,30 @@ export const OUT_PORT = 15
  * known, so the Output display reads 000 001 001 002 003 005 008 013 021 034 055 089 144 233 in decimal. The next
  * sum no longer fits in 8 bits (carry): it stops.
  */
-export const FIBONACCI = assemble([
-  ['LDI', 0],
-  ['STA', 0], // a = 0
-  ['STA', OUT_PORT], // output 0
-  ['LDI', 1],
-  ['STA', 1], // b = 1
-  ['LDA', 1], // 5: loop
-  ['STA', OUT_PORT], //    output b
-  ['ADD', 0], //    acc = b + a, sets the carry flag
-  ['STA', 2], //    t = a + b
-  ['LDA', 1],
-  ['STA', 0], //    a = b
-  ['LDA', 2],
-  ['STA', 1], //    b = t
-  ['JNC', 5], //    no carry: next number
-  ['HALT'],
-])
+export const FIBONACCI_SOURCE = `; Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b.
+; Every number is written to the output port (address 15) as soon as it is known.
+; When a sum no longer fits in 8 bits the carry flag is set and the loop ends.
+OUT = 15
+
+        LDI 0
+        STA 0        ; a = 0
+        STA OUT      ; show 0
+        LDI 1
+        STA 1        ; b = 1
+loop:   LDA 1
+        STA OUT      ; show b
+        ADD 0        ; acc = b + a, sets the carry flag
+        STA 2        ; t = a + b
+        LDA 1
+        STA 0        ; a = b
+        LDA 2
+        STA 1        ; b = t
+        JNC loop     ; no carry: next number
+        HALT
+`
+
+/** The program as the ROM's hex words (see `FIBONACCI_SOURCE`). */
+export const FIBONACCI = toHexWords(assemble(SK8, FIBONACCI_SOURCE, 16).words, SK8.bits)
 
 /**
  * Control ROM, addressed by the opcode. Bits: 0 accumulator load, 1–2 accumulator source (0 operand, 1 ALU, 2 RAM),
@@ -570,15 +562,13 @@ export const COMPUTER_LAYOUT: Record<string, Spot> = {
   clk: [440, 760],
   pc: [120, 60],
   prog: [320, 40],
-  imm: [320, 360],
   ctl: [600, 360],
   ncarry: [760, 700],
   jnc: [840, 680],
   take: [940, 680],
   nhalt: [760, 770],
   halted: [860, 800],
-  ramLo: [760, 40],
-  ramHi: [760, 300],
+  ram: [760, 100],
   addLo: [1060, 40],
   addHi: [1060, 300],
   cx: [1060, 560],
@@ -632,13 +622,15 @@ export function computerBuilder(layout: Record<string, Spot>) {
   const n4 = (prefix: string) => bitNames(prefix, 4)
   const Q = ['QA', 'QB', 'QC', 'QD']
 
-  // ---- Fetch: program counter and the two program ROMs -----------------------------------------
+  // ---- Fetch: program counter and the program ROM ----------------------------------------------
+  // A 16-bit instruction word: D0–D3 address, D4–D6 opcode, D8–D15 the constant for LDI.
   const clk = part('clk', 'clock', { params: { hz: 4 }, label: 'Clock' })
   const pc = part('pc', 'counterld', { label: 'PC' })
-  const prog = part('prog', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI.program }, label: 'Program' })
-  const imm = part('imm', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI.immediate }, label: 'Immediate' })
+  const prog = part('prog', 'rom', {
+    params: { abits: 4, dbits: 16, isa: SK8.id, source: FIBONACCI_SOURCE, data: FIBONACCI },
+    label: 'Program',
+  })
   wireBits(b, pc, n4('Q'), prog, n4('A'))
-  wireBits(b, pc, n4('Q'), imm, n4('A'))
   wireBits(b, prog, n4('D'), pc, n4('D')) // jump target = address field
   b.wire(`${clk}.Q`, `${pc}.CLK`)
 
@@ -665,18 +657,18 @@ export function computerBuilder(layout: Record<string, Spot>) {
   b.wire(`${ctl}.D7`, `${halted}.A`)
 
   // ---- Execute: RAM, adder/subtractor, accumulator -------------------------------------------
-  // Every 8-bit value is two nibbles: low (bits 0–3) and high (bits 4–7), each in its own 4-bit part.
-  const ramLo = part('ramLo', 'ram', { label: 'RAM low' })
-  const ramHi = part('ramHi', 'ram', { label: 'RAM high' })
+  // The RAM holds whole bytes; the accumulator and the adder handle them a nibble at a time: low (bits 0–3) and
+  // high (bits 4–7), each in its own 4-bit part.
+  const ram = part('ram', 'ram', { params: { dbits: 8 }, label: 'Data RAM' })
   const accLo = part('accLo', 'register', { label: 'ACC low' })
   const accHi = part('accHi', 'register', { label: 'ACC high' })
-  for (const ram of [ramLo, ramHi]) {
-    wireBits(b, prog, n4('D'), ram, n4('A')) // RAM address = address field
-    b.wire(`${ctl}.D3`, `${ram}.WE`)
-    b.wire(`${clk}.Q`, `${ram}.CLK`)
-  }
-  wireBits(b, accLo, Q, ramLo, n4('D'))
-  wireBits(b, accHi, Q, ramHi, n4('D'))
+  wireBits(b, prog, n4('D'), ram, n4('A')) // RAM address = address field
+  b.wire(`${ctl}.D3`, `${ram}.WE`)
+  b.wire(`${clk}.Q`, `${ram}.CLK`)
+  Q.forEach((q, i) => {
+    b.wire(`${accLo}.${q}`, `${ram}.D${i}`)
+    b.wire(`${accHi}.${q}`, `${ram}.D${i + 4}`)
+  })
 
   // ACC ± RAM. SUB (opcode bit 0) inverts B and adds 1: A − B = A + not B + 1. The carry runs from the low adder
   // into the high one. For SUB the adder's carry-out means "no borrow", so the flag is carry xor SUB.
@@ -684,32 +676,33 @@ export function computerBuilder(layout: Record<string, Spot>) {
   const addHi = part('addHi', 'add4', { label: 'Adder high' })
   wireBits(b, accLo, Q, addLo, n4('A'))
   wireBits(b, accHi, Q, addHi, n4('A'))
-  const xors = (nibble: 'l' | 'h', ram: string, adder: string) =>
-    n4('Q').forEach((q, i) => {
-      const x = part(`x${nibble}${i}`, 'xor', { label: `B xor SUB, bit ${i + (nibble === 'h' ? 4 : 0)}` })
-      b.wire(`${ram}.${q}`, `${x}.A`)
+  const xors = (nibble: 'l' | 'h', adder: string) =>
+    [0, 1, 2, 3].forEach((i) => {
+      const bit = i + (nibble === 'h' ? 4 : 0)
+      const x = part(`x${nibble}${i}`, 'xor', { label: `B xor SUB, bit ${bit}` })
+      b.wire(`${ram}.Q${bit}`, `${x}.A`)
       b.wire(`${prog}.D4`, `${x}.B`) // opcode bit 0: ADD (0) or SUB (1)
       b.wire(`${x}.Y`, `${adder}.B${i}`)
     })
-  xors('l', ramLo, addLo)
-  xors('h', ramHi, addHi)
+  xors('l', addLo)
+  xors('h', addHi)
   b.wire(`${prog}.D4`, `${addLo}.Ci`)
   b.wire(`${addLo}.Co`, `${addHi}.Ci`)
 
   // Accumulator input: the constant (LDI), the adder (ADD, SUB) or RAM (LDA), chosen bit by bit.
-  const load = (nibble: 'Lo' | 'Hi', acc: string, adder: string, ram: string) =>
+  const load = (nibble: 'Lo' | 'Hi', acc: string, adder: string) =>
     [0, 1, 2, 3].forEach((i) => {
       const bit = i + (nibble === 'Hi' ? 4 : 0)
       const m = part(`amux${nibble}${i}`, 'mux', { params: { n: 4 }, label: `ACC input, bit ${bit}` })
-      b.wire(`${imm}.D${bit}`, `${m}.I0`) // LDI: the constant itself
+      b.wire(`${prog}.D${8 + bit}`, `${m}.I0`) // LDI: the constant itself
       b.wire(`${adder}.S${i}`, `${m}.I1`) // ADD, SUB
-      b.wire(`${ram}.Q${i}`, `${m}.I2`) // LDA
+      b.wire(`${ram}.Q${bit}`, `${m}.I2`) // LDA
       b.wire(`${ctl}.D1`, `${m}.S0`)
       b.wire(`${ctl}.D2`, `${m}.S1`)
       b.wire(`${m}.Y`, `${acc}.${NIB[i]}`)
     })
-  load('Lo', accLo, addLo, ramLo)
-  load('Hi', accHi, addHi, ramHi)
+  load('Lo', accLo, addLo)
+  load('Hi', accHi, addHi)
   for (const acc of [accLo, accHi]) {
     b.wire(`${ctl}.D0`, `${acc}.LD`)
     b.wire(`${clk}.Q`, `${acc}.CLK`)
@@ -796,10 +789,10 @@ export function computerBuilder(layout: Record<string, Spot>) {
 
 /**
  * A complete 8-bit computer that runs a program from ROM, one instruction per clock cycle. The program counter steps
- * through two program ROMs (instruction byte and constant); a third ROM turns the opcode into control signals; two
- * adders, two RAMs and two accumulator registers handle the 8-bit data a nibble at a time, with the carry running from
- * the low half to the high half; a carry flag lets the program decide when to stop. Edit the program in the ROMs'
- * inspectors (hex words).
+ * through the program ROM (16-bit instructions: opcode, address and constant); a second ROM turns the opcode into
+ * control signals; two adders, a RAM and two accumulator registers handle the 8-bit data a nibble at a time, with
+ * the carry running from the low half to the high half; a carry flag lets the program decide when to stop. Edit the
+ * program as assembly in the Program ROM's inspector.
  */
 function computer(): Circuit {
   // 240 wires: skip the pass that untangles crossings. It would double the routing time (2 s to 4 s) to remove a fifth of them.

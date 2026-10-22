@@ -1,6 +1,7 @@
 import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
+import { ISAS } from '../isa'
 import { HEX_WORDS, parseWords, tableBox } from './memory'
 
 /**
@@ -428,10 +429,11 @@ export const memoryRom: ComponentDef[] = [
     category: 'memory',
     description:
       'Read-only memory. The address inputs A select a word, which appears on the data outputs D right away. ' +
-      'Enter the contents as hexadecimal words separated by spaces, one per address; missing words are 0.',
+      'Enter the contents as hexadecimal words separated by spaces, one per address; missing words are 0. ' +
+      'For a program, pick an instruction set and write it as assembly instead.',
     params: [
       selectParam('abits', 'Address bits', [2, 3, 4, 5], 4, (v) => `${v} (${2 ** v} words)`),
-      selectParam('dbits', 'Data bits', [4, 8], 4, (v) => `${v} (${v / 4} hex digit${v > 4 ? 's' : ''})`),
+      selectParam('dbits', 'Data bits', [4, 8, 16], 4, (v) => `${v} (${v / 4} hex digit${v > 4 ? 's' : ''})`),
       {
         key: 'data',
         label: 'Contents (hex words)',
@@ -441,6 +443,15 @@ export const memoryRom: ComponentDef[] = [
         maxLength: 400,
         hint: 'Only hexadecimal digits (0–9, A–F), spaces and commas.',
       },
+      {
+        key: 'isa',
+        label: 'Contents are',
+        kind: 'select',
+        default: 'none',
+        options: [{ value: 'none', label: 'Hex words' }, ...ISAS.map((i) => ({ value: i.id, label: `A program for the ${i.name}` }))],
+      },
+      // The assembly text of a program. `data` is always what the circuit runs; it is assembled from this.
+      { key: 'source', label: 'Program', kind: 'text', default: '', maxLength: 3000 },
     ],
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
     live: true,

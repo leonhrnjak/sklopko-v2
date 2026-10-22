@@ -72,15 +72,27 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 **Status: done** (v0.0.1-11).
 
 ## Milestone 2: Assembler and memory tools (medium)
-- [ ] **Assembler** in the ROM inspector for ROMs marked as program memory: type `LDI 5`, `ADD 3`, `JNC loop` with
-      labels and comments; shows the hex it produces and reports errors by line. The instruction set is a per-example
-      table (`OPCODES`, already in `examples.ts`), so the assembler is table-driven. The 8-bit computer's two ROMs
-      (instruction + constant) are filled from one source.
-- [ ] **Disassembly column** next to the hex table, with the currently executing line highlighted (follows the PC).
-- [ ] **RAM viewer/editor**: hex grid of the RAM contents, live while running, click a cell to edit while paused.
-- [ ] **Load/save a program** as a text file (`.asm`) and as hex.
-- Tests: assembler round-trips every opcode; the Fibonacci example is regenerated from its source text and equals the
-  current ROM words; RAM edits survive a step but not a reset.
+- [x] **Wider memories**, so the computer needs one program ROM and one data RAM: ROM data bits 4 / 8 / **16**, RAM data
+      bits **4 / 8** (the old two-ROM, two-RAM version of the computer is gone; saved circuits still load).
+- [x] **Assembler** in the ROM inspector. A ROM's *Contents are* picks hex words or a program for an instruction set
+      (`src/engine/isa.ts`, table-driven: adding a computer means adding an entry to `ISAS`). Labels, `NAME = value`
+      constants, `;` and `//` comments, decimal / `0x` / `$` / `0b` numbers, negative immediates, `.word` for raw data.
+      Errors are listed by line while typing; the program is applied on blur (one undo step), and with errors the
+      circuit keeps running the last program that assembled.
+- [x] **Listing** under the editor: address, word and instruction for every word, with the word being read right now
+      marked (follows the PC). It works for hex ROMs too (without the instruction column).
+- [x] **RAM viewer/editor**: all words live (also when a write changes no pin), click a word to edit while paused,
+      Escape cancels, *Clear all*. Edits live in the simulation, not the circuit: they survive steps and reloads of the
+      circuit but not Reset.
+- [x] **Open / Save** a program as `.asm` (or the hex words as `.hex`).
+- [x] The `/computer` example's program is now real assembly with comments, and its ROM holds both the source and the
+      assembled words (a test checks they agree).
+- Not done: highlighting the executing *source line* inside the editor (the listing marks the instruction instead), and
+  a live preview of the listing while typing (it updates when the program is applied).
+- Tests: assembler (every opcode, every operand form, every error, round trip of all instructions through the
+  disassembler), wide ROM/RAM, `writeWord`, serialization (old circuits, bad values), the computer end to end, e2e for
+  the editor, the files, the RAM grid and switching a ROM to a program.
+- **Status: done** (v0.0.1-12).
 
 ## Milestone 3: Debugging tools (medium)
 - [ ] **Pause on condition**: "break when" rules on a signal (`= 1`, rising edge, equals value for a group). Typical

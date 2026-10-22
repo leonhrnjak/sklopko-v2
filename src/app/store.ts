@@ -1,7 +1,7 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
 import { getDef } from '../engine/registry'
-import { paramDefaults, type ParamValue } from '../engine/types'
+import { paramDefaults, type ParamValue, type Params } from '../engine/types'
 import {
   boundsRect,
   emptyCircuit,
@@ -212,12 +212,35 @@ export function setParam(id: string, key: string, value: ParamValue) {
   })
 }
 
+/** Change several parameters of one part in a single undo step. */
+export function setParams(id: string, patch: Params) {
+  const k = get().circuit.comps[id]
+  if (!k) return
+  const def = getDef(k.type)
+  const structural = Object.keys(patch).some((key) => def.params?.find((p) => p.key === key)?.structural)
+  checkpoint()
+  edit((c) => {
+    Object.assign(c.comps[id].params, patch)
+    if (structural) {
+      pruneWires(c)
+      rerouteAround(c, [id])
+    }
+  })
+}
+
 export function setLabel(id: string, label: string) {
   checkpoint()
   edit((c) => {
     if (label) c.comps[id].label = label
     else delete c.comps[id].label
   }, false)
+}
+
+/** Overwrite one word of a RAM in the running simulation (the memory editor). Not an undoable circuit change. */
+export function pokeWord(id: string, index: number, value: number) {
+  if (!sim.writeWord(id, index, value)) return
+  sim.settle()
+  sim.publish()
 }
 
 /** Click on a switch / 4-bit input: change its value without an undo step, straight into the simulator. */

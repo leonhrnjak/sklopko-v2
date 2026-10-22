@@ -464,3 +464,133 @@ test('net labels example: the counter shows on a display with no wires between t
   await page.getByRole('button', { name: /Select all 3/ }).click()
   await expect(page.locator('.comp.selected')).toHaveCount(3)
 })
+
+/** Select a part by the label shown above it. */
+async function pickByLabel(page: Page, label: string) {
+  const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
+  const b = (await g.boundingBox())!
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+}
+
+test('program editor: errors show as you type, the program applies on blur, and the listing follows the PC', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'Program')
+  const source = page.getByLabel('Program source')
+  await expect(source).toHaveValue(/loop:\s+LDA 1/)
+  await expect(page.locator('.inspector')).toContainText('15 of 16 instructions.')
+
+  // The listing marks the instruction being read, and follows the PC.
+  const step = async () => page.getByRole('button', { name: 'Clock step' }).click() // one clock edge: the PC moves on every other click
+  await expect(page.locator('.row-listing.current .text')).toHaveText('LDI 0')
+  await step()
+  await expect(page.locator('.row-listing.current .text')).toHaveText('STA 0')
+  await step()
+  await step()
+  await expect(page.locator('.row-listing.current .text')).toHaveText('STA 15')
+  await step()
+  await step()
+  await expect(page.locator('.row-listing.current .text')).toHaveText('LDI 1')
+
+  // Mistakes are reported by line while typing, and nothing is applied.
+  await source.fill('LDI 5\nFOO 1\nSTA 99')
+  await expect(page.getByLabel('Errors')).toContainText('Line 2: Unknown instruction “FOO”.')
+  await expect(page.getByLabel('Errors')).toContainText('Line 3: STA: the address 99 is out of range')
+  await expect(page.getByLabel('Errors')).toContainText('keeps running the last program')
+  await page.locator('.inspector h2').click() // click away: the text is kept, but the circuit still runs the old program
+  await expect(page.locator('.row-listing .text').first()).toHaveText('LDI 0')
+  await expect(page.locator('.row-listing .text').nth(14)).toHaveText('HALT')
+
+  // A good program is applied when you click away.
+  await source.fill('LDI 7\nSTA 1\nHALT')
+  await expect(page.locator('.inspector')).toContainText('3 of 16 instructions. Applies when you click outside')
+  await page.locator('.inspector h2').click()
+  await expect(page.locator('.row-listing .text').nth(0)).toHaveText('LDI 7')
+  await expect(page.locator('.row-listing .word').nth(0)).toHaveText('0700')
+  await expect(page.locator('.row-listing .text').nth(2)).toHaveText('HALT')
+  await expect(page.locator('.inspector')).toContainText('3 of 16 instructions.')
+})
+
+test('program files: save the source, open another program', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await pickByLabel(page, 'Program')
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Save…' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('program.asm')
+  const saved = readFileSync((await file.path())!, 'utf8')
+  expect(saved).toContain('Fibonacci')
+  expect(saved).toContain('loop:')
+
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Open…' }).click()
+  await (await chooser).setFiles({ name: 'seven.asm', mimeType: 'text/plain', buffer: Buffer.from('LDI 7\nSTA 15\nHALT\n') })
+  await expect(page.locator('.row-listing .text').nth(1)).toHaveText('STA 15')
+  await expect(page.getByLabel('Program source')).toHaveValue('LDI 7\nSTA 15\nHALT\n')
+  await expect(page.locator('.toast')).toContainText('Opened seven.asm.')
+})
+
+test('RAM editor: change words while paused, Escape cancels, Reset clears', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Data RAM')
+  const word = (i: number) => page.locator('.ram-word').nth(i)
+  // Running: the words are shown but locked.
+  await expect(word(3).locator('.val')).toBeDisabled()
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await expect(word(3).locator('.val')).toBeEnabled()
+
+  await word(3).locator('.val').click()
+  await page.keyboard.type('a5')
+  await page.keyboard.press('Enter')
+  await expect(word(3).locator('.val')).toHaveText('A5')
+  // Escape leaves the word alone.
+  await word(3).locator('.val').click()
+  await page.keyboard.type('ff')
+  await page.keyboard.press('Escape')
+  await expect(word(3).locator('.val')).toHaveText('A5')
+  // Not hex: ignored.
+  await word(4).locator('.val').click()
+  await page.keyboard.type('zz')
+  await page.keyboard.press('Enter')
+  await expect(word(4).locator('.val')).toHaveText('00')
+
+  await page.getByRole('button', { name: 'Clear all' }).click()
+  await expect(word(3).locator('.val')).toHaveText('00')
+  await word(3).locator('.val').click()
+  await page.keyboard.type('7')
+  await page.keyboard.press('Enter')
+  await expect(word(3).locator('.val')).toHaveText('07')
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await expect(word(3).locator('.val')).toHaveText('00')
+})
+
+test('RAM editor: words written by the running program show up in the grid', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await pickByLabel(page, 'Data RAM')
+  // Fibonacci keeps the numbers in the first three words; the last sum written is 121, the carry's wrapped result.
+  await expect(page.locator('.ram-word').nth(2).locator('.val')).toHaveText('79', { timeout: 25000 })
+  await expect(page.locator('.ram-word').nth(0).locator('.val')).toHaveText('E9')
+})
+
+test('a ROM can switch from hex words to a program, keeping what it held', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'rom', 300, 200)
+  await page.getByLabel('Data bits').selectOption('8')
+  await page.locator('.field', { hasText: 'Contents (hex words)' }).locator('textarea').fill('00 30 70')
+  await page.locator('.inspector h2').click()
+  // Choosing a program turns the ROM into 16 bits and starts from the words it holds (here: nothing sensible at 16 bits).
+  await page.getByLabel('Contents are').selectOption('sk8')
+  await expect(page.getByLabel('Data bits')).toHaveValue('16')
+  await expect(page.getByLabel('Program source')).toBeVisible()
+  await page.getByLabel('Program source').fill('LDI 1\nHALT')
+  await page.locator('.inspector h2').click()
+  await expect(page.locator('.row-listing .text').nth(0)).toHaveText('LDI 1')
+  await expect(page.locator('.row-listing .text').nth(1)).toHaveText('HALT')
+  // And back to hex words: the words stay.
+  await page.getByLabel('Contents are').selectOption('none')
+  await expect(page.locator('.field', { hasText: 'Contents (hex words)' }).locator('textarea')).toHaveValue(/0100 0070/)
+})

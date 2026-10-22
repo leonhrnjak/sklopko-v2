@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   deleteSelection,
   select,
@@ -11,71 +11,14 @@ import {
   useStore,
 } from '../app/store'
 import { getDef } from '../engine/registry'
-import type { ParamDef } from '../engine/types'
 import type { Comp, Wire } from '../model/circuit'
 import { isLabel, labelNames, labelsNamed } from '../model/labels'
+import { RamSection, RomSection } from './MemoryInspector'
+import { TextParam } from './TextParam'
 
 function deleteAndClose() {
   deleteSelection()
   setSheetOpen(false)
-}
-
-/**
- * Free text parameter (e.g. ROM contents). Edits stay local until the field loses focus or the selection
- * changes, so typing is one undo step. Text that doesn't match the pattern is flagged and never applied.
- */
-function TextParam({ comp, p, suggestions }: { comp: Comp; p: ParamDef; suggestions?: string[] }) {
-  const saved = String(comp.params[p.key])
-  const [draft, setDraft] = useState(saved)
-  const latest = useRef({ draft, saved })
-  useEffect(() => {
-    latest.current.draft = draft
-    latest.current.saved = saved
-  })
-  const valid = !p.pattern || new RegExp(`^(?:${p.pattern})$`).test(draft)
-  const commit = () => {
-    const { draft: d, saved: s } = latest.current
-    if (d === s || (p.pattern && !new RegExp(`^(?:${p.pattern})$`).test(d))) return
-    latest.current.saved = d // the remount that follows must not apply it a second time
-    setParam(comp.id, p.key, d)
-  }
-  // Apply a pending edit when the inspector goes away (another part gets selected).
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => commit, [])
-  const common = {
-    spellCheck: false,
-    maxLength: p.maxLength,
-    value: draft,
-    onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
-    onBlur: commit,
-    'aria-invalid': !valid,
-  }
-  return (
-    <label className="field">
-      <span>{p.label}</span>
-      {p.multiline === false ? (
-        <>
-          <input
-            {...common}
-            className={valid ? undefined : 'invalid'}
-            list={suggestions ? `suggest-${p.key}` : undefined}
-            autoFocus={!saved}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          />
-          {suggestions && (
-            <datalist id={`suggest-${p.key}`}>
-              {suggestions.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-          )}
-        </>
-      ) : (
-        <textarea {...common} className={`mono${valid ? '' : ' invalid'}`} rows={4} />
-      )}
-      {!valid && <small className="field-error">{p.hint ?? 'Not a valid value.'}</small>}
-    </label>
-  )
 }
 
 /** What a net label is linked to: the other labels of its name, and what is wrong if the link is broken. */
@@ -125,6 +68,8 @@ function CompInspector({ comp }: { comp: Comp }) {
         />
       </label>
       {def.params?.map((p) => {
+        // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
+        if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
         const v = comp.params[p.key]
         if (p.kind === 'bool')
           return (
@@ -178,6 +123,8 @@ function CompInspector({ comp }: { comp: Comp }) {
           </label>
         )
       })}
+      {comp.type === 'rom' && <RomSection comp={comp} />}
+      {comp.type === 'ram' && <RamSection comp={comp} />}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
       <div className="row">
         <button onClick={rotateSelection} title="Rotate (R)">
@@ -271,6 +218,15 @@ export function Inspector() {
   const sheetOpen = useStore((s) => s.sheetOpen)
   const selection = useStore((s) => s.selection)
   const circuit = useStore((s) => s.circuit)
+  // A program needs room for its lines: widen the panel (on desktop) while one is selected.
+  const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
+  const wide = only?.type === 'rom' && only.params.isa !== 'none'
+  useEffect(() => {
+    document.documentElement.style.setProperty('--inspector-w', wide ? '380px' : '250px')
+    return () => {
+      document.documentElement.style.removeProperty('--inspector-w')
+    }
+  }, [wide])
   let content
   if (selection.length === 1 && circuit.comps[selection[0]])
     content = (

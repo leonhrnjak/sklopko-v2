@@ -434,3 +434,53 @@ describe('simulated time and sampling', () => {
     expect(tr.t[1]).toBe(500 + 500) // seen at the end of the frame in which it changed
   })
 })
+
+describe('editing memory from outside', () => {
+  // A RAM whose address and write-enable come from switches, read through its Q outputs.
+  const ramCircuit = (dbits: number) =>
+    sim(build({ ram: ['ram', { dbits }] }, []))
+
+  it('writeWord changes a word, which then shows on Q when addressed', () => {
+    // Address pins left unconnected would be X; give the RAM a real address (5) with constants instead.
+    const c = build(
+      { ram: ['ram', { dbits: 8 }], a0: ['const', { value: 1 }], a1: ['const', { value: 0 }], a2: ['const', { value: 1 }], a3: ['const', { value: 0 }] },
+      [['a0.Q', 'ram.A0'], ['a1.Q', 'ram.A1'], ['a2.Q', 'ram.A2'], ['a3.Q', 'ram.A3']],
+    )
+    const t = sim(c) // address 5
+    const q = () => val(Array.from({ length: 8 }, (_, i) => t.pinValue('ram', `Q${i}`)))
+    expect(q()).toBe(0)
+    expect(t.writeWord('ram', 5, 0xc3)).toBe(true)
+    t.settle()
+    expect(q()).toBe(0xc3)
+    expect(t.state('ram').mem[5]).toBe(0xc3)
+    // The edit is not a circuit change: reloading keeps it, and Reset clears it like any other contents.
+    t.load(c)
+    t.settle()
+    expect(q()).toBe(0xc3)
+    t.reset()
+    t.settle()
+    expect(q()).toBe(0)
+  })
+
+  it('cuts the value to the word size and refuses words that do not exist', () => {
+    const s = ramCircuit(4)
+    expect(s.writeWord('ram', 3, 0x1f)).toBe(true)
+    expect(s.state('ram').mem[3]).toBe(0xf)
+    expect(s.writeWord('ram', 16, 1)).toBe(false)
+    expect(s.writeWord('ram', -1, 1)).toBe(false)
+    expect(s.writeWord('nope', 0, 1)).toBe(false)
+    const withoutMemory = sim(build({ sw: 'switch' }, []))
+    expect(withoutMemory.writeWord('sw', 0, 1)).toBe(false)
+  })
+
+  it('notifies subscribers, so the canvas redraws', () => {
+    const s = ramCircuit(4)
+    let calls = 0
+    s.subscribe(() => calls++)
+    s.publish()
+    const before = calls
+    s.writeWord('ram', 0, 1)
+    s.publish()
+    expect(calls).toBe(before + 1)
+  })
+})

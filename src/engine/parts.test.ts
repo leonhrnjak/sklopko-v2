@@ -216,3 +216,43 @@ describe('counter with load', () => {
     expect(val(c.step([X, 0, 0, 0, 1, 1, 0, 0]).slice(0, 4))).toBe(5)
   })
 })
+
+describe('wide memories', () => {
+  it('ROM with 16 data bits has D0–D15 and returns four-digit words', () => {
+    const rom = part('rom', { abits: 2, dbits: 16, data: 'ABCD 1234 0001' })
+    expect(rom.inputs).toEqual(['A0', 'A1'])
+    expect(getDef('rom').layout({ abits: 2, dbits: 16 }).pins.filter((p) => p.dir === 'out')).toHaveLength(16)
+    expect(val(rom.step(bits(0, 2)))).toBe(0xabcd)
+    expect(val(rom.step(bits(1, 2)))).toBe(0x1234)
+    expect(val(rom.step(bits(2, 2)))).toBe(1)
+    expect(val(rom.step(bits(3, 2)))).toBe(0) // missing words are 0
+    expect(parseWords('ABCDE 1', 2, 16)).toEqual([0xbcde, 1]) // cut to 16 bits
+  })
+
+  // Pin order for 8 bits: D0–D7, WE, CLK, then A0–A3.
+  const io8 = (d: number, we: number, clk: number, a: number) => [...bits(d, 8), we, clk, ...bits(a, 4)]
+
+  it('RAM with 8 data bits stores whole bytes', () => {
+    const ram = part('ram', { dbits: 8 })
+    expect(ram.inputs).toEqual(['D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'WE', 'CLK', 'A0', 'A1', 'A2', 'A3'])
+    expect(val(ram.step(io8(0xa5, 1, 0, 9)))).toBe(0)
+    expect(val(ram.step(io8(0xa5, 1, 1, 9)))).toBe(0xa5)
+    expect(val(ram.step(io8(0xff, 1, 1, 9)))).toBe(0xa5) // no new edge
+    expect(val(ram.step(io8(0, 0, 0, 8)))).toBe(0)
+    expect(val(ram.step(io8(0, 0, 0, 9)))).toBe(0xa5)
+    expect(ram.step(io8(0, 0, 0, 9))).toHaveLength(8)
+  })
+
+  it('RAM with 8 data bits ignores a write when any data bit is unknown', () => {
+    const ram = part('ram', { dbits: 8 })
+    ram.step(io8(0x12, 1, 0, 3))
+    ram.step([...bits(0x12, 7), X, 1, 1, ...bits(3, 4)])
+    expect(val(ram.step(io8(0, 0, 0, 3)))).toBe(0)
+  })
+
+  it('RAM keeps its 4-bit default', () => {
+    expect(getDef('ram').layout({ dbits: 4 }).pins.filter((p) => p.dir === 'out')).toHaveLength(4)
+    expect(paramDefaults(getDef('ram')).dbits).toBe(4)
+    expect(getDef('ram').title!({ dbits: 8 })).toBe('RAM 16×8')
+  })
+})
