@@ -25,4 +25,5 @@ Pushing to `main` deploys to Cloudflare Pages.
 
 ## Current work
 
-The next features are planned in `docs/plan-stretch-features.md` (milestones 1–5, then a challenges mode).
+The roadmap is in `docs/plan-next-features.md` (milestones 0–10, in order; tick each box when it ships).
+`docs/plan-stretch-features.md` holds the earlier plan; its custom ICs milestone is postponed.
