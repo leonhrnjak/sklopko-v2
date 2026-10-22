@@ -59,12 +59,17 @@ security headers.
 |---|---|
 | Input / output | switch, push button, clock (0.25–256 Hz), constant 0/1, 4-bit input, LED, probe (waveform trace) |
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
-| Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
+| Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
 | Memory | ROM (2–5 address bits, 4 or 8 data bits, contents as hex text), RAM 16×4 |
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |
+
+The *Examples* menu includes two showpieces built only from these parts: a **4-bit computer** (`/computer`: program
+counter, program ROM, control ROM, ALU, RAM, accumulator and a carry flag, running a Fibonacci program that you can
+edit as hex in the ROM) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup table, BCD adder,
+comparator and a memory register).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.

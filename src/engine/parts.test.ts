@@ -177,3 +177,42 @@ describe('probe', () => {
     expect(t[t.length - 1]).toBe(200_000)
   })
 })
+
+describe('counter with load', () => {
+  // Pin order: D0–D3, LD, EN, CLK, then R.
+  const io = (d: number, ld: number, en: number, clk: number, r = 0) => [...bits(d, 4), ld, en, clk, r]
+
+  it('counts on the rising edge, wraps at 16 and raises CO at 15', () => {
+    const c = part('counterld')
+    c.step(io(0, 0, 1, 0))
+    for (let n = 1; n <= 20; n++) {
+      c.step(io(0, 0, 1, 1))
+      const r = c.step(io(0, 0, 1, 0))
+      expect(val(r.slice(0, 4)), `after ${n} edges`).toBe(n % 16)
+      expect(r[4]).toBe(n % 16 === 15 ? 1 : 0)
+    }
+  })
+
+  it('loads D instead of counting when LD=1, holds when EN=0, and R clears at once', () => {
+    const c = part('counterld')
+    c.step(io(0, 0, 1, 0))
+    c.step(io(9, 1, 1, 1))
+    expect(val(c.step(io(9, 1, 1, 0)).slice(0, 4))).toBe(9)
+    c.step(io(3, 0, 0, 1)) // EN=0: holds
+    expect(val(c.step(io(3, 0, 0, 0)).slice(0, 4))).toBe(9)
+    c.step(io(3, 1, 0, 1)) // LD wins even with EN=0
+    expect(val(c.step(io(3, 1, 0, 0)).slice(0, 4))).toBe(3)
+    expect(val(c.step(io(3, 0, 1, 0, 1)).slice(0, 4))).toBe(0) // R
+  })
+
+  it('leaves its state alone when a control input is unknown, and ignores unknown load data', () => {
+    const c = part('counterld')
+    c.step(io(5, 1, 1, 0))
+    c.step(io(5, 1, 1, 1))
+    expect(val(c.step(io(5, 1, 1, 0)).slice(0, 4))).toBe(5)
+    c.step([0, 0, 0, 0, X, 1, 1, 0])
+    expect(val(c.step([0, 0, 0, 0, X, 1, 0, 0]).slice(0, 4))).toBe(5)
+    c.step([X, 0, 0, 0, 1, 1, 1, 0]) // load with unknown data
+    expect(val(c.step([X, 0, 0, 0, 1, 1, 0, 0]).slice(0, 4))).toBe(5)
+  })
+})

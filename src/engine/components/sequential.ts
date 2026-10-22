@@ -171,6 +171,38 @@ export const sequential: ComponentDef[] = [
     },
   },
   {
+    type: 'counterld',
+    name: 'Counter with load',
+    category: 'sequential',
+    description:
+      '4-bit binary counter with parallel load (like a 74161), counting 0–15. On a rising CLK: LD=1 loads D0–D3, ' +
+      'otherwise it counts up while EN=1. R resets it to 0 at once. CO is high at 15 while EN=1. ' +
+      'A program counter: load a jump target, or just count.',
+    title: () => 'CNTR\nLOAD',
+    init: () => ({ n: 0, pc: X as V }),
+    layout: () =>
+      box({
+        left: [...names('D', 4), { name: 'LD', def: 0 }, { name: 'EN', def: 1 }, CLK],
+        bottom: [RESET],
+        right: [...names('Q', 4), 'CO'],
+      }),
+    evaluate(inst) {
+      const { ins, outs } = inst
+      const st = inst.state
+      const [ld, en, clk, r] = ins.slice(4)
+      const edge = rising(st, clk)
+      if (r === 1) st.n = 0
+      else if (edge) {
+        if (ld === 1) {
+          const d = toNum(ins, 0, 4)
+          if (d >= 0) st.n = d
+        } else if (ld === 0 && en === 1) st.n = (st.n + 1) & 15
+      }
+      writeNum(outs, 0, 4, st.n)
+      outs[4] = en === X ? X : st.n === 15 && en === 1 ? 1 : 0
+    },
+  },
+  {
     type: 'register',
     name: '4-bit register',
     category: 'sequential',

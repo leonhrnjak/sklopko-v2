@@ -403,6 +403,287 @@ function dice(): Circuit {
   return b.build()
 }
 
+/** Wire `n` pins one to one: from `fromComp.<fromPrefix><i>` to `toComp.<toPrefix><i>`. */
+function wireBits(
+  b: CircuitBuilder,
+  from: string,
+  fromPins: string[],
+  to: string,
+  toPins: string[],
+) {
+  fromPins.forEach((p, i) => b.wire(`${from}.${p}`, `${to}.${toPins[i]}`))
+}
+
+const NIB = ['A', 'B', 'C', 'D']
+const bitNames = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
+
+/** Squares of 0..15 as ROM words (two hex digits each). */
+export const SQUARES = Array.from({ length: 16 }, (_, i) => (i * i).toString(16).toUpperCase()).join(' ')
+
+/**
+ * Pocket calculator on two 4-bit numbers A and B. One row per block: the ALU with an operation selector (result in hex
+ * and decimal, carry and zero flags, and a memory register you store into with a button), a multiplier, a ROM that
+ * holds a table of squares, a decimal (BCD) adder and a comparator. All of them watch the same inputs.
+ */
+function calculator(): Circuit {
+  const b = new CircuitBuilder()
+  const a = b.add('hexin', 0, 0, { label: 'A', params: { value: 7 } })
+  const bb = b.add('hexin', 0, 140, { label: 'B', params: { value: 6 } })
+  const op = b.add('hexin', 0, 280, { label: 'Operation 0–7', params: { value: 0 } })
+  const fromA = (to: string, prefix: string) => wireBits(b, a, NIB, to, bitNames(prefix, 4))
+  const fromB = (to: string, prefix: string) => wireBits(b, bb, NIB, to, bitNames(prefix, 4))
+  const disp = (x: number, y: number, label?: string) => b.add('hexdisp', x, y, label ? { label } : {})
+  const zero = (x: number, y: number) => b.add('const', x, y, { params: { value: 0 } })
+
+  // ---- ALU: result in hex and decimal, flags, and a memory register -------------------------------
+  const alu = b.add('alu', 300, 0, { label: 'ALU' })
+  fromA(alu, 'A')
+  fromB(alu, 'B')
+  b.wire(`${op}.A`, `${alu}.S0`)
+  b.wire(`${op}.B`, `${alu}.S1`)
+  b.wire(`${op}.C`, `${alu}.S2`)
+  const res = disp(500, 20, 'Result')
+  wireBits(b, alu, bitNames('F', 4), res, NIB)
+  const dec = b.add('bin2bcd', 620, 10)
+  wireBits(b, alu, bitNames('F', 4), dec, bitNames('B', 4))
+  const tens = disp(760, 20, 'Decimal')
+  const ones = disp(840, 20)
+  wireBits(b, dec, bitNames('O', 4), ones, NIB)
+  b.wire(`${dec}.T0`, `${tens}.A`)
+  const z0 = zero(790, 140)
+  for (const p of ['B', 'C', 'D']) b.wire(`${z0}.Q`, `${tens}.${p}`)
+  const carry = b.add('led', 500, 160, { label: 'Carry / borrow', params: { color: 'yellow' } })
+  const zflag = b.add('led', 500, 220, { label: 'Zero', params: { color: 'red' } })
+  b.wire(`${alu}.Co`, `${carry}.A`)
+  b.wire(`${alu}.Z`, `${zflag}.A`)
+  // Memory: a register that stores the result each time the button is pressed.
+  const store = b.add('button', 700, 200, { label: 'Store' })
+  const mem = b.add('register', 960, 0, { label: 'Memory' })
+  wireBits(b, alu, bitNames('F', 4), mem, NIB)
+  b.wire(`${store}.Q`, `${mem}.CLK`)
+  const mdisp = disp(1130, 40, 'M')
+  wireBits(b, mem, ['QA', 'QB', 'QC', 'QD'], mdisp, NIB)
+
+  // ---- Multiplier ------------------------------------------------------------------------------
+  const mul = b.add('mul', 300, 320, { label: 'Multiplier' })
+  fromA(mul, 'A')
+  fromB(mul, 'B')
+  const phi = disp(500, 320, 'A × B')
+  const plo = disp(580, 320)
+  wireBits(b, mul, bitNames('P', 4), plo, NIB)
+  wireBits(b, mul, ['P4', 'P5', 'P6', 'P7'], phi, NIB)
+
+  // ---- ROM lookup table of squares -----------------------------------------------------------------
+  const rom = b.add('rom', 300, 560, { params: { abits: 4, dbits: 8, data: SQUARES }, label: 'Table of squares' })
+  fromA(rom, 'A')
+  const shi = disp(500, 560, 'A² from ROM')
+  const slo = disp(580, 560)
+  wireBits(b, rom, bitNames('D', 4), slo, NIB)
+  wireBits(b, rom, ['D4', 'D5', 'D6', 'D7'], shi, NIB)
+
+  // ---- BCD adder: decimal sum of two digits --------------------------------------------------------
+  const bcd = b.add('bcdadd', 300, 800, { label: 'Decimal adder' })
+  fromA(bcd, 'A')
+  fromB(bcd, 'B')
+  const btens = disp(500, 800, 'A + B (digits 0–9)')
+  const bones = disp(580, 800)
+  wireBits(b, bcd, bitNames('S', 4), bones, NIB)
+  b.wire(`${bcd}.Co`, `${btens}.A`)
+  const z1 = zero(540, 930)
+  for (const p of ['B', 'C', 'D']) b.wire(`${z1}.Q`, `${btens}.${p}`)
+
+  // ---- Comparator ---------------------------------------------------------------------------
+  const cmp = b.add('cmp4', 300, 1060, { label: 'Comparator' })
+  fromA(cmp, 'A')
+  fromB(cmp, 'B')
+  const leds: [string, string, string][] = [
+    ['GT', 'A > B', 'green'],
+    ['EQ', 'A = B', 'yellow'],
+    ['LT', 'A < B', 'red'],
+  ]
+  leds.forEach(([pin, label, color], i) => {
+    const led = b.add('led', 500, 1080 + i * 50, { label, params: { color } })
+    b.wire(`${cmp}.${pin}`, `${led}.A`)
+  })
+  return b.build()
+}
+
+/**
+ * Instruction set of the 4-bit computer: an instruction is `opcode (3 bits) | operand (4 bits)`, opcode in bits 4–6.
+ * Bit 0 of ADD (4) / SUB (5) is wired straight to the ALU's select line, which is why they are neighbours.
+ */
+export const OPCODES = { LDI: 0, LDA: 1, STA: 2, JMP: 3, ADD: 4, SUB: 5, JNC: 6, HALT: 7 } as const
+
+const instr = (op: keyof typeof OPCODES, operand = 0) =>
+  ((OPCODES[op] << 4) | operand).toString(16).toUpperCase().padStart(2, '0')
+
+/** Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Stops when a sum no longer fits in 4 bits (carry). */
+export const FIBONACCI = [
+  instr('LDI', 0),
+  instr('STA', 0), // a = 0
+  instr('LDI', 1),
+  instr('STA', 1), // b = 1
+  instr('LDA', 0), // 4: loop
+  instr('ADD', 1), //    acc = a + b, sets the carry flag
+  instr('STA', 2), //    t = a + b
+  instr('LDA', 1),
+  instr('STA', 0), //    a = b
+  instr('LDA', 2),
+  instr('STA', 1), //    b = t
+  instr('JNC', 4), //    no carry: next number
+  instr('HALT'),
+].join(' ')
+
+/**
+ * Control ROM, addressed by the opcode. Bits: 0 accumulator load, 1–2 accumulator source (0 operand, 1 ALU, 2 RAM),
+ * 3 RAM write, 4 flag load, 5 jump, 6 jump if no carry, 7 halt.
+ */
+export const CONTROL = ['01', '05', '08', '20', '13', '13', '40', '80'].join(' ')
+
+/** Where each part of the computer sits: `[x, y]`, plus `true` when it is flipped (inputs on the right). */
+export const COMPUTER_LAYOUT: Record<string, [number, number, boolean?]> = {
+  clk: [440, 620],
+  pc: [120, 60],
+  prog: [320, 40],
+  ctl: [540, 320],
+  ncarry: [740, 430],
+  jnc: [820, 410],
+  take: [920, 410],
+  nhalt: [740, 500],
+  halted: [800, 500],
+  ram: [740, 100],
+  alu: [900, 40],
+  z1: [900, 290],
+  amux0: [1080, 40],
+  amux1: [1080, 180],
+  amux2: [1080, 320],
+  amux3: [1080, 460],
+  acc: [1260, 120],
+  flags: [1260, 320],
+  z2: [1200, 420],
+  pcDisp: [120, 290],
+  accDisp: [1420, 120],
+  carry: [1420, 340],
+  zflag: [1420, 400],
+  probe0: [520, 640],
+  probe1: [250, 300],
+  probe2: [250, 340],
+  probe3: [250, 380],
+  probe4: [250, 420],
+  probe5: [1500, 40],
+  probe6: [1500, 80],
+  probe7: [1500, 120],
+  probe8: [1500, 160],
+  probe9: [1500, 260],
+}
+
+/** The computer's parts and wires, positioned by `layout` (every part by its key). */
+export function computerBuilder(layout: Record<string, [number, number, boolean?]>) {
+  const b = new CircuitBuilder()
+  const keys: Record<string, string> = {}
+  const part = (key: string, type: string, opts: Parameters<CircuitBuilder['add']>[3] = {}) => {
+    const [x, y, flip] = layout[key] ?? [0, 0]
+    return (keys[key] = b.add(type, x, y, { ...opts, ...(flip ? { flip } : {}) }))
+  }
+  const n4 = (prefix: string) => bitNames(prefix, 4)
+  const Q = ['QA', 'QB', 'QC', 'QD']
+
+  // ---- Fetch: program counter and program ROM -------------------------------------------------
+  const clk = part('clk', 'clock', { params: { hz: 4 }, label: 'Clock' })
+  const pc = part('pc', 'counterld', { label: 'PC' })
+  const prog = part('prog', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI }, label: 'Program' })
+  wireBits(b, pc, n4('Q'), prog, n4('A'))
+  wireBits(b, prog, n4('D'), pc, n4('D')) // jump target = operand
+  b.wire(`${clk}.Q`, `${pc}.CLK`)
+
+  // ---- Decode: control ROM ---------------------------------------------------------------------
+  const ctl = part('ctl', 'rom', { params: { abits: 3, dbits: 8, data: CONTROL }, label: 'Control' })
+  ;['D4', 'D5', 'D6'].forEach((p, i) => b.wire(`${prog}.${p}`, `${ctl}.A${i}`))
+
+  // Load the jump target if the jump bit is set, or the jump-if-no-carry bit while the carry flag is 0.
+  // On halt the counter stops counting.
+  const flags = part('flags', 'register', { label: 'Flags' })
+  const ncarry = part('ncarry', 'not', { label: 'no carry' })
+  const jnc = part('jnc', 'and', { label: 'jump if no carry' })
+  const take = part('take', 'or', { label: 'load PC' })
+  const nhalt = part('nhalt', 'not', { label: 'not halted' })
+  b.wire(`${flags}.QA`, `${ncarry}.A`)
+  b.wire(`${ctl}.D6`, `${jnc}.A`)
+  b.wire(`${ncarry}.Y`, `${jnc}.B`)
+  b.wire(`${ctl}.D5`, `${take}.A`)
+  b.wire(`${jnc}.Y`, `${take}.B`)
+  b.wire(`${take}.Y`, `${pc}.LD`)
+  b.wire(`${ctl}.D7`, `${nhalt}.A`)
+  b.wire(`${nhalt}.Y`, `${pc}.EN`)
+  const halted = part('halted', 'led', { label: 'Halted', params: { color: 'red' } })
+  b.wire(`${ctl}.D7`, `${halted}.A`)
+
+  // ---- Execute: RAM, ALU, accumulator ---------------------------------------------------------
+  const ram = part('ram', 'ram', { label: 'Data RAM' })
+  const alu = part('alu', 'alu', { label: 'ALU' })
+  const acc = part('acc', 'register', { label: 'ACC' })
+  const amux = [0, 1, 2, 3].map((i) => part(`amux${i}`, 'mux', { params: { n: 4 }, label: `ACC input, bit ${i}` }))
+  wireBits(b, prog, n4('D'), ram, n4('A')) // RAM address = operand
+  wireBits(b, acc, Q, ram, n4('D'))
+  b.wire(`${ctl}.D3`, `${ram}.WE`)
+  b.wire(`${clk}.Q`, `${ram}.CLK`)
+  wireBits(b, acc, Q, alu, n4('A'))
+  wireBits(b, ram, n4('Q'), alu, n4('B'))
+  const z1 = part('z1', 'const', { params: { value: 0 } })
+  b.wire(`${z1}.Q`, `${alu}.S1`)
+  b.wire(`${z1}.Q`, `${alu}.S2`)
+  b.wire(`${prog}.D4`, `${alu}.S0`) // opcode bit 0: ADD (0) or SUB (1)
+  amux.forEach((m, i) => {
+    b.wire(`${prog}.D${i}`, `${m}.I0`) // LDI: the operand itself
+    b.wire(`${alu}.F${i}`, `${m}.I1`) // ADD, SUB
+    b.wire(`${ram}.Q${i}`, `${m}.I2`) // LDA
+    b.wire(`${ctl}.D1`, `${m}.S0`)
+    b.wire(`${ctl}.D2`, `${m}.S1`)
+    b.wire(`${m}.Y`, `${acc}.${NIB[i]}`)
+  })
+  b.wire(`${ctl}.D0`, `${acc}.LD`)
+  b.wire(`${clk}.Q`, `${acc}.CLK`)
+
+  // ---- Flags --------------------------------------------------------------------------------
+  b.wire(`${alu}.Co`, `${flags}.A`)
+  b.wire(`${alu}.Z`, `${flags}.B`)
+  const z2 = part('z2', 'const', { params: { value: 0 } })
+  b.wire(`${z2}.Q`, `${flags}.C`)
+  b.wire(`${z2}.Q`, `${flags}.D`)
+  b.wire(`${ctl}.D4`, `${flags}.LD`)
+  b.wire(`${clk}.Q`, `${flags}.CLK`)
+
+  // ---- Readouts: PC and accumulator in hex, flags, and waveforms ----------------------------------
+  const pcDisp = part('pcDisp', 'hexdisp', { label: 'PC' })
+  wireBits(b, pc, n4('Q'), pcDisp, NIB)
+  const accDisp = part('accDisp', 'hexdisp', { label: 'ACC' })
+  wireBits(b, acc, Q, accDisp, NIB)
+  const carry = part('carry', 'led', { label: 'Carry', params: { color: 'yellow' } })
+  const zflag = part('zflag', 'led', { label: 'Zero', params: { color: 'red' } })
+  b.wire(`${flags}.QA`, `${carry}.A`)
+  b.wire(`${flags}.QB`, `${zflag}.A`)
+  const signals: [string, string][] = [
+    ['CLK', `${clk}.Q`],
+    ...n4('Q').map((q, i): [string, string] => [`PC${i}`, `${pc}.${q}`]),
+    ...Q.map((q, i): [string, string] => [`ACC${i}`, `${acc}.${q}`]),
+    ['Carry', `${flags}.QA`],
+  ]
+  signals.forEach(([label, from], i) => {
+    const p = part(`probe${i}`, 'probe', { label })
+    b.wire(from, `${p}.A`)
+  })
+  return { b, keys }
+}
+
+/**
+ * A complete 4-bit computer that runs a program from ROM, one instruction per clock cycle. The program counter steps
+ * through a program ROM; a second ROM turns the opcode into control signals; the ALU, a RAM and an accumulator do the
+ * work; a carry flag lets the program decide when to stop. Edit the program in the ROM's inspector (hex words).
+ */
+function computer(): Circuit {
+  return computerBuilder(COMPUTER_LAYOUT).b.build()
+}
+
 /** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
 export const SMILEY = ['3C', '42', 'A5', '81', 'A5', '99', '42', '3C']
 
@@ -433,6 +714,8 @@ export const EXAMPLES: Example[] = [
   { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
+  { id: 'computer', name: '4-bit computer (runs Fibonacci)', build: computer },
+  { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },
