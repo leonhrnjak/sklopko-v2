@@ -67,10 +67,11 @@ security headers.
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |
 
 The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: program
-counter, two program ROMs (instruction and constant), control ROM, two 4-bit adders chained into one 8-bit adder/subtractor,
-two RAMs and two registers for the high and low halves of the data, and a carry flag, running a Fibonacci program that
-you can edit as hex in the ROMs; it shows each number (up to 233) on an output port, written with `STA 15`) and a
-**calculator** (`/calculator`: ALU, multiplier, ROM lookup table, BCD adder, comparator and a memory register).
+counter, two program ROMs (instruction and constant), control ROM, two 4-bit adders chained into one 8-bit
+adder/subtractor, two RAMs and two registers for the high and low halves of the data, and a carry flag, running a
+Fibonacci program that you can edit as hex in the ROMs; it shows each number (up to 233) in decimal on an output port,
+written with `STA 15`, via ROM tables and BCD adders) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup
+table, BCD adder, comparator and a memory register).
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.

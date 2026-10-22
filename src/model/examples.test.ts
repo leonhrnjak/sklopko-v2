@@ -378,6 +378,8 @@ describe('8-bit computer example', () => {
     /** An 8-bit value held in a low and a high register. */
     const byte = (name: string) => reg(byLabel(`${name} low`)) | (reg(byLabel(`${name} high`)) << 4)
     const [pc, flags] = [byLabel('PC'), byLabel('Flags')]
+    /** The three decimal digits of the output display, as a number. */
+    const decimal = () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(byLabel(label), ['S0', 'S1', 'S2', 'S3']), 0)
     const mem = (label: string) => sim.state(byLabel(label)).mem as number[]
     /** One full clock cycle: rising edge, then falling edge. */
     const cycle = () => {
@@ -390,6 +392,7 @@ describe('8-bit computer example', () => {
       pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']),
       acc: () => byte('ACC'),
       out: () => byte('Output'),
+      decimal,
       carry: () => sim.pinValue(flags, 'QA'),
       halted: () => sim.pinValue(byLabel('Halted'), 'A'),
       ram: () => mem('RAM low').map((lo, i) => lo | (mem('RAM high')[i] << 4)),
@@ -404,18 +407,23 @@ describe('8-bit computer example', () => {
   })
 
   it('runs Fibonacci up to 233, the last number that fits in 8 bits, and halts on the carry', () => {
-    const { cycle, pc, acc, out, carry, halted, ram } = setup()
+    const { cycle, pc, acc, out, decimal, carry, halted, ram } = setup()
     const sums: number[] = []
-    const shown: number[] = [] // what the Output display reads after each STA 15
+    const shown: number[] = [] // what the Output register holds after each STA 15
+    const digits: number[] = [] // what the three decimal digits read at the same moments
     let cycles = 0
     while (!halted() && cycles++ < 400) {
       const at = pc()
       cycle()
       if (at === 7) sums.push(acc()) // the ADD instruction has just run
-      if (at === 2 || at === 6) shown.push(out())
+      if (at === 2 || at === 6) {
+        shown.push(out())
+        digits.push(decimal())
+      }
     }
     expect(halted()).toBe(1)
     expect(shown).toEqual([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]) // never an intermediate value
+    expect(digits).toEqual(shown) // the decimal display agrees with the binary value
     expect(sums).toEqual([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121]) // 377 does not fit: 377 mod 256 = 121
     expect(carry()).toBe(1)
     expect(pc()).toBe(14)
@@ -425,6 +433,7 @@ describe('8-bit computer example', () => {
     for (let i = 0; i < 5; i++) cycle()
     expect(pc()).toBe(14)
     expect(out()).toBe(233)
+    expect(decimal()).toBe(233)
     expect(ram().slice(0, 3)).toEqual([233, 121, 121])
   }, 15000)
 
@@ -458,6 +467,7 @@ describe('8-bit computer example', () => {
       return {
         acc: byte('ACC'),
         out: byte('Output'),
+        decimal: ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(label, ['S0', 'S1', 'S2', 'S3']), 0),
         pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']),
         carry: sim.pinValue(id('Flags'), 'QA'),
         zero: sim.pinValue(id('Flags'), 'QB'),
@@ -480,5 +490,7 @@ describe('8-bit computer example', () => {
     expect(run([['LDI', 0xa5], ['STA', 15]], 2).out).toBe(0xa5) // address 15 is the output port
     expect(run([['LDI', 0xa5], ['STA', 14]], 2).out).toBe(0) // any other address leaves it alone
     expect(run([['LDI', 10], ['STA', 15], ['LDI', 3], ['LDA', 15]], 4)).toMatchObject({ out: 10, acc: 10 }) // LDA 15 reads the RAM, not the port
+    // The decimal display shows every value the output port can hold.
+    for (let n = 0; n < 256; n++) expect(run([['LDI', n], ['STA', 15]], 2).decimal, `${n}`).toBe(n)
   })
 })

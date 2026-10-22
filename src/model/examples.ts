@@ -526,12 +526,17 @@ export const assemble = (code: [keyof typeof OPCODES, number?][]) => ({
   immediate: code.map(([op, n = 0]) => hex2(op === 'LDI' ? n : 0)).join(' '),
 })
 
+/** The decimal digits of 16 × n for n = 0–15 (the high nibble's value), as two ROMs: tens and ones, then hundreds. */
+const sixteens = Array.from({ length: 16 }, (_, n) => n * 16)
+export const SIXTEENS_TENS_ONES = sixteens.map((v) => hex2((Math.floor(v / 10) % 10) * 16 + (v % 10))).join(' ')
+export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toString(16).toUpperCase()).join(' ')
+
 /** Address of the output port: `STA 15` writes the accumulator to the Output register, as well as to RAM. */
 export const OUT_PORT = 15
 
 /**
  * Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Each number is written to the output port as soon as it is
- * known, so the Output display reads 00 01 01 02 03 05 08 0D 15 22 37 59 90 E9 (0, 1, 1, 2, … 233 in hex). The next
+ * known, so the Output display reads 000 001 001 002 003 005 008 013 021 034 055 089 144 233 in decimal. The next
  * sum no longer fits in 8 bits (carry): it stops.
  */
 export const FIBONACCI = assemble([
@@ -571,7 +576,7 @@ export const COMPUTER_LAYOUT: Record<string, Spot> = {
   jnc: [840, 680],
   take: [940, 680],
   nhalt: [760, 770],
-  halted: [820, 770],
+  halted: [860, 800],
   ramLo: [760, 40],
   ramHi: [760, 300],
   addLo: [1060, 40],
@@ -579,27 +584,35 @@ export const COMPUTER_LAYOUT: Record<string, Spot> = {
   cx: [1060, 560],
   zero: [1060, 640],
   amuxLo0: [1240, 40],
-  amuxLo1: [1240, 170],
-  amuxLo2: [1240, 300],
-  amuxLo3: [1240, 430],
+  amuxLo1: [1240, 190],
+  amuxLo2: [1240, 340],
+  amuxLo3: [1240, 490],
   amuxHi0: [1380, 40],
-  amuxHi1: [1380, 170],
-  amuxHi2: [1380, 300],
-  amuxHi3: [1380, 430],
+  amuxHi1: [1380, 190],
+  amuxHi2: [1380, 340],
+  amuxHi3: [1380, 490],
   accLo: [1540, 40],
   accHi: [1540, 210],
   flags: [1540, 420],
-  z2: [1470, 600],
+  z2: [1470, 680],
   pcDisp: [120, 290],
   accHiDisp: [1700, 40],
-  accLoDisp: [1780, 40],
+  accLoDisp: [1800, 40],
   carry: [1700, 440],
   zflag: [1700, 500],
   outAnd: [1240, 640],
   outLo: [1540, 600],
   outHi: [1540, 770],
-  outHiDisp: [1700, 640],
-  outLoDisp: [1780, 640],
+  decLo: [1700, 600],
+  decRomTO: [1700, 760],
+  decRomH: [1700, 1040],
+  decOnes: [1900, 600],
+  decTens: [1900, 830],
+  decHund: [1900, 1060],
+  z3: [1840, 1290],
+  dispHund: [2100, 640],
+  dispTens: [2200, 640],
+  dispOnes: [2300, 640],
 }
 
 for (let i = 0; i < 4; i++) {
@@ -729,16 +742,40 @@ export function computerBuilder(layout: Record<string, Spot>) {
     b.wire(`${clk}.Q`, `${out}.CLK`)
   }
 
-  // ---- Readouts: PC, accumulator and output in hex, flags, and waveforms ----------------------------
   const hexOf = (key: string, from: string, pins: string[], label?: string) => {
     const d = part(key, 'hexdisp', label ? { label } : {})
     wireBits(b, from, pins, d, NIB)
   }
+
+  // ---- Decimal output: 16 × high + low, added digit by digit -------------------------------------
+  // The low nibble converts directly. Two ROMs hold 16 × n for the high nibble as decimal digits.
+  const decLo = part('decLo', 'bin2bcd', { label: 'Low nibble in decimal' })
+  wireBits(b, outLo, Q, decLo, n4('B'))
+  const decRomTO = part('decRomTO', 'rom', { params: { abits: 4, dbits: 8, data: SIXTEENS_TENS_ONES }, label: '16 × n: tens, ones' })
+  const decRomH = part('decRomH', 'rom', { params: { abits: 4, dbits: 4, data: SIXTEENS_HUNDREDS }, label: '16 × n: hundreds' })
+  wireBits(b, outHi, Q, decRomTO, n4('A'))
+  wireBits(b, outHi, Q, decRomH, n4('A'))
+  const z3 = part('z3', 'const', { params: { value: 0 } })
+  const decOnes = part('decOnes', 'bcdadd', { label: 'Ones' })
+  const decTens = part('decTens', 'bcdadd', { label: 'Tens' })
+  const decHund = part('decHund', 'bcdadd', { label: 'Hundreds' })
+  wireBits(b, decRomTO, n4('D'), decOnes, n4('A'))
+  wireBits(b, decLo, n4('O'), decOnes, n4('B'))
+  ;['D4', 'D5', 'D6', 'D7'].forEach((p, i) => b.wire(`${decRomTO}.${p}`, `${decTens}.A${i}`))
+  b.wire(`${decLo}.T0`, `${decTens}.B0`)
+  for (const i of [1, 2, 3]) b.wire(`${z3}.Q`, `${decTens}.B${i}`)
+  b.wire(`${decOnes}.Co`, `${decTens}.Ci`)
+  wireBits(b, decRomH, n4('D'), decHund, n4('A'))
+  for (const i of [0, 1, 2, 3]) b.wire(`${z3}.Q`, `${decHund}.B${i}`)
+  b.wire(`${decTens}.Co`, `${decHund}.Ci`)
+  hexOf('dispHund', decHund, n4('S'), 'Output (decimal)')
+  hexOf('dispTens', decTens, n4('S'))
+  hexOf('dispOnes', decOnes, n4('S'))
+
+  // ---- Readouts: PC, accumulator and output in hex, flags, and waveforms ----------------------------
   hexOf('pcDisp', pc, n4('Q'), 'PC')
   hexOf('accHiDisp', accHi, Q, 'ACC')
   hexOf('accLoDisp', accLo, Q)
-  hexOf('outHiDisp', outHi, Q, 'Output')
-  hexOf('outLoDisp', outLo, Q)
   const carry = part('carry', 'led', { label: 'Carry', params: { color: 'yellow' } })
   const zflag = part('zflag', 'led', { label: 'Zero', params: { color: 'red' } })
   b.wire(`${flags}.QA`, `${carry}.A`)
@@ -765,8 +802,8 @@ export function computerBuilder(layout: Record<string, Spot>) {
  * inspectors (hex words).
  */
 function computer(): Circuit {
-  // 200 wires: one pass of untangling gets nearly all of the benefit at a third of the routing time.
-  return computerBuilder(COMPUTER_LAYOUT).b.build(1)
+  // 240 wires: skip the pass that untangles crossings. It would double the routing time (2 s to 4 s) to remove a fifth of them.
+  return computerBuilder(COMPUTER_LAYOUT).b.build(0)
 }
 
 /** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
