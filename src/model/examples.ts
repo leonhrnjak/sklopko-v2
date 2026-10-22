@@ -509,38 +509,48 @@ function calculator(): Circuit {
 }
 
 /**
- * Instruction set of the 4-bit computer: an instruction is `opcode (3 bits) | operand (4 bits)`, opcode in bits 4–6.
- * Bit 0 of ADD (4) / SUB (5) is wired straight to the ALU's select line, which is why they are neighbours.
+ * Instruction set of the 8-bit computer. An instruction is two bytes at the same address in two ROMs: the instruction
+ * byte `opcode (3 bits) | address (4 bits)`, opcode in bits 4–6, and the immediate byte, used by LDI.
+ * Bit 0 of ADD (4) / SUB (5) is wired straight to the adder's subtract line, which is why they are neighbours.
  */
 export const OPCODES = { LDI: 0, LDA: 1, STA: 2, JMP: 3, ADD: 4, SUB: 5, JNC: 6, HALT: 7 } as const
 
-const instr = (op: keyof typeof OPCODES, operand = 0) =>
-  ((OPCODES[op] << 4) | operand).toString(16).toUpperCase().padStart(2, '0')
+const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0')
+
+/**
+ * Assembles `[opcode, operand]` pairs into the two ROMs' contents (hex words). The operand of LDI is the 8-bit constant
+ * to load; for every other instruction it is a RAM address or jump target (0–15).
+ */
+export const assemble = (code: [keyof typeof OPCODES, number?][]) => ({
+  program: code.map(([op, n = 0]) => hex2((OPCODES[op] << 4) | (op === 'LDI' ? 0 : n))).join(' '),
+  immediate: code.map(([op, n = 0]) => hex2(op === 'LDI' ? n : 0)).join(' '),
+})
 
 /** Address of the output port: `STA 15` writes the accumulator to the Output register, as well as to RAM. */
 export const OUT_PORT = 15
 
 /**
  * Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Each number is written to the output port as soon as it is
- * known, so the Output display reads 0 1 1 2 3 5 8 D (13). The next sum no longer fits in 4 bits (carry): it stops.
+ * known, so the Output display reads 00 01 01 02 03 05 08 0D 15 22 37 59 90 E9 (0, 1, 1, 2, … 233 in hex). The next
+ * sum no longer fits in 8 bits (carry): it stops.
  */
-export const FIBONACCI = [
-  instr('LDI', 0),
-  instr('STA', 0), // a = 0
-  instr('STA', OUT_PORT), // output 0
-  instr('LDI', 1),
-  instr('STA', 1), // b = 1
-  instr('LDA', 1), // 5: loop
-  instr('STA', OUT_PORT), //    output b
-  instr('ADD', 0), //    acc = b + a, sets the carry flag
-  instr('STA', 2), //    t = a + b
-  instr('LDA', 1),
-  instr('STA', 0), //    a = b
-  instr('LDA', 2),
-  instr('STA', 1), //    b = t
-  instr('JNC', 5), //    no carry: next number
-  instr('HALT'),
-].join(' ')
+export const FIBONACCI = assemble([
+  ['LDI', 0],
+  ['STA', 0], // a = 0
+  ['STA', OUT_PORT], // output 0
+  ['LDI', 1],
+  ['STA', 1], // b = 1
+  ['LDA', 1], // 5: loop
+  ['STA', OUT_PORT], //    output b
+  ['ADD', 0], //    acc = b + a, sets the carry flag
+  ['STA', 2], //    t = a + b
+  ['LDA', 1],
+  ['STA', 0], //    a = b
+  ['LDA', 2],
+  ['STA', 1], //    b = t
+  ['JNC', 5], //    no carry: next number
+  ['HALT'],
+])
 
 /**
  * Control ROM, addressed by the opcode. Bits: 0 accumulator load, 1–2 accumulator source (0 operand, 1 ALU, 2 RAM),
@@ -548,48 +558,58 @@ export const FIBONACCI = [
  */
 export const CONTROL = ['01', '05', '08', '20', '13', '13', '40', '80'].join(' ')
 
+type Spot = [number, number, boolean?]
+
 /** Where each part of the computer sits: `[x, y]`, plus `true` when it is flipped (inputs on the right). */
-export const COMPUTER_LAYOUT: Record<string, [number, number, boolean?]> = {
-  clk: [440, 620],
+export const COMPUTER_LAYOUT: Record<string, Spot> = {
+  clk: [440, 760],
   pc: [120, 60],
   prog: [320, 40],
-  ctl: [540, 320],
-  ncarry: [740, 430],
-  jnc: [820, 410],
-  take: [920, 410],
-  nhalt: [740, 500],
-  halted: [800, 500],
-  ram: [740, 100],
-  alu: [900, 40],
-  z1: [900, 290],
-  amux0: [1080, 40],
-  amux1: [1080, 180],
-  amux2: [1080, 320],
-  amux3: [1080, 460],
-  acc: [1260, 120],
-  flags: [1260, 320],
-  z2: [1200, 420],
+  imm: [320, 360],
+  ctl: [600, 360],
+  ncarry: [760, 700],
+  jnc: [840, 680],
+  take: [940, 680],
+  nhalt: [760, 770],
+  halted: [820, 770],
+  ramLo: [760, 40],
+  ramHi: [760, 300],
+  addLo: [1060, 40],
+  addHi: [1060, 300],
+  cx: [1060, 560],
+  zero: [1060, 640],
+  amuxLo0: [1240, 40],
+  amuxLo1: [1240, 170],
+  amuxLo2: [1240, 300],
+  amuxLo3: [1240, 430],
+  amuxHi0: [1380, 40],
+  amuxHi1: [1380, 170],
+  amuxHi2: [1380, 300],
+  amuxHi3: [1380, 430],
+  accLo: [1540, 40],
+  accHi: [1540, 210],
+  flags: [1540, 420],
+  z2: [1470, 600],
   pcDisp: [120, 290],
-  accDisp: [1420, 120],
-  carry: [1420, 340],
-  zflag: [1420, 400],
-  probe0: [520, 640],
-  probe1: [250, 300],
-  probe2: [250, 340],
-  probe3: [250, 380],
-  probe4: [250, 420],
-  probe5: [1500, 40],
-  probe6: [1500, 80],
-  probe7: [1500, 120],
-  probe8: [1500, 160],
-  probe9: [1500, 260],
-  outAnd: [1080, 620],
-  out: [1260, 560],
-  outDisp: [1420, 560],
+  accHiDisp: [1700, 40],
+  accLoDisp: [1780, 40],
+  carry: [1700, 440],
+  zflag: [1700, 500],
+  outAnd: [1240, 640],
+  outLo: [1540, 600],
+  outHi: [1540, 770],
+  outHiDisp: [1700, 640],
+  outLoDisp: [1780, 640],
 }
 
+for (let i = 0; i < 4; i++) {
+  COMPUTER_LAYOUT[`xl${i}`] = [920, 40 + i * 50]
+  COMPUTER_LAYOUT[`xh${i}`] = [920, 300 + i * 50]
+}
+for (let i = 0; i < 14; i++) COMPUTER_LAYOUT[`probe${i}`] = [1900, 40 + i * 40]
+
 /** The computer's parts and wires, positioned by `layout` (every part by its key). */
-export function computerBuilder(layout: Record<string, [number, number, boolean?]>) {
+export function computerBuilder(layout: Record<string, Spot>) {
   const b = new CircuitBuilder()
   const keys: Record<string, string> = {}
   const part = (key: string, type: string, opts: Parameters<CircuitBuilder['add']>[3] = {}) => {
@@ -599,12 +619,14 @@ export function computerBuilder(layout: Record<string, [number, number, boolean?
   const n4 = (prefix: string) => bitNames(prefix, 4)
   const Q = ['QA', 'QB', 'QC', 'QD']
 
-  // ---- Fetch: program counter and program ROM -------------------------------------------------
+  // ---- Fetch: program counter and the two program ROMs -----------------------------------------
   const clk = part('clk', 'clock', { params: { hz: 4 }, label: 'Clock' })
   const pc = part('pc', 'counterld', { label: 'PC' })
-  const prog = part('prog', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI }, label: 'Program' })
+  const prog = part('prog', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI.program }, label: 'Program' })
+  const imm = part('imm', 'rom', { params: { abits: 4, dbits: 8, data: FIBONACCI.immediate }, label: 'Immediate' })
   wireBits(b, pc, n4('Q'), prog, n4('A'))
-  wireBits(b, prog, n4('D'), pc, n4('D')) // jump target = operand
+  wireBits(b, pc, n4('Q'), imm, n4('A'))
+  wireBits(b, prog, n4('D'), pc, n4('D')) // jump target = address field
   b.wire(`${clk}.Q`, `${pc}.CLK`)
 
   // ---- Decode: control ROM ---------------------------------------------------------------------
@@ -629,57 +651,94 @@ export function computerBuilder(layout: Record<string, [number, number, boolean?
   const halted = part('halted', 'led', { label: 'Halted', params: { color: 'red' } })
   b.wire(`${ctl}.D7`, `${halted}.A`)
 
-  // ---- Execute: RAM, ALU, accumulator ---------------------------------------------------------
-  const ram = part('ram', 'ram', { label: 'Data RAM' })
-  const alu = part('alu', 'alu', { label: 'ALU' })
-  const acc = part('acc', 'register', { label: 'ACC' })
-  const amux = [0, 1, 2, 3].map((i) => part(`amux${i}`, 'mux', { params: { n: 4 }, label: `ACC input, bit ${i}` }))
-  wireBits(b, prog, n4('D'), ram, n4('A')) // RAM address = operand
-  wireBits(b, acc, Q, ram, n4('D'))
-  b.wire(`${ctl}.D3`, `${ram}.WE`)
-  b.wire(`${clk}.Q`, `${ram}.CLK`)
-  wireBits(b, acc, Q, alu, n4('A'))
-  wireBits(b, ram, n4('Q'), alu, n4('B'))
-  const z1 = part('z1', 'const', { params: { value: 0 } })
-  b.wire(`${z1}.Q`, `${alu}.S1`)
-  b.wire(`${z1}.Q`, `${alu}.S2`)
-  b.wire(`${prog}.D4`, `${alu}.S0`) // opcode bit 0: ADD (0) or SUB (1)
-  amux.forEach((m, i) => {
-    b.wire(`${prog}.D${i}`, `${m}.I0`) // LDI: the operand itself
-    b.wire(`${alu}.F${i}`, `${m}.I1`) // ADD, SUB
-    b.wire(`${ram}.Q${i}`, `${m}.I2`) // LDA
-    b.wire(`${ctl}.D1`, `${m}.S0`)
-    b.wire(`${ctl}.D2`, `${m}.S1`)
-    b.wire(`${m}.Y`, `${acc}.${NIB[i]}`)
-  })
-  b.wire(`${ctl}.D0`, `${acc}.LD`)
-  b.wire(`${clk}.Q`, `${acc}.CLK`)
+  // ---- Execute: RAM, adder/subtractor, accumulator -------------------------------------------
+  // Every 8-bit value is two nibbles: low (bits 0–3) and high (bits 4–7), each in its own 4-bit part.
+  const ramLo = part('ramLo', 'ram', { label: 'RAM low' })
+  const ramHi = part('ramHi', 'ram', { label: 'RAM high' })
+  const accLo = part('accLo', 'register', { label: 'ACC low' })
+  const accHi = part('accHi', 'register', { label: 'ACC high' })
+  for (const ram of [ramLo, ramHi]) {
+    wireBits(b, prog, n4('D'), ram, n4('A')) // RAM address = address field
+    b.wire(`${ctl}.D3`, `${ram}.WE`)
+    b.wire(`${clk}.Q`, `${ram}.CLK`)
+  }
+  wireBits(b, accLo, Q, ramLo, n4('D'))
+  wireBits(b, accHi, Q, ramHi, n4('D'))
 
-  // ---- Output port: STA 15 (RAM write, address 15) also loads the Output register --------------------
-  const outAnd = part('outAnd', 'and', { params: { inputs: 5 }, label: 'write to port' })
-  b.wire(`${ctl}.D3`, `${outAnd}.A`)
-  n4('D').forEach((p, i) => b.wire(`${prog}.${p}`, `${outAnd}.${String.fromCharCode(66 + i)}`))
-  const out = part('out', 'register', { label: 'Output port' })
-  wireBits(b, acc, Q, out, NIB)
-  b.wire(`${outAnd}.Y`, `${out}.LD`)
-  b.wire(`${clk}.Q`, `${out}.CLK`)
-  const outDisp = part('outDisp', 'hexdisp', { label: 'Output' })
-  wireBits(b, out, Q, outDisp, NIB)
+  // ACC ± RAM. SUB (opcode bit 0) inverts B and adds 1: A − B = A + not B + 1. The carry runs from the low adder
+  // into the high one. For SUB the adder's carry-out means "no borrow", so the flag is carry xor SUB.
+  const addLo = part('addLo', 'add4', { label: 'Adder low' })
+  const addHi = part('addHi', 'add4', { label: 'Adder high' })
+  wireBits(b, accLo, Q, addLo, n4('A'))
+  wireBits(b, accHi, Q, addHi, n4('A'))
+  const xors = (nibble: 'l' | 'h', ram: string, adder: string) =>
+    n4('Q').forEach((q, i) => {
+      const x = part(`x${nibble}${i}`, 'xor', { label: `B xor SUB, bit ${i + (nibble === 'h' ? 4 : 0)}` })
+      b.wire(`${ram}.${q}`, `${x}.A`)
+      b.wire(`${prog}.D4`, `${x}.B`) // opcode bit 0: ADD (0) or SUB (1)
+      b.wire(`${x}.Y`, `${adder}.B${i}`)
+    })
+  xors('l', ramLo, addLo)
+  xors('h', ramHi, addHi)
+  b.wire(`${prog}.D4`, `${addLo}.Ci`)
+  b.wire(`${addLo}.Co`, `${addHi}.Ci`)
+
+  // Accumulator input: the constant (LDI), the adder (ADD, SUB) or RAM (LDA), chosen bit by bit.
+  const load = (nibble: 'Lo' | 'Hi', acc: string, adder: string, ram: string) =>
+    [0, 1, 2, 3].forEach((i) => {
+      const bit = i + (nibble === 'Hi' ? 4 : 0)
+      const m = part(`amux${nibble}${i}`, 'mux', { params: { n: 4 }, label: `ACC input, bit ${bit}` })
+      b.wire(`${imm}.D${bit}`, `${m}.I0`) // LDI: the constant itself
+      b.wire(`${adder}.S${i}`, `${m}.I1`) // ADD, SUB
+      b.wire(`${ram}.Q${i}`, `${m}.I2`) // LDA
+      b.wire(`${ctl}.D1`, `${m}.S0`)
+      b.wire(`${ctl}.D2`, `${m}.S1`)
+      b.wire(`${m}.Y`, `${acc}.${NIB[i]}`)
+    })
+  load('Lo', accLo, addLo, ramLo)
+  load('Hi', accHi, addHi, ramHi)
+  for (const acc of [accLo, accHi]) {
+    b.wire(`${ctl}.D0`, `${acc}.LD`)
+    b.wire(`${clk}.Q`, `${acc}.CLK`)
+  }
 
   // ---- Flags --------------------------------------------------------------------------------
-  b.wire(`${alu}.Co`, `${flags}.A`)
-  b.wire(`${alu}.Z`, `${flags}.B`)
+  const cx = part('cx', 'xor', { label: 'carry xor SUB' })
+  b.wire(`${addHi}.Co`, `${cx}.A`)
+  b.wire(`${prog}.D4`, `${cx}.B`)
+  const zero = part('zero', 'nor', { params: { inputs: 8 }, label: 'result is zero' })
+  ;[addLo, addHi].forEach((add, n) => n4('S').forEach((s, i) => b.wire(`${add}.${s}`, `${zero}.${String.fromCharCode(65 + i + n * 4)}`)))
+  b.wire(`${cx}.Y`, `${flags}.A`)
+  b.wire(`${zero}.Y`, `${flags}.B`)
   const z2 = part('z2', 'const', { params: { value: 0 } })
   b.wire(`${z2}.Q`, `${flags}.C`)
   b.wire(`${z2}.Q`, `${flags}.D`)
   b.wire(`${ctl}.D4`, `${flags}.LD`)
   b.wire(`${clk}.Q`, `${flags}.CLK`)
 
-  // ---- Readouts: PC and accumulator in hex, flags, and waveforms ----------------------------------
-  const pcDisp = part('pcDisp', 'hexdisp', { label: 'PC' })
-  wireBits(b, pc, n4('Q'), pcDisp, NIB)
-  const accDisp = part('accDisp', 'hexdisp', { label: 'ACC' })
-  wireBits(b, acc, Q, accDisp, NIB)
+  // ---- Output port: STA 15 (RAM write, address 15) also loads the Output registers --------------------
+  const outAnd = part('outAnd', 'and', { params: { inputs: 5 }, label: 'write to port' })
+  b.wire(`${ctl}.D3`, `${outAnd}.A`)
+  n4('D').forEach((p, i) => b.wire(`${prog}.${p}`, `${outAnd}.${String.fromCharCode(66 + i)}`))
+  const outLo = part('outLo', 'register', { label: 'Output low' })
+  const outHi = part('outHi', 'register', { label: 'Output high' })
+  wireBits(b, accLo, Q, outLo, NIB)
+  wireBits(b, accHi, Q, outHi, NIB)
+  for (const out of [outLo, outHi]) {
+    b.wire(`${outAnd}.Y`, `${out}.LD`)
+    b.wire(`${clk}.Q`, `${out}.CLK`)
+  }
+
+  // ---- Readouts: PC, accumulator and output in hex, flags, and waveforms ----------------------------
+  const hexOf = (key: string, from: string, pins: string[], label?: string) => {
+    const d = part(key, 'hexdisp', label ? { label } : {})
+    wireBits(b, from, pins, d, NIB)
+  }
+  hexOf('pcDisp', pc, n4('Q'), 'PC')
+  hexOf('accHiDisp', accHi, Q, 'ACC')
+  hexOf('accLoDisp', accLo, Q)
+  hexOf('outHiDisp', outHi, Q, 'Output')
+  hexOf('outLoDisp', outLo, Q)
   const carry = part('carry', 'led', { label: 'Carry', params: { color: 'yellow' } })
   const zflag = part('zflag', 'led', { label: 'Zero', params: { color: 'red' } })
   b.wire(`${flags}.QA`, `${carry}.A`)
@@ -687,7 +746,8 @@ export function computerBuilder(layout: Record<string, [number, number, boolean?
   const signals: [string, string][] = [
     ['CLK', `${clk}.Q`],
     ...n4('Q').map((q, i): [string, string] => [`PC${i}`, `${pc}.${q}`]),
-    ...Q.map((q, i): [string, string] => [`ACC${i}`, `${acc}.${q}`]),
+    ...Q.map((q, i): [string, string] => [`ACC${i}`, `${accLo}.${q}`]),
+    ...Q.map((q, i): [string, string] => [`ACC${i + 4}`, `${accHi}.${q}`]),
     ['Carry', `${flags}.QA`],
   ]
   signals.forEach(([label, from], i) => {
@@ -698,12 +758,15 @@ export function computerBuilder(layout: Record<string, [number, number, boolean?
 }
 
 /**
- * A complete 4-bit computer that runs a program from ROM, one instruction per clock cycle. The program counter steps
- * through a program ROM; a second ROM turns the opcode into control signals; the ALU, a RAM and an accumulator do the
- * work; a carry flag lets the program decide when to stop. Edit the program in the ROM's inspector (hex words).
+ * A complete 8-bit computer that runs a program from ROM, one instruction per clock cycle. The program counter steps
+ * through two program ROMs (instruction byte and constant); a third ROM turns the opcode into control signals; two
+ * adders, two RAMs and two accumulator registers handle the 8-bit data a nibble at a time, with the carry running from
+ * the low half to the high half; a carry flag lets the program decide when to stop. Edit the program in the ROMs'
+ * inspectors (hex words).
  */
 function computer(): Circuit {
-  return computerBuilder(COMPUTER_LAYOUT).b.build()
+  // 200 wires: one pass of untangling gets nearly all of the benefit at a third of the routing time.
+  return computerBuilder(COMPUTER_LAYOUT).b.build(1)
 }
 
 /** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
@@ -736,7 +799,7 @@ export const EXAMPLES: Example[] = [
   { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
   { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
-  { id: 'computer', name: '4-bit computer (runs Fibonacci)', build: computer },
+  { id: 'computer', name: '8-bit computer (runs Fibonacci)', build: computer },
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },

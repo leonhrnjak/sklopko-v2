@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect } from './circuit'
-import { CONTROL, EXAMPLES, FIBONACCI, SMILEY } from './examples'
+import { CONTROL, EXAMPLES, FIBONACCI, SMILEY, assemble } from './examples'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
 const built = new Map<string, ReturnType<(typeof EXAMPLES)[number]['build']>>()
@@ -366,54 +366,67 @@ describe('calculator example', () => {
   })
 })
 
-describe('4-bit computer example', () => {
+describe('8-bit computer example', () => {
+  const nibble = ['QA', 'QB', 'QC', 'QD']
   const setup = () => {
     const c = example('computer')
     const sim = new Simulator()
     sim.load({ comps: Object.values(c.comps), wires: Object.values(c.wires) })
     sim.settle()
     const byLabel = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
-    const reg = (id: string, pins = ['QA', 'QB', 'QC', 'QD']) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
-    const [pc, acc, flags, outPort] = [byLabel('PC'), byLabel('ACC'), byLabel('Flags'), byLabel('Output port')]
-    const ram = byLabel('Data RAM')
+    const reg = (id: string, pins = nibble) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
+    /** An 8-bit value held in a low and a high register. */
+    const byte = (name: string) => reg(byLabel(`${name} low`)) | (reg(byLabel(`${name} high`)) << 4)
+    const [pc, flags] = [byLabel('PC'), byLabel('Flags')]
+    const mem = (label: string) => sim.state(byLabel(label)).mem as number[]
     /** One full clock cycle: rising edge, then falling edge. */
     const cycle = () => {
       sim.stepClock()
       sim.stepClock()
     }
-    return { sim, c, cycle, pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']), acc: () => reg(acc), out: () => reg(outPort), carry: () => sim.pinValue(flags, 'QA'), halted: () => sim.pinValue(byLabel('Halted'), 'A'), ram: () => sim.state(ram).mem as number[], byLabel }
+    return {
+      sim,
+      cycle,
+      pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']),
+      acc: () => byte('ACC'),
+      out: () => byte('Output'),
+      carry: () => sim.pinValue(flags, 'QA'),
+      halted: () => sim.pinValue(byLabel('Halted'), 'A'),
+      ram: () => mem('RAM low').map((lo, i) => lo | (mem('RAM high')[i] << 4)),
+    }
   }
 
-  it('encodes the Fibonacci program as ROM words', () => {
-    expect(FIBONACCI).toBe('00 20 2F 01 21 11 2F 40 22 11 20 12 21 65 70')
+  it('encodes the Fibonacci program as ROM words: instruction bytes and constants', () => {
+    expect(FIBONACCI.program).toBe('00 20 2F 00 21 11 2F 40 22 11 20 12 21 65 70')
+    expect(FIBONACCI.immediate).toBe('00 00 00 01 00 00 00 00 00 00 00 00 00 00 00')
     expect(CONTROL.split(' ')).toHaveLength(8)
     expect(CONTROL).toBe('01 05 08 20 13 13 40 80')
   })
 
-  it('runs Fibonacci, writing each sum to RAM, and halts on the carry', () => {
+  it('runs Fibonacci up to 233, the last number that fits in 8 bits, and halts on the carry', () => {
     const { cycle, pc, acc, out, carry, halted, ram } = setup()
     const sums: number[] = []
     const shown: number[] = [] // what the Output display reads after each STA 15
     let cycles = 0
-    while (!halted() && cycles++ < 200) {
+    while (!halted() && cycles++ < 400) {
       const at = pc()
       cycle()
       if (at === 7) sums.push(acc()) // the ADD instruction has just run
       if (at === 2 || at === 6) shown.push(out())
     }
     expect(halted()).toBe(1)
-    expect(sums).toEqual([1, 2, 3, 5, 8, 13, 5]) // 21 does not fit in 4 bits: 21 mod 16 = 5, with carry
-    expect(shown).toEqual([0, 1, 1, 2, 3, 5, 8, 13]) // 0 1 1 2 3 5 8 D on the display, never an intermediate value
+    expect(shown).toEqual([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]) // never an intermediate value
+    expect(sums).toEqual([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121]) // 377 does not fit: 377 mod 256 = 121
     expect(carry()).toBe(1)
     expect(pc()).toBe(14)
-    expect(ram().slice(0, 3)).toEqual([13, 5, 5])
-    expect(cycles).toBe(5 + 7 * 9) // set-up, then seven loops of nine instructions, then it sits on HALT
+    expect(ram().slice(0, 3)).toEqual([233, 121, 121])
+    expect(cycles).toBe(5 + 13 * 9) // set-up, then thirteen loops of nine instructions, then it sits on HALT
     // Halted: more clock cycles change nothing.
     for (let i = 0; i < 5; i++) cycle()
     expect(pc()).toBe(14)
-    expect(out()).toBe(13)
-    expect(ram().slice(0, 3)).toEqual([13, 5, 5])
-  })
+    expect(out()).toBe(233)
+    expect(ram().slice(0, 3)).toEqual([233, 121, 121])
+  }, 15000)
 
   it('the toolbar reset power-cycles it: the program starts again from the top', () => {
     const { sim, cycle, pc, ram } = setup()
@@ -427,31 +440,45 @@ describe('4-bit computer example', () => {
     expect(pc()).toBe(1)
   })
 
-  it('every instruction does what its opcode says (tiny programs)', () => {
+  it('every instruction does what its opcode says (tiny programs, 8-bit data)', () => {
     // Build a machine with a custom program by editing the ROM contents.
-    const run = (words: string, cycles: number) => {
+    const run = (code: Parameters<typeof assemble>[0], cycles: number) => {
+      const { program, immediate } = assemble(code)
       const c = example('computer')
-      const comps = Object.values(c.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, data: words } } : k))
+      const data: Record<string, string> = { Program: program, Immediate: immediate }
+      const comps = Object.values(c.comps).map((k) => (k.label! in data ? { ...k, params: { ...k.params, data: data[k.label!] } } : k))
       const sim = new Simulator()
       sim.load({ comps, wires: Object.values(c.wires) })
       sim.settle()
       for (let i = 0; i < cycles * 2; i++) sim.stepClock()
       const id = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
-      const reg = (label: string, pins = ['QA', 'QB', 'QC', 'QD']) => pins.reduce((n, p, i) => n | (sim.pinValue(id(label), p) << i), 0)
-      return { out: reg('Output port'), acc: reg('ACC'), pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']), carry: sim.pinValue(id('Flags'), 'QA'), zero: sim.pinValue(id('Flags'), 'QB'), ram: sim.state(id('Data RAM')).mem as number[] }
+      const reg = (label: string, pins = nibble) => pins.reduce((n, p, i) => n | (sim.pinValue(id(label), p) << i), 0)
+      const byte = (name: string) => reg(`${name} low`) | (reg(`${name} high`) << 4)
+      const mem = (label: string) => sim.state(id(label)).mem as number[]
+      return {
+        acc: byte('ACC'),
+        out: byte('Output'),
+        pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']),
+        carry: sim.pinValue(id('Flags'), 'QA'),
+        zero: sim.pinValue(id('Flags'), 'QB'),
+        ram: mem('RAM low').map((lo, i) => lo | (mem('RAM high')[i] << 4)),
+      }
     }
-    expect(run('09', 1).acc).toBe(9) // LDI 9
-    expect(run('09 25 00 15', 4)).toMatchObject({ acc: 9 }) // LDI 9, STA [5], LDI 0, LDA [5]
-    expect(run('09 25 00 15', 4).ram[5]).toBe(9)
-    expect(run('0A 20 03 40', 4)).toMatchObject({ acc: 13, carry: 0, zero: 0 }) // 3 + RAM[0] (10)
-    expect(run('0F 20 01 40', 4)).toMatchObject({ acc: 0, carry: 1, zero: 1 }) // 1 + 15 overflows to 0
-    expect(run('05 20 03 50', 4)).toMatchObject({ acc: 14, carry: 1 }) // 3 - 5 = -2 -> 14, with borrow
-    expect(run('35', 1).pc).toBe(5) // JMP 5
-    expect(run('01 20 40 66', 4).pc).toBe(6) // 1 + 1: no carry, so JNC 6 jumps
-    expect(run('0F 20 40 66', 4).pc).toBe(4) // 15 + 15 carries, so JNC falls through
-    expect(run('70', 5).pc).toBe(0) // HALT stays where it is
-    expect(run('0A 2F', 2).out).toBe(10) // LDI 10, STA 15: address 15 is the output port
-    expect(run('0A 2E', 2).out).toBe(0) // any other address leaves it alone
-    expect(run('0A 2F 03 1F', 4)).toMatchObject({ out: 10, acc: 10 }) // LDA 15 reads the RAM, not the port
+    expect(run([['LDI', 0xc8]], 1).acc).toBe(200) // LDI: a full 8-bit constant
+    expect(run([['LDI', 0xa5], ['STA', 5], ['LDI', 0], ['LDA', 5]], 4)).toMatchObject({ acc: 0xa5 }) // both nibbles stored and loaded
+    expect(run([['LDI', 0xa5], ['STA', 5]], 2).ram[5]).toBe(0xa5)
+    expect(run([['LDI', 100], ['STA', 0], ['LDI', 55], ['ADD', 0]], 4)).toMatchObject({ acc: 155, carry: 0, zero: 0 })
+    expect(run([['LDI', 0x0f], ['STA', 0], ['LDI', 0x01], ['ADD', 0]], 4)).toMatchObject({ acc: 0x10, carry: 0 }) // carry from low to high nibble
+    expect(run([['LDI', 0xff], ['STA', 0], ['LDI', 1], ['ADD', 0]], 4)).toMatchObject({ acc: 0, carry: 1, zero: 1 }) // 255 + 1 overflows to 0
+    expect(run([['LDI', 5], ['STA', 0], ['LDI', 3], ['SUB', 0]], 4)).toMatchObject({ acc: 254, carry: 1, zero: 0 }) // 3 - 5 = -2, with borrow
+    expect(run([['LDI', 0x01], ['STA', 0], ['LDI', 0x10], ['SUB', 0]], 4)).toMatchObject({ acc: 0x0f, carry: 0 }) // borrow from high to low nibble
+    expect(run([['LDI', 7], ['STA', 0], ['LDI', 7], ['SUB', 0]], 4)).toMatchObject({ acc: 0, carry: 0, zero: 1 })
+    expect(run([['JMP', 5]], 1).pc).toBe(5)
+    expect(run([['LDI', 1], ['STA', 0], ['ADD', 0], ['JNC', 6]], 4).pc).toBe(6) // 1 + 1: no carry, so JNC jumps
+    expect(run([['LDI', 0xff], ['STA', 0], ['ADD', 0], ['JNC', 6]], 4).pc).toBe(4) // 255 + 255 carries, so JNC falls through
+    expect(run([['HALT']], 5).pc).toBe(0) // HALT stays where it is
+    expect(run([['LDI', 0xa5], ['STA', 15]], 2).out).toBe(0xa5) // address 15 is the output port
+    expect(run([['LDI', 0xa5], ['STA', 14]], 2).out).toBe(0) // any other address leaves it alone
+    expect(run([['LDI', 10], ['STA', 15], ['LDI', 3], ['LDA', 15]], 4)).toMatchObject({ out: 10, acc: 10 }) // LDA 15 reads the RAM, not the port
   })
 })

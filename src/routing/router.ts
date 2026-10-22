@@ -373,9 +373,10 @@ function crossings(path: Point[], net: number, others: { path: Point[]; net: num
  * Route the given wires, avoiding components and every other wire's current path.
  * Wires of one net are routed together (so fan-outs share a trunk), shortest first; each finished wire
  * becomes an obstacle for the next. Then wires that cross others are ripped up and re-routed with
- * everything else fixed, which untangles bundles whose first routing order was unlucky.
+ * everything else fixed, which untangles bundles whose first routing order was unlucky. `improve` is `false` to skip
+ * that, a number to cap its passes, or `true` for up to three.
  */
-export function routeWires(c: Circuit, ids: string[], improve = true): Record<string, Point[]> {
+export function routeWires(c: Circuit, ids: string[], improve: boolean | number = true): Record<string, Point[]> {
   const ends = new Map<string, Endpoints>()
   for (const id of ids) {
     const w = c.wires[id]
@@ -433,7 +434,7 @@ export function routeWires(c: Circuit, ids: string[], improve = true): Record<st
 
   if (improve) {
     const all = () => [...paths].map(([id, path]) => ({ id, path, net: netOf(c.wires[id]) }))
-    for (let pass = 0; pass < 3; pass++) {
+    for (let pass = 0; pass < (improve === true ? 3 : improve); pass++) {
       let better = false
       for (const id of order) {
         const net = netOf(c.wires[id])

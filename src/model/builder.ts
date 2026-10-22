@@ -39,9 +39,12 @@ export class CircuitBuilder {
     return id
   }
 
-  /** Route every wire and return the circuit. */
-  build(): Circuit {
-    const paths = routeWires(this.c, Object.keys(this.c.wires))
+  /**
+   * Route every wire and return the circuit. `improve` caps the passes that re-route crossing wires (default: all);
+   * large circuits take most of their routing time there, for diminishing returns after the first pass.
+   */
+  build(improve: boolean | number = true): Circuit {
+    const paths = routeWires(this.c, Object.keys(this.c.wires), improve)
     for (const [id, path] of Object.entries(paths)) this.c.wires[id].path = path
     return this.c
   }
