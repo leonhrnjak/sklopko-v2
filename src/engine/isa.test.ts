@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexWords } from './isa'
+import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexWords, wordFields } from './isa'
 
 const asm = (source: string, capacity = 16) => assemble(SKASM, source, capacity)
 const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SKASM.bits)
@@ -334,5 +334,76 @@ describe('names that happen to be inherited object properties', () => {
   it('are unknown names, not numbers', () => {
     expect(asm('JMP constructor').errors.map((e) => e.message)).toEqual(['Unknown name “constructor”.'])
     expect(asm('toString: HALT').errors).toEqual([])
+  })
+})
+
+describe('wordFields: how an instruction word is made up', () => {
+  const fieldsOf = (src: string) => wordFields(SKASM, asm(src, 256).words[0])!
+
+  it('LDI: the constant in bits 8-15, the opcode in bits 4-7', () => {
+    const f = fieldsOf('LDI 3')
+    expect(f.mnemonic).toBe('LDI')
+    expect(f.fields).toEqual([
+      { name: 'constant', from: 8, to: 15, value: 3 },
+      { name: 'opcode', from: 4, to: 7, value: 0 },
+    ])
+  })
+
+  it('STA and the other address instructions: the address in bits 0-3', () => {
+    expect(fieldsOf('STA 9').fields).toEqual([
+      { name: 'opcode', from: 4, to: 7, value: 2 },
+      { name: 'RAM address', from: 0, to: 3, value: 9 },
+    ])
+  })
+
+  it('a jump has its target in two halves, bits 8-11 and bits 0-3', () => {
+    expect(fieldsOf('JMP 0xA5').fields).toEqual([
+      { name: 'jump target, high half', from: 8, to: 11, value: 0xa },
+      { name: 'opcode', from: 4, to: 7, value: 3 },
+      { name: 'jump target, low half', from: 0, to: 3, value: 5 },
+    ])
+  })
+
+  it('the extension groups put the sub-opcode in bits 0-3 (immediates) or bits 12-15 (the rest)', () => {
+    expect(fieldsOf('ANDI 0x0F').fields).toEqual([
+      { name: 'constant', from: 8, to: 15, value: 0x0f },
+      { name: 'opcode', from: 4, to: 7, value: 14 },
+      { name: 'sub-opcode', from: 0, to: 3, value: 0 },
+    ])
+    expect(fieldsOf('IN KEY').fields).toEqual([
+      { name: 'sub-opcode', from: 12, to: 15, value: 1 },
+      { name: 'opcode', from: 4, to: 7, value: 15 },
+      { name: 'port', from: 0, to: 3, value: 5 },
+    ])
+  })
+
+  it('an instruction without an operand is just the opcode', () => {
+    expect(fieldsOf('HALT').fields).toEqual([{ name: 'opcode', from: 4, to: 7, value: 7 }])
+  })
+
+  it('for every instruction the fields do not overlap, and put together they are the word', () => {
+    for (const [name, op] of Object.entries(SKASM.ops)) {
+      const args = op.arg === 'none' ? [0] : op.arg === 'imm' || op.arg === 'target' ? [0, 1, 0x5a, 255] : [0, 1, 9, 15]
+      for (const arg of args) {
+        const word = SKASM.encode(op, arg)
+        const f = wordFields(SKASM, word)!
+        expect(f.mnemonic).toBe(name)
+        let rebuilt = 0
+        const used = new Set<number>()
+        for (const field of f.fields) {
+          for (let b = field.from; b <= field.to; b++) {
+            expect(used.has(b), `${name} ${arg}: bit ${b} in two fields`).toBe(false)
+            used.add(b)
+          }
+          rebuilt |= field.value << field.from
+        }
+        expect(rebuilt, `${name} ${arg}`).toBe(word)
+      }
+    }
+  })
+
+  it('is null for a word that is not exactly an instruction', () => {
+    expect(wordFields(SKASM, 0x1234)).toBeNull()
+    expect(wordFields(SKASM, 0xb0f0)).toBeNull()
   })
 })

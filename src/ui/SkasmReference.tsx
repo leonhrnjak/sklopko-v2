@@ -1,11 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { closeReference, setReferenceTab, useReference, type ReferenceTab } from '../app/reference'
 import { showToast } from '../app/store'
-import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, type ArgKind, type Op, type OpCategory } from '../engine/isa'
+import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, wordFields, type ArgKind, type Op, type OpCategory, type WordField } from '../engine/isa'
 import { SKASM_EXAMPLES } from '../model/skasm-examples'
 
 const TABS: [ReferenceTab, string][] = [
   ['start', 'Getting started'],
+  ['format', 'Instruction format'],
   ['instructions', 'Instructions'],
   ['ports', 'Ports'],
   ['examples', 'Examples'],
@@ -48,7 +49,10 @@ function Start() {
           Open one of the computers from <b>Examples</b>, or place a <b>ROM</b> (Memory) and choose <b>Contents are → A
           program in SKASM</b> in the inspector on the right.
         </li>
-        <li>Type or paste the program. Read the result in the <b>listing</b> below it: address, word and instruction.</li>
+        <li>
+          Type or paste the program. Read the result in the <b>listing</b> below it: address, word and instruction. The{' '}
+          <b>Instruction format</b> tab shows how a line becomes that word and what each ROM pin does.
+        </li>
         <li>
           Press <b>Run</b>. <b>◀ Back</b> and <b>Clock step</b> go through the program one instruction at a time; the PC
           display and the listing show which instruction is running.
@@ -121,6 +125,189 @@ loop:   SUBI 1      ; a label names the address of the next instruction
           assembled.
         </li>
       </ul>
+    </div>
+  )
+}
+
+/** Which colour a field of an instruction word gets. */
+const fieldClass = (f: WordField) => (f.name === 'opcode' ? 'f-op' : f.name === 'sub-opcode' ? 'f-sub' : f.name === 'constant' ? 'f-const' : 'f-operand')
+
+const hex4 = (n: number) => n.toString(16).toUpperCase().padStart(4, '0')
+
+/** One instruction word as 16 bits, D15 on the left, each field in its own colour, and what each field holds. */
+function WordBreakdown({ word }: { word: number }) {
+  const info = wordFields(SKASM, word)
+  const owner = (bit: number) => info?.fields.find((f) => bit >= f.from && bit <= f.to)
+  const ones = Array.from({ length: 16 }, (_, i) => 15 - i).filter((b) => (word >> b) & 1)
+  return (
+    <div className="fmt-word" data-testid="fmt-word">
+      <div className="fmt-bits" role="img" aria-label={`The 16 bits of the word ${hex4(word)}`}>
+        {Array.from({ length: 16 }, (_, i) => 15 - i).map((bit) => {
+          const f = owner(bit)
+          return (
+            <div key={bit} className={`fmt-bit${f ? ` ${fieldClass(f)}` : ' unused'}`} title={f ? `D${bit}: ${f.name}` : `D${bit}: not used`}>
+              <small>D{bit}</small>
+              <span>{(word >> bit) & 1}</span>
+            </div>
+          )
+        })}
+      </div>
+      {info ? (
+        <ul className="fmt-fields">
+          {info.fields.map((f) => (
+            <li key={f.name}>
+              <span className={`fmt-swatch ${fieldClass(f)}`} />
+              <b>{f.from === f.to ? `D${f.from}` : `D${f.from}–D${f.to}`}</b> {f.name} = <code>{f.value}</code>
+              {f.name === 'opcode' && (
+                <>
+                  {' '}
+                  (<code>{info.mnemonic}</code>
+                  {f.value >= 14 ? ', with the sub-opcode picking the instruction' : ''})
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="ref-note">This word is not an instruction, so nothing runs it.</p>
+      )}
+      <p className="fmt-pins">
+        The ROM’s pins that are 1: {ones.length ? ones.map((b) => <code key={b}>D{b}</code>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ' ', el] : [el]), []) : 'none'}. Bits that belong to no field are 0 and ignored.
+      </p>
+    </div>
+  )
+}
+
+function Format() {
+  const [text, setText] = useState('LDI 3')
+  const line = text.split('\n')[0]
+  const result = line.trim() ? assemble(SKASM, line, 1) : null
+  const word = result && !result.errors.length ? result.words[0] : null
+  const program = ['LDI 3', 'STA 0', 'HALT']
+  const words = assemble(SKASM, program.join('\n'), 3).words
+  return (
+    <div className="ref-text">
+      <p>
+        A program becomes numbers in two steps. First the <b>assembler</b> (software, in the ROM’s inspector, while you type) turns each line of SKASM
+        into one 16-bit number, and the ROM stores those numbers as hex words: <code>0300 0020 0070</code>. Then the <b>circuit</b> reads them: the
+        program counter puts an address on the ROM’s address pins <code>A0–A7</code>, and the ROM shows the word stored there on its data pins{' '}
+        <code>D0–D15</code> (<code>D0</code> is the lowest bit). The ROM does not know what the bits mean. They mean what the wires from each pin do.
+      </p>
+
+      <h3>Try an instruction</h3>
+      <label className="field">
+        <span>One line of SKASM</span>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          spellCheck={false}
+          aria-label="An instruction to break down"
+          className={`mono${result?.errors.length ? ' invalid' : ''}`}
+        />
+      </label>
+      {result?.errors.length ? <p className="field-error">{result.errors[0].message}</p> : null}
+      {word !== null && (
+        <>
+          <p>
+            It assembles to the word <b data-testid="fmt-hex">{hex4(word)}</b>:
+          </p>
+          <WordBreakdown word={word} />
+        </>
+      )}
+
+      <h3>What each data pin means</h3>
+      <div className="ref-table-wrap">
+        <table className="ref-table">
+          <thead>
+            <tr>
+              <th>ROM pins</th>
+              <th>The instruction keeps there</th>
+              <th>The circuit sends it to</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <code>D0–D3</code>
+              </td>
+              <td>a RAM address, a port number, or the low half of a jump target</td>
+              <td>the RAM’s address pins, the port decoding, the program counter’s load inputs</td>
+            </tr>
+            <tr>
+              <td>
+                <code>D4–D7</code>
+              </td>
+              <td>
+                the <b>opcode</b>: which instruction it is
+              </td>
+              <td>the control ROM’s address, and the detectors for opcodes 14 and 15</td>
+            </tr>
+            <tr>
+              <td>
+                <code>D8–D15</code>
+              </td>
+              <td>
+                the <b>constant</b> (<code>LDI 200</code>, <code>ANDI 0x0F</code>…); <code>D8–D11</code> also hold the high half of a jump target
+              </td>
+              <td>the operand mux, the accumulator’s input mux, the program counter’s high load inputs</td>
+            </tr>
+            <tr>
+              <td>
+                <code>D12–D15</code>
+              </td>
+              <td>
+                for opcode 15 only (<code>OUT</code>, <code>IN</code>, <code>JNZ</code>, <code>AND</code>…): the <b>sub-opcode</b>
+              </td>
+              <td>the sub-opcode gates, then the control ROM</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The same pins feed several places at once. The <b>control ROM</b> decides which of them matters: it looks at the opcode and switches the right
+        data path on. For opcode 14 the sub-opcode is in <code>D0–D3</code> (the constant takes the top half); for opcode 15 it is in{' '}
+        <code>D12–D15</code>.
+      </p>
+
+      <h3>A program, word by word</h3>
+      <div className="ref-table-wrap">
+        <table className="ref-table">
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>SKASM</th>
+              <th>Word</th>
+              <th>Bits</th>
+            </tr>
+          </thead>
+          <tbody>
+            {program.map((line, i) => (
+              <tr key={line}>
+                <td>{i}</td>
+                <td>
+                  <code>{line}</code>
+                </td>
+                <td>
+                  <code>{hex4(words[i])}</code>
+                </td>
+                <td>
+                  <code>{words[i].toString(2).padStart(16, '0').replace(/(.{4})(?=.)/g, '$1 ')}</code>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>One clock cycle for <code>LDI 3</code>:</p>
+      <ol>
+        <li>The program counter is 0, so the ROM shows <code>0300</code>: <code>D8</code> and <code>D9</code> are 1.</li>
+        <li>
+          <code>D4–D7</code> = 0 reach the control ROM. Its row 0 says: load the accumulator, from the instruction’s constant.
+        </li>
+        <li>
+          The accumulator’s input mux picks the constant, <code>D8–D15</code> = 3, and the accumulator takes it at the clock edge. The program counter moves on to address 1.
+        </li>
+      </ol>
     </div>
   )
 }
@@ -312,7 +499,7 @@ export function SkasmReference() {
             ✕
           </button>
         </header>
-        <div className="modal-body">{tab === 'start' ? <Start /> : tab === 'instructions' ? <Instructions /> : tab === 'ports' ? <Ports /> : <Examples />}</div>
+        <div className="modal-body">{tab === 'start' ? <Start /> : tab === 'format' ? <Format /> : tab === 'instructions' ? <Instructions /> : tab === 'ports' ? <Ports /> : <Examples />}</div>
       </div>
     </div>
   )

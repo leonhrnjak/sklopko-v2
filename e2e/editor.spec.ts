@@ -1265,6 +1265,19 @@ test('the SKASM reference opens from the toolbar and from a program ROM, and has
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('the assembly language of every Sklopko computer')).toBeVisible()
 
+  await dialog.getByRole('tab', { name: 'Instruction format' }).click()
+  await expect(dialog.getByTestId('fmt-hex')).toHaveText('0300') // LDI 3
+  await expect(dialog.getByTestId('fmt-word')).toContainText('D8–D15 constant = 3')
+  const instruction = dialog.getByLabel('An instruction to break down')
+  await instruction.fill('OUT CHAR')
+  await expect(dialog.getByTestId('fmt-hex')).toHaveText('00F1')
+  await expect(dialog.getByTestId('fmt-word')).toContainText('sub-opcode')
+  await instruction.fill('JMP 0xA5')
+  await expect(dialog.getByTestId('fmt-word')).toContainText('jump target, high half')
+  await instruction.fill('FOO 1')
+  await expect(dialog).toContainText('Unknown instruction')
+  await expect(dialog.getByTestId('fmt-word')).toHaveCount(0)
+
   await dialog.getByRole('tab', { name: 'Instructions' }).click()
   await expect(dialog.locator('#op-LDI')).toBeVisible()
   await expect(dialog.locator('#op-JNZ')).toContainText('jump to t if the zero flag is 0')

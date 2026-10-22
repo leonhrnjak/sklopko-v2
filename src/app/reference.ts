@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ReferenceTab = 'start' | 'instructions' | 'ports' | 'examples'
+export type ReferenceTab = 'start' | 'format' | 'instructions' | 'ports' | 'examples'
 
 interface ReferenceState {
   open: boolean

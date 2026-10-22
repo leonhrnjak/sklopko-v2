@@ -348,3 +348,33 @@ export function disassemble(isa: Isa, word: number): string {
 /** Machine words as the ROM's hex text: one word per group, zero-padded to the word width. */
 export const toHexWords = (words: number[], bits: number): string =>
   words.map((w) => w.toString(16).toUpperCase().padStart(Math.ceil(bits / 4), '0')).join(' ')
+
+/** One part of an instruction word: bits `from`..`to` (0 is the lowest bit, which is the ROM's `D0`) and what they hold. */
+export interface WordField {
+  /** What the bits are: 'opcode', 'sub-opcode', or the operand ('constant', 'RAM address', 'port', 'jump target (low half)'...). */
+  name: string
+  from: number
+  to: number
+  value: number
+}
+
+/**
+ * How an instruction word is made up, field by field: the opcode in bits 4–7, the operand (a constant, an address, a port
+ * or a jump target, which is in two halves), and the sub-opcode of an instruction in an extension group. Bits the instruction
+ * does not use are in no field. Returns null for a word that is not exactly an instruction (see `disassemble`).
+ */
+export function wordFields(isa: Isa, word: number): { mnemonic: string; fields: WordField[] } | null {
+  const d = isa.decode(word)
+  if (!d) return null
+  const o = isa.ops[d.mnemonic]
+  if (isa.encode(o, d.arg) !== word) return null
+  const bits = (from: number, to: number) => (word >> from) & (2 ** (to - from + 1) - 1)
+  const field = (name: string, from: number, to: number): WordField => ({ name, from, to, value: bits(from, to) })
+  const fields: WordField[] = [field('opcode', 4, 7)]
+  if (o.arg === 'imm') fields.push(field('constant', 8, 15))
+  else if (o.arg === 'addr') fields.push(field('RAM address', 0, 3))
+  else if (o.arg === 'port') fields.push(field('port', 0, 3))
+  else if (o.arg === 'target') fields.push(field('jump target, low half', 0, 3), field('jump target, high half', 8, 11))
+  if (o.sub !== undefined) fields.push(o.code === EXT_IMM ? field('sub-opcode', 0, 3) : field('sub-opcode', 12, 15))
+  return { mnemonic: d.mnemonic, fields: fields.sort((a, b) => b.from - a.from) }
+}
