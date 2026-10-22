@@ -94,7 +94,9 @@ export function TickDiagram() {
   const view = useCapture()
   const extra = useDiagram((s) => s.extra)
   const glitchesOnly = useDiagram((s) => s.glitchesOnly)
-  const wrap = useRef<HTMLDivElement>(null)
+  // The element that gives the diagram its width. It only exists once there is something to draw, so it is a state, not a ref:
+  // the observer must attach when it appears.
+  const [wrap, setWrap] = useState<HTMLElement | null>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [width, setWidth] = useState(600)
   const [hover, setHover] = useState('')
@@ -105,14 +107,13 @@ export function TickDiagram() {
     return () => sim.setCapture(false)
   }, [])
   useEffect(() => {
-    const el = wrap.current
-    if (!el) return
-    const measure = () => setWidth(el.clientWidth)
+    if (!wrap) return
+    const measure = () => setWidth(Math.max(1, wrap.clientWidth))
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    ro.observe(wrap)
     return () => ro.disconnect()
-  }, [])
+  }, [wrap])
 
   const rows = useMemo(() => (view ? diagramRows(circuit, (c, p) => sim.netOf(c, p), view, extra, glitchesOnly) : []), [circuit, view, extra, glitchesOnly])
   useEffect(() => {
@@ -176,12 +177,12 @@ export function TickDiagram() {
             {extra.length > 0 && <button onClick={clearDiagramSignals}>Remove added signals</button>}
           </div>
           {rows.length ? (
-            <div className="tick-wrap" ref={wrap}>
-              <canvas ref={canvas} data-testid="tick-canvas" style={{ height: rows.length * ROW_H + AXIS_H }} onPointerMove={onMove} onPointerLeave={() => setHover('')} />
+            <div className="tick-wrap" ref={setWrap}>
+              <canvas ref={canvas} data-testid="tick-canvas" style={{ width, height: rows.length * ROW_H + AXIS_H }} onPointerMove={onMove} onPointerLeave={() => setHover('')} />
               {rows.length >= MAX_ROWS && <small>Showing the first {MAX_ROWS} signals.</small>}
             </div>
           ) : (
-            <p className="wave-empty" ref={wrap}>
+            <p className="wave-empty" ref={setWrap}>
               {glitchesOnly ? 'Nothing glitched.' : 'No signals to show: put an LED or a probe on the circuit, or select a wire and add it.'}
             </p>
           )}

@@ -1379,6 +1379,10 @@ test('glitches: the hazard example dips for a moment, it is marked on the circui
   await expect(page.getByRole('list', { name: 'Glitches' })).toContainText('static-1')
   await expect(page.getByTestId('tick-canvas')).toBeVisible()
   await expect(page.locator('.wire-trace.glitch').first()).toBeVisible()
+  // The diagram is drawn at the width it is shown at: not drawn narrow and stretched by CSS.
+  const sizes = await page.getByTestId('tick-canvas').evaluate((c: HTMLCanvasElement) => ({ drawn: c.width / (window.devicePixelRatio || 1), shown: c.getBoundingClientRect().width, wrap: c.parentElement!.clientWidth }))
+  expect(Math.abs(sizes.drawn - sizes.shown)).toBeLessThan(2)
+  expect(Math.abs(sizes.shown - sizes.wrap)).toBeLessThan(2)
 
   await clickLabelled(page, 'A') // A rises again: no glitch this way round
   await expect(page.getByTestId('glitch-count')).toHaveText('No signal glitched.')

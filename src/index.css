@@ -2071,7 +2071,7 @@ table.truth td.in.changed {
 }
 .tick-wrap canvas {
   display: block;
-  width: 100%;
+  max-width: 100%;
 }
 .tick-readout {
   color: var(--muted);
