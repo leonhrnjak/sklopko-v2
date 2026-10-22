@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
-import { downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
+import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
@@ -16,6 +16,7 @@ import {
   useStore,
 } from '../app/store'
 import { EXAMPLES } from '../model/examples'
+import { exportImage } from './canvas/exportImage'
 import { fitView } from './canvas/viewport'
 
 /** Labelled display options; used in the settings popover and in the phone menu. */
@@ -202,6 +203,26 @@ export function Toolbar() {
       <button onClick={shareLink} title="Copy a link containing this circuit">
         Share
       </button>
+      <button onClick={copyEmbedCode} title="Copy HTML that shows this circuit, running, in a web page (an iframe)">
+        Embed
+      </button>
+      <select
+        value=""
+        onChange={(e) => {
+          const [format, area] = e.target.value.split('-') as ['svg' | 'png', 'all' | 'view']
+          void exportImage(format, area)
+        }}
+        aria-label="Export a picture"
+        title="Save a picture of the circuit"
+      >
+        <option value="" disabled>
+          Picture…
+        </option>
+        <option value="svg-all">SVG, whole circuit</option>
+        <option value="svg-view">SVG, what is on screen</option>
+        <option value="png-all">PNG, whole circuit</option>
+        <option value="png-view">PNG, what is on screen</option>
+      </select>
     </>
   )
 

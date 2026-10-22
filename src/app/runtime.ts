@@ -1,6 +1,7 @@
 import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
+import { isEmbed } from './embed'
 import { loadIntoSim, sim } from './sim'
 import { loadCircuit, setRunning, showToast, useStore } from './store'
 
@@ -34,6 +35,8 @@ function initialCircuit(): Circuit {
   } catch {
     showToast('That share link could not be opened.')
   }
+  // An embedded circuit is the one in the link, never the visitor's own saved work.
+  if (isEmbed()) return EXAMPLES[0].build()
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) return deserialize(JSON.parse(saved))
@@ -63,7 +66,7 @@ export function startRuntime() {
   let saveTimer = 0
   let lastSaved: Circuit | null = null
   useStore.subscribe((s) => {
-    if (s.circuit === lastSaved) return
+    if (isEmbed() || s.circuit === lastSaved) return // an embedded circuit must not overwrite the visitor's saved one
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => {
       lastSaved = s.circuit
@@ -113,6 +116,22 @@ export async function shareLink() {
     showToast('Share link copied to the clipboard.')
   } catch {
     window.prompt('Copy this link:', url)
+  }
+}
+
+/** Copy the HTML for an iframe that shows this circuit, running, in another web page. */
+export async function copyEmbedCode() {
+  // An untouched example has a short link of its own, like in shareLink.
+  const ex = exampleFromPath(location.pathname)
+  const src = ex ? `${location.origin}/${ex.id}?embed=1` : `${location.origin}/?embed=1#${toShareHash(useStore.getState().circuit)}`
+  const html =
+    `<iframe src="${src}" width="900" height="560" loading="lazy" allowfullscreen title="Sklopko circuit" ` +
+    `style="border: 1px solid #d0d0cc; border-radius: 8px; max-width: 100%"></iframe>`
+  try {
+    await navigator.clipboard.writeText(html)
+    showToast('Embed code copied to the clipboard.')
+  } catch {
+    window.prompt('Copy this HTML:', html)
   }
 }
 

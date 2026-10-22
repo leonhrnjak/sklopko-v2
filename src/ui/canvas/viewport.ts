@@ -11,6 +11,9 @@ export function registerCanvas(el: SVGSVGElement | null) {
   }
 }
 
+/** The canvas element, if it is on screen. */
+export const canvasElement = () => svgEl
+
 /** Zoom and pan so the whole circuit is visible. */
 export function fitView() {
   const { circuit } = useStore.getState()

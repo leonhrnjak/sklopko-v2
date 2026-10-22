@@ -15,6 +15,7 @@ import {
   paste,
   redo,
   resetWireRoute,
+  resizeFrame,
   rotateSelection,
   select,
   selectAll,
@@ -26,11 +27,14 @@ import {
   undo,
   useStore,
 } from '../../app/store'
+import { isEmbed } from '../../app/embed'
 import { useHops } from '../../app/hooks'
 import { layoutOf } from '../../engine/simulator'
 import { paramDefaults } from '../../engine/types'
 import {
   GRID,
+  isAnnotation,
+  isFrame,
   snap,
   worldPins,
   type Circuit,
@@ -43,6 +47,7 @@ import { applySegmentDrag, beginSegmentDrag, normalize, type SegmentDrag } from 
 import { routeWires } from '../../routing/router'
 import { CompSymbol } from '../symbols'
 import { useTraceOptions } from '../../app/trace'
+import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
 import { traceCone, traceNet } from '../../model/trace'
 import { ComponentView, GhostWire, Junctions, PinsView, TraceRings, WireView, HopArcs } from './views'
@@ -56,6 +61,8 @@ type Op =
   /** Two-finger pinch: zoom around the midpoint and pan with it. */
   | { k: 'pinch'; d0: number; zoom0: number; anchor: Point }
   | { k: 'marquee'; start: Point; add: boolean }
+  /** Dragging a frame's corner handle. */
+  | { k: 'resize'; id: string; start: Point; w0: number; h0: number; moved: boolean }
   | {
       k: 'move'
       ids: string[]
@@ -337,12 +344,23 @@ export function Canvas() {
       return
     }
     if (e.button === 2) {
+      if (isEmbed()) return
       // Right-click selects whatever is under the pointer (the way to edit a switch without flipping it).
       const hit = (e.target as Element).closest<SVGElement>('[data-kind="comp"], [data-kind="wire"]')
       if (hit) select([hit.dataset.id!])
       return
     }
     if (e.button !== 0) return
+
+    if (isEmbed()) {
+      // Embedded: only pan and zoom, and operate switches, buttons and inputs. Nothing is selected or dragged.
+      const part = (e.target as Element).closest<SVGElement>('[data-kind="comp"]')
+      const control = part && getDef(s.circuit.comps[part.dataset.id!].type).interactive
+      if (!control) {
+        startPan()
+        return
+      }
+    }
 
     if (s.placing) {
       // Placed on release, so a drag can still pan the view first.
@@ -352,6 +370,13 @@ export function Canvas() {
 
     const target = (e.target as Element).closest<SVGElement>('[data-kind]')
     const kind = target?.dataset.kind
+
+    if (kind === 'resize') {
+      const id = target!.dataset.id!
+      const k = s.circuit.comps[id]
+      op.current = { k: 'resize', id, start: w, w0: Number(k.params.w), h0: Number(k.params.h), moved: false }
+      return
+    }
 
     if (kind === 'pin') {
       const comp = target!.dataset.comp!
@@ -411,7 +436,8 @@ export function Canvas() {
       if (pressed) sim.setState(id, { pressed: true })
       const o: Extract<Op, { k: 'move' }> = {
         k: 'move',
-        ids: sel.filter((x) => x in s.circuit.comps),
+        // Dragging a frame takes what is inside it along.
+        ids: withFrameContents(s.circuit, sel.filter((x) => x in s.circuit.comps)),
         start: w,
         applied: { x: 0, y: 0 },
         moved: false,
@@ -426,7 +452,7 @@ export function Canvas() {
         longPressed: false,
         timer: 0,
       }
-      if (control)
+      if (control && !isEmbed())
         o.timer = window.setTimeout(() => {
           if (op.current !== o || o.moved) return
           // Long press: select for editing. A held push button stays pressed until released.
@@ -487,6 +513,17 @@ export function Canvas() {
           moveComps(o.ids, { x: d.x - o.applied.x, y: d.y - o.applied.y }, false)
           o.applied = d
         }
+        break
+      }
+      case 'resize': {
+        const nw = Math.max(60, snap(o.w0 + w.x - o.start.x))
+        const nh = Math.max(40, snap(o.h0 + w.y - o.start.y))
+        if (!o.moved) {
+          if (nw === o.w0 && nh === o.h0) return
+          o.moved = true
+          checkpoint()
+        }
+        resizeFrame(o.id, nw, nh)
         break
       }
       case 'wire': {
@@ -607,6 +644,11 @@ export function Canvas() {
       data-testid="canvas"
     >
       <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
+        <g className="layer-frames">
+          {comps.filter(isFrame).map((c) => (
+            <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} />
+          ))}
+        </g>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
             wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : undefined} />,
@@ -616,8 +658,13 @@ export function Canvas() {
           <HopArcs wires={circuit.wires} hops={hops} hidden={hiddenWire} />
         </g>
         <g className="layer-comps">
-          {comps.map((c) => (
+          {comps.filter((c) => !isAnnotation(c)).map((c) => (
             <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} related={related.has(c.id)} />
+          ))}
+        </g>
+        <g className="layer-notes">
+          {comps.filter((c) => isAnnotation(c) && !isFrame(c)).map((c) => (
+            <ComponentView key={c.id} comp={c} selected={selSet.has(c.id)} />
           ))}
         </g>
         {traced && (
@@ -627,7 +674,7 @@ export function Canvas() {
         )}
         <Junctions wires={circuit.wires} />
         <g className="layer-pins">
-          {comps.map((c) => (
+          {comps.filter((c) => !isAnnotation(c)).map((c) => (
             <PinsView key={c.id} comp={c} r={coarsePointer ? 10 : 4} />
           ))}
         </g>

@@ -1,6 +1,6 @@
 import { routeWires, wireEndpoints } from '../routing/router'
 import { adjustEnds } from '../routing/path'
-import { bodyRect, findPin, newId, worldPins, type Circuit, type PinRef, type Point, type Rect, type Wire } from './circuit'
+import { bodyRect, findPin, isAnnotation, newId, worldPins, type Circuit, type PinRef, type Point, type Rect, type Wire } from './circuit'
 
 /** True if any segment of the path passes through the interior of the rectangle. */
 export function pathHitsRect(path: Point[], r: Rect): boolean {
@@ -55,7 +55,7 @@ export function updateWiresAfterMove(c: Circuit, moved: Set<string>, d: Point, f
     todo.push(w.id)
   }
   if (final) {
-    const rects = [...moved].map((id) => c.comps[id]).filter(Boolean).map(bodyRect)
+    const rects = [...moved].map((id) => c.comps[id]).filter((k) => k && !isAnnotation(k)).map(bodyRect)
     for (const w of Object.values(c.wires)) {
       if (todo.includes(w.id) || moved.has(w.from.comp) || moved.has(w.to.comp)) continue
       if (rects.some((r) => pathHitsRect(w.path, r))) todo.push(w.id)
@@ -68,7 +68,7 @@ export function updateWiresAfterMove(c: Circuit, moved: Set<string>, d: Point, f
 /** After components changed shape or orientation: re-route their wires and any wire now running through them. */
 export function rerouteAround(c: Circuit, ids: string[]) {
   const set = new Set(ids)
-  const rects = ids.map((id) => c.comps[id]).filter(Boolean).map(bodyRect)
+  const rects = ids.map((id) => c.comps[id]).filter((k) => k && !isAnnotation(k)).map(bodyRect)
   const todo = Object.values(c.wires)
     .filter(
       (w) => set.has(w.from.comp) || set.has(w.to.comp) || rects.some((r) => pathHitsRect(w.path, r)),

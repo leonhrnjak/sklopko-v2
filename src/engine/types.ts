@@ -66,7 +66,7 @@ export interface Instance {
   params: Params
 }
 
-export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'coding' | 'display'
+export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'coding' | 'display' | 'annotation'
 
 export interface ComponentDef {
   type: string

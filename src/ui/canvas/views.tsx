@@ -27,7 +27,7 @@ export const ComponentView = memo(function ComponentView({
   const label = labelAnchor(comp)
   return (
     <g
-      className={`comp${def.interactive ? ' interactive' : ''}${selected ? ' selected' : ''}`}
+      className={`comp${def.interactive ? ' interactive' : ''}${selected ? ' selected' : ''}${comp.type === 'frame' ? ' frame' : ''}`}
       data-kind="comp"
       data-id={comp.id}
     >
@@ -36,6 +36,11 @@ export const ComponentView = memo(function ComponentView({
       <g transform={compTransform(comp, l)}>
         <CompSymbol comp={comp} layout={l} live />
       </g>
+      {selected && comp.type === 'frame' && (
+        <rect className="resize-handle" data-kind="resize" data-id={comp.id} x={b.x + b.w - 8} y={b.y + b.h - 8} width={14} height={14} rx={3}>
+          <title>Drag to resize</title>
+        </rect>
+      )}
       {comp.label && (
         <text className="comp-label" x={label.x} y={label.y} textAnchor="middle">
           {comp.label}

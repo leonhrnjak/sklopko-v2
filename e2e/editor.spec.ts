@@ -740,3 +740,180 @@ test('exporting waveforms: a VCD file with the groups as buses, and a PNG', asyn
   const bytes = readFileSync((await png.path())!)
   expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]) // the PNG signature
 })
+
+const boxOf = async (page: Page, selector: string) => (await page.locator(selector).first().boundingBox())!
+
+test('frames: drag one by its title bar and what is inside comes along; the inside stays free to click', async ({ page }) => {
+  await freshEmpty(page)
+  const frame = await place(page, 'frame', 300, 260)
+  const area = () => boxOf(page, `.comp[data-id="${frame}"] .frame-hit`)
+  const a = await area()
+  const gate = await place(page, 'and', a.x + a.width / 2 - (await page.getByTestId('canvas').boundingBox())!.x, a.y + a.height / 2 - (await page.getByTestId('canvas').boundingBox())!.y)
+  const outside = await place(page, 'and', 700, 560)
+  const gateBefore = await boxOf(page, `.comp[data-id="${gate}"] > g`)
+  const outsideBefore = await boxOf(page, `.comp[data-id="${outside}"] > g`)
+
+  // Clicking inside the frame's empty area does not select the frame (it starts a marquee instead).
+  await page.mouse.click(a.x + 20, a.y + a.height - 20)
+  await expect(page.locator('.comp.frame.selected')).toHaveCount(0)
+
+  // Dragging the title bar moves the frame and the gate inside it, but not the gate outside.
+  const bar = await boxOf(page, `.comp[data-id="${frame}"] .frame-bar`)
+  await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(bar.x + bar.width / 2 + 80, bar.y + bar.height / 2 + 50, { steps: 8 })
+  await page.mouse.up()
+  const moved = await area()
+  expect(moved.x - a.x).toBeGreaterThan(60) // (the drag snaps to the grid, and the view may be zoomed)
+  expect(moved.y - a.y).toBeGreaterThan(30)
+  const gateAfter = await boxOf(page, `.comp[data-id="${gate}"] > g`)
+  expect(gateAfter.x - gateBefore.x).toBeCloseTo(moved.x - a.x, 0) // the gate inside moved exactly as far as the frame
+  expect(gateAfter.y - gateBefore.y).toBeCloseTo(moved.y - a.y, 0)
+  const outsideAfter = await boxOf(page, `.comp[data-id="${outside}"] > g`)
+  expect(outsideAfter.x).toBe(outsideBefore.x)
+
+  // The corner handle resizes it.
+  await expect(page.locator('.resize-handle')).toHaveCount(1)
+  const h = await boxOf(page, '.resize-handle')
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(h.x + h.width / 2 + 60, h.y + h.height / 2 + 40, { steps: 6 })
+  await page.mouse.up()
+  const resized = await area()
+  expect(resized.width - moved.width).toBeGreaterThan(40)
+  expect(resized.height - moved.height).toBeGreaterThan(20)
+  await expect(page.locator('.inspector')).toContainText('Frame')
+})
+
+test('notes: the text wraps at the width you choose', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'note', 300, 200)
+  const text = page.locator('.inspector textarea').first()
+  await text.fill('one two three four five six seven eight nine ten')
+  await page.locator('.inspector h2').click()
+  const lines = page.getByTestId('canvas').locator('.note-text')
+  const wide = await lines.count()
+  await page.getByLabel('Width (characters per line)').fill('12')
+  await expect.poll(() => lines.count()).toBeGreaterThan(wide)
+  await expect(lines.first()).toHaveText('one two')
+  // No rotate or flip for a note, and no label.
+  await expect(page.getByRole('button', { name: /Rotate/ })).toHaveCount(0)
+  await expect(page.getByPlaceholder('optional')).toHaveCount(0)
+})
+
+test('the welcome example explains itself with a note', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  await page.evaluate(() => localStorage.clear())
+  await page.goto('/counter', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('canvas').locator('.note-text').first()).toBeVisible()
+})
+
+test('embed mode: just the circuit and a few controls; switches work, nothing can be edited', async ({ page }) => {
+  await page.goto('/gates?embed=1', { waitUntil: 'networkidle' })
+  // No editor around it.
+  await expect(page.locator('.toolbar')).toHaveCount(0)
+  await expect(page.locator('.palette')).toHaveCount(0)
+  await expect(page.locator('.inspector')).toHaveCount(0)
+  await expect(page.getByTestId('canvas')).toBeVisible()
+  const bar = page.getByRole('toolbar', { name: 'Simulation controls' })
+  await expect(bar).toBeVisible()
+  await expect(bar.getByRole('link', { name: /Open in Sklopko/ })).toHaveAttribute('href', '/gates')
+
+  // Switches work.
+  const knob = page.locator('.comp', { has: page.locator('.switch-track') })
+  const led = page.locator('.comp', { has: page.locator('.led-fill') })
+  const lit = async () => led.locator('.led-fill.on').count()
+  const before = await lit()
+  const sw = knob.first().locator('> g')
+  const b = (await sw.boundingBox())!
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+  await expect.poll(lit).not.toBe(before)
+
+  // Nothing can be edited: dragging a gate, deleting and undoing do nothing.
+  // (Dragging a part pans the view, the only thing a drag does here: so look at where it is relative to another part.)
+  const gate = page.locator('.comp', { has: page.locator('.gate-sym, .sym-body') }).nth(2)
+  const other = page.locator('.comp').first()
+  const parts = await page.locator('.comp').count()
+  const apart = async () => {
+    const [p, q] = [(await gate.boundingBox())!, (await other.boundingBox())!]
+    return [Math.round(p.x - q.x), Math.round(p.y - q.y)]
+  }
+  const before2 = await apart()
+  const g = (await gate.boundingBox())!
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(g.x + g.width / 2 + 100, g.y + g.height / 2 + 100, { steps: 6 })
+  await page.mouse.up()
+  expect(await apart()).toEqual(before2)
+  await page.keyboard.press('Delete')
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.comp')).toHaveCount(parts)
+  await expect(page.locator('.comp.selected')).toHaveCount(0)
+  // The controls: Run/Pause.
+  await expect(bar.getByRole('button', { name: /Pause/ })).toBeVisible()
+  await bar.getByRole('button', { name: /Pause/ }).click()
+  await expect(bar.getByRole('button', { name: /Run/ })).toBeVisible()
+})
+
+test('embed mode neither reads nor writes the visitor\'s saved circuit', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  const saved = JSON.stringify({ app: 'sklopko', version: 1, comps: [{ id: 'x', type: 'switch', x: 0, y: 0, params: {} }], wires: [] })
+  await page.evaluate((s) => localStorage.setItem('sklopko.circuit.v1', s), saved)
+  await page.goto('/?embed=1', { waitUntil: 'networkidle' })
+  // Not the one saved part: the welcome example.
+  expect(await page.locator('.comp').count()).toBeGreaterThan(3)
+  // Operate something and give the autosave time to run: the saved circuit is untouched.
+  const sw = page.locator('.comp', { has: page.locator('.button-cap') }).first().locator('> g')
+  const b = (await sw.boundingBox())!
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+  await page.waitForTimeout(900)
+  expect(await page.evaluate(() => localStorage.getItem('sklopko.circuit.v1'))).toBe(saved)
+})
+
+test('embed code: the toolbar copies an iframe for this circuit', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/gates', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Embed' }).click()
+  await expect(page.locator('.toast')).toContainText('Embed code copied')
+  const html = await page.evaluate(() => navigator.clipboard.readText())
+  expect(html).toContain('<iframe src="')
+  expect(html).toContain('/gates?embed=1"')
+  expect(html).toContain('title="Sklopko circuit"')
+})
+
+test('picture export: SVG of the whole circuit, and of what is on screen; PNG', async ({ page }) => {
+  await page.goto('/labels', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(500)
+  const save = async (value: string) => {
+    const download = page.waitForEvent('download')
+    await page.getByLabel('Export a picture').selectOption(value)
+    return download
+  }
+  const svgFile = await save('svg-all')
+  expect(svgFile.suggestedFilename()).toBe('circuit.svg')
+  const svg = readFileSync((await svgFile.path())!, 'utf8')
+  expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="[-\d. ]+" width="\d+" height="\d+">/)
+  expect(svg).toContain('BIT0') // the labels
+  expect(svg).toContain('joined') // the note
+  expect(svg).toMatch(/stroke: rgb\(/) // looks come with the file, not from this app's CSS
+  // Editing marks are left out.
+  for (const marks of ['sel-outline', 'wire-hit', 'class="pin"', 'trace-ring', 'resize-handle']) expect(svg).not.toContain(marks)
+  const viewBox = (s: string) => s.match(/viewBox="([-\d. ]+)"/)![1].split(' ').map(Number)
+  const [, , wAll, hAll] = viewBox(svg)
+
+  // What is on screen is the window as it is: zoom in and it is much smaller than the whole circuit.
+  await page.getByRole('button', { name: 'Fit' }).click()
+  await page.getByTestId('canvas').hover()
+  await page.keyboard.down('Control')
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -200)
+  await page.keyboard.up('Control')
+  const viewFile = await save('svg-view')
+  const [, , wView, hView] = viewBox(readFileSync((await viewFile.path())!, 'utf8'))
+  expect(wView * hView).toBeLessThan(wAll * hAll)
+
+  const png = await save('png-all')
+  expect(png.suggestedFilename()).toBe('circuit.png')
+  const bytes = readFileSync((await png.path())!)
+  expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47])
+  expect(bytes.length).toBeGreaterThan(2000)
+})

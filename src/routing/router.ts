@@ -1,6 +1,7 @@
 import {
   GRID,
   bodyRect,
+  isAnnotation,
   labelAnchor,
   findPin,
   netKey,
@@ -203,6 +204,7 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
     maxY = Math.max(maxY, p.y)
   }
   for (const comp of Object.values(c.comps)) {
+    if (isAnnotation(comp)) continue // not an obstacle, and no reason to make the grid bigger
     const r = bodyRect(comp)
     grow(r)
     grow({ x: r.x + r.w, y: r.y + r.h })
@@ -217,6 +219,7 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
   const g = new Grid(minX, minY, maxX, maxY)
 
   for (const comp of Object.values(c.comps)) {
+    if (isAnnotation(comp)) continue
     if (comp.label) {
       // Label text is centred above or below the part (see labelAnchor): ~6.5px per character, 11px tall.
       const a = labelAnchor(comp)

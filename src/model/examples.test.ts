@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
-import { boundsRect } from './circuit'
+import { boundsRect, isAnnotation, isFrame } from './circuit'
 import { buildRows } from '../app/waveform'
 import { SK8, assemble, disassemble } from '../engine/isa'
 import { CONTROL, EXAMPLES, FIBONACCI, FIBONACCI_SOURCE, SMILEY } from './examples'
@@ -16,7 +16,8 @@ function example(id: string) {
 describe('all examples', () => {
   it('have no parts on top of each other', () => {
     for (const e of EXAMPLES) {
-      const rects = Object.values(example(e.id).comps).map((k) => ({ k, r: boundsRect(k) }))
+      // Notes and frames are meant to sit over other parts.
+      const rects = Object.values(example(e.id).comps).filter((k) => !isAnnotation(k)).map((k) => ({ k, r: boundsRect(k) }))
       for (let i = 0; i < rects.length; i++)
         for (let j = i + 1; j < rects.length; j++) {
           const [a, b] = [rects[i].r, rects[j].r]
@@ -24,6 +25,32 @@ describe('all examples', () => {
           expect(overlap, `${e.id}: ${rects[i].k.label ?? rects[i].k.type} / ${rects[j].k.label ?? rects[j].k.type}`).toBe(false)
         }
     }
+  }, 60000)
+})
+
+describe('notes and frames in the examples', () => {
+  it('frames in an example do not overlap each other, and every frame holds something', () => {
+    for (const e of EXAMPLES) {
+      const comps = Object.values(example(e.id).comps)
+      const frames = comps.filter(isFrame)
+      for (let i = 0; i < frames.length; i++) {
+        const a = boundsRect(frames[i])
+        expect(
+          comps.some((k) => k !== frames[i] && !isAnnotation(k) && boundsRect(k).x >= a.x && boundsRect(k).y >= a.y && boundsRect(k).x + boundsRect(k).w <= a.x + a.w && boundsRect(k).y + boundsRect(k).h <= a.y + a.h),
+          `${e.id}: ${frames[i].params.title} is empty`,
+        ).toBe(true)
+        for (let j = i + 1; j < frames.length; j++) {
+          const b = boundsRect(frames[j])
+          const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+          expect(overlap, `${e.id}: "${frames[i].params.title}" overlaps "${frames[j].params.title}"`).toBe(false)
+        }
+      }
+    }
+  }, 60000)
+
+  it('the examples that explain themselves have a note', () => {
+    for (const id of ['counter', 'labels', 'computer'])
+      expect(Object.values(example(id).comps).some((k) => k.type === 'note'), id).toBe(true)
   }, 60000)
 })
 

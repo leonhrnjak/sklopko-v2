@@ -67,6 +67,19 @@ security headers.
   group is drawn as one trace showing the number the bits form (hex, decimal or binary; the label order sets the bit
   order, so ACC0 is bit 0), as in the `/computer` example's PC and ACC. *PNG* saves the window as an image, and *VCD*
   saves everything recorded in the format that GTKWave and other waveform viewers open.
+- **Notes and frames:** the *Notes & frames* group of the parts panel has a *Note* (text that wraps at the width you
+  choose, in five colours) and a *Frame* (a titled, tinted box drawn behind everything). Neither has pins or any
+  effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it
+  together with everything inside, and drag its corner handle to resize it; clicking inside it still selects
+  what is under the pointer and starts a marquee as usual. The examples use them to explain themselves.
+- **Pictures:** *Picture…* in the toolbar saves the circuit as an SVG or a PNG, either the whole circuit or what is on
+  screen, as it looks right now (wires in their current colours, without selection marks or pins).
+- **Embed:** `?embed=1` on any link (an example's short link, or a share link) shows only the circuit with a few
+  controls (Run/Pause, Back, Clock step, Reset, Fit, and *Open in Sklopko*). It runs, switches and buttons work,
+  and you can pan and zoom, but nothing can be edited, and nothing is read from or written to the visitor's saved
+  circuit. *Embed* in the toolbar copies the iframe HTML for the current circuit, e.g.
+  `<iframe src="https://…/computer?embed=1" width="900" height="560"></iframe>`. The site allows being framed by
+  any page.
 - **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
   signals that cross show a small bridge. Stored in the browser.
 - **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
@@ -87,6 +100,7 @@ security headers.
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar |
+| Notes & frames | note, frame (annotations: no pins, no effect on the simulation) |
 
 The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: program
 counter, two program ROMs (instruction and constant), control ROM, two 4-bit adders chained into one 8-bit

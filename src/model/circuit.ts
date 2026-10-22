@@ -1,3 +1,4 @@
+import { getDef, hasDef } from '../engine/registry'
 import { layoutOf, type PinRef } from '../engine/simulator'
 import type { Layout, Params, PinDef, Side } from '../engine/types'
 
@@ -88,6 +89,12 @@ export function worldPins(c: Comp): WorldPin[] {
 export function findPin(c: Comp, name: string): WorldPin | undefined {
   return worldPins(c).find((p) => p.def.name === name)
 }
+
+/** Notes and frames: they explain the circuit, have no pins, and are not obstacles for wires. */
+export const isAnnotation = (c: Pick<Comp, 'type'>) => hasDef(c.type) && getDef(c.type).category === 'annotation'
+
+/** A frame: drawn behind everything, and moves what is inside it. */
+export const isFrame = (c: Pick<Comp, 'type'>) => c.type === 'frame'
 
 /** Body rectangle in world space (pins excluded). */
 export function bodyRect(c: Comp): Rect {

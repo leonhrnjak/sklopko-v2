@@ -126,10 +126,32 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-13).
 
 ## Milestone 4: Annotations, export and embed (small–medium)
-- [ ] **Text notes** and **group frames** on the canvas (no simulation effect; saved with the circuit).
-- [ ] **PNG / SVG export** of the circuit, current view or whole circuit.
-- [ ] **Embed mode**: `?embed=1` hides the editor chrome, read-only, runs the circuit; for iframes in blogs and courses.
-- [ ] Examples gain notes that explain what to watch.
+- [x] **Notes and frames.** Two pin-less parts (category *Notes & frames*), so they get placing, dragging, copy/paste,
+      undo and saving for free. A note wraps its text at a chosen width and has five colours. A frame is a titled
+      tinted box drawn behind everything (own layer): only its border and title bar take clicks, so the inside can
+      still be marquee-selected; dragging it moves everything inside (`withFrameContents`), a corner handle resizes it,
+      and a marquee selects a frame only when it holds all of it. Neither rotates. Both are left out of the router
+      (not obstacles, and they don't enlarge its grid) and out of wire re-routing after moves.
+- [x] **Picture export.** *Picture…* saves SVG or PNG, of the whole circuit or of what is on screen. The canvas SVG is
+      cloned with each shape's computed style baked in (so the file doesn't depend on our CSS), the editing marks
+      (selection, pins, hit areas, trace rings, resize handle) are removed, and the viewBox is set; PNG is rendered
+      from that at 2× (at most 8000px a side).
+- [x] **Embed mode.** `?embed=1`: only the canvas and a small control bar; runs; switches work; pan and zoom; no editing
+      (the store refuses edits, undo and redo, except operating a control); no autosave and no loading of the
+      visitor's saved circuit (an example or a share link in the URL is shown, otherwise the welcome example).
+      *Embed* in the toolbar copies an iframe snippet. `public/_headers` now allows framing from any site
+      (`frame-ancestors *` instead of `X-Frame-Options: SAMEORIGIN`).
+- [x] **Examples explain themselves.** The computer has a note and frames round the fetch unit and the decimal output
+      (frames only where parts sit together: its decode and execute logic is spread over the layout, so a frame
+      round it would cover unrelated parts); the counter and net label examples have notes.
+- Not done: frames that follow a part moved *out* of them (a frame only takes along what is inside when dragged),
+  nesting rules beyond "inside means wholly inside", notes with links or formatting, and a read-only mode for a
+  circuit that is not embedded (a "view only" link).
+- Tests: wrapping and sizing of notes, what a frame holds and what moves with it, router and re-routing ignore
+  annotations, store (resize limits, marquee, rotation, embed gating), saving and loading, every example (no frame
+  overlaps another, every frame holds something), and e2e for frames (drag with contents, resize, free inside),
+  notes, embed (chrome, switches, no editing, no saved-circuit access), the embed code, and SVG/PNG export.
+- **Status: done** (v0.0.1-14).
 
 ## Milestone 5: Truth tables and expressions (medium)
 - [ ] **Analyze**: pick input switches and output LEDs; the sweep shows a truth table, a Boolean expression and a

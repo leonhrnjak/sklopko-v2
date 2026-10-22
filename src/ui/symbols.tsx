@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
 import { SEG_HEX } from '../engine/components/io'
+import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, tableShape } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
 import { X, toNum, type Layout, type PinDef, type V } from '../engine/types'
@@ -449,6 +450,33 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'note': {
+      const lines = wrapText(String(p.text), Math.max(8, Number(p.cols)))
+      content = (
+        <>
+          <rect className={`note-body ${String(p.color)}`} x={0} y={0} width={l.w} height={l.h} rx={3} />
+          {lines.map((line, i) => (
+            <text key={i} className="note-text" x={NOTE_PAD} y={NOTE_PAD + 12 + i * NOTE_LINE_H}>
+              {line}
+            </text>
+          ))}
+        </>
+      )
+      break
+    }
+    case 'frame':
+      content = (
+        <>
+          <rect className={`frame-fill ${String(p.color)}`} x={0} y={0} width={l.w} height={l.h} rx={6} />
+          <rect className={`frame-edge ${String(p.color)}`} x={0} y={0} width={l.w} height={l.h} rx={6} />
+          <rect className="frame-hit" x={0} y={0} width={l.w} height={l.h} rx={6} />
+          <rect className="frame-bar" x={0} y={0} width={l.w} height={24} rx={6} />
+          <text className="frame-title" x={10} y={13}>
+            {String(p.title)}
+          </text>
+        </>
+      )
+      break
     case 'breakpoint': {
       const n = Number(p.width)
       const equals = p.when !== 'changes'

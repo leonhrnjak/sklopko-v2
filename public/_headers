@@ -10,7 +10,9 @@
 /index.html
   Cache-Control: no-cache
 
+# Other sites may embed the app (?embed=1 shows just the circuit), so framing is allowed everywhere: there is
+# nothing to click-jack (no accounts, no backend).
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors *

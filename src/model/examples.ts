@@ -1,12 +1,27 @@
 import { SK8, assemble, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
-import type { Circuit, Rot } from './circuit'
+import { boundsRect, snap, type Circuit, type Rot } from './circuit'
 
 export interface Example {
   /** Also the URL slug: sklopko.example/<id> opens this example. */
   id: string
   name: string
   build(): Circuit
+}
+
+/** A note on the canvas, to explain an example. */
+function note(b: CircuitBuilder, x: number, y: number, text: string, cols = 32, color = 'yellow') {
+  return b.add('note', x, y, { params: { text, cols, color } })
+}
+
+/** A frame round some of a circuit's parts, with room for its title above them. */
+function frameAround(b: CircuitBuilder, title: string, ids: string[], color = 'blue', pad = 24) {
+  const rects = ids.map((id) => boundsRect(b.c.comps[id]))
+  const x1 = Math.min(...rects.map((r) => r.x)) - pad
+  const y1 = Math.min(...rects.map((r) => r.y)) - pad - 24
+  const x2 = Math.max(...rects.map((r) => r.x + r.w)) + pad
+  const y2 = Math.max(...rects.map((r) => r.y + r.h)) + pad
+  return b.add('frame', snap(x1), snap(y1), { params: { title, w: snap(x2 - x1) + 10, h: snap(y2 - y1) + 10, color } })
 }
 
 function counterDisplay(): Circuit {
@@ -22,6 +37,13 @@ function counterDisplay(): Circuit {
   for (const p of 'abcdefg') b.wire(`${dec}.${p}`, `${seg}.${p}`)
   b.wire(`${rst}.Q`, `${cnt}.R`)
   b.wire(`${cnt}.CO`, `${co}.A`)
+  note(
+    b,
+    120,
+    300,
+    'The clock ticks twice a second and the counter counts 0 to 9. The decoder turns the count into segments for the display, and the carry output lights the yellow LED each time it wraps around. Hold Reset to stop it at 0.',
+    36,
+  )
   return b.build()
 }
 
@@ -802,8 +824,25 @@ export function computerBuilder(layout: Record<string, Spot>) {
  * program as assembly in the Program ROM's inspector.
  */
 function computer(): Circuit {
+  const { b, keys } = computerBuilder(COMPUTER_LAYOUT)
+  const ids = (...parts: string[]) => parts.map((k) => keys[k]).filter(Boolean)
+  // Only the groups that sit together get a frame; the decode logic and the accumulator are spread over the layout.
+  frameAround(b, 'Fetch: PC steps through the program', ids('pc', 'prog', 'pcDisp'))
+  frameAround(
+    b,
+    'Output: the decimal display',
+    ids('outLo', 'outHi', 'decLo', 'decRomTO', 'decRomH', 'decOnes', 'decTens', 'decHund', 'z3', 'dispHund', 'dispTens', 'dispOnes'),
+    'green',
+  )
+  note(
+    b,
+    110,
+    -170,
+    'A complete 8-bit computer. The clock steps the program counter (PC) through the program in the ROM. The control ROM decodes each instruction, and the adders, RAM and accumulator carry it out. What the program prints appears on the decimal display at the right. Click the Program ROM to read or edit its assembly. ◀ Back steps back one clock edge, and it pauses by itself at HALT.',
+    42,
+  )
   // 240 wires: skip the pass that untangles crossings. It would double the routing time (2 s to 4 s) to remove a fifth of them.
-  return computerBuilder(COMPUTER_LAYOUT).b.build(0)
+  return b.build(0)
 }
 
 /** The smiley as ROM words: one row each, bit 0 is the leftmost pixel. */
@@ -845,6 +884,13 @@ function netLabels(): Circuit {
     const led = b.add('led', 780, 180 + i * 50, { label: `Bit ${i}` })
     b.tag(`${led}.A`, `BIT${i}`)
   })
+  note(
+    b,
+    120,
+    230,
+    'These parts are not joined by wires. Each counter bit goes into a Send label (BIT0 to BIT3), and the Receive labels with the same name, next to the display and the LEDs, carry the same signal. Click a label: the others with its name get a dotted outline.',
+    36,
+  )
   return b.build()
 }
 

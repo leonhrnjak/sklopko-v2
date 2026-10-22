@@ -13,7 +13,7 @@ import {
   useStore,
 } from '../app/store'
 import { getDef } from '../engine/registry'
-import type { Comp, Wire } from '../model/circuit'
+import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { traceNet } from '../model/trace'
@@ -111,6 +111,7 @@ function CompInspector({ comp }: { comp: Comp }) {
     <>
       <h2>{def.name}</h2>
       <p className="desc">{def.description}</p>
+      {!isAnnotation(comp) && (
       <label className="field">
         <span>Label</span>
         <input
@@ -122,6 +123,7 @@ function CompInspector({ comp }: { comp: Comp }) {
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
       </label>
+      )}
       {def.params?.map((p) => {
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
         if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
@@ -191,12 +193,16 @@ function CompInspector({ comp }: { comp: Comp }) {
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
       {comp.type === 'probe' && <ProbeGroupInfo comp={comp} />}
       <div className="row">
-        <button onClick={rotateSelection} title="Rotate (R)">
-          ⟳ Rotate
-        </button>
-        <button onClick={flipSelection} title="Flip (F)">
-          ⇋ Flip
-        </button>
+        {!isAnnotation(comp) && (
+          <>
+            <button onClick={rotateSelection} title="Rotate (R)">
+              ⟳ Rotate
+            </button>
+            <button onClick={flipSelection} title="Flip (F)">
+              ⇋ Flip
+            </button>
+          </>
+        )}
         <button className="danger" onClick={deleteAndClose} title="Delete (Del)">
           Delete
         </button>

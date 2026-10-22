@@ -7,6 +7,8 @@ import {
   boundsRect,
   emptyCircuit,
   findPin,
+  isAnnotation,
+  isFrame,
   newId,
   rectsIntersect,
   snap,
@@ -18,8 +20,10 @@ import {
   type Rot,
   type Wire,
 } from '../model/circuit'
+import { isInside } from '../model/frames'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
+import { isEmbed } from './embed'
 import { sim } from './sim'
 
 export interface View {
@@ -67,6 +71,7 @@ const HISTORY = 200
 
 /** Save the current circuit on the undo stack. Call once before each user action. */
 export function checkpoint() {
+  if (isEmbed()) return
   const { circuit, past } = get()
   set({ past: [...past.slice(-HISTORY + 1), circuit], future: [] })
 }
@@ -75,7 +80,9 @@ export function checkpoint() {
  * Apply a change to the circuit. `structural` triggers a simulator recompile; so does `fn` returning true
  * (for changes that only sometimes alter the netlist, like auto-connecting touching pins).
  */
-function edit(fn: (c: Circuit) => boolean | void, structural = true) {
+function edit(fn: (c: Circuit) => boolean | void, structural = true, operating = false) {
+  // Embedded circuits can't be edited. Operating a control (flipping a switch) is not editing.
+  if (isEmbed() && !operating) return
   const s = get()
   let changedNets = false
   const circuit = produce(s.circuit, (d) => {
@@ -85,6 +92,7 @@ function edit(fn: (c: Circuit) => boolean | void, structural = true) {
 }
 
 export function undo() {
+  if (isEmbed()) return
   const { past, future, circuit, structVersion } = get()
   if (!past.length) return
   set({
@@ -97,6 +105,7 @@ export function undo() {
 }
 
 export function redo() {
+  if (isEmbed()) return
   const { past, future, circuit, structVersion } = get()
   if (!future.length) return
   set({
@@ -122,8 +131,9 @@ export const isComp = (id: string) => id in get().circuit.comps
 
 export function selectInRect(r: Rect, add: boolean) {
   const c = get().circuit
+  // A frame is selected only when the rectangle holds all of it, or dragging across a frame would always pick it up.
   const comps = Object.values(c.comps)
-    .filter((k) => rectsIntersect(boundsRect(k), r))
+    .filter((k) => (isFrame(k) ? isInside(boundsRect(k), r) : rectsIntersect(boundsRect(k), r)))
     .map((k) => k.id)
   const inSet = new Set(comps)
   const wires = Object.values(c.wires)
@@ -185,7 +195,8 @@ export function deleteSelection() {
 }
 
 function transformSelection(fn: (k: Comp) => void) {
-  const ids = get().selection.filter(isComp)
+  // Notes and frames stay upright.
+  const ids = get().selection.filter(isComp).filter((id) => !isAnnotation(get().circuit.comps[id]))
   if (!ids.length) return
   checkpoint()
   edit((c) => {
@@ -263,6 +274,16 @@ export function setLabel(id: string, label: string) {
   }, false)
 }
 
+/** Change a frame's size while it is being dragged by its corner. Call checkpoint() once before the first change. */
+export function resizeFrame(id: string, w: number, h: number) {
+  edit((c) => {
+    const k = c.comps[id]
+    if (!k || !isFrame(k)) return
+    k.params.w = Math.min(4000, Math.max(60, w))
+    k.params.h = Math.min(4000, Math.max(40, h))
+  }, false)
+}
+
 /** Overwrite one word of a RAM in the running simulation (the memory editor). Not an undoable circuit change. */
 export function pokeWord(id: string, index: number, value: number) {
   if (!sim.writeWord(id, index, value)) return
@@ -281,7 +302,7 @@ export function interact(id: string, alt: boolean) {
   else return
   edit((c) => {
     c.comps[id].params = params
-  }, false)
+  }, false, true)
   sim.setParams(id, get().circuit.comps[id].params)
 }
 
