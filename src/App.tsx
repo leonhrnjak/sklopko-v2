@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { isEmbed } from './app/embed'
 import { Canvas } from './ui/canvas/Canvas'
 import { EmbedBar } from './ui/EmbedBar'
+import { LogicPanel } from './ui/logic/LogicPanel'
 import { fitView } from './ui/canvas/viewport'
 import { Inspector } from './ui/Inspector'
 import { Palette } from './ui/Palette'
@@ -38,6 +39,7 @@ export default function App() {
         </div>
         <Inspector />
       </main>
+      <LogicPanel />
     </div>
   )
 }

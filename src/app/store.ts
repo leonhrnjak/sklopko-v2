@@ -20,6 +20,7 @@ import {
   type Rot,
   type Wire,
 } from '../model/circuit'
+import { circuitRect } from '../model/bounds'
 import { isInside } from '../model/frames'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
@@ -423,6 +424,43 @@ export function paste() {
     autoConnect(c, [...map.values()])
   })
   set({ selection: newIds })
+}
+
+/**
+ * Add a built circuit (parts and wires) to the canvas as one undo step: below what is already there, lined up with its
+ * left edge, or at the top left of an empty canvas. The new parts are selected. Returns their ids.
+ */
+export function insertCircuit(sub: Circuit): string[] {
+  const cur = get().circuit
+  const occupied = Object.keys(cur.comps).length > 0
+  const mine = circuitRect(sub, 0)
+  const there = occupied ? circuitRect(cur, 0) : { x: 40, y: 40 - 60, w: 0, h: 0 }
+  const dx = snap(there.x - mine.x)
+  const dy = snap(there.y + there.h + 60 - mine.y)
+  const ids: string[] = []
+  checkpoint()
+  edit((c) => {
+    const map = new Map<string, string>()
+    for (const k of Object.values(sub.comps)) {
+      const id = newId('c')
+      map.set(k.id, id)
+      ids.push(id)
+      c.comps[id] = { ...structuredClone(k), id, x: k.x + dx, y: k.y + dy }
+    }
+    for (const w of Object.values(sub.wires)) {
+      const id = newId('w')
+      ids.push(id)
+      c.wires[id] = {
+        ...structuredClone(w),
+        id,
+        from: { comp: map.get(w.from.comp)!, pin: w.from.pin },
+        to: { comp: map.get(w.to.comp)!, pin: w.to.pin },
+        path: w.path.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+      }
+    }
+  })
+  if (get().circuit !== cur) set({ selection: ids })
+  return ids
 }
 
 export function duplicateSelection() {

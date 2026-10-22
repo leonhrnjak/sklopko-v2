@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
+import { openLogic } from '../app/logic'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, useWave } from '../app/waveform'
@@ -140,6 +141,9 @@ export function Toolbar() {
       </button>
       <button onClick={reset} title="Power-cycle: all signals and memories return to their initial state">
         Reset
+      </button>
+      <button onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
+        Logic…
       </button>
       <button
         className={waveOpen ? 'active' : ''}

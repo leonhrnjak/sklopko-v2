@@ -67,6 +67,11 @@ security headers.
   group is drawn as one trace showing the number the bits form (hex, decimal or binary; the label order sets the bit
   order, so ACC0 is bit 0), as in the `/computer` example's PC and ACC. *PNG* saves the window as an image, and *VCD*
   saves everything recorded in the format that GTKWave and other waveform viewers open.
+- **Logic panel:** *Logic…* in the toolbar. *Analyze circuit* sweeps the switches you choose and shows the truth
+  table, a minimal Boolean expression and (up to 4 inputs) a Karnaugh map with its groups. *Build circuit* turns an
+  expression such as `Sum = A ⊕ B ⊕ Cin` or a truth table (with don't-cares) into wired, laid-out gates on the
+  canvas. *Compare* checks the circuit against an expression or a circuit file over all inputs and lists the rows
+  that differ.
 - **Notes and frames:** the *Notes & frames* group of the parts panel has a *Note* (text that wraps at the width you
   choose, in five colours) and a *Frame* (a titled, tinted box drawn behind everything). Neither has pins or any
   effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it

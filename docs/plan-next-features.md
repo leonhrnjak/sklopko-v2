@@ -154,11 +154,25 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-14).
 
 ## Milestone 5: Truth tables and expressions (medium)
-- [ ] **Analyze**: pick input switches and output LEDs; the sweep shows a truth table, a Boolean expression and a
-      Karnaugh map (up to 4 inputs).
-- [ ] **Build from expression**: type `Y = A·B + ¬C` (or a truth table) and get the gates, wired and laid out.
-- [ ] **Equivalence check**: two circuits (or a circuit and an expression) over all inputs.
-- Tests: expression parser/printer round-trip; generated circuits match their table for random expressions.
+- [x] **Analyze**: *Logic…* in the toolbar. Pick input switches and output LEDs (default: all labelled ones, at most 8
+      inputs); the circuit is swept in a separate simulator, so the canvas is untouched. The tab shows a truth table
+      (a row is *unknown* if the outputs don't settle), a minimal Boolean expression per output (Quine–McCluskey,
+      exact cover up to 22 candidates, greedy beyond) and a Karnaugh map for up to 4 inputs, with the groups drawn
+      (wrap-around included). A circuit whose outputs depend on stored state is flagged, not analysed as if it were
+      combinational.
+- [x] **Build from expression**: type `Y = A·B + ¬C` (also `& | ^ ! ~ AND OR XOR NOT`, `0`/`1`, several lines, names
+      defined by other lines) or fill in a truth table (0/1/don't care, with a *simplify* option). Gates are
+      hash-consed (duplicates and constants folded, wide gates split at 8 inputs), laid out by logic level, wired by
+      the router, and inserted below the existing circuit as one undo step, selected so it can be moved at once.
+- [x] **Equivalence check**: the circuit vs an expression, or vs a circuit file; tables are aligned on the union of
+      input names and outputs are matched by name. The verdict lists the differing rows.
+- Not done: Karnaugh maps for 5–6 inputs, sequential analysis (state tables), more than 8 inputs for circuits (10 for
+      expressions), checking circuits that contain sequential parts against each other.
+- Tests: parser/printer round-trip over 500 random expressions; minimal covers checked against brute force; K-map
+  groups; compare cases; generated circuits simulated gate by gate against their tables for random expressions;
+  analysis of the examples; insertion as one undo step; 7 e2e tests (analyze, empty canvas, build and analyze round
+  trip, flipping switches, undo, truth-table builder with don't-care, compare).
+- **Status: done** (v0.0.1-15).
 
 ## Milestone 6: Challenges mode (medium–large)
 As described at the end of `plan-stretch-features.md`: lessons plus "build a circuit matching this truth table",
