@@ -482,7 +482,7 @@ export function computer2Builder(o: Computer2Options) {
   wireBits(accHi, Q, addHi, bits('A', 4))
   for (let bit = 0; bit < 8; bit++) {
     const adder = bit < 4 ? addLo : addHi
-    const m = part(BSEL, `bsel${bit}`, 'mux', { params: { n: 2 }, label: `operand B, bit ${bit}` }, 20)
+    const m = part(BSEL, `bsel${bit}`, 'mux', { params: { n: 2 }, label: `operand B, bit ${bit}` }, 60)
     wire(`${ram}.Q${bit}`, `${m}.I0`)
     wire(`${prog}.D${8 + bit}`, `${m}.I1`)
     wire(`${ctl}.D11`, `${m}.S0`)
@@ -502,7 +502,7 @@ export function computer2Builder(o: Computer2Options) {
       memOrIn.push(`${ram}.Q${bit}`)
       continue
     }
-    const m = part(INMUX, `in${bit}`, 'mux', { params: { n: 2 }, label: `RAM or keypad, bit ${bit}` }, 20)
+    const m = part(INMUX, `in${bit}`, 'mux', { params: { n: 2 }, label: `RAM or keypad, bit ${bit}` }, 60)
     wire(`${ram}.Q${bit}`, `${m}.I0`)
     wire(bit < 4 ? `${keypad}.K${bit}` : bit === 4 ? `${keypad}.P` : `${zero}.Q`, `${m}.I1`)
     wire(select(15), `${m}.S0`)
@@ -513,7 +513,7 @@ export function computer2Builder(o: Computer2Options) {
   const accBit = (bit: number) => `${bit < 4 ? accLo : accHi}.${Q[bit % 4]}`
   for (let bit = 0; bit < 8; bit++) {
     const lo = bit < 4
-    const m = part(lo ? ACCMUX_LO : ACCMUX_HI, `amux${bit}`, 'mux', { params: { n: 8 }, label: `ACC input, bit ${bit}` }, 20)
+    const m = part(lo ? ACCMUX_LO : ACCMUX_HI, `amux${bit}`, 'mux', { params: { n: 8 }, label: `ACC input, bit ${bit}` }, 60)
     wire(`${prog}.D${8 + bit}`, `${m}.I0`)
     wire(`${lo ? addLo : addHi}.S${bit % 4}`, `${m}.I1`)
     wire(memOrIn[bit], `${m}.I2`)

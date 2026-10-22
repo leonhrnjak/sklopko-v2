@@ -12,14 +12,14 @@ import {
 } from '../model/circuit'
 import { normalize } from './path'
 
-// Cost model (in grid steps).
-const STEP = 1
-const SHARE = 0.5 // walking along a wire of the same net (fan-out trunks)
-const BEND = 6
-const CROSS = 8 // crossing another net at right angles (worth more than a bend: crossings are harder to read)
-const CLASH = 200 // overlapping / touching another net in a way that looks like a connection
-const NEAR_BODY = 0.6 // running right next to a component body
-const OVER_LABEL = 12 // running through a part's label text (allowed, e.g. to reach a top pin, but avoided)
+// Cost model, in tenths of a grid step (whole numbers, so the search can use buckets instead of a heap).
+const STEP = 10
+const SHARE = 5 // walking along a wire of the same net (fan-out trunks)
+const BEND = 60
+const CROSS = 80 // crossing another net at right angles (worth more than a bend: crossings are harder to read)
+const CLASH = 2000 // overlapping / touching another net in a way that looks like a connection
+const NEAR_BODY = 6 // running right next to a component body
+const OVER_LABEL = 120 // running through a part's label text (allowed, e.g. to reach a top pin, but avoided)
 const MAX_EXPANSIONS = 300_000
 const MARGIN = 6 // free grid cells around everything
 
@@ -45,6 +45,10 @@ class Grid {
   vOcc: Int32Array
   /** Net id that bends or ends at cell i. */
   pOcc: Int32Array
+  /** Extra cost of stepping onto each cell: next to a body, under a label. */
+  stat: Uint8Array
+  /** 1 for every cell that has any wire on an edge touching it: elsewhere the search can skip all occupancy checks. */
+  occ: Uint8Array
 
   /** Same static obstacles, empty wire occupancy. */
   fresh(): Grid {
@@ -54,6 +58,7 @@ class Grid {
     g.hOcc = new Int32Array(n)
     g.vOcc = new Int32Array(n)
     g.pOcc = new Int32Array(n)
+    g.occ = new Uint8Array(n)
     return g
   }
 
@@ -70,6 +75,8 @@ class Grid {
     this.hOcc = new Int32Array(n)
     this.vOcc = new Int32Array(n)
     this.pOcc = new Int32Array(n)
+    this.occ = new Uint8Array(n)
+    this.stat = new Uint8Array(n)
   }
 
   idx(p: Point) {
@@ -89,6 +96,14 @@ class Grid {
     arr[i] = cur === 0 || cur === net ? net : -1
   }
 
+  /** `mark` for an edge or point, noting the cells it touches (`other` is the cell at the far end of an edge). */
+  private put(arr: Int32Array, i: number, net: number, other: number) {
+    if (i < 0) return
+    Grid.mark(arr, i, net)
+    this.occ[i] = 1
+    if (other >= 0 && other < this.occ.length) this.occ[other] = 1
+  }
+
   /** Register a routed path as an obstacle for wires of other nets. */
   addPath(path: Point[], net: number) {
     for (let k = 1; k < path.length; k++) {
@@ -96,14 +111,14 @@ class Grid {
       const b = path[k]
       if (a.y === b.y) {
         const y = a.y
-        for (let x = Math.min(a.x, b.x); x < Math.max(a.x, b.x); x += GRID) Grid.mark(this.hOcc, this.idx({ x, y }), net)
+        for (let x = Math.min(a.x, b.x); x < Math.max(a.x, b.x); x += GRID) { const i = this.idx({ x, y }); this.put(this.hOcc, i, net, i + 1) }
       } else {
         const x = a.x
-        for (let y = Math.min(a.y, b.y); y < Math.max(a.y, b.y); y += GRID) Grid.mark(this.vOcc, this.idx({ x, y }), net)
+        for (let y = Math.min(a.y, b.y); y < Math.max(a.y, b.y); y += GRID) { const i = this.idx({ x, y }); this.put(this.vOcc, i, net, i + this.w) }
       }
     }
     // Ends and bends: another net passing through here would look connected.
-    for (const p of path) Grid.mark(this.pOcc, this.idx(p), net)
+    for (const p of path) this.put(this.pOcc, this.idx(p), net, -1)
   }
 
   /** Any net on any edge touching cell i, other than `net`. */
@@ -120,50 +135,94 @@ class Grid {
   }
 }
 
-/** Min-heap of (priority, value) pairs. */
-class Heap {
-  private k: number[] = []
-  private v: number[] = []
-  get size() {
-    return this.k.length
-  }
-  push(key: number, val: number) {
-    const { k, v } = this
-    let i = k.length
-    k.push(key)
-    v.push(val)
-    while (i > 0) {
-      const p = (i - 1) >> 1
-      if (k[p] <= key) break
-      k[i] = k[p]
-      v[i] = v[p]
-      i = p
+/**
+ * The search's open list: states ordered by estimated total cost, which is a whole number (costs are in tenths), so a
+ * list of states per cost value ("buckets") does the job of a heap in constant time. Of states with the same
+ * estimate the latest pushed comes out first, which keeps the search heading for the goal.
+ */
+const MAX_F = 1 << 20
+
+class Buckets {
+  private head = new Int32Array(MAX_F + 1)
+  private stamp = new Uint32Array(MAX_F + 1)
+  private node = new Int32Array(4096) // state of each entry
+  private next = new Int32Array(4096) // the entry below it in its bucket
+  private used = 0
+  private epoch = 0
+  private cursor = 0
+  size = 0
+
+  clear() {
+    this.size = 0
+    this.used = 0
+    this.cursor = MAX_F
+    if (++this.epoch >= 0xffffffff) {
+      this.stamp.fill(0)
+      this.epoch = 1
     }
-    k[i] = key
-    v[i] = val
   }
+
+  push(f: number, state: number) {
+    if (f > MAX_F) f = MAX_F
+    if (this.used === this.node.length) {
+      const n = new Int32Array(this.used * 2)
+      const x = new Int32Array(this.used * 2)
+      n.set(this.node)
+      x.set(this.next)
+      this.node = n
+      this.next = x
+    }
+    const e = this.used++
+    this.node[e] = state
+    this.next[e] = this.stamp[f] === this.epoch ? this.head[f] : -1
+    this.head[f] = e
+    this.stamp[f] = this.epoch
+    if (f < this.cursor) this.cursor = f
+    this.size++
+  }
+
   pop(): number {
-    const { k, v } = this
-    const top = v[0]
-    const lk = k.pop()!
-    const lv = v.pop()!
-    const n = k.length
-    if (n) {
-      let i = 0
-      for (;;) {
-        let c = 2 * i + 1
-        if (c >= n) break
-        if (c + 1 < n && k[c + 1] < k[c]) c++
-        if (k[c] >= lk) break
-        k[i] = k[c]
-        v[i] = v[c]
-        i = c
-      }
-      k[i] = lk
-      v[i] = lv
-    }
-    return top
+    let f = this.cursor
+    while (this.stamp[f] !== this.epoch || this.head[f] < 0) f++
+    const e = this.head[f]
+    this.head[f] = this.next[e]
+    this.cursor = f
+    this.size--
+    return this.node[e]
   }
+}
+
+/**
+ * Buffers of a search, kept between searches (a router makes hundreds): a state's cost, parent and "done" mark only
+ * count if its stamp is the current search's, so nothing has to be cleared.
+ */
+const buffers = {
+  size: 0,
+  cost: new Int32Array(0),
+  came: new Int32Array(0),
+  seen: new Uint32Array(0),
+  done: new Uint32Array(0),
+  epoch: 0,
+  open: new Buckets(),
+}
+
+function claimBuffers(n: number): number {
+  const b = buffers
+  if (n > b.size) {
+    b.size = n
+    b.cost = new Int32Array(n)
+    b.came = new Int32Array(n)
+    b.seen = new Uint32Array(n)
+    b.done = new Uint32Array(n)
+    b.epoch = 0
+  }
+  if (++b.epoch >= 0xffffffff) {
+    b.seen.fill(0)
+    b.done.fill(0)
+    b.epoch = 1
+  }
+  b.open.clear()
+  return b.epoch
 }
 
 interface Endpoints {
@@ -254,6 +313,7 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
       }
     }
   }
+  for (let i = 0; i < g.stat.length; i++) g.stat[i] = (g.near[i] ? NEAR_BODY : 0) + (g.label[i] ? OVER_LABEL : 0)
   return g
 }
 
@@ -261,31 +321,34 @@ function buildGrid(c: Circuit, extra: Point[]): Grid {
  * A* over (cell, direction). `passable` holds pin tips the wire may run through: inputs already fed by the
  * same net (electrically the same signal; the crossing point shows a junction dot).
  */
+/** How many search states the router has expanded (for tests and measuring). */
+export const stats = { expansions: 0 }
+
 function search(g: Grid, e: Endpoints, net: number, passable?: Set<number>): Point[] | null {
   const s = g.idx(e.from)
   const t = g.idx(e.to)
   if (s < 0 || t < 0) return null
   const sd = dirIndex(e.fromDir)
   const td = (dirIndex(e.toDir) + 2) % 4 // direction of travel when entering the target
-  const { w, h } = g
-  const n = w * h * 4
-  const gs = new Float32Array(n).fill(Infinity)
-  const came = new Int32Array(n).fill(-1)
-  const closed = new Uint8Array(n)
+  const { w, h, blocked, tip, stat, occ, hOcc, vOcc, pOcc } = g
+  const epoch = claimBuffers(w * h * 4)
+  const { cost: gs, came, seen, done, open } = buffers
   const tx = t % w
-  const ty = Math.floor(t / w)
-  const heur = (i: number) => Math.abs((i % w) - tx) + Math.abs(Math.floor(i / w) - ty)
+  const ty = (t - tx) / w
+  const sx = s % w
 
-  const heap = new Heap()
   const start = s * 4 + sd
   gs[start] = 0
-  heap.push(heur(s), start)
+  seen[start] = epoch
+  came[start] = -1
+  open.push((Math.abs(sx - tx) + Math.abs((s - sx) / w - ty)) * STEP, start)
   let goal = -1
 
-  for (let iter = 0; heap.size && iter < MAX_EXPANSIONS; iter++) {
-    const st = heap.pop()
-    if (closed[st]) continue
-    closed[st] = 1
+  for (let iter = 0; open.size && iter < MAX_EXPANSIONS; iter++) {
+    const st = open.pop()
+    if (done[st] === epoch) continue
+    done[st] = epoch
+    stats.expansions++
     const cell = st >> 2
     const d0 = st & 3
     if (cell === t) {
@@ -293,9 +356,11 @@ function search(g: Grid, e: Endpoints, net: number, passable?: Set<number>): Poi
       break
     }
     const cx = cell % w
-    const cy = Math.floor(cell / w)
+    const cy = (cell - cx) / w
+    const gst = gs[st]
+    const busy = occ[cell] === 1
     for (let d = 0; d < 4; d++) {
-      if (d === (d0 + 2) % 4) continue // no U-turns
+      if (d === (d0 ^ 2)) continue // no U-turns
       if (cell === s && d !== sd) continue // leave the source pin straight out
       const nx = cx + DX[d]
       const ny = cy + DY[d]
@@ -303,35 +368,37 @@ function search(g: Grid, e: Endpoints, net: number, passable?: Set<number>): Poi
       const nb = ny * w + nx
       if (nb === t) {
         if (d !== td) continue
-      } else if (g.blocked[nb] || (g.tip[nb] && nb !== s && !passable?.has(nb))) continue
+      } else if (blocked[nb] || (tip[nb] && nb !== s && !passable?.has(nb))) continue
 
-      let cost = STEP
-      const edge = d === 0 ? g.hOcc[cell] : d === 2 ? g.hOcc[nb] : d === 1 ? g.vOcc[cell] : g.vOcc[nb]
-      if (edge === net) cost = SHARE
-      else if (edge !== 0) cost += CLASH
-      const po = g.pOcc[nb]
-      if (po !== 0 && po !== net && nb !== t) cost += CLASH
-      if (d === 0 || d === 2) {
-        const v1 = g.vOcc[nb]
-        const v2 = nb >= w ? g.vOcc[nb - w] : 0
-        if ((v1 !== 0 && v1 !== net) || (v2 !== 0 && v2 !== net)) cost += CROSS
-      } else {
-        const h1 = g.hOcc[nb]
-        const h2 = nb % w > 0 ? g.hOcc[nb - 1] : 0
-        if ((h1 !== 0 && h1 !== net) || (h2 !== 0 && h2 !== net)) cost += CROSS
+      let cost = STEP + stat[nb]
+      // Nothing to look up where no wire touches the cells: most of the grid.
+      if (busy || occ[nb] === 1) {
+        const edge = d === 0 ? hOcc[cell] : d === 2 ? hOcc[nb] : d === 1 ? vOcc[cell] : vOcc[nb]
+        if (edge === net) cost = SHARE + stat[nb]
+        else if (edge !== 0) cost += CLASH
+        const po = pOcc[nb]
+        if (po !== 0 && po !== net && nb !== t) cost += CLASH
+        if (d === 0 || d === 2) {
+          const v1 = vOcc[nb]
+          const v2 = nb >= w ? vOcc[nb - w] : 0
+          if ((v1 !== 0 && v1 !== net) || (v2 !== 0 && v2 !== net)) cost += CROSS
+        } else {
+          const h1 = hOcc[nb]
+          const h2 = nx > 0 ? hOcc[nb - 1] : 0
+          if ((h1 !== 0 && h1 !== net) || (h2 !== 0 && h2 !== net)) cost += CROSS
+        }
       }
-      if (g.near[nb]) cost += NEAR_BODY
-      if (g.label[nb]) cost += OVER_LABEL
       if (d !== d0) {
         cost += BEND
-        if (cell !== s && g.foreignAt(cell, net)) cost += CLASH
+        if (busy && cell !== s && g.foreignAt(cell, net)) cost += CLASH
       }
       const ns = nb * 4 + d
-      const ng = gs[st] + cost
-      if (ng < gs[ns]) {
+      const ng = gst + cost
+      if (seen[ns] !== epoch || ng < gs[ns]) {
+        seen[ns] = epoch
         gs[ns] = ng
         came[ns] = st
-        heap.push(ng + heur(nb), ns)
+        open.push(ng + (Math.abs(nx - tx) + Math.abs(ny - ty)) * STEP, ns)
       }
     }
   }

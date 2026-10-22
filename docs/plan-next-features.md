@@ -238,15 +238,33 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-20).
 
 ## Milestone 8: Router performance (medium)
-Routing time grows with wires × area (about 25 ms per wire on the 8-bit computer). Options, in order of risk:
-- [ ] Reuse search buffers across searches and cap the area a first attempt may explore (identical results).
-- [ ] Weighted A* for the crossing-reduction pass only.
-- [ ] Route in a Web Worker and show the circuit with provisional wires while it finishes.
-- Measure first with the computer example; keep the existing router tests green and the paths of the small examples
-  unchanged unless a change is an improvement.
-- Measured at milestone 1: on the 8-bit computer the median routed wire is 1.4× its straight-line distance, but the
-  90th percentile is 4.6× (long detours around congestion), and the search is spread evenly over ~240 wires at 7–25 ms
-  each. The detours are probably both a quality problem and the reason searches explore so much.
+- [x] **Faster search, same results.** Measured first, on every example (`routeWires` through the builders): the
+      8-bit computer took 2.2 s, the second computer 2.2–2.6 s, the calculator 1.5 s, in all 11.3 s. Allocating the
+      search buffers was only about 10% of it (so reusing them, with stamps instead of clearing, gained little on its
+      own): the time is in expanding about 10 million search states, each with a dozen array reads. What helped:
+      costs in whole tenths of a step, which lets a bucket queue (a list of states per cost) replace the binary
+      heap; "no wire touches this cell or its neighbour" flags, so open space skips every occupancy lookup; one
+      precomputed extra cost per cell; and no divisions in the inner loop. Total over the examples 11.3 s → 5.3 s;
+      the second computer 2.5 s → 1.1 s. Paths are unchanged where costs do not tie; where they do, ties now go to the
+      state pushed last, which gave equal or better length, bends and crossings in every example.
+- [x] **A layout fix that mattered more.** A third of the second computer's searches (73 of 263) ended with the
+      cost of about twenty clashes: wires forced to run over other wires. All of them ended at the select pins
+      on the bottom of the stacked multiplexers, where the 20px between parts left no room for three lanes. Spacing
+      those columns 60px apart took shared wire edges from 486 to 24, and bends and crossings fell by a fifth to a
+      third, for a few percent more routing time (a bigger grid). The router cannot fix a layout that leaves no room: a search
+      that must clash explores the whole grid before it finds the least bad way.
+- Tried and dropped: a first attempt confined to a box round the two pins (more expansions in total, since most
+  wires that need more room then search twice); weighted A* when a search runs long (quality fell, bends +40%, for
+  hardly fewer expansions, because the cost is dominated by clash penalties the estimate cannot see); a tie-break
+  towards deeper states in the old heap (no change at all).
+- Not done: routing in a Web Worker with provisional wires (opening the computers now takes about a second, which
+  did not seem worth the plumbing: race with edits, bundling a worker, merging results), a bend-aware estimate,
+  and respacing the first computer's layout (it has 626 shared edges, mostly the same narrow gaps), which the
+  roadmap leaves alone.
+- Tests: the router's existing invariants; the same paths however much was routed before (the reused buffers
+  carry nothing over); the first computer within a budget of search steps (a count, not a time, so it cannot be
+  flaky) with every wire attached; and the second computer's wires staying apart.
+- **Status: done** (v0.0.1-21).
 
 ## Milestone 9: Timing view and state machine editor (large)
 - [ ] **Per-part propagation delay** (default 1) and a **timing view** that highlights the longest path and shows

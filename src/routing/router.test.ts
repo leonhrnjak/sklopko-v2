@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { CircuitBuilder } from '../model/builder'
 import { GRID, bodyRect, findPin, netKey, type Circuit, type Point } from '../model/circuit'
 import { adjustEnds, applySegmentDrag, beginSegmentDrag, isOrthogonal, junctions, normalize, validPath } from './path'
-import { routeWires, wireEndpoints } from './router'
+import { EXAMPLES } from '../model/examples'
+import { routeWires, stats, wireEndpoints } from './router'
 
 /** Unit edges of a path as "x,y,h|v" keys. */
 function edges(path: Point[]): string[] {
@@ -133,6 +134,51 @@ describe('router', () => {
       checkInvariants(b.build())
     }
   })
+})
+
+describe('router: search buffers and cost', () => {
+  const paths = (c: Circuit) => JSON.stringify(Object.values(c.wires).map((w) => [w.id, w.path]))
+  /** A small circuit with a few crossings, built from scratch each time. */
+  const small = () => {
+    const b = new CircuitBuilder()
+    const s = [b.add('switch', 0, 0), b.add('switch', 0, 60), b.add('switch', 0, 120)]
+    const g = [b.add('and', 160, 100), b.add('xor', 160, 0), b.add('or', 300, 40)]
+    b.wire(`${s[0]}.Q`, `${g[0]}.A`)
+    b.wire(`${s[1]}.Q`, `${g[1]}.A`)
+    b.wire(`${s[2]}.Q`, `${g[1]}.B`)
+    b.wire(`${s[2]}.Q`, `${g[0]}.B`)
+    b.wire(`${g[1]}.Y`, `${g[2]}.A`)
+    b.wire(`${g[0]}.Y`, `${g[2]}.B`)
+    return b.build()
+  }
+
+  it('gives the same paths whatever was routed before: the search buffers are reused, not remembered', () => {
+    const first = paths(small())
+    EXAMPLES.find((e) => e.id === 'calculator')!.build() // a much larger grid in between
+    expect(paths(small())).toBe(first)
+    EXAMPLES.find((e) => e.id === 'counter')!.build() // and a smaller one
+    expect(paths(small())).toBe(first)
+  }, 30000)
+
+  it('routes the 8-bit computer within a budget of search steps, with every wire attached', () => {
+    const before = stats.expansions
+    const c = EXAMPLES.find((e) => e.id === 'computer')!.build()
+    // 7.9 million when this was measured; about twice that before the search was reorganised.
+    expect(stats.expansions - before).toBeLessThan(9_500_000)
+    for (const w of Object.values(c.wires)) {
+      const e = wireEndpoints(c, w)!
+      expect(validPath(w.path, e.from, e.fromDir, e.to, e.toDir), w.id).toBe(true)
+    }
+  }, 30000)
+
+  it('leaves the second computer\'s wires almost entirely apart: few places where two signals share a wire', () => {
+    const c = EXAMPLES.find((e) => e.id === 'computer-calc')!.build()
+    const owner = new Map<string, Set<string>>()
+    for (const w of Object.values(c.wires))
+      for (const e of edges(w.path)) (owner.get(e) ?? owner.set(e, new Set()).get(e)!).add(netKey(w.from))
+    const shared = [...owner.values()].filter((n) => n.size > 1).length
+    expect(shared).toBeLessThan(60) // 24 when measured; 486 before the multiplexers were spaced out
+  }, 30000)
 })
 
 describe('path editing', () => {
