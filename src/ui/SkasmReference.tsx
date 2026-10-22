@@ -258,10 +258,6 @@ function Ports() {
           Ports 6 to 15 are free for devices to come.
         </li>
       </ul>
-      <p className="ref-note">
-        One older example, the first 8-bit computer that prints Fibonacci numbers, still sends its output through RAM address
-        15 instead of a port. It is being moved to these ports.
-      </p>
     </div>
   )
 }

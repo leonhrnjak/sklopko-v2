@@ -3,7 +3,8 @@ import { Simulator } from '../engine/simulator'
 import { boundsRect, isAnnotation, isFrame } from './circuit'
 import { buildRows } from '../app/waveform'
 import { SKASM, assemble, disassemble } from '../engine/isa'
-import { CONTROL, EXAMPLES, FIBONACCI, FIBONACCI_SOURCE, SMILEY } from './examples'
+import { FIBONACCI_SOURCE, programWords } from './computer2'
+import { EXAMPLES, SMILEY } from './examples'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
 const built = new Map<string, ReturnType<(typeof EXAMPLES)[number]['build']>>()
@@ -444,7 +445,7 @@ describe('8-bit computer example', () => {
     const reg = (id: string, pins = nibble) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
     /** An 8-bit value held in a low and a high register. */
     const byte = (name: string) => reg(byLabel(`${name} low`)) | (reg(byLabel(`${name} high`)) << 4)
-    const [pc, flags] = [byLabel('PC'), byLabel('Flags')]
+    const flags = byLabel('Flags')
     /** The three decimal digits of the output display, as a number. */
     const decimal = () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(byLabel(label), ['S0', 'S1', 'S2', 'S3']), 0)
     const mem = (label: string) => sim.state(byLabel(label)).mem as number[]
@@ -456,7 +457,7 @@ describe('8-bit computer example', () => {
     return {
       sim,
       cycle,
-      pc: () => reg(pc, ['Q0', 'Q1', 'Q2', 'Q3']),
+      pc: () => reg(byLabel('PC low'), ['Q0', 'Q1', 'Q2', 'Q3']) | (reg(byLabel('PC high'), ['Q0', 'Q1', 'Q2', 'Q3']) << 4),
       acc: () => byte('ACC'),
       out: () => byte('Output'),
       decimal,
@@ -466,29 +467,29 @@ describe('8-bit computer example', () => {
     }
   }
 
-  it('encodes the Fibonacci program as 16-bit ROM words: constant, opcode, address', () => {
-    expect(FIBONACCI).toBe('0000 0020 002F 0100 0021 0011 002F 0040 0022 0011 0020 0012 0021 0065 0070 0000')
-    expect(CONTROL.split(' ')).toHaveLength(8)
-    expect(CONTROL).toBe('01 05 08 20 13 13 40 80')
-  })
-
   it('the Program ROM holds the assembly source and the words assembled from it', () => {
     const c = example('computer')
     const prog = Object.values(c.comps).find((k) => k.label === 'Program')!
-    expect(prog.params).toMatchObject({ abits: 4, dbits: 16, isa: 'skasm', source: FIBONACCI_SOURCE, data: FIBONACCI })
-    const result = assemble(SKASM, FIBONACCI_SOURCE, 16)
+    expect(prog.params).toMatchObject({ abits: 8, dbits: 16, isa: 'skasm', source: FIBONACCI_SOURCE, data: programWords(FIBONACCI_SOURCE) })
+    const result = assemble(SKASM, FIBONACCI_SOURCE, 256)
     expect(result.errors).toEqual([])
-    expect(result.symbols).toEqual({ SHOW: 15, loop: 5 })
+    expect(result.symbols).toEqual({ loop: 5 })
     // The comments in the source name each instruction; the listing reads back the same program.
     expect(result.words.slice(0, 15).map((w) => disassemble(SKASM, w))).toEqual([
-      'LDI 0', 'STA 0', 'STA 15', 'LDI 1', 'STA 1', 'LDA 1', 'STA 15', 'ADD 0', 'STA 2', 'LDA 1', 'STA 0', 'LDA 2', 'STA 1', 'JNC 5', 'HALT',
+      'LDI 0', 'STA 0', 'OUT NUMBER', 'LDI 1', 'STA 1', 'LDA 1', 'OUT NUMBER', 'ADD 0', 'STA 2', 'LDA 1', 'STA 0', 'LDA 2', 'STA 1', 'JNC 5', 'HALT',
     ])
+  })
+
+  it('has only the decimal display attached', () => {
+    const types = new Set(Object.values(example('computer').comps).map((k) => k.type))
+    for (const absent of ['console', 'framebuffer', 'speaker', 'keypad']) expect(types.has(absent), absent).toBe(false)
+    expect(types.has('bcdadd')).toBe(true)
   })
 
   it('runs Fibonacci up to 233, the last number that fits in 8 bits, and halts on the carry', () => {
     const { cycle, pc, acc, out, decimal, carry, halted, ram } = setup()
     const sums: number[] = []
-    const shown: number[] = [] // what the Output register holds after each STA 15
+    const shown: number[] = [] // what the Output register holds after each OUT NUMBER
     const digits: number[] = [] // what the three decimal digits read at the same moments
     let cycles = 0
     while (!halted() && cycles++ < 400) {
@@ -514,13 +515,13 @@ describe('8-bit computer example', () => {
     expect(out()).toBe(233)
     expect(decimal()).toBe(233)
     expect(ram().slice(0, 3)).toEqual([233, 121, 121])
-  }, 15000)
+  }, 30000)
 
   it('shows the program counter and the accumulator as numbers in the waveform panel', () => {
     const rows = buildRows(example('computer').comps)
     expect(rows.map((r) => [r.name, r.group, r.width])).toEqual([
       ['CLK', false, 1],
-      ['PC', true, 4],
+      ['PC', true, 8],
       ['ACC', true, 8],
       ['Carry', false, 1],
     ])
@@ -556,51 +557,5 @@ describe('8-bit computer example', () => {
     expect(ram().slice(0, 3)).toEqual([0, 0, 0])
     cycle()
     expect(pc()).toBe(1)
-  })
-
-  it('every instruction does what its opcode says (tiny programs, 8-bit data)', () => {
-    // Build a machine with a custom program by editing the ROM contents.
-    const run = (source: string, cycles: number) => {
-      const { words, errors } = assemble(SKASM, source, 16)
-      expect(errors, source).toEqual([])
-      const data = words.map((w) => w.toString(16).padStart(4, '0')).join(' ')
-      const c = example('computer')
-      const comps = Object.values(c.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, data } } : k))
-      const sim = new Simulator()
-      sim.load({ comps, wires: Object.values(c.wires) })
-      sim.settle()
-      for (let i = 0; i < cycles * 2; i++) sim.stepClock()
-      const id = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
-      const reg = (label: string, pins = nibble) => pins.reduce((n, p, i) => n | (sim.pinValue(id(label), p) << i), 0)
-      const byte = (name: string) => reg(`${name} low`) | (reg(`${name} high`) << 4)
-      return {
-        acc: byte('ACC'),
-        out: byte('Output'),
-        decimal: ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(label, ['S0', 'S1', 'S2', 'S3']), 0),
-        pc: reg('PC', ['Q0', 'Q1', 'Q2', 'Q3']),
-        carry: sim.pinValue(id('Flags'), 'QA'),
-        zero: sim.pinValue(id('Flags'), 'QB'),
-        ram: sim.state(id('Data RAM')).mem as number[],
-      }
-    }
-    expect(run('LDI 0xC8', 1).acc).toBe(200) // LDI: a full 8-bit constant
-    expect(run('LDI 0xA5\nSTA 5\nLDI 0\nLDA 5', 4)).toMatchObject({ acc: 0xa5 }) // both nibbles stored and loaded
-    expect(run('LDI 0xA5\nSTA 5', 2).ram[5]).toBe(0xa5)
-    expect(run('LDI 100\nSTA 0\nLDI 55\nADD 0', 4)).toMatchObject({ acc: 155, carry: 0, zero: 0 })
-    expect(run('LDI 0x0F\nSTA 0\nLDI 0x01\nADD 0', 4)).toMatchObject({ acc: 0x10, carry: 0 }) // carry from low to high nibble
-    expect(run('LDI 0xFF\nSTA 0\nLDI 1\nADD 0', 4)).toMatchObject({ acc: 0, carry: 1, zero: 1 }) // 255 + 1 overflows to 0
-    expect(run('LDI 5\nSTA 0\nLDI 3\nSUB 0', 4)).toMatchObject({ acc: 254, carry: 1, zero: 0 }) // 3 - 5 = -2, with borrow
-    expect(run('LDI 0x01\nSTA 0\nLDI 0x10\nSUB 0', 4)).toMatchObject({ acc: 0x0f, carry: 0 }) // borrow from high to low nibble
-    expect(run('LDI 7\nSTA 0\nLDI 7\nSUB 0', 4)).toMatchObject({ acc: 0, carry: 0, zero: 1 })
-    expect(run('LDI -1', 1).acc).toBe(255) // a negative constant is two's complement
-    expect(run('JMP 5', 1).pc).toBe(5)
-    expect(run('LDI 1\nSTA 0\nADD 0\nJNC 6', 4).pc).toBe(6) // 1 + 1: no carry, so JNC jumps
-    expect(run('LDI 0xFF\nSTA 0\nADD 0\nJNC 6', 4).pc).toBe(4) // 255 + 255 carries, so JNC falls through
-    expect(run('HALT', 5).pc).toBe(0) // HALT stays where it is
-    expect(run('LDI 0xA5\nSTA 15', 2).out).toBe(0xa5) // address 15 is the output port
-    expect(run('LDI 0xA5\nSTA 14', 2).out).toBe(0) // any other address leaves it alone
-    expect(run('LDI 10\nSTA 15\nLDI 3\nLDA 15', 4)).toMatchObject({ out: 10, acc: 10 }) // LDA 15 reads the RAM, not the port
-    // The decimal display shows every value the output port can hold.
-    for (let n = 0; n < 256; n++) expect(run(`LDI ${n}\nSTA 15`, 2).decimal, `${n}`).toBe(n)
   })
 })

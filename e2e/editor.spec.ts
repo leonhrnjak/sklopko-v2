@@ -479,7 +479,7 @@ test('program editor: errors show as you type, the program applies on blur, and 
   await pickByLabel(page, 'Program')
   const source = page.getByLabel('Program source')
   await expect(source).toHaveValue(/loop:\s+LDA 1/)
-  await expect(page.locator('.inspector')).toContainText('15 of 16 instructions.')
+  await expect(page.locator('.inspector')).toContainText('15 of 256 instructions.')
 
   // The listing marks the instruction being read, and follows the PC.
   const step = async () => page.getByRole('button', { name: 'Clock step' }).click() // one clock edge: the PC moves on every other click
@@ -488,7 +488,7 @@ test('program editor: errors show as you type, the program applies on blur, and 
   await expect(page.locator('.row-listing.current .text')).toHaveText('STA 0')
   await step()
   await step()
-  await expect(page.locator('.row-listing.current .text')).toHaveText('STA 15')
+  await expect(page.locator('.row-listing.current .text')).toHaveText('OUT NUMBER')
   await step()
   await step()
   await expect(page.locator('.row-listing.current .text')).toHaveText('LDI 1')
@@ -504,12 +504,12 @@ test('program editor: errors show as you type, the program applies on blur, and 
 
   // A good program is applied when you click away.
   await source.fill('LDI 7\nSTA 1\nHALT')
-  await expect(page.locator('.inspector')).toContainText('3 of 16 instructions. Applies when you click outside')
+  await expect(page.locator('.inspector')).toContainText('3 of 256 instructions. Applies when you click outside')
   await page.locator('.inspector h2').click()
   await expect(page.locator('.row-listing .text').nth(0)).toHaveText('LDI 7')
   await expect(page.locator('.row-listing .word').nth(0)).toHaveText('0700')
   await expect(page.locator('.row-listing .text').nth(2)).toHaveText('HALT')
-  await expect(page.locator('.inspector')).toContainText('3 of 16 instructions.')
+  await expect(page.locator('.inspector')).toContainText('3 of 256 instructions.')
 })
 
 test('program files: save the source, open another program', async ({ page }) => {
@@ -607,7 +607,7 @@ test('Back: steps the computer back one clock edge at a time, to the very start'
   await step() // rising edge: PC 1
   await step() // falling edge
   await step() // rising edge: PC 2
-  await expect(current).toHaveText('STA 15')
+  await expect(current).toHaveText('OUT NUMBER')
   await expect(back).toBeEnabled()
   await back.click() // after the falling edge: still PC 1
   await expect(current).toHaveText('STA 0')
@@ -728,10 +728,10 @@ test('exporting waveforms: a VCD file with the groups as buses, and a PNG', asyn
   const text = readFileSync((await vcd.path())!, 'utf8')
   expect(text).toContain('$timescale 1 us $end')
   expect(text).toContain('$var wire 1 ! CLK $end')
-  expect(text).toContain('$var wire 4 " PC $end')
+  expect(text).toContain('$var wire 8 " PC $end')
   expect(text).toContain('$var wire 8 # ACC $end')
   expect(text).toContain('$enddefinitions $end')
-  expect(text).toMatch(/\nb\d{4} "\n/) // the 4-bit PC changed at least once
+  expect(text).toMatch(/\nb\d{8} "\n/) // the 8-bit PC changed at least once
 
   const pngDownload = page.waitForEvent('download')
   await page.getByRole('button', { name: 'PNG', exact: true }).click()

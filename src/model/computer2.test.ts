@@ -71,8 +71,8 @@ describe('computer 2: programs', () => {
   it('have unique ids, and each connects what it needs (and nothing it does not use)', () => {
     expect(new Set(PROGRAMS.map((p) => p.id)).size).toBe(PROGRAMS.length)
     for (const p of PROGRAMS) {
-      const used = (d: string) => p.source.includes(d === 'lcd' ? 'PIXEL_ON' : d === 'speaker' ? 'SPEAKER' : d === 'console' ? 'CHAR' : 'KEY')
-      for (const d of ['lcd', 'speaker', 'console', 'keypad'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
+      const used = (d: string) => p.source.includes(d === 'lcd' ? 'PIXEL_ON' : d === 'speaker' ? 'SPEAKER' : d === 'console' ? 'CHAR' : d === 'number' ? 'NUMBER' : 'KEY')
+      for (const d of ['lcd', 'speaker', 'console', 'keypad', 'number'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
     }
   })
 })
@@ -443,4 +443,48 @@ describe('computer: random programs run the same on the circuit and the referenc
       const src = lines.join('\n')
       expect(agree(src, 120), src).toBeNull()
     })
+})
+
+describe('computer: the decimal display (OUT NUMBER)', () => {
+  /** A computer with only the decimal display, built once; programs are swapped in. */
+  const numbers = (() => {
+    let made: { m: ReturnType<typeof machine>; prog: string; base: Record<string, unknown> } | null = null
+    return (source: string) => {
+      if (!made) {
+        const m = machine('HALT', ['number'])
+        const prog = m.id('Program')
+        made = { m, prog, base: m.c.comps[prog].params }
+      }
+      const { m, prog, base } = made
+      m.sim.setParams(prog, { ...base, source, data: programWords(source) } as never)
+      m.sim.reset()
+      m.sim.settle()
+      const reg = (label: string, pins: string[]) => pins.reduce((n, p, i) => n | (m.sim.pinValue(m.id(label), p) << i), 0)
+      return {
+        m,
+        output: () => reg('Output low', NIB) | (reg('Output high', NIB) << 4),
+        decimal: () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(label, ['S0', 'S1', 'S2', 'S3']), 0),
+      }
+    }
+  })()
+
+  it('OUT NUMBER loads the output register, and only OUT NUMBER does', () => {
+    const a = numbers('LDI 0xA5\nOUT NUMBER')
+    a.m.run(2)
+    expect(a.output()).toBe(0xa5)
+    const b = numbers('LDI 0xA5\nOUT 1\nOUT 2\nSTA 0\nSTA 15')
+    b.m.run(5)
+    expect(b.output()).toBe(0) // other ports, and RAM addresses, leave it alone
+    const c = numbers('LDI 10\nOUT NUMBER\nLDI 3\nLDA 15')
+    c.m.run(4)
+    expect([c.output(), c.m.acc()]).toEqual([10, 0]) // LDA 15 reads the RAM word, not the port
+  })
+
+  it('the decimal display shows every value the output register can hold', () => {
+    for (let n = 0; n < 256; n++) {
+      const r = numbers(`LDI ${n}\nOUT NUMBER`)
+      r.m.run(2)
+      expect([r.output(), r.decimal()], `${n}`).toEqual([n, n])
+    }
+  })
 })

@@ -1,6 +1,6 @@
 # SKASM: one assembly language for every computer (plan)
 
-> **Status: S1 and S2 done (plus the beginner computer); S3 not started.** Read `CLAUDE.md` first (version bump and the full checklist on every push).
+> **Status: done (S1, S2, S3 and the beginner computer).** Read `CLAUDE.md` first (version bump and the full checklist on every push).
 > Work step by step, each ending in a working, tested state; stop and report after each; push only when asked.
 > This comes before the rest of M9 (`plan-m9-timing-fsm.md`, 9b onward).
 
@@ -121,7 +121,7 @@ remove `KEY_ACK`; the keypad's sticky latch decides. The table keeps `KEY_ACK` u
   and the same encodings as every computer. Few parts, each named, in three framed stages (fetch, decode, execute) with a note
   for each; control signals travel by name. Tested against the reference interpreter with numbers masked to 4 bits.
 
-### S3. Fold computer 1 into the shared builder
+### S3. Fold computer 1 into the shared builder: done
 - Add the `number` device; rebuild `/computer` on `computerBuilder`; delete the old builder, layout, control ROM and
   their tests; move the computer-specific tests (Fibonacci, reset, breakpoint at HALT, step back, decimal output) to the
   shared one. Fibonacci now ends with `OUT NUMBER`.

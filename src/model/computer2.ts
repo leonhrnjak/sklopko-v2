@@ -10,9 +10,19 @@ import { boundsRect, type Circuit } from './circuit'
  *   lcd       `OUT PIXEL_ON` lights the pixel at (low nibble, high nibble) of the accumulator, `OUT PIXEL_OFF` darkens it
  *   speaker   `OUT SPEAKER` flips it
  *   keypad    `IN KEY` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `OUT KEY_ACK` says it has been read
+ *   number    `OUT NUMBER` shows the accumulator on a decimal display
  */
 
 export const ROM_WORDS = 256
+
+// ---- The decimal display -----------------------------------------------------------------------
+
+const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0')
+
+/** The decimal digits of 16 × n for n = 0–15 (the high nibble's value), as two ROMs: tens and ones, then hundreds. */
+const sixteens = Array.from({ length: 16 }, (_, n) => n * 16)
+export const SIXTEENS_TENS_ONES = sixteens.map((v) => hex2((Math.floor(v / 10) % 10) * 16 + (v % 10))).join(' ')
+export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toString(16).toUpperCase()).join(' ')
 
 // ---- Control ROMs ------------------------------------------------------------------------------
 
@@ -396,7 +406,7 @@ const NIB = ['A', 'B', 'C', 'D']
 const Q = ['QA', 'QB', 'QC', 'QD']
 const bits = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
 
-export type Device = 'lcd' | 'speaker' | 'console' | 'keypad'
+export type Device = 'lcd' | 'speaker' | 'console' | 'keypad' | 'number'
 
 export interface Computer2Options {
   source: string
@@ -408,6 +418,8 @@ export interface Computer2Options {
   octaves?: number
   /** The keypad's keys. */
   keypad?: 'hex' | 'calc'
+  /** Add probes (CLK, PC, ACC and Carry as grouped traces) for the waveform panel. */
+  probes?: boolean
 }
 
 /** The computer, and the id of each named part. Parts are stacked in columns, left to right in the order data flows. */
@@ -450,6 +462,8 @@ export function computer2Builder(o: Computer2Options) {
   const ACCMUX_HI = 3520
   const ACC = 3820
   const DEVICES = 4120
+  const NUMBER_A = 4420
+  const NUMBER_B = 4700
 
   // ---- Fetch: program counter (8 bits: two counters) and the program ROM ----------------------------
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
@@ -718,6 +732,57 @@ export function computer2Builder(o: Computer2Options) {
   wire(`${flags}.QA`, `${carry}.A`)
   wire(`${flags}.QB`, `${zflag}.A`)
 
+  // ---- The decimal display: OUT NUMBER loads the output registers; 16 × high nibble + low nibble, added digit by digit ------
+  // The low nibble converts directly. Two ROMs hold 16 × n for the high nibble as decimal digits.
+  if (has('number')) {
+    const outLo = part(NUMBER_A, 'outLo', 'register', { label: 'Output low' })
+    const outHi = part(NUMBER_A, 'outHi', 'register', { label: 'Output high' })
+    wireBits(accLo, Q, outLo, NIB)
+    wireBits(accHi, Q, outHi, NIB)
+    const load = writeTo(0, 'OUT NUMBER')
+    for (const out of [outLo, outHi]) {
+      wire(load, `${out}.LD`)
+      wire(`${clk}.Q`, `${out}.CLK`)
+    }
+    const decLo = part(NUMBER_A, 'decLo', 'bin2bcd', { label: 'Low nibble in decimal' })
+    wireBits(outLo, Q, decLo, bits('B', 4))
+    const decRomTO = part(NUMBER_A, 'decRomTO', 'rom', { params: { abits: 4, dbits: 8, data: SIXTEENS_TENS_ONES }, label: '16 × n: tens, ones' })
+    const decRomH = part(NUMBER_A, 'decRomH', 'rom', { params: { abits: 4, dbits: 4, data: SIXTEENS_HUNDREDS }, label: '16 × n: hundreds' })
+    wireBits(outHi, Q, decRomTO, bits('A', 4))
+    wireBits(outHi, Q, decRomH, bits('A', 4))
+    const decOnes = part(NUMBER_B, 'decOnes', 'bcdadd', { label: 'Ones' })
+    const decTens = part(NUMBER_B, 'decTens', 'bcdadd', { label: 'Tens' })
+    const decHund = part(NUMBER_B, 'decHund', 'bcdadd', { label: 'Hundreds' })
+    wireBits(decRomTO, bits('D', 4), decOnes, bits('A', 4))
+    wireBits(decLo, bits('O', 4), decOnes, bits('B', 4))
+    for (let i = 0; i < 4; i++) wire(`${decRomTO}.D${4 + i}`, `${decTens}.A${i}`)
+    wire(`${decLo}.T0`, `${decTens}.B0`)
+    for (const i of [1, 2, 3]) wire(`${zero}.Q`, `${decTens}.B${i}`)
+    wire(`${decOnes}.Co`, `${decTens}.Ci`)
+    wireBits(decRomH, bits('D', 4), decHund, bits('A', 4))
+    for (let i = 0; i < 4; i++) wire(`${zero}.Q`, `${decHund}.B${i}`)
+    wire(`${decTens}.Co`, `${decHund}.Ci`)
+    hexOf(NUMBER_B, 'dispHund', decHund, bits('S', 4), 'Output (decimal)')
+    hexOf(NUMBER_B, 'dispTens', decTens, bits('S', 4))
+    hexOf(NUMBER_B, 'dispOnes', decOnes, bits('S', 4))
+  }
+
+  // ---- Probes: the program counter and the accumulator are each drawn as one number in the waveform panel ---------
+  if (o.probes) {
+    const signals: [string, string][] = [
+      ['CLK', `${clk}.Q`],
+      ...bits('Q', 4).map((q, i): [string, string] => [`PC${i}`, `${pcLo}.${q}`]),
+      ...bits('Q', 4).map((q, i): [string, string] => [`PC${i + 4}`, `${pcHi}.${q}`]),
+      ...Array.from({ length: 8 }, (_, i): [string, string] => [`ACC${i}`, accBit(i)]),
+      ['Carry', `${flags}.QA`],
+    ]
+    signals.forEach(([label, from], i) => {
+      const bus = /^(PC|ACC)(\d+)$/.exec(label)
+      const probe = part(FETCH, `probe${i}`, 'probe', { label, ...(bus ? { params: { group: bus[1], bit: Number(bus[2]) } } : {}) }, 10)
+      wire(from, `${probe}.A`)
+    })
+  }
+
   const byFrom = new Map<string, string[]>()
   for (const l of links) byFrom.set(l.from, [...(byFrom.get(l.from) ?? []), l.to])
   for (const [from, targets] of byFrom) {
@@ -737,10 +802,46 @@ export interface Program {
   devices: Device[]
   octaves?: number
   keypad?: 'hex' | 'calc'
+  probes?: boolean
   note: string
 }
 
+/**
+ * Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b. Each number is sent to the decimal display (`OUT NUMBER`) as soon as it
+ * is known, so it reads 000 001 001 002 003 005 008 013 021 034 055 089 144 233. The next sum no longer fits in 8 bits
+ * (carry): it stops.
+ */
+export const FIBONACCI_SOURCE = `; Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b.
+; Every number is sent to the decimal display (OUT NUMBER) as soon as it is known.
+; When a sum no longer fits in 8 bits the carry flag is set and the loop ends.
+
+        LDI 0
+        STA 0        ; a = 0
+        OUT NUMBER   ; show 0
+        LDI 1
+        STA 1        ; b = 1
+loop:   LDA 1
+        OUT NUMBER   ; show b
+        ADD 0        ; acc = b + a, sets the carry flag
+        STA 2        ; t = a + b
+        LDA 1
+        STA 0        ; a = b
+        LDA 2
+        STA 1        ; b = t
+        JNC loop     ; no carry: next number
+        HALT
+`
+
 export const PROGRAMS: Program[] = [
+  {
+    id: 'computer',
+    name: '8-bit computer (runs Fibonacci)',
+    source: FIBONACCI_SOURCE,
+    hz: 4,
+    devices: ['number'],
+    probes: true,
+    note: 'A complete 8-bit computer. The clock steps the program counter (PC) through the program in the ROM. The control ROMs decode each instruction, and the adders, logic unit, RAM and accumulator carry it out. OUT NUMBER sends the accumulator to the decimal display at the right. Click the Program ROM to read or edit its assembly (the SKASM… button explains the language). ◀ Back steps back one clock edge, and it pauses by itself at HALT. New to this? Try the Beginner example first.',
+  },
   {
     id: 'computer-lcd',
     name: 'Computer + LCD: bouncing ball',
@@ -770,6 +871,6 @@ export const PROGRAMS: Program[] = [
 ]
 
 export function buildComputer2(p: Program): Circuit {
-  const { b } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves, keypad: p.keypad })
+  const { b } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves, keypad: p.keypad, probes: p.probes })
   return b.build(0)
 }

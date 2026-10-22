@@ -236,6 +236,8 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
   e2e tests for the calculator by mouse, the LCD and sound examples (and that they have only their own devices),
   LUT editing, muting a speaker, 8-bit RAM.
 - **Status: done** (v0.0.1-20).
+- **Later change:** `SK8` and `SK82` became one language, SKASM, with devices reached by `OUT`/`IN` and the first computer rebuilt on this
+  builder; see `plan-skasm.md`.
 
 ## Milestone 8: Router performance (medium)
 - [x] **Faster search, same results.** Measured first, on every example (`routeWires` through the builders): the
