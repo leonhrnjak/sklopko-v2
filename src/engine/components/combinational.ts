@@ -448,7 +448,7 @@ export const memoryRom: ComponentDef[] = [
         label: 'Contents are',
         kind: 'select',
         default: 'none',
-        options: [{ value: 'none', label: 'Hex words' }, ...ISAS.map((i) => ({ value: i.id, label: `A program for the ${i.name}` }))],
+        options: [{ value: 'none', label: 'Hex words' }, ...ISAS.map((i) => ({ value: i.id, label: `A program in ${i.name}` }))],
       },
       // The assembly text of a program. `data` is always what the circuit runs; it is assembled from this.
       { key: 'source', label: 'Program', kind: 'text', default: '', maxLength: 9000 },

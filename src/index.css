@@ -1785,3 +1785,112 @@ table.truth td.in.changed {
 .lut-grid td.out button {
   width: 100%;
 }
+
+/* ---- SKASM reference ---- */
+
+.modal.ref {
+  width: min(900px, 100%);
+}
+.ref-text {
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+.ref-text h3 {
+  margin: 20px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ref-text h3:first-child {
+  margin-top: 0;
+}
+.ref-text p,
+.ref-text ul,
+.ref-text ol {
+  margin: 0 0 10px;
+}
+.ref-text li {
+  margin-bottom: 4px;
+}
+.ref-text code,
+.ref-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+}
+.ref-text code {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.ref-code {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  overflow: auto;
+  tab-size: 4;
+  line-height: 1.45;
+}
+.ref-note {
+  padding: 8px 10px;
+  border-left: 3px solid var(--trace);
+  background: var(--bg);
+  border-radius: 0 7px 7px 0;
+  color: var(--text);
+}
+.ref-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+.ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ref-table th,
+.ref-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 10px 5px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.ref-table th {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.ref-table td:first-child {
+  white-space: nowrap;
+}
+.ref-operand {
+  color: var(--muted);
+}
+.ref-example {
+  margin-bottom: 18px;
+}
+.ref-example h3 {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  color: var(--text);
+}
+.inline-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.modal.ref .modal-head .seg {
+  max-width: 100%;
+  overflow-x: auto;
+}

@@ -1,4 +1,5 @@
 import LZString from 'lz-string'
+import { currentIsaId } from '../engine/isa'
 import { getDef, hasDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
 import { paramDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
@@ -81,7 +82,9 @@ export function deserialize(data: unknown): Circuit {
     const def = getDef(s.type)
     const params = { ...paramDefaults(def) }
     for (const p of def.params ?? []) {
-      const v = s.params?.[p.key]
+      let v = s.params?.[p.key]
+      // The instruction sets that SKASM replaced (sk8, sk82) are SKASM now.
+      if (s.type === 'rom' && p.key === 'isa' && typeof v === 'string') v = currentIsaId(v)
       if (validParam(p, v)) params[p.key] = v
     }
     c.comps[s.id] = {

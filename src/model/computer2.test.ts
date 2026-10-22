@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { SK82, assemble } from '../engine/isa'
+import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
+import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 
@@ -58,9 +59,9 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
 }
 
 describe('computer 2: programs', () => {
-  it('all assemble for SK82 and fit in the ROM', () => {
+  it('all assemble in SKASM and fit in the ROM', () => {
     for (const p of PROGRAMS) {
-      const r = assemble(SK82, p.source, ROM_WORDS)
+      const r = assemble(SKASM, p.source, ROM_WORDS)
       expect(r.errors, p.id).toEqual([])
       expect(r.lineOf.length, p.id).toBeLessThanOrEqual(ROM_WORDS)
     }
@@ -70,7 +71,7 @@ describe('computer 2: programs', () => {
   it('have unique ids, and each connects what it needs (and nothing it does not use)', () => {
     expect(new Set(PROGRAMS.map((p) => p.id)).size).toBe(PROGRAMS.length)
     for (const p of PROGRAMS) {
-      const used = (d: string) => p.source.includes(d === 'lcd' ? 'ON = 14' : d === 'speaker' ? 'SPK = 14' : d === 'console' ? 'CON = 15' : 'KEYPAD = 15')
+      const used = (d: string) => p.source.includes(d === 'lcd' ? 'PIXEL_ON' : d === 'speaker' ? 'SPEAKER' : d === 'console' ? 'CHAR' : 'KEY')
       for (const d of ['lcd', 'speaker', 'console', 'keypad'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
     }
   })
@@ -146,14 +147,15 @@ describe('computer 2: instructions', () => {
     expect(r.m.halted()).toBe(1)
   })
 
-  it('STA 15 prints the accumulator as a character', () => {
-    expect(run('LDI 72\nSTA 15\nLDI 105\nSTA 15', 4).m.text()).toBe('Hi')
-    expect(run('LDI 65\nSTA 15\nLDI 10\nSTA 15\nLDI 66\nSTA 15', 6).m.text()).toBe('A\nB')
-    expect(run('LDI 72\nSTA 12', 2).m.text()).toBe('') // other addresses write only to RAM
+  it('OUT CHAR prints the accumulator as a character', () => {
+    expect(run('LDI 72\nOUT CHAR\nLDI 105\nOUT CHAR', 4).m.text()).toBe('Hi')
+    expect(run('LDI 65\nOUT CHAR\nLDI 10\nOUT CHAR\nLDI 66\nOUT CHAR', 6).m.text()).toBe('A\nB')
+    expect(run('LDI 72\nOUT 12', 2).m.text()).toBe('') // other ports reach nothing here
+    expect(run('LDI 72\nSTA 15\nSTA 1', 3).m.text()).toBe('') // RAM addresses are not ports
   })
 
-  it('LDA 15 reads the keypad (key in bits 0-3, bit 4 while a press is waiting) and STA 14 says it has been read', () => {
-    const m = machine('LDA 15\nSTA 0\nSTA 14\nLDA 15\nSTA 1\nLDA 0')
+  it('IN KEY reads the keypad (key in bits 0-3, bit 4 while a press is waiting) and OUT KEY_ACK says it has been read', () => {
+    const m = machine('IN KEY\nSTA 0\nOUT KEY_ACK\nIN KEY\nSTA 1\nLDA 0')
     m.press(11)
     m.run(8)
     expect(m.ram()[0]).toBe(0x10 | 11)
@@ -162,19 +164,20 @@ describe('computer 2: instructions', () => {
 })
 
 describe('computer 2: the other devices', () => {
-  it('STA 14 lights the pixel at (low nibble, high nibble) and STA 13 darkens it', () => {
+  it('OUT PIXEL_ON lights the pixel at (low nibble, high nibble) and OUT PIXEL_OFF darkens it', () => {
     const run = (source: string, cycles: number) => {
       const m = machine(source, ['lcd'])
       m.run(cycles)
       return m.pixels()
     }
-    expect(run('LDI 0x52\nSTA 14', 2)).toEqual([[2, 5]])
-    expect(run('LDI 0x52\nSTA 14\nSTA 13', 3)).toEqual([])
-    expect(run('LDI 0x52\nSTA 12', 2)).toEqual([])
+    expect(run('LDI 0x52\nOUT PIXEL_ON', 2)).toEqual([[2, 5]])
+    expect(run('LDI 0x52\nOUT PIXEL_ON\nOUT PIXEL_OFF', 3)).toEqual([])
+    expect(run('LDI 0x52\nOUT 12', 2)).toEqual([])
+    expect(run('LDI 0x52\nSTA 14\nSTA 13', 3)).toEqual([]) // RAM addresses 13 and 14 are only memory now
   })
 
-  it('STA 14 flips the speaker, and a repeating program makes a tone', () => {
-    const m = machine('STA 14\nSTA 14\nSTA 14', ['speaker'])
+  it('OUT SPEAKER flips the speaker, and a repeating program makes a tone', () => {
+    const m = machine('OUT SPEAKER\nOUT SPEAKER\nOUT SPEAKER', ['speaker'])
     const level = () => m.sim.pinValue(m.id('Speaker flip-flop'), 'Q')
     expect(level()).toBe(0)
     m.cycle()
@@ -184,7 +187,7 @@ describe('computer 2: the other devices', () => {
     m.cycle()
     expect(level()).toBe(1)
     // A loop of N instructions flipping once makes a flip every N cycles; the speaker hears it as a pitch.
-    const loop = machine('l: STA 14\nSHL\nSHL\nJMP l', ['speaker'])
+    const loop = machine('l: OUT SPEAKER\nSHL\nSHL\nJMP l', ['speaker'])
     for (let i = 0; i < 80; i++) loop.cycle()
     const st = loop.sim.state(loop.id('Speaker')) as SpeakerState
     expect(speakerPitch(st.edges, loop.sim.time)).toBeGreaterThan(0)
@@ -319,4 +322,125 @@ describe('computer 2: the examples as built', () => {
     expect(keypad.x).toBe(display.x) // the same column
     expect(Math.abs(display.y - keypad.y)).toBeLessThan(400)
   }, 30000)
+})
+
+// ---- The circuit against the reference interpreter ----------------------------------------------------------
+
+/** A computer with every device, built once; a program is swapped in and the machine power-cycled. */
+const rig = (() => {
+  let made: { m: ReturnType<typeof machine>; prog: string; base: Record<string, unknown> } | null = null
+  return {
+    load(source: string) {
+      if (!made) {
+        const m = machine('HALT', ['console', 'lcd', 'speaker', 'keypad'])
+        const prog = m.id('Program')
+        made = { m, prog, base: m.c.comps[prog].params }
+      }
+      const { m, prog, base } = made
+      m.sim.setParams(prog, { ...base, source, data: programWords(source) } as never)
+      m.sim.reset()
+      m.sim.settle()
+      return m
+    },
+  }
+})()
+
+/** Run a program on the circuit and on the reference machine, a cycle at a time; every cycle they must agree on everything. */
+function agree(source: string, cycles: number): string | null {
+  const m = rig.load(source)
+  const words = assemble(SKASM, source, ROM_WORDS).words
+  const ref = newMachine()
+  for (let i = 0; i < cycles; i++) {
+    m.cycle()
+    referenceStep(ref, words)
+    const got = { pc: m.pc(), acc: m.acc(), c: m.carry(), z: m.zero(), ram: m.ram().slice(0, 16).join(',') }
+    const want = { pc: ref.pc, acc: ref.acc, c: ref.c, z: ref.z, ram: ref.ram.join(',') }
+    if (JSON.stringify(got) !== JSON.stringify(want)) return `cycle ${i + 1}: circuit ${JSON.stringify(got)}, reference ${JSON.stringify(want)}`
+  }
+  return null
+}
+
+describe('computer: the control ROMs', () => {
+  it('have a row for every instruction (and nothing for the rest), as 256-word ROMs', () => {
+    const { rom1, rom2 } = controlWords()
+    expect(CONTROL_1.split(' ')).toHaveLength(256)
+    expect(CONTROL_2.split(' ')).toHaveLength(256)
+    const used = new Set(Object.values(SKASM_OPS).map((o) => o.code | ((o.sub ?? 0) << 4)))
+    for (let i = 0; i < 256; i++) if (!used.has(i)) expect([rom1[i], rom2[i]], `row ${i}`).toEqual([0, 0])
+  })
+
+  it('keep the control words of the original instructions exactly as they were', () => {
+    const { rom1 } = controlWords()
+    expect(rom1.slice(0, 14)).toEqual([0x0001, 0x0005, 0x0010, 0x0040, 0x0023, 0x0423, 0x0080, 0x0200, 0x0100, 0x0823, 0x0c20, 0x0007, 0x0009, 0x0c23])
+  })
+})
+
+describe('computer: every instruction does what the reference interpreter says', () => {
+  const values = [0, 1, 0x7f, 0x80, 0xff, 0xa5]
+  /** Set the carry flag to 1 or 0 (and zero accordingly) before the instruction under test. */
+  const carry = ['LDI 255\nADDI 1\n', 'LDI 1\nADDI 1\n']
+  const cyclesOf = (src: string) => src.split('\n').filter((l) => l.trim()).length + 1
+
+  const arith = (names: string[], build: (name: string, a: number, b: number) => string) => {
+    for (const name of names)
+      it(`${name}, over operand pairs and both carry flags`, () => {
+        for (const pre of carry)
+          for (const a of values)
+            for (const b of values) {
+              const src = pre + build(name, a, b)
+              expect(agree(src, cyclesOf(src)), src).toBeNull()
+            }
+      })
+  }
+  arith(['ADD', 'SUB', 'ADC', 'SBC', 'CMP', 'AND', 'OR', 'XOR'], (name, a, b) => `LDI ${b}\nSTA 3\nLDI ${a}\n${name} 3`)
+  arith(['ADDI', 'SUBI', 'CMPI', 'ANDI', 'ORI', 'XORI'], (name, a, b) => `LDI ${a}\n${name} ${b}`)
+  arith(['SHL', 'SHR'], (name, a) => `LDI ${a}\n${name}`)
+  arith(['INC', 'DEC', 'CLR', 'NOT'], (name, a) => `LDI ${a}\n${name}`)
+
+  for (const jump of ['JMP', 'JZ', 'JNZ', 'JC', 'JNC'])
+    it(`${jump} goes where the flags say (and a target past 15 works)`, () => {
+      for (const pre of carry)
+        for (const a of [0, 1, 255])
+          for (const b of [0, 1, 255]) {
+            const src = `${pre}LDI ${a}\nADDI ${b}\n${jump} 70\nLDI 9`
+            expect(agree(src, cyclesOf(src)), src).toBeNull()
+          }
+    })
+
+  it('LDI, LDA, STA, NOP, HALT, and RAM words 11 to 15 are ordinary memory', () => {
+    for (const src of ['LDI 200\nSTA 15\nLDI 1\nLDA 15', 'LDI 7\nSTA 11\nSTA 12\nSTA 13\nSTA 14\nSTA 15\nLDA 13', 'NOP\nNOP\nLDI 1\nHALT\nLDI 2', 'LDI 5\nHALT'])
+      expect(agree(src, 8), src).toBeNull()
+  })
+
+  it('OUT and IN, for every port, change nothing but the accumulator (IN reads 0 with nothing pressed)', () => {
+    for (let port = 0; port < 16; port++) {
+      const src = `LDI 0x35\nOUT ${port}\nADDI 1\nIN ${port}\nLDI 3\nIN ${port}`
+      expect(agree(src, 7), src).toBeNull()
+    }
+  })
+})
+
+describe('computer: random programs run the same on the circuit and the reference interpreter', () => {
+  /** A small seeded random generator, so a failure can be repeated. */
+  const random = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const MNEMONICS = Object.entries(SKASM_OPS)
+  const operand = (op: Op, rnd: () => number, length: number) =>
+    op.arg === 'none' ? '' : ' ' + (op.arg === 'imm' ? Math.floor(rnd() * 256) : op.arg === 'target' ? Math.floor(rnd() * length) : Math.floor(rnd() * 16))
+
+  for (let seed = 1; seed <= 25; seed++)
+    it(`seed ${seed}`, () => {
+      const rnd = random(seed)
+      const length = 24
+      const lines = Array.from({ length }, () => {
+        const [name, op] = MNEMONICS[Math.floor(rnd() * MNEMONICS.length)]
+        return name + operand(op, rnd, length)
+      })
+      const src = lines.join('\n')
+      expect(agree(src, 120), src).toBeNull()
+    })
 })

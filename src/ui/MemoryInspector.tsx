@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCompSignature } from '../app/hooks'
 import { downloadText, openTextFile } from '../app/files'
+import { openReference } from '../app/reference'
 import { sim } from '../app/sim'
 import { pokeWord, setParams, showToast, useStore } from '../app/store'
 import type { ConsoleState } from '../engine/components/devices'
@@ -139,7 +140,7 @@ export function RomSection({ comp }: { comp: Comp }) {
           <option value="none">Hex words</option>
           {ISAS.map((i) => (
             <option key={i.id} value={i.id}>
-              A program for the {i.name}
+              A program in {i.name}
             </option>
           ))}
         </select>
@@ -164,6 +165,11 @@ export function RomSection({ comp }: { comp: Comp }) {
         <button onClick={save} title={isa ? 'Download the program as a .asm file' : 'Download the contents as a .hex file'}>
           Save…
         </button>
+        {isa && (
+          <button onClick={() => openReference()} title="The instructions, ports and examples of the assembly language">
+            {isa.name} reference…
+          </button>
+        )}
       </div>
     </>
   )

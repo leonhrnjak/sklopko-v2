@@ -84,10 +84,22 @@ describe('serialization', () => {
       ],
       wires: [],
     })
-    expect(c.comps.a.params).toMatchObject({ dbits: 16, isa: 'sk8', source: 'LDI 1\nHALT', data: '0100 0070' })
+    expect(c.comps.a.params).toMatchObject({ dbits: 16, isa: 'skasm', source: 'LDI 1\nHALT', data: '0100 0070' })
     expect(c.comps.b.params).toMatchObject({ isa: 'none', source: '', dbits: 4 })
     expect(c.comps.c.params.dbits).toBe(8)
     expect(c.comps.d.params.dbits).toBe(4)
+  })
+
+  it('a ROM saved with the instruction set of an early computer (sk8, sk82) is a SKASM program now, words untouched', () => {
+    for (const old of ['sk8', 'sk82', 'skasm']) {
+      const c = deserialize({
+        app: 'sklopko',
+        version: 1,
+        comps: [{ id: 'a', type: 'rom', x: 0, y: 0, params: { abits: 4, dbits: 16, isa: old, source: 'LDI 1\nJZ 3', data: '0100 0083' } }],
+        wires: [],
+      })
+      expect(c.comps.a.params, old).toMatchObject({ isa: 'skasm', source: 'LDI 1\nJZ 3', data: '0100 0083' })
+    }
   })
 
   it('circuits saved before programs and wide memories still load: no instruction set, 4-bit RAM', () => {

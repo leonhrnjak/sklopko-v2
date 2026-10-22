@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect, isAnnotation, isFrame } from './circuit'
 import { buildRows } from '../app/waveform'
-import { SK8, assemble, disassemble } from '../engine/isa'
+import { SKASM, assemble, disassemble } from '../engine/isa'
 import { CONTROL, EXAMPLES, FIBONACCI, FIBONACCI_SOURCE, SMILEY } from './examples'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
@@ -475,12 +475,12 @@ describe('8-bit computer example', () => {
   it('the Program ROM holds the assembly source and the words assembled from it', () => {
     const c = example('computer')
     const prog = Object.values(c.comps).find((k) => k.label === 'Program')!
-    expect(prog.params).toMatchObject({ abits: 4, dbits: 16, isa: 'sk8', source: FIBONACCI_SOURCE, data: FIBONACCI })
-    const result = assemble(SK8, FIBONACCI_SOURCE, 16)
+    expect(prog.params).toMatchObject({ abits: 4, dbits: 16, isa: 'skasm', source: FIBONACCI_SOURCE, data: FIBONACCI })
+    const result = assemble(SKASM, FIBONACCI_SOURCE, 16)
     expect(result.errors).toEqual([])
-    expect(result.symbols).toEqual({ OUT: 15, loop: 5 })
+    expect(result.symbols).toEqual({ SHOW: 15, loop: 5 })
     // The comments in the source name each instruction; the listing reads back the same program.
-    expect(result.words.slice(0, 15).map((w) => disassemble(SK8, w))).toEqual([
+    expect(result.words.slice(0, 15).map((w) => disassemble(SKASM, w))).toEqual([
       'LDI 0', 'STA 0', 'STA 15', 'LDI 1', 'STA 1', 'LDA 1', 'STA 15', 'ADD 0', 'STA 2', 'LDA 1', 'STA 0', 'LDA 2', 'STA 1', 'JNC 5', 'HALT',
     ])
   })
@@ -561,7 +561,7 @@ describe('8-bit computer example', () => {
   it('every instruction does what its opcode says (tiny programs, 8-bit data)', () => {
     // Build a machine with a custom program by editing the ROM contents.
     const run = (source: string, cycles: number) => {
-      const { words, errors } = assemble(SK8, source, 16)
+      const { words, errors } = assemble(SKASM, source, 16)
       expect(errors, source).toEqual([])
       const data = words.map((w) => w.toString(16).padStart(4, '0')).join(' ')
       const c = example('computer')

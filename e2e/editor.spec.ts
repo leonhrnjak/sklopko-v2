@@ -583,7 +583,7 @@ test('a ROM can switch from hex words to a program, keeping what it held', async
   await page.locator('.field', { hasText: 'Contents (hex words)' }).locator('textarea').fill('00 30 70')
   await page.locator('.inspector h2').click()
   // Choosing a program turns the ROM into 16 bits and starts from the words it holds (here: nothing sensible at 16 bits).
-  await page.getByLabel('Contents are').selectOption('sk8')
+  await page.getByLabel('Contents are').selectOption('skasm')
   await expect(page.getByLabel('Data bits')).toHaveValue('16')
   await expect(page.getByLabel('Program source')).toBeVisible()
   await page.getByLabel('Program source').fill('LDI 1\nHALT')
@@ -1256,4 +1256,61 @@ test('a part has a delay that can be set, and "realistic delays" fills them in',
   await page.getByRole('button', { name: 'Set all to 1' }).click()
   await clickComp(page, g)
   await expect(delay).toHaveValue('1')
+})
+
+test('the SKASM reference opens from the toolbar and from a program ROM, and has the instructions, ports and examples', async ({ page }) => {
+  await freshEmpty(page)
+  await page.getByRole('button', { name: 'SKASM…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'SKASM language reference' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('the assembly language of every Sklopko computer')).toBeVisible()
+
+  await dialog.getByRole('tab', { name: 'Instructions' }).click()
+  await expect(dialog.locator('#op-LDI')).toBeVisible()
+  await expect(dialog.locator('#op-JNZ')).toContainText('jump to t if the zero flag is 0')
+  await expect(dialog.locator('#op-OUT')).toContainText('send ACC to port p')
+
+  await dialog.getByRole('tab', { name: 'Ports' }).click()
+  await expect(dialog.getByRole('cell', { name: 'PIXEL_ON' })).toBeVisible()
+
+  await dialog.getByRole('tab', { name: 'Examples' }).click()
+  await expect(dialog.locator('#example-add pre')).toContainText('ADD 0')
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+
+  // From a ROM that holds a program.
+  await place(page, 'rom', 300, 200)
+  await page.getByLabel('Contents are').selectOption('skasm')
+  await page.getByRole('button', { name: 'SKASM reference…' }).click()
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(dialog).toHaveCount(0)
+
+  // And from the help panel, when nothing is selected.
+  await page.getByTestId('canvas').click({ position: { x: 60, y: 420 } })
+  await page.getByRole('button', { name: 'Open the SKASM reference' }).click()
+  await expect(dialog).toBeVisible()
+})
+
+test('the beginner computer runs its program: the listing follows the PC, and it adds 3 + 4 and halts', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  const halted = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Halted$/ }) }).locator('.led-fill.on')
+  await expect(halted).toHaveCount(0)
+
+  await pickByLabel(page, 'Program ROM')
+  await expect(page.getByLabel('Program source')).toHaveValue(/ADD 0/)
+  await expect(page.locator('.row-listing .text').nth(3)).toHaveText('ADD 0')
+  await expect(page.locator('.row-listing.current .text')).toHaveText('LDI 3') // the PC is at 0
+
+  // Two clock steps are one cycle (rising edge, falling edge). Three instructions in, the PC is at the ADD.
+  for (let i = 0; i < 6; i++) await page.getByRole('button', { name: 'Clock step' }).click()
+  await expect(page.locator('.row-listing.current .text')).toHaveText('ADD 0')
+
+  // Run on to the end: it halts on HALT.
+  for (let i = 0; i < 8; i++) await page.getByRole('button', { name: 'Clock step' }).click()
+  await expect(page.locator('.row-listing.current .text')).toHaveText('HALT')
+  await expect(halted).toHaveCount(1)
 })

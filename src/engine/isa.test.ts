@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { SK8, SK82, assemble, disassemble, getIsa, parseNumber, toHexWords } from './isa'
+import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexWords } from './isa'
 
-const asm = (source: string, capacity = 16) => assemble(SK8, source, capacity)
-const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SK8.bits)
+const asm = (source: string, capacity = 16) => assemble(SKASM, source, capacity)
+const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SKASM.bits)
 
 describe('numbers', () => {
   it('reads decimal, hex, binary and negative numbers', () => {
@@ -38,7 +38,7 @@ describe('assembler: the instruction set', () => {
 
   it('writes operands as decimal, hex, binary, constants or labels', () => {
     expect(hex('LDI 0xFF\nLDI $ff\nLDI 0b11111111\nLDI 255', 4)).toBe('FF00 FF00 FF00 FF00')
-    expect(hex('OUT = 15\nTEN = 0xA\nSTA OUT\nLDA TEN', 2)).toBe('002F 001A')
+    expect(hex('SHOW = 15\nTEN = 0xA\nSTA SHOW\nLDA TEN', 2)).toBe('002F 001A')
   })
 
   it('takes a negative immediate as two\'s complement', () => {
@@ -145,42 +145,48 @@ describe('assembler: errors', () => {
 
 describe('disassembler', () => {
   it('turns words back into instructions', () => {
-    expect([0xc800, 0x13, 0x2f, 0x37, 0x41, 0x52, 0x69, 0x70].map((w) => disassemble(SK8, w))).toEqual([
+    expect([0xc800, 0x13, 0x2f, 0x37, 0x41, 0x52, 0x69, 0x70].map((w) => disassemble(SKASM, w))).toEqual([
       'LDI 200', 'LDA 3', 'STA 15', 'JMP 7', 'ADD 1', 'SUB 2', 'JNC 9', 'HALT',
     ])
   })
 
   it('round-trips: assembling the disassembly gives the same word, for every possible instruction', () => {
-    for (const [mnemonic, op] of Object.entries(SK8.ops)) {
-      const args = op.arg === 'none' ? [0] : op.arg === 'addr' ? Array.from({ length: 16 }, (_, i) => i) : Array.from({ length: 256 }, (_, i) => i)
+    for (const [mnemonic, op] of Object.entries(SKASM.ops)) {
+      const args = op.arg === 'none' ? [0] : op.arg === 'imm' || op.arg === 'target' ? Array.from({ length: 256 }, (_, i) => i) : Array.from({ length: 16 }, (_, i) => i)
       for (const arg of args) {
-        const word = SK8.encode(op, arg)
-        const text = disassemble(SK8, word)
-        expect(text).toBe(op.arg === 'none' ? mnemonic : `${mnemonic} ${arg}`)
-        expect(asm(text, 1).words[0]).toBe(word)
+        const word = SKASM.encode(op, arg)
+        const text = disassemble(SKASM, word)
+        if (op.arg !== 'port') expect(text).toBe(op.arg === 'none' ? mnemonic : `${mnemonic} ${arg}`)
+        expect(asm(text, 256).words[0], text).toBe(word)
+        expect(SKASM.decode(word), text).toEqual({ mnemonic, arg })
       }
     }
   })
 
   it('.word can be assembled, so any word round-trips through the disassembly', () => {
     for (const w of [0x0000, 0x1234, 0x0080, 0x0072, 0xffff, 0x8000, 0x0001]) {
-      const r = asm(disassemble(SK8, w), 1)
+      const r = asm(disassemble(SKASM, w), 1)
       expect(r.errors).toEqual([])
       expect(r.words[0], w.toString(16)).toBe(w)
     }
   })
 
   it('shows a word that is not exactly an instruction as data', () => {
-    expect(disassemble(SK8, 0x0000)).toBe('LDI 0')
-    expect(disassemble(SK8, 0x1234)).toBe('.word 0x1234') // opcode 3 (JMP) but with an immediate byte set
-    expect(disassemble(SK8, 0x0080)).toBe('.word 0x0080') // opcode bits 4–6 = 0 but bit 7 set
-    expect(disassemble(SK8, 0x0072)).toBe('.word 0x0072') // HALT with an address
+    expect(disassemble(SKASM, 0x0000)).toBe('LDI 0')
+    expect(disassemble(SKASM, 0x1234)).toBe('.word 0x1234') // opcode 3 (JMP) but with stray bits in 12–15
+    expect(disassemble(SKASM, 0x0072)).toBe('.word 0x0072') // HALT with an address
+    expect(disassemble(SKASM, 0xb0f0)).toBe('.word 0xB0F0') // an extension opcode (15) with a sub-opcode nobody uses
+    expect(disassemble(SKASM, 0x0ee3)).toBe('.word 0x0EE3') // EXT-I sub-opcode 3 is free
   })
 })
 
 describe('instruction set registry', () => {
-  it('finds sk8 by id', () => {
-    expect(getIsa('sk8')).toBe(SK8)
+  it('finds skasm by id, and understands the ids of the sets it replaced', () => {
+    expect(getIsa('skasm')).toBe(SKASM)
+    expect(getIsa('sk8')).toBe(SKASM)
+    expect(getIsa('sk82')).toBe(SKASM)
+    expect(currentIsaId('sk8')).toBe('skasm')
+    expect(currentIsaId('none')).toBe('none')
     expect(getIsa('nope')).toBeUndefined()
   })
   it('hex words are zero-padded to the word width', () => {
@@ -189,47 +195,144 @@ describe('instruction set registry', () => {
   })
 })
 
-describe('the second instruction set (SK82)', () => {
-  const asm2 = (source: string, capacity = 256) => assemble(SK82, source, capacity)
-
-  it('is offered as a program type, and keeps the first set\'s opcodes', () => {
-    expect(getIsa('sk82')).toBe(SK82)
-    for (const [name, op] of Object.entries(SK8.ops)) expect(SK82.ops[name].code, name).toBe(op.code)
-    expect(asm2('LDI 200\nLDA 3\nSTA 15\nJMP 7\nADD 1\nSUB 2\nJNC 9\nHALT').words.slice(0, 8)).toEqual(asm('LDI 200\nLDA 3\nSTA 15\nJMP 7\nADD 1\nSUB 2\nJNC 9\nHALT').words.slice(0, 8))
-  })
-
-  it('encodes the new instructions with a four-bit opcode', () => {
-    const r = asm2('JZ 3\nADDI 5\nCMPI 0x80\nSHL\nSHR\nSUBI 1')
+describe('the original instructions never change their encoding', () => {
+  it('the eight of the first computer and the six added for the second', () => {
+    const r = asm('LDI 200\nLDA 3\nSTA 15\nJMP 7\nADD 1\nSUB 2\nJNC 9\nHALT\nJZ 3\nADDI 5\nCMPI 0x80\nSHL\nSHR\nSUBI 1')
     expect(r.errors).toEqual([])
-    expect(r.words.slice(0, 6)).toEqual([0x0083, 0x0590, 0x80a0, 0x00b0, 0x00c0, 0x01d0])
+    expect(r.words.slice(0, 14)).toEqual([0xc800, 0x0013, 0x002f, 0x0037, 0x0041, 0x0052, 0x0069, 0x0070, 0x0083, 0x0590, 0x80a0, 0x00b0, 0x00c0, 0x01d0])
   })
 
   it('stores the upper bits of a jump target in bits 8-11, so programs can be 256 instructions long', () => {
-    const r = asm2('JMP 31\nJZ 16\nJNC 15\nJMP 127\nJZ 64\nJMP 255')
+    const r = asm('JMP 31\nJZ 16\nJNC 15\nJMP 127\nJZ 64\nJMP 255', 256)
     expect(r.errors).toEqual([])
     expect(r.words.slice(0, 6)).toEqual([0x013f, 0x0180, 0x006f, 0x073f, 0x0480, 0x0f3f])
-    expect(asm2('JMP 256').errors[0].message).toBe('JMP: the jump target 256 is out of range, it must be from 0 to 255.')
-    expect(asm2('LDA 16').errors[0].message).toBe('LDA: the address 16 is out of range, it must be from 0 to 15.')
-    expect(asm2('JMP').errors[0].message).toBe('JMP needs a jump target.')
+    expect(asm('JMP 256', 256).errors[0].message).toBe('JMP: the jump target 256 is out of range, it must be from 0 to 255.')
+    expect(asm('LDA 16').errors[0].message).toBe('LDA: the address 16 is out of range, it must be from 0 to 15.')
+    expect(asm('JMP').errors[0].message).toBe('JMP needs a jump target.')
   })
 
   it('takes labels past address 15 as jump targets', () => {
     const lines = [...Array.from({ length: 100 }, () => 'SHL'), 'far: HALT', 'JMP far']
-    const r = asm2(lines.join('\n'))
+    const r = asm(lines.join('\n'), 256)
     expect(r.errors).toEqual([])
     expect(r.symbols.far).toBe(100)
-    expect(disassemble(SK82, r.words[101])).toBe('JMP 100')
+    expect(disassemble(SKASM, r.words[101])).toBe('JMP 100')
   })
 
-  it('disassembles every instruction back to what was written', () => {
-    const source = ['LDI 200', 'LDA 3', 'STA 15', 'JMP 100', 'ADD 1', 'SUB 2', 'JNC 9', 'HALT', 'JZ 17', 'ADDI 255', 'CMPI 58', 'SHL', 'SHR', 'SUBI 10']
-    const r = asm2(source.join('\n'))
-    expect(source.map((_, i) => disassemble(SK82, r.words[i]))).toEqual(source)
-    expect(disassemble(SK82, 0x00e0)).toBe('.word 0x00E0') // unused opcode
-    expect(disassemble(SK82, 0x1030)).toBe('.word 0x1030') // stray bits that no instruction uses
+  it('an unused opcode field is not an instruction (the old unused opcodes 14 and 15 are the extension groups now)', () => {
+    expect(SKASM.decode(0x00e3)).toBeNull()
+    expect(SKASM.decode(0xb0f0)).toBeNull()
+  })
+})
+
+describe('the instruction table', () => {
+  const entries = Object.entries(SKASM_OPS)
+
+  it('gives every instruction its own opcode (and sub-opcode), and decodes it back', () => {
+    const seen = new Map<string, string>()
+    for (const [name, op] of entries) {
+      const key = `${op.code}:${op.sub ?? '-'}`
+      expect(seen.get(key), `${name} and ${seen.get(key)} share ${key}`).toBeUndefined()
+      seen.set(key, name)
+      expect(SKASM.decode(SKASM.encode(op, 0))?.mnemonic).toBe(name)
+    }
   })
 
-  it('refuses a name that is an instruction of this set', () => {
-    expect(asm2('SHL = 5').errors[0].message).toContain('instruction name')
+  it('uses opcodes 0–13 for the main instructions, 14 for immediates and 15 for addresses, ports and targets', () => {
+    for (const [name, op] of entries) {
+      if (op.sub === undefined) expect(op.code, name).toBeLessThanOrEqual(13)
+      else if (op.code === 14) expect(op.arg, name).toBe('imm')
+      else {
+        expect(op.code, name).toBe(15)
+        expect(['addr', 'port', 'target', 'none'], name).toContain(op.arg)
+      }
+    }
+  })
+
+  it('every instruction has a summary and a category for the reference page', () => {
+    for (const [name, op] of entries) {
+      expect(op.summary.length, name).toBeGreaterThan(5)
+      expect(op.category, name).toBeTruthy()
+    }
+  })
+})
+
+describe('the new instructions', () => {
+  it('encode in the extension groups', () => {
+    const r = asm('ANDI 0x0F\nORI 0x80\nXORI 255\nOUT 0\nIN 5\nJNZ 19\nJC 7\nCMP 2\nAND 1\nOR 1\nXOR 1\nADC 1\nSBC 1\nNOP', 256)
+    expect(r.errors).toEqual([])
+    expect(r.words.slice(0, 14)).toEqual([0x0fe0, 0x80e1, 0xffe2, 0x00f0, 0x10f5, 0x21f3, 0x30f7, 0x40f2, 0x50f1, 0x60f1, 0x70f1, 0x80f1, 0x90f1, 0xa0f0])
+  })
+
+  it('take the same kinds of operand as the older ones', () => {
+    const errors = (s: string) => asm(s, 256).errors.map((e) => e.message)
+    expect(errors('JNZ')).toEqual(['JNZ needs a jump target.'])
+    expect(errors('JNZ 256')).toEqual(['JNZ: the jump target 256 is out of range, it must be from 0 to 255.'])
+    expect(errors('AND 16')).toEqual(['AND: the address 16 is out of range, it must be from 0 to 15.'])
+    expect(errors('ANDI 256')).toEqual(["ANDI: the value 256 doesn't fit, it must be from -128 to 255."])
+    expect(errors('NOP 1')).toEqual(['NOP takes no operand.'])
+    expect(errors('OUT')).toEqual(['OUT needs a port.'])
+    expect(errors('OUT 16')).toEqual(['OUT: the port 16 is out of range, it must be from 0 to 15.'])
+    expect(errors('IN -1')).toEqual(['IN: the port -1 is out of range, it must be from 0 to 15.'])
+  })
+
+  it('jump to labels like the others', () => {
+    const r = asm('top: DEC\nJNZ top\nJC top\nHALT')
+    expect(r.errors).toEqual([])
+    expect(r.words.slice(0, 4)).toEqual([0x01d0, 0x20f0, 0x30f0, 0x70])
+  })
+})
+
+describe('aliases', () => {
+  it('INC, DEC, CLR and NOT assemble to the instruction they stand for', () => {
+    expect(hex('INC\nDEC\nCLR\nNOT', 4)).toBe(hex('ADDI 1\nSUBI 1\nLDI 0\nXORI 255', 4))
+    expect(hex('inc', 1)).toBe('0190')
+    expect(asm('NOT').lineOf).toEqual([1])
+  })
+  it('take no operand, and cannot be used as names', () => {
+    expect(asm('INC 3').errors.map((e) => e.message)).toEqual(['INC takes no operand.'])
+    for (const name of Object.keys(SKASM_ALIASES)) expect(asm(`${name} = 1`).errors[0].message).toContain('instruction name')
+    expect(asm('nop: HALT').errors[0].message).toContain('instruction name')
+  })
+  it('are shown as the real instruction when disassembled', () => {
+    expect(disassemble(SKASM, asm('INC').words[0])).toBe('ADDI 1')
+  })
+})
+
+describe('ports', () => {
+  it('have names that stand for their number, in any operand', () => {
+    expect(hex('OUT NUMBER\nOUT CHAR\nOUT PIXEL_ON\nOUT PIXEL_OFF\nOUT SPEAKER\nIN KEY\nOUT KEY_ACK', 8)).toBe(
+      hex('OUT 0\nOUT 1\nOUT 2\nOUT 3\nOUT 4\nIN 5\nOUT 5', 8),
+    )
+    expect(asm('LDI KEY\nX = CHAR\nLDA X').errors).toEqual([])
+  })
+  it('have names that cannot be defined again, as a label or a constant', () => {
+    for (const p of PORTS) {
+      expect(asm(`${p.name} = 3`).errors.map((e) => e.message)).toEqual([`“${p.name}” is the name of a port and can't be used as a constant.`])
+      expect(asm(`${p.name}: HALT`).errors.map((e) => e.message)).toEqual([`“${p.name}” is the name of a port and can't be used as a label.`])
+    }
+  })
+  it('are not listed among the program\'s own symbols', () => {
+    expect(asm('X = 1\nOUT CHAR').symbols).toEqual({ X: 1 })
+  })
+  it('are named when disassembled, by direction', () => {
+    expect(disassemble(SKASM, 0x10f5)).toBe('IN KEY')
+    expect(disassemble(SKASM, 0x00f5)).toBe('OUT KEY_ACK')
+    expect(disassemble(SKASM, 0x00f1)).toBe('OUT CHAR')
+    expect(disassemble(SKASM, 0x00f9)).toBe('OUT 9') // no device has it yet
+  })
+  it('are listed once each with a direction and a summary, and fit in 4 bits', () => {
+    expect(new Set(PORTS.map((p) => `${p.number}${p.dir}`)).size).toBe(PORTS.length)
+    for (const p of PORTS) {
+      expect(p.number).toBeLessThanOrEqual(15)
+      expect(p.summary.length).toBeGreaterThan(5)
+    }
+  })
+})
+
+describe('names that happen to be inherited object properties', () => {
+  it('are unknown names, not numbers', () => {
+    expect(asm('JMP constructor').errors.map((e) => e.message)).toEqual(['Unknown name “constructor”.'])
+    expect(asm('toString: HALT').errors).toEqual([])
   })
 })

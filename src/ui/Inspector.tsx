@@ -20,6 +20,7 @@ import { hasDelay, MAX_DELAY } from '../model/delays'
 import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { traceNet } from '../model/trace'
+import { openReference } from '../app/reference'
 import { ConsoleSection, LutSection, RamSection, RomSection } from './MemoryInspector'
 import { TextParam } from './TextParam'
 
@@ -314,6 +315,13 @@ function Help() {
         </li>
         <li>
           <b>Net labels:</b> a Send label and a Receive label with the same name act as one wire, however far apart.
+        </li>
+        <li>
+          <b>Programs:</b> a ROM can hold a program in the SKASM assembly language.{' '}
+          <button className="inline-link" onClick={() => openReference()}>
+            Open the SKASM reference
+          </button>
+          .
         </li>
         <li>
           <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll or pinch to zoom, H to fit.

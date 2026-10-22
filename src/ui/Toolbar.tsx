@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openLogic } from '../app/logic'
+import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, useWave } from '../app/waveform'
@@ -145,6 +146,9 @@ export function Toolbar() {
       </button>
       <button onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
         Logic…
+      </button>
+      <button onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
+        SKASM…
       </button>
       <button onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges

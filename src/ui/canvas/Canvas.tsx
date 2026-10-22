@@ -53,7 +53,7 @@ import { traceCone, traceNet } from '../../model/trace'
 import { ComponentView, GhostWire, Junctions, PinsView, TraceRings, WireView, HopArcs } from './views'
 import { paletteDrag } from '../paletteDrag'
 import { compTransform } from '../transform'
-import { fitView, registerCanvas } from './viewport'
+import { MIN_ZOOM, fitView, registerCanvas } from './viewport'
 
 type Op =
   /** Pan the view. `place` = drop the part being placed here if this turns out to be a tap. */
@@ -234,7 +234,7 @@ export function Canvas() {
         const r = el.getBoundingClientRect()
         const mx = e.clientX - r.left
         const my = e.clientY - r.top
-        const zoom = Math.min(3, Math.max(0.25, v.zoom * Math.exp(-e.deltaY * 0.0025)))
+        const zoom = Math.min(3, Math.max(MIN_ZOOM, v.zoom * Math.exp(-e.deltaY * 0.0025)))
         setView({ zoom, x: mx - ((mx - v.x) / v.zoom) * zoom, y: my - ((my - v.y) / v.zoom) * zoom })
       } else {
         setView({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY })
@@ -487,7 +487,7 @@ export function Canvas() {
       case 'pinch': {
         if (pointers.current.size < 2) return
         const { d, mx, my } = pinchState()
-        const zoom = Math.min(3, Math.max(0.25, (o.zoom0 * d) / o.d0))
+        const zoom = Math.min(3, Math.max(MIN_ZOOM, (o.zoom0 * d) / o.d0))
         setView({ zoom, x: mx - o.anchor.x * zoom, y: my - o.anchor.y * zoom })
         break
       }

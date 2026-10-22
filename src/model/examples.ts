@@ -1,28 +1,15 @@
-import { SK8, assemble, toHexWords } from '../engine/isa'
+import { SKASM, assemble, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
-import { boundsRect, snap, type Circuit, type Rot } from './circuit'
+import { frameAround, note } from './annotate'
+import { beginnerComputer } from './beginner'
+import type { Circuit, Rot } from './circuit'
 
 export interface Example {
   /** Also the URL slug: sklopko.example/<id> opens this example. */
   id: string
   name: string
   build(): Circuit
-}
-
-/** A note on the canvas, to explain an example. */
-function note(b: CircuitBuilder, x: number, y: number, text: string, cols = 32, color = 'yellow') {
-  return b.add('note', x, y, { params: { text, cols, color } })
-}
-
-/** A frame round some of a circuit's parts, with room for its title above them. */
-function frameAround(b: CircuitBuilder, title: string, ids: string[], color = 'blue', pad = 24) {
-  const rects = ids.map((id) => boundsRect(b.c.comps[id]))
-  const x1 = Math.min(...rects.map((r) => r.x)) - pad
-  const y1 = Math.min(...rects.map((r) => r.y)) - pad - 24
-  const x2 = Math.max(...rects.map((r) => r.x + r.w)) + pad
-  const y2 = Math.max(...rects.map((r) => r.y + r.h)) + pad
-  return b.add('frame', snap(x1), snap(y1), { params: { title, w: snap(x2 - x1) + 10, h: snap(y2 - y1) + 10, color } })
 }
 
 function counterDisplay(): Circuit {
@@ -550,15 +537,15 @@ export const OUT_PORT = 15
 export const FIBONACCI_SOURCE = `; Fibonacci: RAM[0] = a, RAM[1] = b, RAM[2] = a + b.
 ; Every number is written to the output port (address 15) as soon as it is known.
 ; When a sum no longer fits in 8 bits the carry flag is set and the loop ends.
-OUT = 15
+SHOW = 15
 
         LDI 0
         STA 0        ; a = 0
-        STA OUT      ; show 0
+        STA SHOW     ; show 0
         LDI 1
         STA 1        ; b = 1
 loop:   LDA 1
-        STA OUT      ; show b
+        STA SHOW     ; show b
         ADD 0        ; acc = b + a, sets the carry flag
         STA 2        ; t = a + b
         LDA 1
@@ -570,7 +557,7 @@ loop:   LDA 1
 `
 
 /** The program as the ROM's hex words (see `FIBONACCI_SOURCE`). */
-export const FIBONACCI = toHexWords(assemble(SK8, FIBONACCI_SOURCE, 16).words, SK8.bits)
+export const FIBONACCI = toHexWords(assemble(SKASM, FIBONACCI_SOURCE, 16).words, SKASM.bits)
 
 /**
  * Control ROM, addressed by the opcode. Bits: 0 accumulator load, 1–2 accumulator source (0 operand, 1 ALU, 2 RAM),
@@ -651,7 +638,7 @@ export function computerBuilder(layout: Record<string, Spot>) {
   const clk = part('clk', 'clock', { params: { hz: 4 }, label: 'Clock' })
   const pc = part('pc', 'counterld', { label: 'PC' })
   const prog = part('prog', 'rom', {
-    params: { abits: 4, dbits: 16, isa: SK8.id, source: FIBONACCI_SOURCE, data: FIBONACCI },
+    params: { abits: 4, dbits: 16, isa: SKASM.id, source: FIBONACCI_SOURCE, data: FIBONACCI },
     label: 'Program',
   })
   wireBits(b, pc, n4('Q'), prog, n4('A'))
@@ -846,7 +833,7 @@ function computer(): Circuit {
   return b.build(0)
 }
 
-/** The second computer running one of its programs, with notes and frames that name its parts. */
+/** The computer running one of its programs, with notes and frames that name its parts. */
 function computer2(p: Program): Circuit {
   const { b, keys } = computer2Builder({ source: p.source, hz: p.hz, devices: p.devices, octaves: p.octaves, keypad: p.keypad })
   const ids = (...parts: string[]) => parts.map((k) => keys[k]).filter(Boolean)
@@ -854,8 +841,11 @@ function computer2(p: Program): Circuit {
     if (parts.length) frameAround(b, title, parts, color)
   }
   frame('Fetch: PC and program ROM', ids('pcLo', 'pcHi', 'prog'))
-  frame('Decode: opcode to control signals', ids('ctl', 'ncarry', 'jnc', 'jz', 'take', 'nhalt'), 'yellow')
-  frame('Which device? (address decoding)', ids('na0', 'na1', 'na2', 'na3', 'sel13', 'sel14', 'sel15', 'we14', 'we15', 'fbSel', 'fbWe'), 'green')
+  const bitsOf = (prefix: string) => Array.from({ length: 8 }, (_, i) => `${prefix}${i}`)
+  const sub = ['sub14_', 'sub15_', 'sub'].flatMap((prefix) => [0, 1, 2, 3].map((i) => `${prefix}${i}`))
+  frame('Decode: opcode to control signals', ids('ctl', 'ctl2', 'nd4', 'op14', 'op15', ...sub, 'ncarry', 'nzero', 'jnc', 'jc', 'jz', 'jnz', 'take', 'nhalt'), 'yellow')
+  frame('Logic unit and ALU result', ids(...['and', 'or', 'xor', 'logic', 'result'].flatMap(bitsOf)), 'pink')
+  frame('Which device? (port decoding)', ids('na0', 'na1', 'na2', 'na3', 'sel1', 'sel2', 'sel3', 'sel4', 'sel5', 'we1', 'we4', 'we5', 'fbSel', 'fbWe'), 'green')
   frame('ACC input: which source?', ids(...Array.from({ length: 8 }, (_, i) => `amux${i}`)), 'blue')
   frame('Devices', ids('keypad', 'console', 'screen', 'toggle', 'speaker'), 'green')
   note(b, 0, -300, p.note, 60)
@@ -913,6 +903,7 @@ function netLabels(): Circuit {
 
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
+  { id: 'beginner', name: 'Beginner: a tiny computer (ROM, RAM, adder)', build: beginnerComputer },
   { id: 'intersection', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
   { id: 'dice', name: 'Electronic dice', build: dice },
   { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
