@@ -4,7 +4,7 @@
 > Tick each box when it ships.
 >
 > - [x] M1a Index register and a 256-byte RAM
-> - [ ] M1b Subroutines: CALL and RET
+> - [x] M1b Subroutines: CALL and RET
 > - [ ] M1c Table ROM: constants in the program (`.byte`, `LDT`)
 > - [ ] M1d A readable screen
 > - [ ] M1e The spike: a raycaster on the reference interpreter, to size M2

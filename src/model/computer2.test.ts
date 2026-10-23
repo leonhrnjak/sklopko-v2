@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -39,6 +39,8 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
     pc: () => reg('PC'),
     acc: () => reg('ACC'),
     x: () => reg('X'),
+    sp: () => reg('Stack pointer', ['Q0', 'Q1', 'Q2', 'Q3']),
+    stack: () => sim.state(id('Return stack')).mem as number[],
     carry: () => sim.pinValue(id('Flags'), 'Q0'),
     zero: () => sim.pinValue(id('Flags'), 'Q1'),
     halted: () => sim.pinValue(id('Halted'), 'A'),
@@ -356,8 +358,8 @@ function agree(source: string, cycles: number): string | null {
   for (let i = 0; i < cycles; i++) {
     m.cycle()
     referenceStep(ref, words)
-    const got = { pc: m.pc(), acc: m.acc(), x: m.x(), c: m.carry(), z: m.zero(), ram: m.ram().join(',') }
-    const want = { pc: ref.pc, acc: ref.acc, x: ref.x, c: ref.c, z: ref.z, ram: ref.ram.join(',') }
+    const got = { pc: m.pc(), acc: m.acc(), x: m.x(), c: m.carry(), z: m.zero(), ram: m.ram().join(','), sp: m.sp(), stack: m.stack().join(',') }
+    const want = { pc: ref.pc, acc: ref.acc, x: ref.x, c: ref.c, z: ref.z, ram: ref.ram.join(','), sp: ref.sp, stack: ref.stack.join(',') }
     if (JSON.stringify(got) !== JSON.stringify(want)) return `cycle ${i + 1}: circuit ${JSON.stringify(got)}, reference ${JSON.stringify(want)}`
   }
   return null
@@ -365,11 +367,12 @@ function agree(source: string, cycles: number): string | null {
 
 describe('computer: the control ROMs', () => {
   it('have a row for every instruction (and nothing for the rest), as 256-word ROMs', () => {
-    const { rom1, rom2 } = controlWords()
+    const { rom1, rom2, rom3 } = controlWords()
     expect(CONTROL_1.split(' ')).toHaveLength(256)
     expect(CONTROL_2.split(' ')).toHaveLength(256)
+    expect(CONTROL_3.split(' ')).toHaveLength(256)
     const used = new Set(Object.values(SKASM_OPS).map((o) => o.code | ((o.sub ?? 0) << 4)))
-    for (let i = 0; i < 256; i++) if (!used.has(i)) expect([rom1[i], rom2[i]], `row ${i}`).toEqual([0, 0])
+    for (let i = 0; i < 256; i++) if (!used.has(i)) expect([rom1[i], rom2[i], rom3[i]], `row ${i}`).toEqual([0, 0, 0])
   })
 
   it('keep the control words of the original instructions exactly as they were', () => {
@@ -664,4 +667,37 @@ describe('computer: the sieve', () => {
     expect(text.length).toBeGreaterThan(10)
     expect(m.text().replace(/\n/g, '')).toBe(text)
   }, 60000)
+})
+
+describe('computer: CALL and RET', () => {
+  const cyclesOf = (src: string) => src.split('\n').filter((l) => l.trim()).length + 1
+  const programs: Record<string, string> = {
+    'a call and its return': 'LDI 1\nCALL f\nADDI 10\nHALT\nf: ADDI 5\nRET',
+    'two calls of the same routine': 'LDI 1\nCALL f\nCALL f\nHALT\nf: ADDI 5\nRET',
+    'calls inside calls': 'CALL a\nHALT\na: LDI 1\nCALL b\nADDI 100\nRET\nb: ADDI 2\nCALL c\nRET\nc: ADDI 4\nRET',
+    'a call in a loop': 'LDI 3\nSTA 0\nloop: CALL down\nJNZ loop\nHALT\ndown: LDA 0\nSUBI 1\nSTA 0\nRET',
+    'a RET with nothing to return to': 'LDI 7\nRET\nLDI 1',
+    'a call that is never returned from': 'CALL f\nHALT\nf: LDI 4\nCALL g\ng: ADDI 1\nHALT',
+    'a call to the next instruction': 'CALL next\nnext: LDI 3\nRET',
+    'the flags survive CALL and RET': 'LDI 255\nADDI 1\nCALL f\nHALT\nf: RET',
+  }
+  for (const [name, src] of Object.entries(programs))
+    it(name, () => {
+      expect(agree(src, cyclesOf(src) + 14), src).toBeNull()
+    })
+
+  it('17 calls deep wrap round the 16-entry stack, the same on the circuit and the interpreter', () => {
+    const src = 'CALL a\nHALT\na: CALL a'
+    expect(agree(src, 40), src).toBeNull()
+  })
+
+  it('the reference interpreter returns to the right place through nested calls', () => {
+    const src = 'LDI 0\nCALL a\nADDI 1\nHALT\na: ADDI 10\nCALL b\nADDI 20\nRET\nb: ADDI 100\nRET'
+    const ref = newMachine()
+    const words = assemble(SKASM, src, ROM_WORDS).words
+    for (let i = 0; i < 20 && !ref.halted; i++) referenceStep(ref, words)
+    expect(ref.halted).toBe(true)
+    expect(ref.acc).toBe(131)
+    expect(ref.sp).toBe(0)
+  })
 })

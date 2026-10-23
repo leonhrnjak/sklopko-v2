@@ -92,4 +92,20 @@ loop:   SUBI 1       ; ACC = ACC - 1, sets the zero flag when it reaches 0
         HALT
 `,
   },
+  {
+    id: 'subroutine',
+    title: 'A subroutine with CALL and RET',
+    note: 'CALL jumps to a label and remembers where it came from; RET jumps back there. The same code can be used from many places, and a subroutine can call another. This one doubles the accumulator, and is called three times: 5 x 8 = 40.',
+    result: 40,
+    text: `        LDI 5
+        CALL double      ; 10
+        CALL double      ; 20
+        CALL double      ; 40
+        HALT
+
+double: STA 0            ; remember the number
+        ADD 0            ; ACC = 2 x the number
+        RET              ; back to the instruction after the CALL
+`,
+  },
 ]

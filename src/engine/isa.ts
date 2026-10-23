@@ -139,6 +139,8 @@ export const SKASM_OPS: Record<string, Op> = {
   ADC: extMem(8, 'addr', 'Arithmetic', 'ACC = ACC + RAM[a] + carry', 'C Z'),
   SBC: extMem(9, 'addr', 'Arithmetic', 'ACC = ACC − RAM[a] − carry (the carry flag is the borrow of the last subtraction)', 'C Z'),
   NOP: extMem(10, 'none', 'Control', 'do nothing'),
+  CALL: extMem(11, 'target', 'Jumps', 'jump to t, remembering the next instruction so that RET can come back (16 calls deep)'),
+  RET: extMem(12, 'none', 'Jumps', 'jump back to the instruction after the last CALL that has not returned yet'),
 }
 
 /** Short forms. They are replaced by the instruction they stand for when assembling, so they never need hardware. */
