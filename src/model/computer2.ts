@@ -30,7 +30,7 @@ export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toStrin
 // ---- Control ROMs ------------------------------------------------------------------------------
 
 /**
- * Two ROMs turn an instruction into control signals. Both are addressed by 8 bits: the opcode (bits 4–7 of the word)
+ * Three ROMs turn an instruction into control signals. All are addressed by 8 bits: the opcode (bits 4–7 of the word)
  * and the sub-opcode (the instruction's bits 0–3 for opcode 14, bits 12–15 for opcode 15, otherwise 0).
  *
  * Control ROM 1, bit by bit:
@@ -42,6 +42,7 @@ export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toStrin
  *   15 the adder takes the carry flag in (ADC, SBC)
  * Control ROM 2: 0 jump if not zero, 1 jump if carry, 2 write to a port, 3 the RAM address is X (not the instruction's address
  *   field), 4 load X from the accumulator, 5 load X from the constant, 6 add 1 to X, 7 subtract 1 from X.
+ * Control ROM 3: 0 CALL (push the return address and jump), 1 RET (pop it and jump).
  */
 const LOAD = 1
 const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5, X: 6 }
@@ -65,11 +66,13 @@ const X_FROM_ACC = 16
 const X_FROM_CONST = 32
 const X_UP = 64
 const X_DOWN = 128
+const CALL3 = 1
+const RET3 = 2
 
 const ARITH = LOAD | src(SRC.ALU) | FLAGS
 
-/** The control bits of every instruction: [control ROM 1, control ROM 2]. */
-const CONTROL: Record<string, [number, number]> = {
+/** The control bits of every instruction: [control ROM 1, control ROM 2, control ROM 3 (0 if left out)]. */
+const CONTROL: Record<string, [number, number] | [number, number, number]> = {
   LDI: [LOAD | src(SRC.CONST), 0],
   LDA: [LOAD | src(SRC.RAM), 0],
   STA: [RAM_WRITE, 0],
@@ -105,25 +108,30 @@ const CONTROL: Record<string, [number, number]> = {
   DEX: [FLAGS, X_DOWN],
   LDX: [LOAD | src(SRC.RAM), INDIRECT],
   STX: [RAM_WRITE, INDIRECT],
+  CALL: [0, 0, CALL3],
+  RET: [0, 0, RET3],
 }
 
-/** The two control ROMs as arrays of words, indexed by opcode + 16 × sub-opcode. */
-export function controlWords(): { rom1: number[]; rom2: number[] } {
+/** The three control ROMs as arrays of words, indexed by opcode + 16 × sub-opcode. */
+export function controlWords(): { rom1: number[]; rom2: number[]; rom3: number[] } {
   const rom1 = new Array<number>(256).fill(0)
   const rom2 = new Array<number>(256).fill(0)
+  const rom3 = new Array<number>(256).fill(0)
   for (const [name, op] of Object.entries(SKASM_OPS)) {
     const bits = CONTROL[name]
     if (!bits) throw new Error(`The control ROM has no row for ${name}`)
     const at = op.code | ((op.sub ?? 0) << 4)
     rom1[at] = bits[0]
     rom2[at] = bits[1]
+    rom3[at] = bits[2] ?? 0
   }
-  return { rom1, rom2 }
+  return { rom1, rom2, rom3 }
 }
 
 const hexRom = (words: number[], digits: number) => words.map((w) => w.toString(16).toUpperCase().padStart(digits, '0')).join(' ')
 export const CONTROL_1 = hexRom(controlWords().rom1, 4)
 export const CONTROL_2 = hexRom(controlWords().rom2, 2)
+export const CONTROL_3 = hexRom(controlWords().rom3, 2)
 
 // ---- Programs ----------------------------------------------------------------------------------
 
@@ -510,9 +518,8 @@ export function computer2Builder(o: Computer2Options) {
   named(ADDR, 'ADDR', 4)
   const num = merger(FIELDS, 'num', 8, [4, 4], 'the constant', [`${ir}.Y5`, `${ir}.Y6`])
   const target = merger(FIELDS, 'target', 8, [4, 4], 'jump target', [ADDR, `${ir}.Y5`])
-  wire(target, `${pc}.D`)
 
-  // ---- Decode: two control ROMs, addressed by the opcode and the sub-opcode ----------------------------
+  // ---- Decode: three control ROMs, addressed by the opcode and the sub-opcode ----------------------------
   // Opcodes 14 and 15 are extension groups: their sub-opcode is in bits 0–3 (14) or bits 12–15 (15). For every other
   // opcode the sub-opcode is 0.
   const gate = (col: number, key: string, type: string, label: string, ins: string[], inputs = ins.length) => {
@@ -532,8 +539,10 @@ export function computer2Builder(o: Computer2Options) {
   const ctlAddr = merger(CTL, 'ctlAddr', 8, [1, 1, 1, 1, 4], 'opcode, sub-opcode', [`${ir}.Y1`, `${ir}.Y2`, `${ir}.Y3`, `${ir}.Y4`, `${sub}.Y`])
   const ctl = part(CTL, 'ctl', 'rom', { params: { ...BUS, abits: 8, dbits: 16, data: CONTROL_1 }, label: 'Control' })
   const ctl2 = part(CTL, 'ctl2', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_2 }, label: 'Control 2' })
+  const ctl3 = part(CTL, 'ctl3', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_3 }, label: 'Control 3' })
   wire(ctlAddr, `${ctl}.A`)
   wire(ctlAddr, `${ctl2}.A`)
+  wire(ctlAddr, `${ctl3}.A`)
   // The control bits, one wire each (the source of the accumulator and the logic operation are small buses).
   const cs = splitter(CTL, 'cs', 16, [1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1], 'control bits', `${ctl}.D`)
   const [LOAD_ACC, SRC, WRITE_RAM, SAVE_FLAGS, JUMP, JNC, JZ, HALT, SUBTRACT, B_IS_NUM, LOGIC, LOGIC_OP, CARRY_IN] = Array.from({ length: 13 }, (_, i) => `${cs}.Y${i}`)
@@ -544,6 +553,8 @@ export function computer2Builder(o: Computer2Options) {
   named(B_IS_NUM, 'B_IS_NUM')
   named(LOGIC, 'LOGIC')
   const cs2 = splitter(CTL, 'cs2', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'control 2 bits', `${ctl2}.D`)
+  const cs3 = splitter(CTL, 'cs3', 8, [1, 1, 6], 'control 3 bits', `${ctl3}.D`)
+  const [CALL_W, RET_W] = [`${cs3}.Y0`, `${cs3}.Y1`]
   const [JNZ2, JC2, PORT_WRITE, INDIRECT_W, X_FROM_ACC_W, X_FROM_CONST_W, X_UP_W, X_DOWN_W] = Array.from({ length: 8 }, (_, i) => `${cs2}.Y${i}`)
 
   const flags = part(ACC, 'flags', 'busreg', { params: { bits: 2 }, label: 'Flags' })
@@ -559,8 +570,40 @@ export function computer2Builder(o: Computer2Options) {
   const jc = gate(CTL, 'jc', 'and', 'JC and carry', [JC2, CARRY])
   const jz = gate(CTL, 'jz', 'and', 'JZ and zero', [JZ, ZERO])
   const jnz = gate(CTL, 'jnz', 'and', 'JNZ and not zero', [JNZ2, `${nzero}.Y`])
-  const take = gate(CTL, 'take', 'or', 'load PC', [JUMP, `${jnc}.Y`, `${jc}.Y`, `${jz}.Y`, `${jnz}.Y`])
+  const take = gate(CTL, 'take', 'or', 'load PC', [JUMP, `${jnc}.Y`, `${jc}.Y`, `${jz}.Y`, `${jnz}.Y`, CALL_W, RET_W])
   wire(`${take}.Y`, `${pc}.LD`)
+
+  // CALL and RET: a return stack of 16 addresses and a pointer to the next free one. CALL writes PC + 1 at the pointer, moves
+  // the pointer up and jumps; RET moves the pointer down, reads the address there and jumps to it.
+  const sp = part(FETCH, 'sp', 'busreg', { params: { bits: 4 }, label: 'Stack pointer' })
+  const spStep = part(FETCH, 'spStep', 'busmux', { params: { bits: 4, n: 2 }, label: '+1 for CALL, −1 for RET' }, 20)
+  wire(busconst(FETCH, 'one4', 4, 1), `${spStep}.I0`)
+  wire(busconst(FETCH, 'minusOne4', 4, 15), `${spStep}.I1`)
+  wire(RET_W, `${spStep}.S0`)
+  const spAdd = part(FETCH, 'spAdd', 'busadd', { params: { bits: 4 }, label: 'Stack pointer ± 1' })
+  wire(`${sp}.Q`, `${spAdd}.A`)
+  wire(`${spStep}.Y`, `${spAdd}.B`)
+  const spLoad = gate(FETCH, 'spLoad', 'or', 'CALL or RET', [CALL_W, RET_W])
+  wire(`${spAdd}.S`, `${sp}.D`)
+  wire(`${spLoad}.Y`, `${sp}.LD`)
+  wire(`${clk}.Q`, `${sp}.CLK`)
+  const stackAddr = part(FETCH, 'stackAddr', 'busmux', { params: { bits: 4, n: 2 }, label: 'stack address (RET: pointer − 1)' }, 20)
+  wire(`${sp}.Q`, `${stackAddr}.I0`)
+  wire(`${spAdd}.S`, `${stackAddr}.I1`)
+  wire(RET_W, `${stackAddr}.S0`)
+  const pcPlus = part(FETCH, 'pcPlus', 'busadd', { params: { bits: 8 }, label: 'PC + 1 (the return address)' })
+  wire(`${pc}.Q`, `${pcPlus}.A`)
+  wire(busconst(FETCH, 'one8pc', 8, 1), `${pcPlus}.B`)
+  const stack = part(FETCH, 'stack', 'ram', { params: { ...BUS, dbits: 8, abits: 4 }, label: 'Return stack' })
+  wire(`${stackAddr}.Y`, `${stack}.A`)
+  wire(`${pcPlus}.S`, `${stack}.D`)
+  wire(CALL_W, `${stack}.WE`)
+  wire(`${clk}.Q`, `${stack}.CLK`)
+  const pcNext = part(FETCH, 'pcNext', 'busmux', { params: { bits: 8, n: 2 }, label: 'PC load: target, or return address' }, 20)
+  wire(target, `${pcNext}.I0`)
+  wire(`${stack}.Q`, `${pcNext}.I1`)
+  wire(RET_W, `${pcNext}.S0`)
+  wire(`${pcNext}.Y`, `${pc}.D`)
   const nhalt = gate(CTL, 'nhalt', 'not', 'not halted', [HALT])
   wire(`${nhalt}.Y`, `${pc}.EN`)
   const halted = part(FETCH, 'halted', 'led', { label: 'Halted', params: { color: 'red' } })

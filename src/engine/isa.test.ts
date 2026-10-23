@@ -175,7 +175,7 @@ describe('disassembler', () => {
     expect(disassemble(SKASM, 0x0000)).toBe('LDI 0')
     expect(disassemble(SKASM, 0x1234)).toBe('.word 0x1234') // opcode 3 (JMP) but with stray bits in 12–15
     expect(disassemble(SKASM, 0x0072)).toBe('.word 0x0072') // HALT with an address
-    expect(disassemble(SKASM, 0xb0f0)).toBe('.word 0xB0F0') // an extension opcode (15) with a sub-opcode nobody uses
+    expect(disassemble(SKASM, 0xf0f0)).toBe('.word 0xF0F0') // an extension opcode (15) with a sub-opcode nobody uses
     expect(disassemble(SKASM, 0x0eed)).toBe('.word 0x0EED') // EXT-I sub-opcode 13 is free
   })
 })
@@ -221,7 +221,7 @@ describe('the original instructions never change their encoding', () => {
 
   it('an unused opcode field is not an instruction (the old unused opcodes 14 and 15 are the extension groups now)', () => {
     expect(SKASM.decode(0x00ed)).toBeNull()
-    expect(SKASM.decode(0xb0f0)).toBeNull()
+    expect(SKASM.decode(0xf0f0)).toBeNull()
   })
 })
 
@@ -404,6 +404,6 @@ describe('wordFields: how an instruction word is made up', () => {
 
   it('is null for a word that is not exactly an instruction', () => {
     expect(wordFields(SKASM, 0x1234)).toBeNull()
-    expect(wordFields(SKASM, 0xb0f0)).toBeNull()
+    expect(wordFields(SKASM, 0xf0f0)).toBeNull()
   })
 })

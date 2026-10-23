@@ -5,7 +5,8 @@ import { SKASM } from './isa'
  * of parts are tested against it, step by step.
  *
  * The machine has an 8-bit accumulator (ACC), an 8-bit index register (X), two flags (carry C and zero Z), 256 bytes of RAM
- * (an instruction's address field reaches the first 16, X reaches all), an 8-bit program counter (PC) and up to 256 instructions. It runs one instruction per clock cycle. A word that is not an instruction does nothing.
+ *  (an instruction's address field reaches the first 16, X reaches all), an 8-bit program counter (PC), a return stack for
+ * CALL and RET (16 deep, wrapping) and up to 256 instructions. It runs one instruction per clock cycle. A word that is not an instruction does nothing.
  */
 export interface Machine {
   pc: number
@@ -17,6 +18,9 @@ export interface Machine {
   /** Zero: the result of the last arithmetic or logic instruction was 0. */
   z: number
   ram: number[]
+  /** The return stack of CALL and RET: 16 addresses, and where the next one goes. */
+  stack: number[]
+  sp: number
   halted: boolean
 }
 
@@ -26,7 +30,7 @@ export interface Ports {
   in?(port: number): number
 }
 
-export const newMachine = (): Machine => ({ pc: 0, acc: 0, x: 0, c: 0, z: 0, ram: new Array<number>(256).fill(0), halted: false })
+export const newMachine = (): Machine => ({ pc: 0, acc: 0, x: 0, c: 0, z: 0, ram: new Array<number>(256).fill(0), stack: new Array<number>(16).fill(0), sp: 0, halted: false })
 
 /** Run one instruction. */
 export function step(m: Machine, program: number[], ports: Ports = {}): void {
@@ -93,6 +97,15 @@ export function step(m: Machine, program: number[], ports: Ports = {}): void {
       case 'DEX': m.x = (m.x - 1) & 255; m.z = m.x === 0 ? 1 : 0; m.c = 0; break
       case 'LDX': m.acc = m.ram[m.x]; break
       case 'STX': m.ram[m.x] = a; break
+      case 'CALL':
+        m.stack[m.sp] = next
+        m.sp = (m.sp + 1) & 15
+        next = n
+        break
+      case 'RET':
+        m.sp = (m.sp - 1) & 15
+        next = m.stack[m.sp]
+        break
     }
   }
   m.pc = next
