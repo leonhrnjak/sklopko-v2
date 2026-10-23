@@ -450,10 +450,10 @@ export function Canvas() {
       }
       const pressed = control && def.interactive === 'momentary'
       if (pressed) {
-        // A keypad says which of its keys is under the pointer.
+        // A keypad or gamepad says which of its keys is under the pointer.
         const key = (e.target as Element).closest<SVGElement>('[data-key]')?.dataset.key
         if (key !== undefined) sim.setState(id, { pressed: true, tapped: true, key: Number(key) })
-        else if (def.type !== 'keypad') sim.setState(id, { pressed: true })
+        else if (def.type !== 'keypad' && def.type !== 'gamepad') sim.setState(id, { pressed: true })
       }
       const o: Extract<Op, { k: 'move' }> = {
         k: 'move',

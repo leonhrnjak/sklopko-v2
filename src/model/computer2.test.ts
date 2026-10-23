@@ -72,8 +72,9 @@ describe('computer 2: programs', () => {
   it('have unique ids, and each connects what it needs (and nothing it does not use)', () => {
     expect(new Set(PROGRAMS.map((p) => p.id)).size).toBe(PROGRAMS.length)
     for (const p of PROGRAMS) {
-      const used = (d: string) => p.source.includes(d === 'lcd' ? 'PIXEL_ON' : d === 'speaker' ? 'SPEAKER' : d === 'console' ? 'CHAR' : d === 'number' ? 'NUMBER' : 'KEY')
-      for (const d of ['lcd', 'speaker', 'console', 'keypad', 'number'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
+      const used = (d: string) =>
+        p.source.includes(d === 'lcd' ? 'PIXEL_ON' : d === 'speaker' ? 'SPEAKER' : d === 'console' ? 'CHAR' : d === 'number' ? 'NUMBER' : d === 'gamepad' ? 'IN PAD' : 'IN KEY')
+      for (const d of ['lcd', 'speaker', 'console', 'keypad', 'gamepad', 'number'] as const) expect(p.devices.includes(d), `${p.id}: ${d}`).toBe(used(d))
     }
   })
 })
@@ -528,7 +529,7 @@ describe('computer 2: tic-tac-toe on the circuit', () => {
 
 describe('computer 2: pong on the circuit', () => {
   it('draws the same screen as the reference interpreter after the same number of instructions', () => {
-    const m = machine(PONG_SOURCE, ['number', 'lcd', 'keypad'])
+    const m = machine(PONG_SOURCE, ['number', 'lcd', 'gamepad'])
     const ref = newMachine()
     const px = new Set<number>()
     const prog = assemble(SKASM, PONG_SOURCE, ROM_WORDS).words
@@ -549,7 +550,7 @@ describe('computer 2: pong on the circuit', () => {
 
 describe('computer 2: snake on the circuit', () => {
   it('draws the same screen as the reference interpreter, and ends with Game over at the wall', () => {
-    const m = machine(SNAKE_SOURCE, ['number', 'console', 'lcd', 'keypad'])
+    const m = machine(SNAKE_SOURCE, ['number', 'console', 'lcd', 'gamepad'])
     const ref = newMachine()
     const px = new Set<number>()
     let text = ''
@@ -573,4 +574,35 @@ describe('computer 2: snake on the circuit', () => {
     expect(m.text()).toBe('Game over')
     expect(m.halted()).toBe(1)
   }, 60000)
+})
+
+describe('computer 2: the gamepad', () => {
+  it('IN PAD reads the buttons held right now, one bit each, and 0 when nothing is held', () => {
+    const m = machine('IN PAD\nHALT', ['gamepad'])
+    const pad = m.id('Gamepad')
+    const read = (keys: number) => {
+      m.sim.reset()
+      m.sim.setState(pad, { keys })
+      m.sim.settle()
+      m.run(6)
+      return m.acc()
+    }
+    expect(read(0)).toBe(0)
+    expect(read(1)).toBe(1)
+    expect(read(2 | 8)).toBe(10)
+    expect(read(63)).toBe(63)
+    expect(read(16 | 32 | 4)).toBe(52)
+  })
+
+  it('a computer without a gamepad reads 0 from IN PAD, and one with only a keypad still reads its keys', () => {
+    const m = machine('IN PAD\nHALT', ['keypad'])
+    m.run(6)
+    expect(m.acc()).toBe(0)
+    const k = machine('IN KEY\nHALT', ['keypad', 'gamepad'])
+    k.sim.setState(k.id('Gamepad'), { keys: 63 })
+    k.press(5)
+    k.run(6)
+    expect(k.acc() & 16).toBe(16) // a press waits
+    expect(k.acc() & 15).toBe(5)
+  })
 })

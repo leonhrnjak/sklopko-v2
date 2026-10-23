@@ -5,10 +5,11 @@ import { ROM_WORDS, SNAKE_SOURCE } from './computer2'
 
 const asm = assemble(SKASM, SNAKE_SOURCE, ROM_WORDS)
 const [S0, DIR, LEN, FOOD] = [0, 8, 9, 10]
+// Gamepad bits.
 const UP = 1
+const DOWN = 2
 const LEFT = 4
-const RIGHT = 6
-const DOWN = 9
+const RIGHT = 8
 
 const isWall = (p: number) => (p & 15) === 0 || (p & 15) === 15 || p >> 4 === 0 || p >> 4 === 15
 
@@ -21,8 +22,8 @@ interface Game {
 }
 
 /**
- * Run the program on the reference interpreter. `choose` is asked for a key whenever the program reads the keypad with nothing
- * pending; `onFrame` runs each time the program starts a frame; `setup` can change RAM and the screen before it starts (the
+ * Run the program on the reference interpreter. `choose` says which gamepad buttons are held (a bit mask, or null for none)
+ * each time the program reads the pad; `onFrame` runs each time the program starts a frame; `setup` can change RAM and the screen before it starts (the
  * program's own start-up code has run by then if `skipInit` is false).
  */
 function play(opts: {
@@ -33,22 +34,15 @@ function play(opts: {
 }) {
   const m = newMachine()
   const g: Game = { m, screen: new Set(), text: '', numbers: [], frames: 0 }
-  let pending = -1
   const ports = {
     out(port: number, v: number) {
       if (port === 0) g.numbers.push(v)
       else if (port === 1) g.text += String.fromCharCode(v)
       else if (port === 2) g.screen.add(v)
       else if (port === 3) g.screen.delete(v)
-      else if (port === 5) pending = -1
     },
     in(port: number) {
-      if (port !== 5) return 0
-      if (pending < 0 && opts.choose) {
-        const k = opts.choose(m)
-        if (k !== null) pending = k
-      }
-      return pending < 0 ? 0 : pending | 16
+      return port === 6 ? (opts.choose?.(m) ?? 0) : 0
     },
   }
   let setupDone = !opts.setup

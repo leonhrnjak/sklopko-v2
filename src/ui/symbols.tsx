@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
-import { CONSOLE_ROWS, FB_SIZE, KEYPAD_LAYOUTS, speakerPitch, type ConsoleState, type FramebufferState, type KeypadState, type SpeakerState } from '../engine/components/devices'
+import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, speakerPitch, type ConsoleState, type FramebufferState, type GamepadState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
@@ -729,6 +729,40 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
                 <rect data-key={code} x={x} y={y} width={19} height={19} rx={3} className="key-cap" />
                 <Txt x={x + 9.5} y={y + 10} className="key-label">
                   {label}
+                </Txt>
+              </g>
+            )
+          })}
+        </BoxSym>
+      )
+      break
+    }
+    case 'gamepad': {
+      const st: GamepadState | undefined = live ? sim.state(comp.id) : undefined
+      const held = st ? gamepadHeld(st) : 0
+      // A cross of four buttons on the left, A and B on the right; each button carries its bit number for the pointer.
+      const spots = [
+        { x: 41, y: 14 },
+        { x: 41, y: 52 },
+        { x: 22, y: 33 },
+        { x: 60, y: 33 },
+        { x: 100, y: 46 },
+        { x: 122, y: 30 },
+      ]
+      content = (
+        <BoxSym l={l}>
+          {GAMEPAD_BUTTONS.map((b, i) => {
+            const down = ((held >> i) & 1) === 1
+            const round = i >= 4
+            return (
+              <g key={b.pin} data-key={i} className={`key${down ? ' down' : ''}`}>
+                {round ? (
+                  <circle data-key={i} cx={spots[i].x + 9.5} cy={spots[i].y + 9.5} r={10} className="key-cap" />
+                ) : (
+                  <rect data-key={i} x={spots[i].x} y={spots[i].y} width={19} height={19} rx={3} className="key-cap" />
+                )}
+                <Txt x={spots[i].x + 9.5} y={spots[i].y + 10} className="key-label">
+                  {b.label}
                 </Txt>
               </g>
             )

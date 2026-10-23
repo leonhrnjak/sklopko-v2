@@ -1708,3 +1708,16 @@ test('state machines: the circuit examples open and run', async ({ page }) => {
   await page.goto('/fsm-detector', { waitUntil: 'networkidle' })
   await expect(page.locator('.comp .comp-label', { hasText: /^X$/ })).toBeVisible()
 })
+
+test('gamepad: the arrow keys press its buttons, and the paddle moves', async ({ page }) => {
+  await page.goto('/computer-pong', { waitUntil: 'networkidle' })
+  const down = page.locator('g.key.down')
+  await expect(down).toHaveCount(0)
+  await page.keyboard.down('ArrowUp')
+  await expect(down).toHaveCount(1)
+  await page.keyboard.down('z')
+  await expect(down).toHaveCount(2)
+  await page.keyboard.up('ArrowUp')
+  await page.keyboard.up('z')
+  await expect(down).toHaveCount(0)
+})

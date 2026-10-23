@@ -114,6 +114,31 @@ export const KEYPAD_LAYOUTS: Record<string, { labels: string[]; codes: number[] 
   },
 }
 
+// ---- Gamepad -----------------------------------------------------------------------------------
+
+/** The buttons of the gamepad, by bit: the output pin of each, and the keyboard keys that press it. */
+export const GAMEPAD_BUTTONS = [
+  { pin: 'U', label: '▲', keys: ['ArrowUp', 'w'] },
+  { pin: 'D', label: '▼', keys: ['ArrowDown', 's'] },
+  { pin: 'L', label: '◀', keys: ['ArrowLeft', 'a'] },
+  { pin: 'R', label: '▶', keys: ['ArrowRight', 'd'] },
+  { pin: 'A', label: 'A', keys: ['z'] },
+  { pin: 'B', label: 'B', keys: ['x'] },
+] as const
+
+export interface GamepadState {
+  /** A button is held down with the pointer, and which one (a bit number). */
+  pressed: boolean
+  key: number
+  /** Buttons held on the keyboard, one bit each. */
+  keys: number
+  /** Unused: the canvas sets this for every touch of a keypad key. */
+  tapped?: boolean
+}
+
+/** The buttons held right now, one bit each, from the pointer and the keyboard. */
+export const gamepadHeld = (st: GamepadState) => st.keys | (st.pressed ? 1 << st.key : 0)
+
 export const devices: ComponentDef[] = [
   {
     type: 'console',
@@ -261,6 +286,22 @@ export const devices: ComponentDef[] = [
       if (inst.ins[0] === 1) st.latched = false
       for (let i = 0; i < 4; i++) inst.outs[i] = ((st.key >> i) & 1) as V
       inst.outs[4] = (inst.params.sticky === true ? st.latched : st.pressed) ? 1 : 0
+    },
+  },
+  {
+    type: 'gamepad',
+    name: 'Gamepad',
+    category: 'io',
+    description:
+      'A direction pad and two buttons, for games. Click the buttons, or use the keyboard while the simulation runs: ' +
+      'the arrow keys or W A S D for the direction pad, Z for A and X for B. An output is 1 for as long as its button is held down.',
+    interactive: 'momentary',
+    live: true,
+    init: (): GamepadState => ({ pressed: false, key: 0, keys: 0 }),
+    layout: () => box({ w: 140, minRows: 5, right: GAMEPAD_BUTTONS.map((b) => b.pin) }),
+    evaluate(inst) {
+      const held = gamepadHeld(inst.state as GamepadState)
+      for (let i = 0; i < GAMEPAD_BUTTONS.length; i++) inst.outs[i] = ((held >> i) & 1) as V
     },
   },
   {

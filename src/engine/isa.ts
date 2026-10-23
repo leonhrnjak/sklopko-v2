@@ -151,6 +151,7 @@ export const PORTS: Port[] = [
   { name: 'SPEAKER', number: 4, dir: 'out', summary: 'the speaker: flip it (a tone is a quick series of flips)' },
   { name: 'KEY', number: 5, dir: 'in', summary: 'the keypad: the last key in bits 0–3, bit 4 set while a press waits' },
   { name: 'KEY_ACK', number: 5, dir: 'out', summary: 'the keypad: say the key has been read, so bit 4 clears' },
+  { name: 'PAD', number: 6, dir: 'in', summary: 'the gamepad: the buttons held right now, one bit each: up 1, down 2, left 4, right 8, A 16, B 32' },
 ]
 
 const portNumber = (name: string) => PORTS.find((p) => p.name === name)?.number
