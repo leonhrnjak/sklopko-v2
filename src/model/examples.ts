@@ -893,6 +893,116 @@ function pwm(): Circuit {
   return b.build()
 }
 
+/**
+ * A push button that bounces, and two counters that count its presses: one wired straight to the contact, one behind a
+ * debouncer. The contact is modelled as the button level XOR a burst of jitter for a few ticks after every change.
+ * The debouncer takes a sample every 125 ms and only believes a level once it has seen it three times in a row.
+ */
+function debouncer(): Circuit {
+  const b = new CircuitBuilder()
+  const press = b.add('switch', 0, 40, { label: 'Press' })
+  const jit = b.add('clock', 0, 140, { params: { hz: 32 }, label: 'Jitter clock' })
+  const delay = b.add('shiftreg', 150, 0, { label: 'Delay' })
+  const win = b.add('xor', 330, 20)
+  const burst = b.add('and', 420, 20)
+  const raw = b.add('xor', 510, 20)
+  const rawLed = b.add('led', 640, 30, { label: 'Contact', params: { color: 'yellow' } })
+  b.wire(`${press}.Q`, `${delay}.SI`)
+  b.wire(`${jit}.Q`, `${delay}.CLK`)
+  b.wire(`${press}.Q`, `${win}.A`)
+  b.wire(`${delay}.QC`, `${win}.B`)
+  b.wire(`${win}.Y`, `${burst}.A`)
+  b.wire(`${jit}.Q`, `${burst}.B`)
+  b.wire(`${press}.Q`, `${raw}.A`)
+  b.wire(`${burst}.Y`, `${raw}.B`)
+  b.wire(`${raw}.Y`, `${rawLed}.A`)
+  frameAround(b, 'A bouncing button', [press, jit, delay, win, burst, raw, rawLed], 'yellow')
+
+  const naive = b.add('counter', 150, 280, { params: { mod: 16 }, label: 'Naive counter' })
+  const naiveDisp = b.add('hexdisp', 330, 280, { label: 'Presses (naive)' })
+  b.wire(`${raw}.Y`, `${naive}.CLK`)
+  for (const p of 'ABCD') b.wire(`${naive}.${p}`, `${naiveDisp}.${p}`)
+  frameAround(b, 'Counting the contact directly', [naive, naiveDisp], 'pink')
+
+  const sample = b.add('clock', 0, 520, { params: { hz: 8 }, label: 'Sample clock' })
+  const hist = b.add('shiftreg', 150, 500, { label: 'Last three samples' })
+  const all1 = b.add('and', 360, 500, { params: { inputs: 3 } })
+  const all0 = b.add('nor', 360, 600, { params: { inputs: 3 } })
+  const latch = b.add('srlatch', 480, 540, { label: 'Stable level' })
+  const clean = b.add('led', 600, 540, { label: 'Clean', params: { color: 'green' } })
+  const good = b.add('counter', 150, 740, { params: { mod: 16 }, label: 'Counter' })
+  const goodDisp = b.add('hexdisp', 330, 740, { label: 'Presses (debounced)' })
+  b.wire(`${raw}.Y`, `${hist}.SI`)
+  b.wire(`${sample}.Q`, `${hist}.CLK`)
+  for (const p of 'ABC') {
+    b.wire(`${hist}.Q${p}`, `${all1}.${p}`)
+    b.wire(`${hist}.Q${p}`, `${all0}.${p}`)
+  }
+  b.wire(`${all1}.Y`, `${latch}.S`)
+  b.wire(`${all0}.Y`, `${latch}.R`)
+  b.wire(`${latch}.Q`, `${clean}.A`)
+  b.wire(`${latch}.Q`, `${good}.CLK`)
+  for (const p of 'ABCD') b.wire(`${good}.${p}`, `${goodDisp}.${p}`)
+  frameAround(b, 'Debounced: three equal samples in a row', [sample, hist, all1, all0, latch, clean, good, goodDisp], 'green')
+
+  note(
+    b,
+    700,
+    0,
+    'Flip Press on and off. The yellow Contact LED flickers for a moment after every change, like a real switch. The naive counter counts every flicker, so it jumps by several for each press; the debounced counter counts once. The fix samples the contact slowly and only accepts a level once it has been seen three times in a row.',
+    40,
+  )
+  return b.build()
+}
+
+/**
+ * A stopwatch showing minutes and seconds. Start/Stop toggles a flip-flop that enables the counters; Lap copies the time into
+ * three registers on the next tick, so the Lap display holds a split time while the main display keeps running.
+ */
+function stopwatch(): Circuit {
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 260, { params: { hz: 1 }, label: '1 Hz' })
+  const startBtn = b.add('button', 0, 40, { label: 'Start/Stop' })
+  const resetBtn = b.add('button', 0, 120, { label: 'Reset' })
+  const lapBtn = b.add('button', 0, 190, { label: 'Lap' })
+  const run = b.add('tff', 110, 20, { label: 'Running' })
+  const runLed = b.add('led', 240, 30, { label: 'Running', params: { color: 'green' } })
+  b.wire(`${startBtn}.Q`, `${run}.CLK`)
+  b.wire(`${run}.Q`, `${runLed}.A`)
+
+  const names = ['Minutes', 'Tens of seconds', 'Seconds']
+  const mods = [10, 6, 10]
+  const cnt = mods.map((mod, i) => b.add('counter', 330 + i * 260, 0, { params: { mod }, label: `Counter ${names[i]}` }))
+  const disp = mods.map((_, i) => b.add('hexdisp', 470 + i * 260, 0, { label: names[i] }))
+  const reg = mods.map((_, i) => b.add('register', 330 + i * 260, 280, { label: `Latch ${names[i]}` }))
+  const lapDisp = mods.map((_, i) => b.add('hexdisp', 470 + i * 260, 280, { label: `Lap ${names[i]}` }))
+  cnt.forEach((c, i) => {
+    b.wire(`${clk}.Q`, `${c}.CLK`)
+    b.wire(`${resetBtn}.Q`, `${c}.R`)
+    for (const p of 'ABCD') {
+      b.wire(`${c}.${p}`, `${disp[i]}.${p}`)
+      b.wire(`${c}.${p}`, `${reg[i]}.${p}`)
+      b.wire(`${reg[i]}.Q${p}`, `${lapDisp[i]}.${p}`)
+    }
+    b.wire(`${clk}.Q`, `${reg[i]}.CLK`)
+    b.wire(`${lapBtn}.Q`, `${reg[i]}.LD`)
+  })
+  // Seconds count while running; each digit to the left counts when the digit to its right is at its last value.
+  b.wire(`${run}.Q`, `${cnt[2]}.EN`)
+  b.wire(`${cnt[2]}.CO`, `${cnt[1]}.EN`)
+  b.wire(`${cnt[1]}.CO`, `${cnt[0]}.EN`)
+  frameAround(b, 'Time', [...cnt, ...disp], 'blue')
+  frameAround(b, 'Lap time', [...reg, ...lapDisp], 'yellow')
+  note(
+    b,
+    0,
+    420,
+    'Press Start/Stop to run and press it again to stop. Reset zeroes the time. Hold Lap for a moment (one clock tick, a second) to copy the time into the Lap display while the main one keeps counting.',
+    60,
+  )
+  return b.build()
+}
+
 /** Menu order: the groups appear in this order, and the first example is what the app opens with. */
 export const EXAMPLE_GROUPS = [
   'Start here',
@@ -921,6 +1031,7 @@ const ALL: Example[] = [
   g('Memory and sequential', 'sr-latch', 'SR latch from NOR gates', srLatch),
   g('Memory and sequential', 'd-latch', 'D latch from NAND gates', nandDLatch),
   g('Memory and sequential', 'master-slave', 'Master-slave flip-flop from two latches', masterSlave),
+  g('Memory and sequential', 'debounce', 'Button debouncer: why a naive counter miscounts', debouncer),
   g('Memory and sequential', 'shift-register', 'Shift register (D flip-flops)', shiftRegister),
   g('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)', rippleCounter),
 
@@ -944,6 +1055,7 @@ const ALL: Example[] = [
 
   g('Displays and gadgets', 'intersection', 'Traffic lights with pedestrian crossing', trafficLights),
   g('Displays and gadgets', 'dice', 'Electronic dice', dice),
+  g('Displays and gadgets', 'stopwatch', 'Stopwatch with start/stop and lap', stopwatch),
   g('Displays and gadgets', 'clock', 'Digital clock (HH:MM:SS)', digitalClock),
   g('Displays and gadgets', 'pwm', 'PWM: a counter and comparator dim a lamp', pwm),
   g('Displays and gadgets', 'lfsr', 'Pseudo-random generator (LFSR)', lfsr),
