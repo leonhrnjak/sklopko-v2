@@ -8,7 +8,7 @@
 > - [x] M1c Table ROM: constants in the program (`.byte`, `LDT`)
 > - [x] M1d A readable screen
 > - [x] M1e The spike: a raycaster on the reference interpreter, to size M2
-> - [ ] M2 Shades of grey for the LCD
+> - [x] M2 Shades of grey for the LCD
 > - [ ] M3 The raycaster example
 
 ## Where this is going

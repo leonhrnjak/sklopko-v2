@@ -300,9 +300,10 @@ function Digit({ x, y, w, h, segs, dp }: { x: number; y: number; w: number; h: n
 }
 
 /** Pixel colours of the pixel screen, by number of colours. */
-const FB_COLORS: Record<number, string[]> = {
+const FB_COLORS: Record<string, string[]> = {
   2: ['#0b1220', '#facc15'],
   4: ['#0b1220', '#ef4444', '#22c55e', '#f8fafc'],
+  shades: ['#0b1220', '#6d5a12', '#b08f12', '#facc15'],
 }
 
 const LED_COLORS: Record<string, string> = {
@@ -683,7 +684,7 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     }
     case 'framebuffer': {
       const st: FramebufferState | undefined = live ? sim.state(comp.id) : undefined
-      const colors = FB_COLORS[Number(p.colors) === 4 ? 4 : 2]
+      const colors = FB_COLORS[Number(p.colors) === 4 ? (p.palette === 'shades' ? 'shades' : 4) : 2]
       const cell = 10
       content = (
         <BoxSym l={l}>
@@ -691,7 +692,7 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
           {st?.px.map((v, i) =>
             v ? <rect key={i} x={44 + (i % FB_SIZE) * cell} y={12 + Math.floor(i / FB_SIZE) * cell} width={cell} height={cell} fill={colors[v] ?? colors[1]} /> : null,
           )}
-          <Title text={`Pixel screen 16×16, ${Number(p.colors) === 4 ? '4 colours' : '1 bit'}`} x={44 + (FB_SIZE * cell) / 2} y={FB_SIZE * cell + 32} />
+          <Title text={`Pixel screen 16×16, ${Number(p.colors) === 4 ? (p.palette === 'shades' ? '4 shades' : '4 colours') : '1 bit'}`} x={44 + (FB_SIZE * cell) / 2} y={FB_SIZE * cell + 32} />
         </BoxSym>
       )
       break
