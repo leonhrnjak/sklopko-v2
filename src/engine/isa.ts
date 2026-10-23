@@ -163,13 +163,14 @@ export const SKASM_ALIASES: Record<string, Alias> = {
 export const PORTS: Port[] = [
   { name: 'NUMBER', number: 0, dir: 'out', summary: 'the decimal display: ACC, shown as a number' },
   { name: 'CHAR', number: 1, dir: 'out', summary: 'the text console: ACC as an ASCII character (10 = new line, 8 = backspace, 12 = clear)' },
-  { name: 'PIXEL_ON', number: 2, dir: 'out', summary: 'the screen: light the pixel at x = low half of ACC, y = high half' },
+  { name: 'PIXEL_ON', number: 2, dir: 'out', summary: 'the screen: light the pixel at x = low half of ACC, y = high half, in the shade chosen with PIXEL_COLOR (brightest at first)' },
   { name: 'PIXEL_OFF', number: 3, dir: 'out', summary: 'the screen: darken that pixel' },
   { name: 'SPEAKER', number: 4, dir: 'out', summary: 'the speaker: flip it (a tone is a quick series of flips)' },
   { name: 'KEY', number: 5, dir: 'in', summary: 'the keypad: the last key in bits 0–3, bit 4 set while a press waits' },
   { name: 'KEY_ACK', number: 5, dir: 'out', summary: 'the keypad: say the key has been read, so bit 4 clears' },
-  { name: 'PIXEL', number: 2, dir: 'in', summary: 'the screen: 1 if the pixel chosen with PIXEL_AT is lit, otherwise 0' },
+  { name: 'PIXEL', number: 2, dir: 'in', summary: 'the screen: the shade of the pixel chosen with PIXEL_AT, 0 (dark) to 3 (brightest)' },
   { name: 'PIXEL_AT', number: 7, dir: 'out', summary: 'the screen: choose the pixel that IN PIXEL reads (x = low half of ACC, y = high half)' },
+  { name: 'PIXEL_COLOR', number: 8, dir: 'out', summary: 'the screen: the shade (0 to 3, the low two bits of ACC) that PIXEL_ON paints from now on; 3 is the brightest' },
   { name: 'PAD', number: 6, dir: 'in', summary: 'the gamepad: the buttons held right now, one bit each: up 1, down 2, left 4, right 8, A 16, B 32' },
 ]
 

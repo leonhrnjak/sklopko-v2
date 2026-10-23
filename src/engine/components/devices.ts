@@ -179,6 +179,16 @@ export const devices: ComponentDef[] = [
         ],
       },
       {
+        key: 'palette',
+        label: 'Four colours are',
+        kind: 'select',
+        default: 'colours',
+        options: [
+          { value: 'colours', label: 'Black, red, green, white' },
+          { value: 'shades', label: 'Four shades, black to bright' },
+        ],
+      },
+      {
         key: 'read',
         label: 'Read a pixel back',
         kind: 'select',

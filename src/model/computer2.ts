@@ -8,7 +8,8 @@ import { boundsRect, type Circuit } from './circuit'
  *
  *   console   `OUT CHAR` prints the accumulator as a character
  *   lcd       `OUT PIXEL_ON` lights the pixel at (low nibble, high nibble) of the accumulator, `OUT PIXEL_OFF` darkens it;
- *             `OUT PIXEL_AT` chooses a pixel and `IN PIXEL` reads it (1 if lit)
+ *             `OUT PIXEL_AT` chooses a pixel and `IN PIXEL` reads its shade;
+ *             `OUT PIXEL_COLOR` chooses the shade (0 to 3, brightest at first) that PIXEL_ON paints
  *   speaker   `OUT SPEAKER` flips it
  *   keypad    `IN KEY` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `OUT KEY_ACK` says it has been read
  *   gamepad   `IN PAD` reads the buttons held right now, one bit each (up 1, down 2, left 4, right 8, A 16, B 32)
@@ -788,11 +789,26 @@ export function computer2Builder(o: Computer2Options) {
     wire(ACC_OUT, `${con}.D`)
   }
   if (has('lcd')) {
-    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { ...BUS, colors: 2, read: 'on' }, label: 'LCD' })
+    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { ...BUS, colors: 4, palette: 'shades', read: 'on' }, label: 'LCD' })
     const xy = splitter(DEVICES, 'xy', 8, [4, 4], 'column, row', ACC_OUT)
     wire(`${xy}.Y0`, `${screen}.X`)
     wire(`${xy}.Y1`, `${screen}.Y`)
-    wire(select(2), `${screen}.D`) // PIXEL_ON lights, PIXEL_OFF darkens
+    // PIXEL_ON paints the current shade, PIXEL_OFF paints 0 (shade 0). OUT PIXEL_COLOR sets the shade; the register holds it
+    // inverted, so that after a reset (all zeros) the shade is 3, the brightest, and programs that never choose one draw as before.
+    const shadeBits = splitter(DEVICES, 'shadeBits', 8, [2, 6], 'the shade (low two bits)', ACC_OUT)
+    const shadeNot = part(DEVICES, 'shadeNot', 'busgate', { params: { bits: 2, op: 'not' }, label: 'shade, inverted' }, 20)
+    wire(`${shadeBits}.Y0`, `${shadeNot}.A`)
+    const shadeReg = part(DEVICES, 'shadeReg', 'busreg', { params: { bits: 2 }, label: 'PIXEL_COLOR: the shade (inverted)' })
+    wire(`${shadeNot}.Y`, `${shadeReg}.D`)
+    wire(writeTo(8, 'OUT PIXEL_COLOR'), `${shadeReg}.LD`)
+    wire(`${clk}.Q`, `${shadeReg}.CLK`)
+    const shadeOut = part(DEVICES, 'shadeOut', 'busgate', { params: { bits: 2, op: 'not' }, label: 'the shade' }, 20)
+    wire(`${shadeReg}.Q`, `${shadeOut}.A`)
+    const onBoth = merger(DEVICES, 'onBoth', 2, [1, 1], 'PIXEL_ON, twice', [select(2), select(2)])
+    const paint = part(DEVICES, 'paint', 'busgate', { params: { bits: 2, op: 'and' }, label: 'shade for PIXEL_ON, 0 for PIXEL_OFF' }, 20)
+    wire(`${shadeOut}.Y`, `${paint}.A`)
+    wire(onBoth, `${paint}.B`)
+    wire(`${paint}.Y`, `${screen}.D`)
     const fbSel = gate(DECODE, 'fbSel', 'or', 'PIXEL_ON or PIXEL_OFF', [select(2), select(3)])
     const fbWe = gate(DECODE, 'fbWe', 'and', 'OUT to the screen', [PORT_WRITE, `${fbSel}.Y`])
     wire(`${fbWe}.Y`, `${screen}.WE`)
@@ -805,8 +821,10 @@ export function computer2Builder(o: Computer2Options) {
     const rxy = splitter(DEVICES, 'rxy', 8, [4, 4], 'column, row to read', `${readAt}.Q`)
     wire(`${rxy}.Y0`, `${screen}.RX`)
     wire(`${rxy}.Y1`, `${screen}.RY`)
-    wire(`${screen}.Q`, `${pixelWord}.A0`)
-    for (let i = 1; i < 8; i++) wire(`${zero}.Q`, `${pixelWord}.A${i}`)
+    const shadeRead = splitter(DEVICES, 'shadeRead', 2, [1, 1], 'the shade read back', `${screen}.Q`)
+    wire(`${shadeRead}.Y0`, `${pixelWord}.A0`)
+    wire(`${shadeRead}.Y1`, `${pixelWord}.A1`)
+    for (let i = 2; i < 8; i++) wire(`${zero}.Q`, `${pixelWord}.A${i}`)
   }
   if (has('speaker')) {
     // OUT SPEAKER flips the speaker's T flip-flop.

@@ -358,16 +358,18 @@ function agree(source: string, cycles: number): string | null {
   const words = asm.words
   const ref = newMachine()
   ref.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
-  // The screen of the rig, as the reference sees it: lit pixels, and the one that IN PIXEL reads.
-  const lit = new Set<number>()
+  // The screen of the rig, as the reference sees it: the shade of each lit pixel, the pixel IN PIXEL reads, and the shade PIXEL_ON paints.
+  const lit = new Map<number, number>()
   let at = 0
+  let shade = 3
   const screen = {
     out(port: number, v: number) {
-      if (port === 2) lit.add(v)
+      if (port === 2) lit.set(v, shade)
       else if (port === 3) lit.delete(v)
       else if (port === 7) at = v
+      else if (port === 8) shade = v & 3
     },
-    in: (port: number) => (port === 2 && lit.has(at) ? 1 : 0),
+    in: (port: number) => (port === 2 ? (lit.get(at) ?? 0) : 0),
   }
   for (let i = 0; i < cycles; i++) {
     m.cycle()
@@ -807,11 +809,24 @@ describe('computer: reading the screen back (OUT PIXEL_AT, IN PIXEL)', () => {
     'only the chosen pixel is read': 'LDI 0x35\nOUT PIXEL_ON\nLDI 0x36\nOUT PIXEL_AT\nIN PIXEL',
     'the first and the last pixel': 'LDI 0\nOUT PIXEL_ON\nLDI 255\nOUT PIXEL_ON\nLDI 0\nOUT PIXEL_AT\nIN PIXEL\nSTA 0\nLDI 255\nOUT PIXEL_AT\nIN PIXEL\nADD 0',
     'choosing a pixel does not light it': 'LDI 0x77\nOUT PIXEL_AT\nIN PIXEL\nOUT PIXEL_ON\nIN PIXEL',
+    'the default shade is the brightest': 'LDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_AT\nIN PIXEL',
+    'a dimmer shade': 'LDI 1\nOUT PIXEL_COLOR\nLDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_AT\nIN PIXEL',
+    'all four shades': 'LDI 0\nOUT PIXEL_COLOR\nLDI 0x10\nOUT PIXEL_ON\nLDI 1\nOUT PIXEL_COLOR\nLDI 0x11\nOUT PIXEL_ON\nLDI 2\nOUT PIXEL_COLOR\nLDI 0x12\nOUT PIXEL_ON\nLDI 3\nOUT PIXEL_COLOR\nLDI 0x13\nOUT PIXEL_ON\nLDI 0x12\nOUT PIXEL_AT\nIN PIXEL',
+    'only the low two bits of the shade count': 'LDI 0xFE\nOUT PIXEL_COLOR\nLDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_AT\nIN PIXEL',
+    'PIXEL_OFF paints 0 whatever the shade': 'LDI 2\nOUT PIXEL_COLOR\nLDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_OFF\nOUT PIXEL_AT\nIN PIXEL',
   }
   for (const [name, src] of Object.entries(programs))
     it(name, () => {
       expect(agree(src, cyclesOf(src) + 4), src).toBeNull()
     })
+
+  it('the screen holds the shade the program chose, 3 until it chooses, and 0 for a pixel put out', () => {
+    const src = 'LDI 0x10\nOUT PIXEL_ON\nLDI 2\nOUT PIXEL_COLOR\nLDI 0x11\nOUT PIXEL_ON\nLDI 1\nOUT PIXEL_COLOR\nLDI 0x12\nOUT PIXEL_ON\nLDI 0x13\nOUT PIXEL_ON\nOUT PIXEL_OFF\nHALT'
+    const m = machine(src, ['lcd'])
+    m.run(40)
+    const px = (m.sim.state(m.id('LCD')) as FramebufferState).px
+    expect([px[0x10], px[0x11], px[0x12], px[0x13]]).toEqual([3, 2, 1, 0])
+  })
 
   it('a program can test the pixel under it: it follows a line until it ends', () => {
     // Light 10, 11, 12 on row 0; walk from 0 to the first dark pixel by reading.
