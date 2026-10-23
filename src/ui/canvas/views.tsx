@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import { getDef } from '../../engine/registry'
-import { useCompSignature, usePinValue } from '../../app/hooks'
+import { useCompSignature, useSignal } from '../../app/hooks'
+import type { BitSource } from '../../model/buses'
 import { boundsRect, compLayout, findPin, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
 import type { Circuit } from '../../model/circuit'
 import { hopArcsD, hopPathD, junctions } from '../../routing/path'
@@ -65,7 +66,7 @@ export const PinsView = memo(function PinsView({ comp, r }: { comp: Comp; r: num
           data-pin={p.def.name}
           data-dir={p.def.dir}
         >
-          <title>{p.def.label?.replace('~', 'not ') || p.def.name}</title>
+          <title>{(p.def.label?.replace('~', 'not ') || p.def.name) + (p.def.bus ? ` (${p.def.bus}-bit bus)` : '')}</title>
         </circle>
       ))}
     </>
@@ -74,10 +75,10 @@ export const PinsView = memo(function PinsView({ comp, r }: { comp: Comp; r: num
 
 const pathD = (pts: Point[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ')
 
-const valueClass = (v: number) => (v === 1 ? 'v1' : v === 0 ? 'v0' : v === 3 ? 'vz' : 'vx')
-
 interface WireViewProps {
   wire: Wire
+  /** What drives each bit of the wire (see `BusModel.bits`): one entry for an ordinary wire, more for a bus. */
+  bits: BitSource[]
   selected: boolean
   /** Crossing points where this wire hops over another. */
   hops?: Point[]
@@ -88,14 +89,21 @@ interface WireViewProps {
 const sameHops = (a?: Point[], b?: Point[]) =>
   a === b || (!!a && !!b && a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y))
 
-export const WireView = memo(function WireView({ wire, selected, hops, traced }: WireViewProps) {
-  const v = usePinValue(wire.from.comp, wire.from.pin)
+const sameBits = (a: BitSource[], b: BitSource[]) =>
+  a === b || (a.length === b.length && a.every((p, i) => p?.comp === b[i]?.comp && p?.pin === b[i]?.pin))
+
+/** The tooltip of a bus wire: how wide it is and what it carries. */
+const busTitle = (n: number, hex: string) => `${n}-bit bus: ${hex ? `0x${hex}` : '?'}`
+
+export const WireView = memo(function WireView({ wire, bits, selected, hops, traced }: WireViewProps) {
+  const sig = useSignal(bits)
+  const bus = bits.length > 1
   const d = hopPathD(wire.path, hops)
   return (
     <g data-kind="wire" data-id={wire.id} className={selected ? 'wire-group selected' : 'wire-group'}>
       {traced && <path className={`wire-trace ${traced}`} d={d} />}
       {selected && <path className="wire-sel" d={d} />}
-      <path className={`wire ${valueClass(v)}`} d={d} />
+      <path className={`wire${bus ? ' bus' : ''} ${sig.cls}`} d={d} />
       {wire.path.slice(1).map((b, i) => {
         const a = wire.path[i]
         return (
@@ -107,29 +115,42 @@ export const WireView = memo(function WireView({ wire, selected, hops, traced }:
             y1={a.y}
             x2={b.x}
             y2={b.y}
-          />
+          >
+            {bus && <title>{busTitle(bits.length, sig.hex)}</title>}
+          </line>
         )
       })}
     </g>
   )
-}, (a, b) => a.wire === b.wire && a.selected === b.selected && a.traced === b.traced && sameHops(a.hops, b.hops))
+}, (a, b) => a.wire === b.wire && sameBits(a.bits, b.bits) && a.selected === b.selected && a.traced === b.traced && sameHops(a.hops, b.hops))
 
 /** The bridges of one wire, in the wire's colour. */
 const HopArc = memo(
-  function HopArc({ wire, hops }: { wire: Wire; hops: Point[] }) {
-    const v = usePinValue(wire.from.comp, wire.from.pin)
-    return <path className={`wire ${valueClass(v)}`} d={hopArcsD(hops)} />
+  function HopArc({ bits, hops }: { bits: BitSource[]; hops: Point[] }) {
+    const sig = useSignal(bits)
+    return <path className={`wire${bits.length > 1 ? ' bus' : ''} ${sig.cls}`} d={hopArcsD(hops)} />
   },
-  (a, b) => a.wire.from === b.wire.from && sameHops(a.hops, b.hops),
+  (a, b) => sameBits(a.bits, b.bits) && sameHops(a.hops, b.hops),
 )
 
 /** All bridges, drawn above every wire so a hop is never hidden by the wire it passes over. */
-export function HopArcs({ wires, hops, hidden }: { wires: Record<string, Wire>; hops: Map<string, Point[]>; hidden?: string | null }) {
+export function HopArcs({
+  wires,
+  bits,
+  hops,
+  hidden,
+}: {
+  wires: Record<string, Wire>
+  bits: Map<string, BitSource[]>
+  hops: Map<string, Point[]>
+  hidden?: string | null
+}) {
   return (
     <>
       {Object.values(wires).map((w) => {
         const h = hops.get(w.id)
-        return h && w.id !== hidden ? <HopArc key={w.id} wire={w} hops={h} /> : null
+        const b = bits.get(w.id)
+        return h && b && w.id !== hidden ? <HopArc key={w.id} bits={b} hops={h} /> : null
       })}
     </>
   )
@@ -140,19 +161,19 @@ export function GhostWire({ path, ok }: { path: Point[]; ok?: boolean }) {
   return <path className={`wire ghost${ok ? ' ok' : ''}`} d={pathD(path)} />
 }
 
-const JunctionDot = memo(function JunctionDot({ net, p }: { net: string; p: Point }) {
-  const [comp, pin] = net.split(':')
-  const v = usePinValue(comp, pin)
-  return <circle className={`junction ${valueClass(v)}`} cx={p.x} cy={p.y} r={3.5} />
+const JunctionDot = memo(function JunctionDot({ bits, p }: { bits: BitSource[]; p: Point }) {
+  const sig = useSignal(bits)
+  return <circle className={`junction ${sig.cls}`} cx={p.x} cy={p.y} r={bits.length > 1 ? 5 : 3.5} />
 })
 
-export const Junctions = memo(function Junctions({ wires }: { wires: Record<string, Wire> }) {
+export const Junctions = memo(function Junctions({ wires, nets }: { wires: Record<string, Wire>; nets: Map<string, BitSource[]> }) {
   const dots = useMemo(() => junctions(Object.values(wires)), [wires])
   return (
     <>
-      {dots.map((j) => (
-        <JunctionDot key={`${j.net}@${j.p.x},${j.p.y}`} net={j.net} p={j.p} />
-      ))}
+      {dots.map((j) => {
+        const b = nets.get(j.net)
+        return b ? <JunctionDot key={`${j.net}@${j.p.x},${j.p.y}`} bits={b} p={j.p} /> : null
+      })}
     </>
   )
 })

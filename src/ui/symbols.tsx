@@ -33,8 +33,18 @@ function Txt(props: { x: number; y: number; anchor?: 'start' | 'middle' | 'end';
 
 const vClass = (v: V) => (v === 1 ? 'v1' : v === 0 ? 'v0' : v === 3 ? 'vz' : 'vx')
 
-/** Line from the pin tip to the body edge (or to `inner`), with an inversion bubble if needed. */
+/** Line from the pin tip to the body edge (or to `inner`), with an inversion bubble if needed. A bus pin is thick, with a slash. */
 function Stub({ pin, inner }: { pin: PinDef; inner: { x: number; y: number } }) {
+  if (pin.bus) {
+    const mx = (pin.x + inner.x) / 2
+    const my = (pin.y + inner.y) / 2
+    return (
+      <>
+        <line className="sym-line bus" x1={inner.x} y1={inner.y} x2={pin.x} y2={pin.y} />
+        <line className="sym-line bus-slash" x1={mx - 2.5} y1={my + 4} x2={mx + 2.5} y2={my - 4} />
+      </>
+    )
+  }
   if (pin.invert) {
     const dx = Math.sign(pin.x - inner.x)
     const dy = Math.sign(pin.y - inner.y)
@@ -443,6 +453,7 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       const name = String(p.name)
       const w = l.w
       const v = val(send ? 'A' : 'Y')
+      const bits = Number(p.bits ?? 1)
       content = (
         <>
           <Stub pin={l.pins[0]} inner={{ x: send ? 0 : w, y: 10 }} />
@@ -450,9 +461,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
             className="sym-body"
             points={send ? `0,0 ${w - 8},0 ${w},10 ${w - 8},20 0,20` : `8,0 ${w},0 ${w},20 8,20 0,10`}
           />
-          <circle cx={send ? 8 : w - 8} cy={10} r={2.6} className={`clock-led ${vClass(v)}`} />
+          {bits === 1 && <circle cx={send ? 8 : w - 8} cy={10} r={2.6} className={`clock-led ${vClass(v)}`} />}
           <Txt x={send ? w / 2 + 3 : w / 2 - 2} y={10.5} className={name ? 'net-name' : 'net-name empty'}>
-            {name || 'name'}
+            {(name || 'name') + (bits > 1 ? `[${bits}]` : '')}
           </Txt>
         </>
       )

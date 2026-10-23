@@ -50,6 +50,7 @@ import { useTraceOptions } from '../../app/trace'
 import { glitchingWires, useCapture } from '../../app/glitches'
 import { timingOf, useTiming } from '../../app/timing'
 import { useWave } from '../../app/waveform'
+import { busModel, type BitSource } from '../../model/buses'
 import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
 import { traceCone, traceNet } from '../../model/trace'
@@ -104,6 +105,8 @@ type Op =
     }
   | { k: 'segment'; id: string; drag: SegmentDrag | null; seg: number; moved: boolean; cx: number; cy: number }
 
+const NO_BITS: BitSource[] = [null]
+
 const DRAG_THRESHOLD = 4
 const TOUCH_THRESHOLD = 8
 /** Holding a control this long without moving selects it for editing. */
@@ -148,6 +151,7 @@ export function Canvas() {
   const ref = useRef<SVGSVGElement>(null)
   const circuit = useStore((s) => s.circuit)
   const hops = useHops(circuit.wires)
+  const model = busModel(circuit)
   const selection = useStore((s) => s.selection)
   const view = useStore((s) => s.view)
   const placing = useStore((s) => s.placing)
@@ -668,11 +672,11 @@ export function Canvas() {
         </g>
         <g className="layer-wires">
           {Object.values(circuit.wires).map((wire) =>
-            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : slowWires.has(wire.id) ? 'path' : glitchWires.has(wire.id) ? 'glitch' : undefined} />,
+            wire.id === hiddenWire ? null : <WireView key={wire.id} wire={wire} bits={model.bits.get(wire.id) ?? NO_BITS} selected={selSet.has(wire.id)} hops={hops.get(wire.id)} traced={traced?.net.wires.has(wire.id) ? 'net' : traced?.cone.has(wire.id) ? 'cone' : slowWires.has(wire.id) ? 'path' : glitchWires.has(wire.id) ? 'glitch' : undefined} />,
           )}
         </g>
         <g className="layer-hops">
-          <HopArcs wires={circuit.wires} hops={hops} hidden={hiddenWire} />
+          <HopArcs wires={circuit.wires} bits={model.bits} hops={hops} hidden={hiddenWire} />
         </g>
         <g className="layer-comps">
           {comps.filter((c) => !isAnnotation(c)).map((c) => (
@@ -694,7 +698,7 @@ export function Canvas() {
             <TraceRings circuit={circuit} pins={traced.net.pins} source={traced.net.source ? `${traced.net.source.comp}:${traced.net.source.pin}` : null} />
           </g>
         )}
-        <Junctions wires={circuit.wires} />
+        <Junctions wires={circuit.wires} nets={model.netBits} />
         <g className="layer-pins">
           {comps.filter((c) => !isAnnotation(c)).map((c) => (
             <PinsView key={c.id} comp={c} r={coarsePointer ? 10 : 4} />

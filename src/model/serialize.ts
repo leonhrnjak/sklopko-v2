@@ -2,7 +2,7 @@ import LZString from 'lz-string'
 import { currentIsaId } from '../engine/isa'
 import { getDef, hasDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
-import { paramDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
+import { legacyDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
 import { emptyCircuit, type Circuit, type Point, type Rot } from './circuit'
@@ -80,7 +80,8 @@ export function deserialize(data: unknown): Circuit {
   for (const s of d.comps) {
     if (!s || typeof s.id !== 'string' || !hasDef(s.type) || !isNum(s.x) || !isNum(s.y)) continue
     const def = getDef(s.type)
-    const params = { ...paramDefaults(def) }
+    // A param the file lacks means what it meant before the param existed (`legacy`), not what a part placed now gets.
+    const params = { ...legacyDefaults(def) }
     for (const p of def.params ?? []) {
       let v = s.params?.[p.key]
       // The instruction sets that SKASM replaced (sk8, sk82) are SKASM now.

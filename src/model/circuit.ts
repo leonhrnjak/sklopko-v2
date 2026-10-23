@@ -1,5 +1,6 @@
 import { getDef, hasDef } from '../engine/registry'
-import { layoutOf, type PinRef, type SimComp } from '../engine/simulator'
+import { viewLayoutOf } from '../engine/viewlayout'
+import type { PinRef, SimComp } from '../engine/simulator'
 import type { Layout, Params, PinDef, Side } from '../engine/types'
 
 export type { PinRef }
@@ -60,7 +61,8 @@ export const emptyCircuit = (): Circuit => ({ comps: {}, wires: {} })
 
 export const snap = (v: number) => Math.round(v / GRID) * GRID
 
-export const compLayout = (c: Comp): Layout => layoutOf(c.type, c.params)
+/** The layout the user sees and wires up: bus pins collapsed (see `viewLayoutOf`). The simulator's scalar layout is `layoutOf`. */
+export const compLayout = (c: Comp): Layout => viewLayoutOf(c.type, c.params)
 
 /** Map a local component coordinate to world space (flip, then rotate around the origin, then translate). */
 export function toWorld(c: Comp, layout: Layout, x: number, y: number): Point {

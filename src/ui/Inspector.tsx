@@ -19,6 +19,7 @@ import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { hasDelay, MAX_DELAY } from '../model/delays'
 import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
+import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
 import { openReference } from '../app/reference'
 import { ConsoleSection, LutSection, RamSection, RomSection } from './MemoryInspector'
@@ -264,12 +265,14 @@ function WireInspector({ wire }: { wire: Wire }) {
   const circuit = useStore((s) => s.circuit)
   const cone = useTraceOptions((s) => s.cone)
   const net = traceNet(circuit, wire.id)
+  const width = busModel(circuit).bits.get(wire.id)?.length ?? 1
   const name = (comp: string, pin: string) => `${circuit.comps[comp]?.label || getDef(circuit.comps[comp]?.type ?? 'switch').name} ${pin}`
   const reached = [...net.pins].filter((k) => k !== (net.source && `${net.source.comp}:${net.source.pin}`))
   return (
     <>
-      <h2>Wire</h2>
+      <h2>{width > 1 ? `${width}-bit bus` : 'Wire'}</h2>
       <p className="desc">
+        {width > 1 && <>One thick wire for {width} bits, lowest first. A splitter takes it apart, a merger puts bits together. </>}
         {net.source ? (
           <>
             The signal from <b>{name(net.source.comp, net.source.pin)}</b> reaches {reached.length} pin{reached.length === 1 ? '' : 's'}.
@@ -349,7 +352,7 @@ function Help() {
       </dl>
       <h3>Wire colors</h3>
       <div className="legend">
-        <span className="swatch v1" /> 1 <span className="swatch v0" /> 0 <span className="swatch vx" /> unknown <span className="swatch vz" /> not driven (Z)
+        <span className="swatch v1" /> 1 <span className="swatch v0" /> 0 <span className="swatch vb" /> bus <span className="swatch vx" /> unknown <span className="swatch vz" /> not driven (Z)
       </div>
       <DelayTools ids={Object.keys(circuit.comps)} scope="every part" />
     </>

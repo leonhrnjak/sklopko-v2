@@ -1,8 +1,9 @@
 import { getDef, hasDef } from '../engine/registry'
 import { resolveLabels } from '../engine/netlabels'
-import { Simulator, type SimCircuit } from '../engine/simulator'
+import { Simulator } from '../engine/simulator'
 import { rowBits, type Cell, type TruthTable } from '../logic/table'
-import { simComps, type Circuit, type Comp } from './circuit'
+import { busModel, flatten } from './buses'
+import type { Circuit, Comp } from './circuit'
 
 /** The most inputs a circuit is swept over (2⁸ = 256 rows). */
 export const MAX_ANALYZE_INPUTS = 8
@@ -12,11 +13,6 @@ export interface Port {
   /** The name used in tables and expressions: the part's label made safe, or Switch1, LED2… */
   name: string
 }
-
-const asSim = (c: Circuit): SimCircuit => ({
-  comps: simComps(c),
-  wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })),
-})
 
 /** A label as a name that can be used in an expression: letters, digits and underscores, not starting with a digit. */
 function safeName(label: string | undefined, fallback: string): string {
@@ -50,9 +46,14 @@ export function circuitPorts(c: Circuit): { inputs: Port[]; outputs: Port[] } {
 
 /** Does this output depend on memory or a clock, not only on the switches? (Net labels are followed.) */
 export function dependsOnState(c: Circuit, outputId: string): boolean {
-  const labels = resolveLabels(asSim(c))
+  const m = busModel(c)
+  const labels = resolveLabels(m.sim)
   const feeders = new Map<string, string[]>()
-  for (const w of Object.values(c.wires)) feeders.set(w.to.comp, [...(feeders.get(w.to.comp) ?? []), labels.get(w.from.comp)?.comp ?? w.from.comp])
+  for (const w of Object.values(c.wires)) {
+    // What drives the wire, bit by bit: through splitters, mergers and net labels, to the parts that really produce it.
+    const drivers = (m.bits.get(w.id) ?? []).flatMap((b) => (b ? [labels.get(b.comp)?.comp ?? b.comp] : []))
+    feeders.set(w.to.comp, [...(feeders.get(w.to.comp) ?? []), ...new Set(drivers)])
+  }
   const seen = new Set<string>()
   const queue = [outputId]
   while (queue.length) {
@@ -84,7 +85,7 @@ export function analyzeCircuit(c: Circuit, inputIds: string[], outputIds: string
   const ports = circuitPorts(c)
   const nameOf = (id: string) => [...ports.inputs, ...ports.outputs].find((p) => p.id === id)!.name
   const sim = new Simulator()
-  sim.load(asSim(c))
+  sim.load(flatten(c))
   sim.settle()
 
   const n = inputIds.length

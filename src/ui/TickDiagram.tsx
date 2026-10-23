@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEven
 import { MAX_ROWS, addDiagramSignal, clearDiagramSignals, diagramRows, setGlitchesOnly, settleTicks, useCapture, useDiagram, type DiagramRow } from '../app/glitches'
 import { sim } from '../app/sim'
 import { select, useStore } from '../app/store'
+import { busModel } from '../model/buses'
 import { traceOf } from '../engine/glitch'
 import { partName } from '../model/timing'
 
@@ -128,7 +129,9 @@ export function TickDiagram() {
   }, [view, rows, width])
 
   const wire = selection.length === 1 ? circuit.wires[selection[0]] : undefined
-  const wireKey = wire ? `${wire.from.comp}:${wire.from.pin}` : null
+  // The signal of a wire: where it really comes from (through splitters and labels); a bus shows its lowest bit.
+  const source = wire && busModel(circuit).bits.get(wire.id)?.find((b) => b)
+  const wireKey = source ? `${source.comp}:${source.pin}` : null
   const canAdd = !!wireKey && !extra.includes(wireKey)
   const nameOfNet = (net: number) => {
     const [comp, pin] = (view?.names[net] ?? ':').split(':')

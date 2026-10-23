@@ -1,7 +1,8 @@
 import { RECV, SEND, resolveLabels } from '../engine/netlabels'
 import { getDef, hasDef } from '../engine/registry'
-import type { SimCircuit } from '../engine/simulator'
-import { compLayout, isAnnotation, simComps, type Circuit, type Comp, type PinRef, type Wire } from './circuit'
+import { isWiringPart } from '../engine/viewlayout'
+import { busModel, viewPinOf } from './buses'
+import { compLayout, isAnnotation, type Circuit, type Comp, type PinRef, type Wire } from './circuit'
 
 /**
  * Static timing: how many gate delays the slowest signal takes to get from where it starts to where it is used. No
@@ -68,7 +69,7 @@ export const ENDPOINTS_SHOWN = 10
 type Role = 'source' | 'sequential' | 'ram' | 'combinational' | 'sink' | 'ignored'
 
 function roleOf(k: Comp): Role {
-  if (!hasDef(k.type) || isAnnotation(k) || k.type === SEND || k.type === RECV) return 'ignored'
+  if (!hasDef(k.type) || isAnnotation(k) || k.type === SEND || k.type === RECV || isWiringPart(k.type, k.params)) return 'ignored'
   if (MEASURING.has(k.type)) return 'ignored'
   const def = getDef(k.type)
   if (def.interactive || def.clockHalfPeriod || k.type === 'const') return 'source'
@@ -127,17 +128,31 @@ function cycles(nodes: string[], next: Map<string, string[]>): string[][] {
 /** Work out the slowest paths of a circuit. */
 export function analyzeTiming(c: Circuit): Timing {
   const comps = Object.values(c.comps)
-  const sim: SimCircuit = { comps: simComps(c), wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })) }
-  const labels = resolveLabels(sim)
+  const m = busModel(c)
+  const labels = resolveLabels(m.sim)
   const roles = new Map<string, Role>(comps.map((k) => [k.id, roleOf(k)]))
   const role = (id: string) => roles.get(id) ?? 'ignored'
 
-  /** The output pin that really drives a wire: through a receive label, the signal it carries. */
-  const driverOf = (w: Wire): PinRef | null => (c.comps[w.from.comp]?.type === RECV ? (labels.get(w.from.comp) ?? null) : w.from)
+  /**
+   * The output pins that really drive a wire, one for each part that drives some of its bits: through receive labels,
+   * splitters and mergers, to the signal they carry.
+   */
+  const driversOf = (w: Wire): PinRef[] => {
+    const seen = new Set<string>()
+    const out: PinRef[] = []
+    for (const b of m.bits.get(w.id) ?? []) {
+      const d = b && (labels.get(b.comp) ?? b)
+      if (d && !seen.has(d.comp)) {
+        seen.add(d.comp)
+        out.push(d)
+      }
+    }
+    return out
+  }
   const delayOf = (id: string) => c.comps[id].delay ?? 1
 
   /** Does this input pin take part in the delay through the part? (A RAM's output follows its address, not its data.) */
-  const passes = (id: string, pin: string) => c.comps[id].type !== 'ram' || /^A\d/.test(pin)
+  const passes = (id: string, pin: string) => c.comps[id].type !== 'ram' || /^A(\d|$)/.test(pin)
 
   interface Edge {
     wire: Wire
@@ -147,10 +162,11 @@ export function analyzeTiming(c: Circuit): Timing {
   }
   const edges: Edge[] = []
   for (const w of Object.values(c.wires)) {
-    const d = driverOf(w)
-    if (!d || role(d.comp) === 'ignored') continue
     if (role(w.to.comp) === 'ignored') continue
-    edges.push({ wire: w, from: d.comp, to: w.to.comp, pin: w.to.pin })
+    for (const d of driversOf(w)) {
+      if (role(d.comp) === 'ignored') continue
+      edges.push({ wire: w, from: d.comp, to: w.to.comp, pin: w.to.pin })
+    }
   }
 
   // Feedback loops among the parts that pass a signal straight through.
@@ -227,13 +243,18 @@ export function analyzeTiming(c: Circuit): Timing {
   const top = ends[0]
   if (!top || top.arrival === 0) return { critical: null, endpoints, loops }
 
-  /** The wires that bring a signal to a Send label on its way: the path runs along them too. */
-  const feeds = (w: Wire, driver: PinRef): string[] => {
-    if (c.comps[w.from.comp]?.type !== RECV) return []
-    const name = String(c.comps[w.from.comp].params.name)
-    return Object.values(c.wires)
-      .filter((f) => c.comps[f.to.comp]?.type === SEND && c.comps[f.to.comp].params.name === name && key(f.from) === key(driver))
-      .map((f) => f.id)
+  /**
+   * The wires that bring a signal to a Send label on its way: the path runs along them too. `driver` is the part it came from.
+   */
+  const sends = (w: Wire, driver: PinRef): Wire[] => {
+    const out: Wire[] = []
+    for (const b of m.bits.get(w.id) ?? []) {
+      if (!b || !labels.has(b.comp) || labels.get(b.comp)!.comp !== driver.comp) continue
+      const name = String(c.comps[b.comp].params.name)
+      for (const f of Object.values(c.wires))
+        if (c.comps[f.to.comp]?.type === SEND && c.comps[f.to.comp].params.name === name && driversOf(f).some((d) => d.comp === driver.comp)) out.push(f)
+    }
+    return out
   }
 
   // Walk back from the end along the inputs that arrive last.
@@ -248,10 +269,15 @@ export function analyzeTiming(c: Circuit): Timing {
   let edge: Edge | undefined = top.edge
   steps.unshift({ comp: top.comp, delay: 0, arrival: top.arrival })
   while (edge) {
-    const driver = driverOf(edge.wire)!
-    for (const id of feeds(edge.wire, driver)) wires.unshift(id)
+    const driver = driversOf(edge.wire).find((d) => d.comp === edge!.from)!
+    for (const f of sends(edge.wire, driver)) wires.unshift(f.id)
+    for (const f of m.upstream(edge.wire)) {
+      wires.unshift(f.id)
+      pins.add(key(f.from))
+      pins.add(key(f.to))
+    }
     mark(edge.wire)
-    pins.add(key(driver))
+    pins.add(key(viewPinOf(c, driver)))
     const k: string = edge.from
     const own = role(k) === 'source' ? 0 : delayOf(k)
     steps.unshift({ comp: k, delay: own, arrival: arrival.get(k) ?? 0 })

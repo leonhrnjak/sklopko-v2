@@ -4,7 +4,8 @@ import { compareTables, type Comparison } from '../logic/compare'
 import type { Cell } from '../logic/table'
 import { analyzeCircuit, circuitPorts } from './analyze'
 import { goalTable, type Challenge, type Rules } from './challenges'
-import { simComps, type Circuit } from './circuit'
+import { flatten } from './buses'
+import type { Circuit } from './circuit'
 
 /** A step of a memory challenge that did not come out as expected. */
 export interface StepFailure {
@@ -53,10 +54,7 @@ export function ruleProblems(c: Circuit, rules: Rules | undefined): string[] {
 /** Run the steps of a memory challenge in a simulator of its own. */
 function runSteps(c: Circuit, ch: Challenge & { kind: 'seq' }, inputIds: Record<string, string>, outputIds: Record<string, string>) {
   const sim = new Simulator()
-  sim.load({
-    comps: simComps(c),
-    wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })),
-  })
+  sim.load(flatten(c))
   const state: Record<string, 0 | 1> = Object.fromEntries(ch.inputs.map((n) => [n, 0 as 0 | 1]))
   const apply = () => {
     for (const n of ch.inputs) sim.setParams(inputIds[n], { ...c.comps[inputIds[n]].params, on: state[n] === 1 })

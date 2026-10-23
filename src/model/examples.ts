@@ -619,6 +619,36 @@ function sharedLine(): Circuit {
   return b.build()
 }
 
+function busDemo(): Circuit {
+  // A running total on thick 4-bit wires. A merger gathers the four bits of the input into one bus for the adder; the total
+  // comes back to the adder's other input through a pair of bus labels (no wire in between); a splitter takes the total apart
+  // again for the display, which still has four ordinary pins.
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 0, { params: { hz: 1 }, label: 'Clock' })
+  const input = b.add('hexin', 0, 90, { params: { value: 3 }, label: 'Add this' })
+  const merge = b.add('merger', 120, 90, { params: { bits: 4, split: '1,1,1,1' } })
+  const add = b.add('add4', 420, 90, { params: { bus: true }, label: 'Adder' })
+  const reg = b.add('register', 640, 90, { params: { bus: true }, label: 'Total' })
+  const split = b.add('splitter', 900, 90, { params: { bits: 4, split: '1,1,1,1' } })
+  const disp = b.add('hexdisp', 1070, 90, { label: 'Hex display' })
+  NIB.forEach((pin, i) => b.wire(`${input}.${pin}`, `${merge}.A${i}`))
+  b.wire(`${merge}.Y`, `${add}.A`)
+  b.wire(`${add}.S`, `${reg}.IN`)
+  b.wire(`${clk}.Q`, `${reg}.CLK`)
+  b.wire(`${reg}.Q`, `${split}.A`)
+  NIB.forEach((pin, i) => b.wire(`${split}.Y${i}`, `${disp}.${pin}`))
+  b.tap(`${reg}.Q`, 'TOTAL', 20, 4)
+  b.tag(`${add}.B`, 'TOTAL', 20, 4)
+  note(
+    b,
+    120,
+    250,
+    'Thick wires carry four bits at once (hover one to read its value). Click the input to change what is added on each clock tick. The register and the adder are the ordinary 4-bit parts with "Bus ports" switched on: untick it in the inspector and they have single-bit pins again.',
+    40,
+  )
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
   { id: 'beginner', name: 'Beginner: a tiny computer (ROM, RAM, adder)', build: beginnerComputer },
@@ -630,6 +660,7 @@ export const EXAMPLES: Example[] = [
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
   { id: 'tristate', name: 'Tri-state buffers on a shared line', build: sharedLine },
+  { id: 'buses', name: 'Buses: a running total on 4-bit wires', build: busDemo },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },

@@ -2,7 +2,7 @@ import type { Layout, PinDef, Side, V } from './types'
 
 export type PinSpec =
   | string
-  | { name: string; label?: string; dir?: 'in' | 'out'; clock?: boolean; invert?: boolean; def?: V }
+  | { name: string; label?: string; dir?: 'in' | 'out'; clock?: boolean; invert?: boolean; def?: V; bus?: number }
 
 interface BoxOpts {
   w?: number
