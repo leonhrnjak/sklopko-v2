@@ -7,7 +7,7 @@ export interface VcdSignal {
   name: string
   /** 1 for a single wire, more for a bus. */
   width: number
-  /** `v[i]` holds from `t[i]` ms. A wire is 0, 1 or 2 (unknown); a bus is a number, or -1 when unknown. */
+  /** `v[i]` holds from `t[i]` ms. A wire is 0, 1, 2 (unknown) or 3 (high impedance); a bus is a number, or -1 when unknown. */
   t: number[]
   v: number[]
 }
@@ -25,7 +25,7 @@ export function vcdId(n: number): string {
 const clean = (name: string) => name.trim().replace(/\s+/g, '_') || 'signal'
 
 function valueText(sig: VcdSignal, v: number, id: string): string {
-  if (sig.width === 1) return `${v === 0 ? '0' : v === 1 ? '1' : 'x'}${id}`
+  if (sig.width === 1) return `${v === 0 ? '0' : v === 1 ? '1' : v === 3 ? 'z' : 'x'}${id}`
   if (v < 0) return `bx ${id}`
   return `b${v.toString(2).padStart(sig.width, '0')} ${id}`
 }

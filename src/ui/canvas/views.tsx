@@ -74,7 +74,7 @@ export const PinsView = memo(function PinsView({ comp, r }: { comp: Comp; r: num
 
 const pathD = (pts: Point[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ')
 
-const valueClass = (v: number) => (v === 1 ? 'v1' : v === 0 ? 'v0' : 'vx')
+const valueClass = (v: number) => (v === 1 ? 'v1' : v === 0 ? 'v0' : v === 3 ? 'vz' : 'vx')
 
 interface WireViewProps {
   wire: Wire

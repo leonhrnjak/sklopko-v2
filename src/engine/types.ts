@@ -1,8 +1,10 @@
-// Three-valued logic: 0, 1 and X (unknown / undriven).
-export type V = 0 | 1 | 2
+// Logic values: 0, 1, X (unknown) and Z (high impedance: a tri-state output that drives nothing).
+// Z only exists on the nets of tri-state outputs; every part except those with `acceptsZ` reads it as X.
+export type V = 0 | 1 | 2 | 3
 export const X: V = 2
+export const Z: V = 3
 
-export const inv = (v: V): V => (v === X ? X : ((1 - v) as V))
+export const inv = (v: V): V => (v > 1 ? X : ((1 - v) as V))
 export const bit = (b: boolean): V => (b ? 1 : 0)
 
 export type Side = 'l' | 'r' | 't' | 'b'
@@ -98,6 +100,8 @@ export interface ComponentDef {
   interactive?: 'toggle' | 'momentary' | 'cycle'
   /** Half-period in ms for clock sources, or undefined for everything else. */
   clockHalfPeriod?(p: Params): number
+  /** Reads Z as Z. Every other part sees a Z input as X. */
+  acceptsZ?: boolean
 }
 
 export function paramDefaults(def: ComponentDef): Params {
@@ -111,7 +115,7 @@ export function toNum(vals: V[], start: number, n: number): number {
   let r = 0
   for (let i = 0; i < n; i++) {
     const v = vals[start + i]
-    if (v === X) return -1
+    if (v > 1) return -1
     r |= v << i
   }
   return r

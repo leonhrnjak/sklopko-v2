@@ -4,7 +4,7 @@
 > from its own feature branch per `CLAUDE.md`. **Resume with 10a**, and wait for the user's go before starting it.
 > Tick each sub-milestone here as it ships.
 >
-> - [ ] 10a Z and tri-state (scalar)
+> - [x] 10a Z and tri-state (scalar), v0.0.1-34
 > - [ ] 10b Bus plumbing
 > - [ ] 10c Parts
 > - [ ] 10d Rebuild the computer
@@ -91,8 +91,17 @@ New category `Buses` (`Category` in `types.ts:69`, `registry.ts`):
   `symbols.tsx`, palette order.
 
 ## Sub-milestones (each a PR with a version bump, per CLAUDE.md)
-**10a. Z and tri-state, scalar only (small–medium)** — `V.Z`, load-time Z→X read mapping, `tribuf`, `busjoin` (1 bit), colours,
+**10a. Z and tri-state, scalar only (small–medium) — done** — `V.Z`, load-time Z→X read mapping, `tribuf`, `busjoin` (1 bit), colours,
 glitch/VCD/waveform handling, contention warning, example `/tristate` (three registers on one line). No bus UI yet.
+*What 10a did, and where it differs from the plan above:* `V` has `Z = 3`; `ComponentDef.acceptsZ`; the Z→X read mapping is in
+`Simulator.tick()` and in `sample()` (probes and breakpoints see X), and `pinValue()` of an *input* applies it too, while an
+*output* pin (a tribuf's `Y`) shows Z, which is what colours the wire (`.wire.vz`, dashed, `--wire-z`). New `src/engine/components/tristate.ts`:
+`tribuf` (pins `A`, `EN` (default 0), `Y`) and `busjoin` (`drivers` 2–8, `pull`; unconnected driver pins read Z; contention outlines the
+junction in red via `.sym-body.contention`). `busjoin` is 1 bit for now: 10c adds `bits` once pin groups exist (scalar `A..H` while
+`bits` = 1; groups named so they never clash with them). Probes record X for a floating line, not Z (so the waveform panel needed only type
+changes); showing Z in the waveform is a possible follow-up. Example `/tristate`. Tests: `src/engine/tristate.test.ts` (including a test that
+every part gives the same outputs for a Z input and an X input) and an e2e test in `editor.spec.ts`.
+
 **10b. Bus plumbing (large)** — groups, `viewLayout`, `legacy` params, width rules in `connect/prune/autoConnect/serialize`,
 `flatten()` wired into every sim-input caller, thick wire + `useBusValue`, splitter, merger, bus labels, trace through
 splitters/mergers/labels (`model/trace.ts`), `/buses` example (a bus-width demo using the 4-bit `register` + `add4` in bus mode).

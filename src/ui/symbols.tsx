@@ -5,7 +5,7 @@ import { SEG_HEX } from '../engine/components/io'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
-import { X, toNum, type Layout, type PinDef, type V } from '../engine/types'
+import { X, Z, toNum, type Layout, type PinDef, type V } from '../engine/types'
 import { useSettings } from '../app/settings'
 import { sim } from '../app/sim'
 import type { Comp } from '../model/circuit'
@@ -31,7 +31,7 @@ function Txt(props: { x: number; y: number; anchor?: 'start' | 'middle' | 'end';
   )
 }
 
-const vClass = (v: V) => (v === 1 ? 'v1' : v === 0 ? 'v0' : 'vx')
+const vClass = (v: V) => (v === 1 ? 'v1' : v === 0 ? 'v0' : v === 3 ? 'vz' : 'vx')
 
 /** Line from the pin tip to the body edge (or to `inner`), with an inversion bubble if needed. */
 function Stub({ pin, inner }: { pin: PinDef; inner: { x: number; y: number } }) {
@@ -187,13 +187,13 @@ function Title({ text, x, y }: { text: string; x: number; y: number }) {
   )
 }
 
-function BoxSym({ l, title, children }: { l: Layout; title?: string; children?: ReactNode }) {
+function BoxSym({ l, title, warn, children }: { l: Layout; title?: string; warn?: boolean; children?: ReactNode }) {
   return (
     <>
       {l.pins.map((p) => (
         <Stub key={p.name} pin={p} inner={edgePoint(p, l)} />
       ))}
-      <rect className="sym-body" x={0} y={0} width={l.w} height={l.h} rx={3} />
+      <rect className={warn ? 'sym-body contention' : 'sym-body'} x={0} y={0} width={l.w} height={l.h} rx={3} />
       <ClockMarks l={l} />
       <PinLabels l={l} />
       {title && <Title text={title} x={l.w / 2} y={l.h / 2} />}
@@ -761,6 +761,25 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     case 'demux':
       content = <MuxSym l={l} title={def.title!(p)} demux={comp.type === 'demux'} />
       break
+    case 'tribuf': {
+      // A buffer triangle with its enable stub coming in from below.
+      const { w, h } = l
+      content = (
+        <>
+          <path className="sym-body" d={`M0,-4 L${w},${h / 2} L0,${h + 4} Z`} />
+          <Stub pin={l.pins[0]} inner={{ x: 0, y: 10 }} />
+          <Stub pin={l.pins[1]} inner={{ x: 20, y: 24 - (14 * 20) / w }} />
+          <Stub pin={l.pins[2]} inner={{ x: w, y: 10 }} />
+        </>
+      )
+      break
+    }
+    case 'busjoin': {
+      // Warn when two or more drivers are active and the line came out unknown: contention.
+      const active = live ? ins().filter((v) => v !== Z).length : 0
+      content = <BoxSym l={l} title="BUS" warn={live && active > 1 && val('Y') === X} />
+      break
+    }
     default:
       content = <BoxSym l={l} title={def.title?.(p) ?? def.name} />
   }

@@ -1,6 +1,6 @@
 import { resolveLabels } from './netlabels'
 import { getDef, hasDef } from './registry'
-import { X, type ComponentDef, type Instance, type Layout, type Params, type V } from './types'
+import { X, Z, type ComponentDef, type Instance, type Layout, type Params, type V } from './types'
 
 export interface SimComp {
   id: string
@@ -263,9 +263,11 @@ export class Simulator {
     const { values, next } = this
     for (const cc of this.comps) {
       const { ins, outs } = cc.inst
+      const zOk = cc.def.acceptsZ
       for (let i = 0; i < ins.length; i++) {
         const n = cc.inNets[i]
-        ins[i] = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
+        const v = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
+        ins[i] = v === Z && !zOk ? X : v
       }
       cc.def.evaluate(cc.inst)
       const pipe = cc.pipe
@@ -375,9 +377,11 @@ export class Simulator {
   private sample() {
     for (const cc of this.samplers) {
       const { ins } = cc.inst
+      const zOk = cc.def.acceptsZ
       for (let i = 0; i < ins.length; i++) {
         const n = cc.inNets[i]
-        ins[i] = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
+        const v = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
+        ins[i] = v === Z && !zOk ? X : v
       }
       if (cc.def.sample!(cc.inst, this.time) === true && this.hit === null) this.hit = cc.id
       this.dirty = true
@@ -509,7 +513,7 @@ export class Simulator {
     return this.clocks.length > 0
   }
 
-  /** Current value seen at a pin (outputs: the net it drives; inputs: the net feeding it or its default). */
+  /** Current value seen at a pin (outputs: the net it drives, which can be Z; inputs: the net feeding it or its default, with Z read as X by parts that don't accept it). */
   pinValue(compId: string, pin: string): V {
     const out = this.netByOut.get(pinKey(compId, pin))
     if (out !== undefined) return this.values[out] as V
@@ -518,7 +522,8 @@ export class Simulator {
     const i = cc.inNames.indexOf(pin)
     if (i < 0) return X
     const n = cc.inNets[i]
-    return n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
+    const v = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
+    return v === Z && !cc.def.acceptsZ ? X : v // an input shows what the part reads: only a part that accepts Z sees Z
   }
 
   /** Compact string of all pin values of a component; changes whenever anything it shows changes. */

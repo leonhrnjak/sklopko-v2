@@ -349,7 +349,7 @@ function Help() {
       </dl>
       <h3>Wire colors</h3>
       <div className="legend">
-        <span className="swatch v1" /> 1 <span className="swatch v0" /> 0 <span className="swatch vx" /> unknown
+        <span className="swatch v1" /> 1 <span className="swatch v0" /> 0 <span className="swatch vx" /> unknown <span className="swatch vz" /> not driven (Z)
       </div>
       <DelayTools ids={Object.keys(circuit.comps)} scope="every part" />
     </>
