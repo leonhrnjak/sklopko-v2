@@ -171,3 +171,68 @@ describe('PWM example', () => {
     }
   })
 })
+
+describe('button debouncer example', () => {
+  it('the naive counter counts the bounce, the debounced one counts each press once', () => {
+    const r = rig('debounce')
+    const [naive, clean] = ['Naive counter', 'Counter'].map((l) => r.part(l))
+    const count = (id: string) => ['A', 'B', 'C', 'D'].reduce((n, p, i) => n | (r.sim.pinValue(id, p) << i), 0)
+    const wait = (ms: number) => {
+      for (let t = 0; t < ms; t += 5) r.sim.frame(5)
+    }
+    wait(500)
+    expect([count(naive), count(clean)]).toEqual([0, 0])
+    r.set('Press', true)
+    wait(1000)
+    expect(count(clean)).toBe(1)
+    expect(count(naive)).toBeGreaterThan(1)
+    r.set('Press', false)
+    wait(1000)
+    const afterRelease = count(naive)
+    expect(afterRelease).toBeGreaterThan(count(clean))
+    expect(count(clean)).toBe(1) // releasing is not a press
+    r.set('Press', true)
+    wait(1000)
+    expect(count(clean)).toBe(2)
+  })
+})
+
+describe('stopwatch example', () => {
+  const setup = () => {
+    const r = rig('stopwatch')
+    const read = (labels: string[]) =>
+      labels.map((l) => ['A', 'B', 'C', 'D'].reduce((n, p, i) => n | (r.sim.pinValue(r.part(l), p) << i), 0)).join('')
+    return {
+      r,
+      time: () => read(['Minutes', 'Tens of seconds', 'Seconds']),
+      lap: () => read(['Lap Minutes', 'Lap Tens of seconds', 'Lap Seconds']),
+      click: (label: string) => {
+        r.press(label, true)
+        r.press(label, false)
+      },
+    }
+  }
+  it('runs only between Start/Stop presses, resets, and Lap holds a split time', () => {
+    const { r, time, lap, click } = setup()
+    for (let i = 0; i < 5; i++) r.cycle()
+    expect(time()).toBe('000') // not started
+    click('Start/Stop')
+    for (let i = 0; i < 25; i++) r.cycle()
+    expect(time()).toBe('025')
+    r.press('Lap', true)
+    r.cycle()
+    r.press('Lap', false)
+    expect(lap()).toBe('025')
+    for (let i = 0; i < 4; i++) r.cycle()
+    expect(time()).toBe('030')
+    expect(lap()).toBe('025') // held
+    click('Start/Stop')
+    for (let i = 0; i < 5; i++) r.cycle()
+    expect(time()).toBe('030') // stopped
+    click('Start/Stop')
+    for (let j = 0; j < 60; j++) r.cycle()
+    expect(time()).toBe('130') // a minute later
+    click('Reset')
+    expect(time()).toBe('000')
+  })
+})
