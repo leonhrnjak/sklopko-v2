@@ -20,6 +20,10 @@
 4. **Red:** read the failing job's log (`gh run view --log-failed`), fix the cause, re-run **only the failed
    tests** locally (`-g`), push, and wait for CI again. Repeat until green, then go back to step 3.
 
+The `/ship` skill (`.claude/skills/ship/SKILL.md`) runs these steps: branch, version bump, scoped tests, push, PR, CI. When a
+feature or fix the user asked for is finished, use it. Don't use it for plans, questions or exploration, or when the user
+said not to push. It still stops and asks before merging.
+
 Merging to `main` deploys to Cloudflare Pages.
 
 ## Testing while making changes
