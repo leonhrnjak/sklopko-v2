@@ -56,5 +56,6 @@ The roadmap is in `docs/plan-next-features.md` (milestones 0–10, in order; tic
 sub-milestones 10a to 10e, what each did). Ask the user what comes next. Milestone 9 (timing view and state machine editor) is
 done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
-Finished plans, for background: `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
+Finished plans, for background: `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
+(index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is postponed).

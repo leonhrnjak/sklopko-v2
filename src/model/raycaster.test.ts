@@ -2,44 +2,31 @@ import { describe, expect, it } from 'vitest'
 import { SKASM, assemble } from '../engine/isa'
 import { newMachine, step } from '../engine/skasm-ref'
 import { ROM_WORDS } from './computer2'
-import { ANGLES, MAP, MAX_STEPS, RAYCASTER_SOURCE, halfHeight, stepX, stepY } from './raycaster'
+import { MAP, RAYCASTER_SOURCE, bars, picture } from './raycaster'
 
 const asm = assemble(SKASM, RAYCASTER_SOURCE, ROM_WORDS)
-
-/** The picture in plain TypeScript: half the height of the wall bar of each of the 16 columns, for a player at (px, py) facing `ang`. */
-export function bars(px: number, py: number, ang: number): number[] {
-  return Array.from({ length: 16 }, (_, col) => {
-    const a = (ang + col + 56) & (ANGLES - 1)
-    let rx = px
-    let ry = py
-    for (let n = 1; n <= MAX_STEPS; n++) {
-      rx = (rx + stepX(a)) & 127
-      ry = (ry + stepY(a)) & 127
-      if (MAP[ry >> 4][rx >> 4]) return halfHeight(n)
-    }
-    return 0
-  })
-}
 
 /** Run the program until it waits for the pad (the picture is done), pressing the buttons in `pad` one after another. */
 function run(pad: number[] = []) {
   const m = newMachine()
   m.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
-  const lit = new Set<number>()
+  const lit = new Map<number, number>()
+  let shade = 3
   const queue = [...pad]
   let at = 0
   let reads = 0
-  const frames: { lit: number[]; steps: number; px: number; py: number; ang: number }[] = []
+  const frames: { lit: [number, number][]; steps: number; px: number; py: number; ang: number }[] = []
   let steps = 0
   let sinceRender = 0
   const ports = {
     out(port: number, v: number) {
-      if (port === 2) lit.add(v)
+      if (port === 2) lit.set(v, shade)
       else if (port === 3) lit.delete(v)
       else if (port === 7) at = v
+      else if (port === 8) shade = v & 3
     },
     in(port: number) {
-      if (port === 2) return lit.has(at) ? 1 : 0
+      if (port === 2) return lit.get(at) ?? 0
       if (port === 6) {
         reads++
         return queue.shift() ?? 0
@@ -49,7 +36,7 @@ function run(pad: number[] = []) {
   }
   while (steps < 400000) {
     if (m.pc === asm.symbols.input && sinceRender > 0) {
-      frames.push({ lit: [...lit].sort((a, b) => a - b), steps: sinceRender, px: m.ram[0], py: m.ram[1], ang: m.ram[2] })
+      frames.push({ lit: [...lit].sort((a, b) => a[0] - b[0]), steps: sinceRender, px: m.ram[0], py: m.ram[1], ang: m.ram[2] })
       sinceRender = 0
       if (!queue.length) break
     }
@@ -60,9 +47,9 @@ function run(pad: number[] = []) {
   return { frames, m, reads }
 }
 
-/** The lit pixels of a picture from the bar heights. */
-const pixels = (heights: number[]) =>
-  heights.flatMap((h, col) => Array.from({ length: 16 }, (_, y) => (y >= 8 - h && y < 8 + h ? y * 16 + col : -1)).filter((p) => p >= 0)).sort((a, b) => a - b)
+/** A picture as the sorted [position, shade] pairs of its lit pixels. */
+const pairs = (px: Map<number, number>) => [...px].sort((a, b) => a[0] - b[0])
+const expected = (px: number, py: number, ang: number) => pairs(picture(bars(px, py, ang)))
 
 describe('raycaster', () => {
   it('assembles, and fits in the ROM with room to spare', () => {
@@ -74,31 +61,32 @@ describe('raycaster', () => {
   it('draws the picture a plain TypeScript raycaster draws, from the starting spot', () => {
     const { frames } = run()
     expect(frames).toHaveLength(1)
-    expect(frames[0].lit).toEqual(pixels(bars(24, 24, 0)))
+    expect(frames[0].lit).toEqual(expected(24, 24, 0))
     // The spike's measurement: a picture takes about 6300 instructions, so about 3 to 6 seconds on the circuit.
     expect(frames[0].steps).toBeLessThan(8000)
   })
 
   it('the first picture, as the screen shows it', () => {
     const { frames } = run()
-    const rows = Array.from({ length: 16 }, (_, y) => Array.from({ length: 16 }, (_, x) => (frames[0].lit.includes(y * 16 + x) ? '#' : '.')).join(''))
+    const shades = new Map(frames[0].lit)
+    const rows = Array.from({ length: 16 }, (_, y) => Array.from({ length: 16 }, (_, x) => String(shades.get(y * 16 + x) ?? '.')).join(''))
     expect(rows).toEqual([
-      '##...........###',
-      '##...........###',
-      '##...........###',
-      '#####.......####',
-      '#####.....######',
-      '#######...######',
-      '########.#######',
-      '################',
-      '################',
-      '########.#######',
-      '#######...######',
-      '#####.....######',
-      '#####.......####',
-      '##...........###',
-      '##...........###',
-      '##...........###',
+      '33...........333',
+      '33...........333',
+      '33...........333',
+      '33333.......3333',
+      '33333.....333333',
+      '3333322...333333',
+      '33333222.2333333',
+      '3333322212333333',
+      '3333322212333333',
+      '33333222.2333333',
+      '3333322...333333',
+      '33333.....333333',
+      '33333.......3333',
+      '33...........333',
+      '33...........333',
+      '33...........333',
     ])
   })
 
@@ -107,7 +95,7 @@ describe('raycaster', () => {
     const pad = [8, 8, 8, 8, 1, 1, 1, 8, 8, 1, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1]
     const { frames } = run(pad)
     expect(frames).toHaveLength(pad.length + 1)
-    for (const f of frames) expect(f.lit, `at ${f.px},${f.py} facing ${f.ang}`).toEqual(pixels(bars(f.px, f.py, f.ang)))
+    for (const f of frames) expect(f.lit, `at ${f.px},${f.py} facing ${f.ang}`).toEqual(expected(f.px, f.py, f.ang))
     // It really moved and turned.
     expect(new Set(frames.map((f) => `${f.px},${f.py},${f.ang}`)).size).toBeGreaterThan(8)
   })

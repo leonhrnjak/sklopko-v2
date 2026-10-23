@@ -1,5 +1,6 @@
 import { SKASM, SKASM_OPS, assemble, toHexBytes, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
+import { RAYCASTER_SOURCE } from './raycaster'
 import { boundsRect, type Circuit } from './circuit'
 
 /**
@@ -1918,6 +1919,14 @@ export const PROGRAMS: Program[] = [
     hz: 1024,
     devices: ['lcd'],
     note: 'Langton’s ant: on a dark pixel it turns right and lights it, on a lit pixel it turns left and darkens it, then steps forward (the edges wrap round). The program has no map of where it has been, because the screen is its memory: OUT PIXEL_AT chooses a pixel and IN PIXEL reads whether it is lit. Run it fast and watch the pattern turn messy, then build a diagonal road.',
+  },
+  {
+    id: 'computer-raycaster',
+    name: 'Computer + LCD + gamepad: a 3D raycaster',
+    source: RAYCASTER_SOURCE,
+    hz: 1024,
+    devices: ['lcd', 'gamepad'],
+    note: 'A first-person view of an 8×8 maze, drawn by a raycaster. For each of the 16 screen columns the program marches a ray through the map in half-cell steps until it hits a wall; the number of steps is the distance, and a table turns it into the height and shade of the wall bar. Press left and right on the gamepad (or the arrow keys) to turn and up and down to walk, then wait: a picture takes about 6,000 instructions, a few seconds on the circuit, so run it fast. The map, the angle tables and the heights are in the table ROM and the rays share a CALL subroutine.',
   },
 ]
 

@@ -3,6 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
+import { bars, picture, RAYCASTER_SOURCE } from './raycaster'
 import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, ANT_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
@@ -912,4 +913,33 @@ describe("computer: Langton's ant", () => {
       expect(new Set(m.pixels().map(([x, y]) => y * 16 + x)), `after ${n} instructions`).toEqual(lit)
     }
   }, 60000)
+})
+
+describe('computer: the raycaster', () => {
+  it('the circuit draws the picture of the model, from the first view and after the gamepad turns and walks it', () => {
+    const m = machine(RAYCASTER_SOURCE, ['lcd', 'gamepad'])
+    const pad = m.id('Gamepad')
+    const shades = () => {
+      const px = (m.sim.state(m.id('LCD')) as FramebufferState).px
+      return px.map((v, i) => [i, v] as [number, number]).filter(([, v]) => v > 0)
+    }
+    const want = () => [...picture(bars(m.ram()[0], m.ram()[1], m.ram()[2]))].sort((a, b) => a[0] - b[0])
+    const hold = (keys: number) => {
+      m.sim.setState(pad, { keys })
+      m.sim.settle()
+      m.run(30) // the program polls the pad in a short loop
+      m.sim.setState(pad, { keys: 0 })
+      m.sim.settle()
+    }
+    m.run(7500) // the first picture takes about 6300 cycles
+    expect(shades()).toEqual(want())
+    expect(m.ram().slice(0, 3)).toEqual([24, 24, 0])
+    hold(8) // right: turn
+    m.run(7500)
+    expect(m.ram()[2]).toBeGreaterThan(0)
+    expect(shades()).toEqual(want())
+    hold(1) // up: walk
+    m.run(7500)
+    expect(shades()).toEqual(want())
+  }, 120000)
 })
