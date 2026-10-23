@@ -7,7 +7,7 @@ import { MAP, RAYCASTER_SOURCE, bars, picture } from './raycaster'
 const asm = assemble(SKASM, RAYCASTER_SOURCE, ROM_WORDS)
 
 /** Run the program until it waits for the pad (the picture is done), pressing the buttons in `pad` one after another. */
-function run(pad: number[] = []) {
+function run(pad: number[] = [], during = 0) {
   const m = newMachine()
   m.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
   const lit = new Map<number, number>()
@@ -29,7 +29,8 @@ function run(pad: number[] = []) {
       if (port === 2) return lit.get(at) ?? 0
       if (port === 6) {
         reads++
-        return queue.shift() ?? 0
+        // The buttons are pressed one at a time when the program waits for them; `during` is held while it draws.
+        return m.pc === asm.symbols.input ? (queue.shift() ?? 0) : during
       }
       return 0
     },
@@ -100,9 +101,24 @@ describe('raycaster', () => {
     expect(new Set(frames.map((f) => `${f.px},${f.py},${f.ang}`)).size).toBeGreaterThan(8)
   })
 
+  it('a button pressed while the picture is being drawn is not lost', () => {
+    // Held right through the whole drawing (the program sees it in every column): the next thing it does is a turn, once.
+    const { frames } = run([0], 8)
+    expect(frames.length).toBeGreaterThanOrEqual(1)
+    const { m } = run([], 8)
+    expect(m.ram[15]).not.toBe(0) // remembered in `pend`
+  })
+
+  it('a turn is three angles (17 degrees), a step is half a cell', () => {
+    const { frames } = run([8, 8, 4, 1])
+    expect(frames.map((f) => f.ang)).toEqual([0, 3, 6, 3, 3])
+    expect([frames[3].px, frames[3].py]).toEqual([24, 24])
+    expect(frames[4].px).not.toBe(24) // one step on, in the direction it faces
+  })
+
   it('does not walk through a wall', () => {
     // Facing the north wall (angle 48 = -16) from cell (1,1): walk up until blocked.
-    const turn = Array.from({ length: 16 }, () => 4)
+    const turn = Array.from({ length: 6 }, () => 4)
     const walk = Array.from({ length: 12 }, () => 1)
     const { frames } = run([...turn, ...walk])
     const last = frames.at(-1)!

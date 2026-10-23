@@ -75,7 +75,8 @@ export const RAYCASTER_SOURCE = `; A raycaster. Each of the 16 screen columns ge
 ; the number of steps is the distance, and the distance gives the height and the shade of the wall bar drawn in that column.
 ; Positions are 7 bits (1/16 of a cell, 128 across); a ray's step is a signed byte from the table, and AND 127 wraps it.
 ; Table: 0-63 the x step per angle, 64-127 the y step, 128-191 the map (1 = wall), 192-212 half the wall height by distance.
-; Left and right turn, up and down walk; the picture is drawn again after every move.
+; Left and right turn, up and down walk; the picture is drawn again after every move. The pad is looked at in every column,
+; so a button pressed while the picture is being drawn is not lost.
 px = 0            ; the player
 py = 1
 ang = 2           ; 0 to 63, a full turn
@@ -91,6 +92,7 @@ y = 11            ; the row being drawn
 u = 12            ; twice h
 pos = 13          ; the screen position of the pixel being drawn
 key = 14
+pend = 15         ; buttons pressed while a picture was being drawn, kept until the picture is done
 
         LDI 24
         STA px
@@ -101,7 +103,10 @@ key = 14
 ; ---- draw the 16 columns ----
 render: LDI 0
         STA col
-column: LDA ang         ; the ray of this column: angle + column - 8
+column: IN PAD          ; remember any button pressed meanwhile
+        OR pend
+        STA pend
+        LDA ang         ; the ray of this column: angle + column - 8
         ADD col
         ADDI 56
         ANDI 63
@@ -184,20 +189,24 @@ next:   ADDI 16
 
 ; ---- wait for the pad: left and right turn, up and down walk ----
 input:  IN PAD
+        OR pend         ; the pad now, and what was pressed while drawing
         STA key
         CMPI 0
         JZ input
+        LDI 0
+        STA pend
+        LDA key
         ANDI 4
         JZ notleft
-        LDA ang
-        SUBI 1
+        LDA ang         ; a turn is 3 of the 64 angles, 17 degrees
+        SUBI 3
         ANDI 63
         STA ang
 notleft: LDA key
         ANDI 8
         JZ notright
         LDA ang
-        ADDI 1
+        ADDI 3
         ANDI 63
         STA ang
 notright: LDA ang       ; the step in the direction the player faces

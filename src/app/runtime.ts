@@ -110,7 +110,7 @@ export function startRuntime() {
   requestAnimationFrame(loop)
   window.addEventListener('pointerdown', unlockAudio)
   window.addEventListener('keydown', unlockAudio)
-  installGamepadKeys(sim)
+  installGamepadKeys(sim, window, 350)
 }
 
 export async function shareLink() {
