@@ -262,7 +262,7 @@ describe('computer 2: the programs', () => {
       expect(type('99+99=')).toBe('99+99=198\n')
       expect(type('200+55=')).toBe('200+55=255\n')
       expect(type('100+5=')).toBe('100+5=105\n') // a zero tens digit after hundreds is printed
-    })
+    }, 30000) // about 3 s on a laptop, so the default 5 s is too tight for a busy CI runner
 
     it('subtracts, with a minus sign for a negative answer', () => {
       expect(type('50-8=')).toBe('50-8=42\n')
