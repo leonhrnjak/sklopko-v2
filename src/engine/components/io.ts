@@ -1,3 +1,4 @@
+import { numbered } from '../bus'
 import { box, names } from '../layouts'
 import { toNum, writeNum, X, type ComponentDef, type ParamDef, type Params, type V } from '../types'
 
@@ -161,6 +162,15 @@ export interface Trace {
   v: V[]
 }
 
+/** What a probe of several bits records: the number it reads (-1 while some bit is unknown) instead of a logic value. */
+export interface NumberTrace {
+  t: number[]
+  v: number[]
+}
+
+/** Bits a probe watches (1 for an ordinary probe, and for one saved before there was a choice). */
+export const probeBits = (p: Params) => Number(p.bits) || 1
+
 export const probe: ComponentDef = {
   type: 'probe',
   name: 'Probe',
@@ -168,7 +178,8 @@ export const probe: ComponentDef = {
   description:
     'Records the signal at its input and draws it in the waveform panel. Give it a label: that is the name of ' +
     'its trace. Place several to compare signals over time. Probes with the same group name are drawn as one trace ' +
-    'that shows the number they form (select several probes to group them).',
+    'that shows the number they form (select several probes to group them). Give it more bits to record a whole bus ' +
+    'as one trace.',
   params: [
     {
       key: 'group',
@@ -181,12 +192,26 @@ export const probe: ComponentDef = {
       hint: 'Letters, digits and underscores, up to 12 characters.',
     },
     { key: 'bit', label: 'Bit in the group (0 = least significant)', kind: 'number', min: 0, max: 15, default: 0 },
+    {
+      key: 'bits',
+      label: 'Bits (a bus)',
+      kind: 'number',
+      min: 1,
+      max: 16,
+      default: 1,
+      structural: true,
+    },
   ],
   init: (): Trace => ({ t: [], v: [] }),
-  layout: () => ({ w: 30, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
+  layout: (p) => {
+    const n = probeBits(p)
+    return n === 1 ? { w: 30, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] } : box({ w: 60, left: names('A', n) })
+  },
+  groups: (p) => (probeBits(p) > 1 ? [numbered('A', 'in', 'A', probeBits(p))] : []),
   sample(inst, time) {
-    const st = inst.state as Trace
-    const v = inst.ins[0]
+    const st = inst.state as { t: number[]; v: number[] }
+    // A probe of several bits records the number, so a bus is one row in the waveform panel.
+    const v = inst.ins.length > 1 ? toNum(inst.ins, 0, inst.ins.length) : inst.ins[0]
     if (st.v.length && st.v[st.v.length - 1] === v) return
     st.t.push(time)
     st.v.push(v)
@@ -340,7 +365,8 @@ export const display: ComponentDef[] = [
         options: [4, 8].map((v) => ({ value: v, label: String(v) })),
       },
     ],
-    layout: (p) => box({ w: 40, left: Array.from({ length: Number(p.n) }, (_, i) => `I${i}`) }),
+    // In bus mode the LEDs sit side by side, so the body is as wide as the row.
+    layout: (p) => box({ w: p.bus ? 20 + 10 * Number(p.n) : 40, left: Array.from({ length: Number(p.n) }, (_, i) => `I${i}`) }),
     evaluate() {},
   },
 ]

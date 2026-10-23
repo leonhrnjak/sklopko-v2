@@ -29,7 +29,7 @@ import {
 } from '../../app/store'
 import { isEmbed } from '../../app/embed'
 import { useHops } from '../../app/hooks'
-import { layoutOf } from '../../engine/simulator'
+import { viewLayoutOf } from '../../engine/viewlayout'
 import { paramDefaults } from '../../engine/types'
 import {
   GRID,
@@ -204,7 +204,7 @@ export function Canvas() {
   }
 
   const ghostOrigin = (type: string, at: Point): Point => {
-    const l = layoutOf(type, paramDefaults(getDef(type)))
+    const l = viewLayoutOf(type, paramDefaults(getDef(type)))
     return { x: snap(at.x - l.w / 2), y: snap(at.y - l.h / 2) }
   }
 
@@ -721,7 +721,7 @@ export function Canvas() {
 
 function PlacementGhost({ type, at }: { type: string; at: Point }) {
   const comp: Comp = { id: '__ghost', type, x: at.x, y: at.y, rot: 0, flip: false, params: paramDefaults(getDef(type)) }
-  const l = layoutOf(type, comp.params)
+  const l = viewLayoutOf(type, comp.params)
   return (
     <g className="ghost-comp" transform={compTransform(comp, l)}>
       <CompSymbol comp={comp} layout={l} live={false} />

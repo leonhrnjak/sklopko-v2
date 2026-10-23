@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Trace } from '../engine/components/io'
+import { probeBits, type Trace } from '../engine/components/io'
 import { groupTrace, type NumberFormat } from '../engine/groups'
 import { toVcd, type VcdSignal } from '../engine/vcd'
 import type { Comp } from '../model/circuit'
@@ -44,8 +44,10 @@ export interface Row {
   name: string
   probes: { id: string; bit: number }[]
   group: boolean
-  /** Bits in a group (the highest bit position + 1). */
+  /** Bits in a group (the highest bit position + 1), or in a probe that watches a bus. */
   width: number
+  /** One probe of several bits: it records the number itself. */
+  bus?: boolean
 }
 
 /** The rows for a circuit's probes, in circuit order. A group takes the place of its first probe. */
@@ -57,6 +59,10 @@ export function buildRows(comps: Record<string, Comp>): Row[] {
     if (c.type !== 'probe') continue
     n++
     const name = String(c.params.group ?? '')
+    if (probeBits(c.params) > 1) {
+      rows.push({ key: c.id, name: c.label || `Probe ${n}`, probes: [{ id: c.id, bit: 0 }], group: false, width: probeBits(c.params), bus: true })
+      continue
+    }
     if (!name) {
       rows.push({ key: c.id, name: c.label || `Probe ${n}`, probes: [{ id: c.id, bit: 0 }], group: false, width: 1 })
       continue
@@ -77,6 +83,7 @@ export function buildRows(comps: Record<string, Comp>): Row[] {
 export function recordedSignals(rows: Row[]): VcdSignal[] {
   return rows.map((row) => {
     const traces = row.probes.map((p) => (sim.state(p.id) as Trace | undefined) ?? { t: [], v: [] })
+    if (row.bus) return { name: row.name, width: row.width, t: traces[0].t, v: traces[0].v }
     if (row.group) {
       const bus = groupTrace(traces, row.probes.map((p) => p.bit))
       return { name: row.name, width: row.width, t: bus.t, v: bus.v }

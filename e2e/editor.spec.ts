@@ -523,6 +523,34 @@ test('splitter and merger: a 4-bit piece of a splitter joins a merger input, sin
   await expect(page.locator('.wire.bus')).toHaveCount(2)
 })
 
+test('n-bit parts: a bus input counts up on click, a register holds it, and a bus display reads it', async ({ page }) => {
+  await freshEmpty(page)
+  const input = await place(page, 'busin', 160, 200)
+  const reg = await place(page, 'busreg', 380, 200)
+  const disp = await place(page, 'busdisp', 640, 200)
+  await wire(page, [input, 'Q'], [reg, 'D'])
+  await wire(page, [reg, 'Q'], [disp, 'A'])
+  await expect(page.locator('.wire.bus')).toHaveCount(2)
+  // Clicking the input counts up (it is 8 bits wide: 00, 01, 02, 03); the register loads it on a clock edge.
+  for (let i = 0; i < 3; i++) await clickComp(page, input)
+  const clk = await place(page, 'switch', 160, 360)
+  await wire(page, [clk, 'Q'], [reg, 'CLK'])
+  await expect(page.locator(`.comp[data-id="${disp}"] .bus-readout`)).toHaveText('00')
+  await clickComp(page, clk)
+  await expect(page.locator(`.comp[data-id="${disp}"] .bus-readout`)).toHaveText('03')
+})
+
+test('a probe given more bits records a whole bus as one row, and takes a bus wire', async ({ page }) => {
+  await freshEmpty(page)
+  const input = await place(page, 'busin', 160, 200)
+  const probe = await place(page, 'probe', 400, 200)
+  await page.getByLabel('Bits (a bus)').fill('8')
+  await page.getByLabel('Bits (a bus)').blur()
+  await wire(page, [input, 'Q'], [probe, 'A'])
+  await expect(page.locator('.wire.bus')).toHaveCount(1)
+  await expect(page.getByTestId('waves')).toBeVisible()
+})
+
 /** Select a part by the label shown above it. */
 async function pickByLabel(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
@@ -1289,6 +1317,9 @@ test('devices: RAM and ROM can have 8 address bits', async ({ page }) => {
   await freshEmpty(page)
   const ram = await place(page, 'ram', 300, 200)
   await page.getByLabel('Address bits').selectOption('8')
+  // A part placed now has bus ports: the 8 address bits are one pin, A, until bus ports are switched off.
+  await expect(page.locator(`circle.pin[data-comp="${ram}"][data-pin="A"]`)).toHaveCount(1)
+  await page.getByLabel('Bus ports').uncheck()
   await expect(page.locator(`circle.pin[data-comp="${ram}"][data-pin="A7"]`)).toHaveCount(1)
   await expect(page.locator(`.comp[data-id="${ram}"]`)).toContainText('RAM 256×4')
   await expect(page.locator('.ram-word')).toHaveCount(256)

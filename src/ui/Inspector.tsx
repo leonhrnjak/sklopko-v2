@@ -176,6 +176,8 @@ function CompInspector({ comp }: { comp: Comp }) {
         if (comp.type === 'lut' && p.key === 'data') return null // edited in the table below
         // A breakpoint that waits for any change has no value to compare with.
         if (comp.type === 'breakpoint' && p.key === 'value' && comp.params.when === 'changes') return null
+        // A probe of several bits is a whole bus: it has no group or bit position.
+        if (comp.type === 'probe' && Number(comp.params.bits) > 1 && (p.key === 'group' || p.key === 'bit')) return null
         const v = comp.params[p.key]
         if (p.kind === 'bool')
           return (
@@ -241,7 +243,7 @@ function CompInspector({ comp }: { comp: Comp }) {
       {comp.type === 'lut' && <LutSection comp={comp} />}
       {comp.type === 'console' && <ConsoleSection comp={comp} />}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
-      {comp.type === 'probe' && <ProbeGroupInfo comp={comp} />}
+      {comp.type === 'probe' && !(Number(comp.params.bits) > 1) && <ProbeGroupInfo comp={comp} />}
       <div className="row">
         {!isAnnotation(comp) && (
           <>

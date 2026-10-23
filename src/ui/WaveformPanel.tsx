@@ -4,7 +4,7 @@ import { useStore } from '../app/store'
 import { downloadBlob } from '../app/files'
 import { WAVE_WINDOWS, buildRows, clearTraces, exportVcd, setFormat, setViewEnd, setWaveOpen, setWaveView, setWindowMs, useWave, type Row } from '../app/waveform'
 import { TimingView } from './TimingView'
-import type { Trace } from '../engine/components/io'
+import type { NumberTrace, Trace } from '../engine/components/io'
 import { formatValue, groupTrace, type NumberFormat } from '../engine/groups'
 import type { V } from '../engine/types'
 
@@ -30,10 +30,12 @@ const cssVar = (name: string) => getComputedStyle(document.documentElement).getP
 
 /** Draw a group's number as a bus: a hexagon per value, with the value written inside when it fits. */
 function drawBus(ctx: CanvasRenderingContext2D, row: Row, top: number, x0: number, plotW: number, t0: number, end: number, windowMs: number, format: NumberFormat) {
-  const bus = groupTrace(
-    row.probes.map((p) => (sim.state(p.id) as Trace | undefined) ?? { t: [], v: [] }),
-    row.probes.map((p) => p.bit),
-  )
+  const bus = row.bus
+    ? ((sim.state(row.probes[0].id) as NumberTrace | undefined) ?? { t: [], v: [] })
+    : groupTrace(
+        row.probes.map((p) => (sim.state(p.id) as Trace | undefined) ?? { t: [], v: [] }),
+        row.probes.map((p) => p.bit),
+      )
   if (!bus.t.length) return
   const px = (t: number) => x0 + ((t - t0) / windowMs) * plotW
   const yTop = top + 9
@@ -133,7 +135,7 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
     ctx.font = '600 12px system-ui, sans-serif'
     ctx.fillText(row.name, 8, top + ROW_H / 2, x0 - 16)
 
-    if (row.group) return drawBus(ctx, row, top, x0, plotW, t0, end, windowMs, format)
+    if (row.group || row.bus) return drawBus(ctx, row, top, x0, plotW, t0, end, windowMs, format)
     const tr = sim.state(row.probes[0].id) as Trace | undefined
     if (!tr || !tr.t.length) return
     // Horizontal runs take the colour of their value, vertical edges the colour of the new value.
