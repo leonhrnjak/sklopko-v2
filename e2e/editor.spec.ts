@@ -1390,7 +1390,7 @@ test('the SKASM reference opens from the toolbar and from a program ROM, and has
   await expect(dialog.locator('#op-OUT')).toContainText('send ACC to port p')
 
   await dialog.getByRole('tab', { name: 'Ports' }).click()
-  await expect(dialog.getByRole('cell', { name: 'PIXEL_ON' })).toBeVisible()
+  await expect(dialog.getByRole('cell', { name: 'PIXEL_ON', exact: true })).toBeVisible()
 
   await dialog.getByRole('tab', { name: 'Examples' }).click()
   await expect(dialog.locator('#example-add pre')).toContainText('ADD 0')
