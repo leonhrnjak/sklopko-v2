@@ -285,7 +285,7 @@ export function WaveformPanel() {
             ))}
           </select>
         </label>
-        {rows.some((r) => r.group) && (
+        {rows.some((r) => r.group || r.bus) && (
           <label className="wave-window">
             <span>Numbers</span>
             <select value={format} onChange={(e) => setFormat(e.target.value as NumberFormat)} aria-label="Number format">

@@ -163,8 +163,8 @@ describe('router: search buffers and cost', () => {
   it('routes the 8-bit computer within a budget of search steps, with every wire attached', () => {
     const before = stats.expansions
     const c = EXAMPLES.find((e) => e.id === 'computer')!.build()
-    // 8.4 million when this was measured (the shared computer, with its logic unit and decimal display); about twice that before the search was reorganised.
-    expect(stats.expansions - before).toBeLessThan(9_500_000)
+    // 2.0 million when this was measured, on buses (8.4 million when the computer was wired bit by bit).
+    expect(stats.expansions - before).toBeLessThan(2_500_000)
     for (const w of Object.values(c.wires)) {
       const e = wireEndpoints(c, w)!
       expect(validPath(w.path, e.from, e.fromDir, e.to, e.toDir), w.id).toBe(true)

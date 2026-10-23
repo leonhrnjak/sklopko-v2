@@ -6,8 +6,9 @@ import { Simulator } from '../engine/simulator'
 import { BALL_SOURCE, CALC_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
+import { flatten } from './buses'
 
-const NIB = ['QA', 'QB', 'QC', 'QD']
+const BYTE = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `Q${i}`)
 const bases = new Map<string, Circuit>()
 
 /** The computer with some devices running a program. Routing the wires takes seconds, so each kind is built once and only the program is swapped. */
@@ -19,10 +20,10 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
   const comps = Object.values(base.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, source, data } } : k))
   const c: Circuit = { ...base, comps: Object.fromEntries(comps.map((k) => [k.id, k])) }
   const sim = new Simulator()
-  sim.load({ comps, wires: Object.values(c.wires) })
+  sim.load(flatten(c))
   sim.settle()
   const id = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
-  const reg = (label: string, pins = NIB) => pins.reduce((n, pin, i) => n | (sim.pinValue(id(label), pin) << i), 0)
+  const reg = (label: string, pins = BYTE) => pins.reduce((n, pin, i) => n | (sim.pinValue(id(label), pin) << i), 0)
   const cycle = () => {
     sim.stepClock()
     sim.stepClock()
@@ -35,10 +36,10 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
     run(n: number) {
       for (let i = 0; i < n; i++) cycle()
     },
-    pc: () => reg('PC low', ['Q0', 'Q1', 'Q2', 'Q3']) | (reg('PC high', ['Q0', 'Q1', 'Q2', 'Q3']) << 4),
-    acc: () => reg('ACC low') | (reg('ACC high') << 4),
-    carry: () => sim.pinValue(id('Flags'), 'QA'),
-    zero: () => sim.pinValue(id('Flags'), 'QB'),
+    pc: () => reg('PC'),
+    acc: () => reg('ACC'),
+    carry: () => sim.pinValue(id('Flags'), 'Q0'),
+    zero: () => sim.pinValue(id('Flags'), 'Q1'),
     halted: () => sim.pinValue(id('Halted'), 'A'),
     ram: () => sim.state(id('Data RAM')).mem as number[],
     text: () => (sim.state(id('LCD text display')) as ConsoleState).lines.join('\n'),
@@ -462,7 +463,7 @@ describe('computer: the decimal display (OUT NUMBER)', () => {
       const reg = (label: string, pins: string[]) => pins.reduce((n, p, i) => n | (m.sim.pinValue(m.id(label), p) << i), 0)
       return {
         m,
-        output: () => reg('Output low', NIB) | (reg('Output high', NIB) << 4),
+        output: () => reg('Output', [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `Q${i}`)),
         decimal: () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(label, ['S0', 'S1', 'S2', 'S3']), 0),
       }
     }

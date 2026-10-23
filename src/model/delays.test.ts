@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
-import { simComps, type Circuit } from './circuit'
+import { flatten } from './buses'
+import type { Circuit } from './circuit'
 import { realisticDelay, hasDelay } from './delays'
 import { EXAMPLES } from './examples'
 
 const load = (c: Circuit, delays: boolean): Simulator => {
   const s = new Simulator()
-  const comps = simComps(c).map((k) => {
+  const flat = flatten(c)
+  const comps = flat.comps.map((k) => {
     const comp = c.comps[k.id]
-    return delays && hasDelay(comp) ? { ...k, delay: realisticDelay(comp) } : k
+    return delays && comp && hasDelay(comp) ? { ...k, delay: realisticDelay(comp) } : k
   })
-  s.load({ comps, wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })) })
+  s.load({ comps, wires: flat.wires })
   s.settle()
   return s
 }

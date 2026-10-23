@@ -487,6 +487,23 @@ test('tri-state example: one source drives the shared line, two that disagree ar
   await expect(page.locator('.wire.v0').first()).toBeVisible()
 })
 
+test('shared data bus example: one enabled source drives the 8-bit bus, two that disagree are a contention', async ({ page }) => {
+  await page.goto('/databus', { waitUntil: 'networkidle' })
+  const idOf = (label: string) =>
+    page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).first().getAttribute('data-id') as Promise<string>
+  const enableA = await idOf('Enable Input A')
+  const enableB = await idOf('Enable Input B')
+  await expect(page.locator('.wire.bus').first()).toBeVisible()
+  // Input A drives the bus: 5A.
+  await expect(page.locator('.wire-hit title', { hasText: '8-bit bus: 0x5A' }).first()).toBeAttached()
+  await expect(page.locator('.sym-body.contention')).toHaveCount(0)
+  await clickComp(page, enableB)
+  await expect(page.locator('.sym-body.contention')).toHaveCount(1)
+  await clickComp(page, enableA)
+  await expect(page.locator('.sym-body.contention')).toHaveCount(0)
+  await expect(page.locator('.wire-hit title', { hasText: '8-bit bus: 0x27' }).first()).toBeAttached()
+})
+
 test('buses example: 4-bit wires are thick and show their value, and the total counts up', async ({ page }) => {
   await page.goto('/buses', { waitUntil: 'networkidle' })
   // The merger → adder, adder → register and register → splitter wires are buses (the label pair carries one too).

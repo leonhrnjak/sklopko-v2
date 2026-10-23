@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect, isAnnotation, isFrame } from './circuit'
+import { flatten } from './buses'
 import { buildRows } from '../app/waveform'
 import { SKASM, assemble, disassemble } from '../engine/isa'
 import { FIBONACCI_SOURCE, programWords } from './computer2'
@@ -439,12 +440,12 @@ describe('8-bit computer example', () => {
   const setup = () => {
     const c = example('computer')
     const sim = new Simulator()
-    sim.load({ comps: Object.values(c.comps), wires: Object.values(c.wires) })
+    sim.load(flatten(c))
     sim.settle()
     const byLabel = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
     const reg = (id: string, pins = nibble) => pins.reduce((n, p, i) => n | (sim.pinValue(id, p) << i), 0)
-    /** An 8-bit value held in a low and a high register. */
-    const byte = (name: string) => reg(byLabel(`${name} low`)) | (reg(byLabel(`${name} high`)) << 4)
+    /** An 8-bit register. */
+    const byte = (name: string) => reg(byLabel(name), [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `Q${i}`))
     const flags = byLabel('Flags')
     /** The three decimal digits of the output display, as a number. */
     const decimal = () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(byLabel(label), ['S0', 'S1', 'S2', 'S3']), 0)
@@ -457,11 +458,11 @@ describe('8-bit computer example', () => {
     return {
       sim,
       cycle,
-      pc: () => reg(byLabel('PC low'), ['Q0', 'Q1', 'Q2', 'Q3']) | (reg(byLabel('PC high'), ['Q0', 'Q1', 'Q2', 'Q3']) << 4),
+      pc: () => byte('PC'),
       acc: () => byte('ACC'),
       out: () => byte('Output'),
       decimal,
-      carry: () => sim.pinValue(flags, 'QA'),
+      carry: () => sim.pinValue(flags, 'Q0'),
       halted: () => sim.pinValue(byLabel('Halted'), 'A'),
       ram: () => mem('Data RAM'),
     }
@@ -519,14 +520,14 @@ describe('8-bit computer example', () => {
 
   it('shows the program counter and the accumulator as numbers in the waveform panel', () => {
     const rows = buildRows(example('computer').comps)
-    expect(rows.map((r) => [r.name, r.group, r.width])).toEqual([
+    // Each is one probe: PC and ACC are bus probes that record the number.
+    expect(rows.map((r) => [r.name, !!r.bus, r.width])).toEqual([
       ['CLK', false, 1],
       ['PC', true, 8],
       ['ACC', true, 8],
       ['Carry', false, 1],
     ])
-    // Every bit of a group has its own position.
-    for (const r of rows.filter((x) => x.group)) expect(r.probes.map((p) => p.bit).sort((a, b) => a - b)).toEqual(r.probes.map((_, i) => i))
+    for (const r of rows) expect(r.probes).toHaveLength(1)
   })
 
   it('a breakpoint pauses it when the program reaches HALT, with the last number on show', () => {
@@ -557,5 +558,37 @@ describe('8-bit computer example', () => {
     expect(ram().slice(0, 3)).toEqual([0, 0, 0])
     cycle()
     expect(pc()).toBe(1)
+  })
+})
+
+describe('shared data bus example', () => {
+  it('one enabled source drives the bus, two make it unknown, and Load copies the bus into the register', () => {
+    const c = EXAMPLES.find((e) => e.id === 'databus')!.build()
+    const id = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.id
+    const sim = new Simulator()
+    sim.load(flatten(c))
+    sim.settle()
+    const bus = () => {
+      const bits = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => sim.pinValue(id('Data bus'), `Y${i}`))
+      return bits.some((v) => v > 1) ? null : bits.reduce((n: number, v, i) => n | (v << i), 0)
+    }
+    const enable = (label: string, on: boolean) => {
+      sim.setParams(id(label), { ...c.comps[id(label)].params, on })
+      sim.settle()
+    }
+    const stored = () => [0, 1, 2, 3, 4, 5, 6, 7].reduce((n: number, i) => n | (sim.pinValue(id("Register"), `Q${i}`) << i), 0)
+    expect(bus()).toBe(0x5a) // Input A is enabled at the start
+    enable('Enable Input B', true)
+    expect(bus()).toBeNull() // contention: 5A and 27 disagree
+    enable('Enable Input A', false)
+    expect(bus()).toBe(0x27)
+    enable('Load', true)
+    sim.stepClock()
+    sim.stepClock()
+    expect(stored()).toBe(0x27)
+    enable('Load', false)
+    enable('Enable Input B', false)
+    enable('Enable Register', true)
+    expect(bus()).toBe(0x27) // the register drives the bus with what it holds
   })
 })
