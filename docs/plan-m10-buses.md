@@ -1,13 +1,13 @@
 # Milestone 10: buses and tri-state — plan
 
-> **Status:** in progress. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each from its own feature branch per
-> `CLAUDE.md`. **Resume with 10e**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
+> **Status:** done. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each from its own feature branch per
+> `CLAUDE.md`. Tick each sub-milestone here as it ships.
 >
 > - [x] 10a Z and tri-state (scalar), v0.0.1-34
 > - [x] 10b Bus plumbing, v0.0.1-35
 > - [x] 10c Parts, v0.0.1-36
 > - [x] 10d Rebuild the computer, v0.0.1-37
-> - [ ] 10e Docs and polish
+> - [x] 10e Docs and polish, v0.0.1-38
 
 ## Context
 Today a wire is one bit and a net is exactly one output pin (`simulator.ts:188-220`); wide parts are bundles of scalar pins

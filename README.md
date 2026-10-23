@@ -110,14 +110,16 @@ security headers.
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar, text console (ASCII, 28 columns), 16×16 pixel screen (1 bit or 4 colours) |
+| Buses & tri-state | splitter and merger (pure wiring), bus send / receive labels, bus constant and input (hex), bus display (hex / decimal / binary), n-bit (2–16) register, counter with load, adder, subtractor, adder/subtractor, comparator, bitwise gate and multiplexer, tri-state buffer, bus junction (a shared line or bus, with pull-up/down and contention detection). Many 4-bit and memory parts also have a *Bus ports* option that turns their pin runs into one thick bus pin |
 | Notes & frames | note, frame (annotations: no pins, no effect on the simulation) |
 
-The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: program
-counter, two program ROMs (instruction and constant), control ROM, two 4-bit adders chained into one 8-bit
-adder/subtractor, two RAMs and two registers for the high and low halves of the data, and a carry flag, running a
-Fibonacci program that you can edit as hex in the ROMs; it shows each number (up to 233) in decimal on an output port,
-written with `STA 15`, via ROM tables and BCD adders) and a **calculator** (`/calculator`: ALU, multiplier, ROM lookup
-table, BCD adder, comparator and a memory register).
+The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: an 8-bit
+program counter, the program ROM, two control ROMs, an 8-bit adder/subtractor and logic unit, RAM and an accumulator, all
+joined by 8-bit buses, and a carry and zero flag, running a Fibonacci program that you can edit in assembly; it shows
+each number (up to 233) in decimal on an output port via ROM tables and BCD adders) and a **calculator** (`/calculator`:
+ALU, multiplier, ROM lookup table, BCD adder, comparator and a memory register). `/databus` shows the other way to move
+data: several sources sharing one 8-bit bus through tri-state buffers, and `/buses` and `/tristate` are the small
+introductions.
 
 A second computer adds a four-bit opcode, jump if zero, immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts and a
 256-instruction program ROM. It comes in three examples, each with only the devices it uses on the top RAM
