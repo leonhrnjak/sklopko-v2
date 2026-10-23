@@ -24,19 +24,19 @@ Merging to `main` deploys to Cloudflare Pages.
 
 ## Testing while making changes
 
-Run only what the change touches; CI runs the full suite. Don't run the full suite locally. Use quiet
-reporters so passing runs print almost nothing.
+Run **all unit tests** locally (they take about 15 seconds), but only the **e2e** specs the change touches;
+CI runs the full e2e suite. Use quiet reporters so passing runs print almost nothing.
 
 ```sh
-npx vitest related --run --reporter=dot src/path/changed.ts ...   # unit tests that import the changed files
+npm test -- --reporter=dot                                        # all unit tests (quick)
 npx oxlint src/path/changed.ts ...                                # lint only the changed files
 npx tsc -b                                                        # type-check, when types or signatures changed
 npx playwright test --reporter=line e2e/editor.spec.ts            # the whole e2e spec file for the changed area
 ```
 
-Before pushing, run the related unit tests and the e2e spec file(s) for the area you changed (whole files,
+Before pushing, run all the unit tests and the e2e spec file(s) for the area you changed (whole files,
 not single tests picked with `-g`), so most regressions show up before CI. Use `-g` only to re-run a
-specific failed test while fixing it.
+specific failed test while fixing it. Don't run the whole e2e suite locally.
 
 Full suite (what CI runs), for reference: `npm test`, `npm run lint`, `npm run build`, `npm run e2e`
 (Playwright, desktop + emulated phone).
