@@ -1059,6 +1059,147 @@ tie:    LDI 68          ; D
         HALT
 `
 
+/**
+ * Pong against a wall, on the LCD and the hex keypad. The ball is one byte (y * 16 + x) that moves by sx + sy each frame, like the
+ * bouncing ball; the paddle is three pixels in column 0, kept as the byte of its top pixel. Keys 1 and 9 move it up and down.
+ * Every return scores a point on the decimal display and speeds the game up; a ball that reaches column 0 ends it.
+ */
+export const PONG_SOURCE = `; Pong against a wall. Key 1 moves your paddle (the three pixels on the left edge) up, key 9 moves it down.
+; The ball is one byte, y * 16 + x. Each frame it moves by sx + sy (+1 or -1 sideways, +16 or -16 up and down, as bytes).
+; Return the ball to score (shown on the decimal display); every return makes the game faster. Miss it and the game ends.
+pos = 0           ; the ball
+sx = 1            ; +1 right, 255 (= -1) left
+sy = 2            ; +16 down, 240 (= -16) up
+next = 3
+ppos = 4          ; the paddle's top pixel, y * 16 (0 to 208)
+key = 5
+score = 6
+wait = 7          ; the pause between frames: counted down, and shorter after every return
+
+        LDI 0x38
+        STA pos
+        LDI 1
+        STA sx
+        LDI 16
+        STA sy
+        LDI 96
+        STA ppos
+        LDI 20
+        STA wait
+        LDA pos
+        OUT PIXEL_ON    ; the ball
+        LDI 96
+        OUT PIXEL_ON    ; the paddle
+        LDI 112
+        OUT PIXEL_ON
+        LDI 128
+        OUT PIXEL_ON
+        LDI 0
+        OUT NUMBER
+
+; ---- a key: 1 moves the paddle up, 9 down (a pixel on at the new end, one off at the old) ----
+frame:  IN KEY
+        ANDI 16
+        JZ move
+        IN KEY
+        ANDI 15
+        STA key
+        OUT KEY_ACK
+        LDA key
+        CMPI 1
+        JZ up
+        CMPI 9
+        JZ down
+        JMP move
+up:     LDA ppos
+        CMPI 0
+        JZ move         ; already at the top
+        SUBI 16
+        STA ppos
+        OUT PIXEL_ON
+        ADDI 48         ; the old bottom pixel
+        OUT PIXEL_OFF
+        JMP move
+down:   LDA ppos
+        CMPI 208
+        JZ move         ; already at the bottom
+        OUT PIXEL_OFF
+        ADDI 16
+        STA ppos
+        ADDI 32
+        OUT PIXEL_ON
+        JMP move
+
+; ---- the ball: light the new pixel, darken the old one ----
+move:   LDA pos
+        ADD sx
+        ADD sy
+        STA next
+        OUT PIXEL_ON
+        LDA pos
+        OUT PIXEL_OFF
+        LDA next
+        STA pos
+
+; ---- column 0: missed. Column 15: the wall, turn round. Column 1: is the paddle there? ----
+        ANDI 15
+        CMPI 0
+        JZ lost
+        CMPI 15
+        JZ wall
+        CMPI 1
+        JZ paddle
+ycheck: LDA pos
+        SHR
+        SHR
+        SHR
+        SHR
+        CMPI 0
+        JZ top
+        CMPI 15
+        JZ bottom
+        JMP pause
+wall:   LDI 255
+        STA sx
+        JMP ycheck
+top:    LDI 16
+        STA sy
+        JMP pause
+bottom: LDI 240
+        STA sy
+        JMP pause
+
+; ---- the paddle covers rows ppos, ppos + 16 and ppos + 32: the ball's row minus ppos is 0, 16 or 32 ----
+paddle: LDA pos
+        ANDI 240
+        SUB ppos
+        CMPI 0
+        JZ hit
+        CMPI 16
+        JZ hit
+        CMPI 32
+        JZ hit
+        JMP ycheck
+hit:    LDI 1
+        STA sx          ; back to the right
+        LDA score
+        ADDI 1
+        STA score
+        OUT NUMBER
+        LDA wait
+        CMPI 4
+        JZ ycheck       ; as fast as it gets
+        SUBI 2
+        STA wait
+        JMP ycheck
+
+pause:  LDA wait
+slow:   SUBI 1
+        JNZ slow
+        JMP frame
+lost:   HALT
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -1102,6 +1243,14 @@ export const PROGRAMS: Program[] = [
     hz: 512,
     devices: ['lcd', 'console', 'keypad'],
     note: 'Tic-tac-toe for two players, X first. The nine keys 0 1 2 / 4 5 6 / 8 9 A of the keypad are the nine cells of the board on the LCD; the other keys do nothing. Each player’s marks are three bytes in RAM, one per row, with a bit per column, and after every move the two sets swap so the same code serves both players. A row is won when a byte is 7, a column when the three bytes share a bit, a diagonal when the bits line up after shifting. The result is printed on the text console. Press Reset to play again.',
+  },
+  {
+    id: 'computer-pong',
+    name: 'Computer + LCD + keypad: pong',
+    source: PONG_SOURCE,
+    hz: 512,
+    devices: ['lcd', 'number', 'keypad'],
+    note: 'Pong against a wall. Key 1 moves your paddle (the three pixels on the left edge) up and key 9 moves it down; return the ball to score. The ball is one byte, row × 16 + column, moved by sideways and up/down steps like the bouncing ball. The program tests the column to find the wall, the paddle and a miss (ball in column 0: HALT), and every return shortens the pause between frames. A key is only read when the keypad says one is waiting (IN KEY, bit 4), so the ball keeps moving between presses.',
   },
 ]
 

@@ -8,7 +8,7 @@
 > - [x] E3 Sequential gadgets: button debouncer, stopwatch
 > - [x] E4 Serial link: UART transmitter and receiver
 > - [x] E5a Tic-tac-toe on the 8-bit computer
-> - [ ] E5b Pong on the 8-bit computer
+> - [x] E5b Pong on the 8-bit computer
 > - [ ] E5c Snake on the 8-bit computer
 
 ## Context

@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -523,5 +523,26 @@ describe('computer 2: tic-tac-toe on the circuit', () => {
     expect(m.text()).toBe('X wins')
     expect(m.halted()).toBe(1)
     expect(new Set(m.pixels().map(([x, y]) => y * 16 + x))).toEqual(px)
+  }, 60000)
+})
+
+describe('computer 2: pong on the circuit', () => {
+  it('draws the same screen as the reference interpreter after the same number of instructions', () => {
+    const m = machine(PONG_SOURCE, ['number', 'lcd', 'keypad'])
+    const ref = newMachine()
+    const px = new Set<number>()
+    const prog = assemble(SKASM, PONG_SOURCE, ROM_WORDS).words
+    const ports = {
+      out(port: number, v: number) {
+        if (port === 2) px.add(v)
+        else if (port === 3) px.delete(v)
+      },
+    }
+    let ran = 0
+    for (const n of [40, 300, 900]) {
+      m.run(n - ran)
+      for (; ran < n; ran++) referenceStep(ref, prog, ports)
+      expect(new Set(m.pixels().map(([x, y]) => y * 16 + x)), `after ${n} instructions`).toEqual(px)
+    }
   }, 60000)
 })
