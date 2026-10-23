@@ -322,6 +322,11 @@ function Help() {
           <b>Net labels:</b> a Send label and a Receive label with the same name act as one wire, however far apart.
         </li>
         <li>
+          <b>Buses:</b> thick wires carry several bits at once between bus pins (a slash and the width). A splitter takes a bus
+          apart, a merger puts wires together, and the Bus ports option of many parts turns their pins into one. Tri-state
+          buffers let several parts share a line through a bus junction.
+        </li>
+        <li>
           <b>Programs:</b> a ROM can hold a program in the SKASM assembly language.{' '}
           <button className="inline-link" onClick={() => openReference()}>
             Open the SKASM reference

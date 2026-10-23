@@ -52,8 +52,8 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 The roadmap is in `docs/plan-next-features.md` (milestones 0–10, in order; tick each box when it ships).
 
-**To resume:** milestone 10 (buses and tri-state). Its detailed plan is `docs/plan-m10-buses.md` (decisions made, five
-sub-milestones 10a to 10e, tests, risks); 10a to 10d are done, start with 10e. Milestone 9 (timing view and state machine editor) is
+**Milestones 0–10 are all done.** Milestone 10 (buses and tri-state) is recorded in `docs/plan-m10-buses.md` (decisions, five
+sub-milestones 10a to 10e, what each did). Ask the user what comes next. Milestone 9 (timing view and state machine editor) is
 done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
 Finished plans, for background: `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`

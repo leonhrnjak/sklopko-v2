@@ -277,9 +277,9 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - **Status: done** (v0.0.1-31).
 
 ## Milestone 10: Buses and tri-state (large)
-- [ ] Multi-bit wires with split/merge parts and width-parameterised register, adder, RAM, mux.
-- [ ] Tri-state buffers and a shared-bus net with contention (X) detection.
-- [ ] Rebuild the 8-bit computer on buses (≈40 wires instead of ≈240).
+- [x] Multi-bit wires with split/merge parts and width-parameterised register, adder, RAM, mux.
+- [x] Tri-state buffers and a shared-bus net with contention (X) detection.
+- [x] Rebuild the 8-bit computer on buses (148 wires instead of ≈240; the ≈40 estimate did not count the control logic).
 - This changes the net model in the engine, so it comes last. The detailed plan is `docs/plan-m10-buses.md`.
 
 ## Critical files
