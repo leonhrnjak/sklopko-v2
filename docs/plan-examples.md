@@ -4,7 +4,7 @@
 > ask before merging). Tick each batch when it ships.
 >
 > - [x] E1 Quick wins: the two unused state machines, master-slave flip-flop, LFSR
-> - [ ] E2 Logic and bus teaching examples: encoder/decoder, bus arbitration, ALU slice, PWM dimmer
+> - [x] E2 Logic and bus teaching examples: encoder/decoder, bus arbitration, ALU slice, PWM dimmer
 > - [ ] E3 Sequential gadgets: button debouncer, stopwatch
 > - [ ] E4 Serial link: UART transmitter and receiver
 > - [ ] E5a Tic-tac-toe on the 8-bit computer

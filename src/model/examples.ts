@@ -754,6 +754,145 @@ function lfsr(): Circuit {
   return b.build()
 }
 
+/** Eight request lines in, the number of the highest one out, and a decoder turning that number back into one lit LED. */
+function encoderDecoder(): Circuit {
+  const b = new CircuitBuilder()
+  const enc = b.add('encoder', 140, 0, { params: { n: 8 } })
+  const dec = b.add('decoder', 360, 0, { params: { n: 3 } })
+  const bar = b.add('bar', 520, 0, { params: { n: 8 } })
+  const num = b.add('hexdisp', 360, 260, { label: 'Number' })
+  const v = b.add('led', 260, 260, { label: 'Any request (V)', params: { color: 'yellow' } })
+  for (let i = 0; i < 8; i++) {
+    const sw = b.add('switch', 0, i * 30, { label: `Request ${i}` })
+    b.wire(`${sw}.Q`, `${enc}.I${i}`)
+    b.wire(`${dec}.Y${i}`, `${bar}.I${i}`)
+  }
+  for (let i = 0; i < 3; i++) {
+    b.wire(`${enc}.A${i}`, `${dec}.A${i}`)
+    b.wire(`${enc}.A${i}`, `${num}.${'ABC'[i]}`)
+  }
+  b.wire(`${enc}.V`, `${dec}.EN`)
+  b.wire(`${enc}.V`, `${v}.A`)
+  note(
+    b,
+    0,
+    330,
+    'Switch on several requests: the priority encoder reports only the highest one, as a 3-bit number. The decoder turns that number back into a single lit output. With no request at all V is 0, which also switches the decoder off.',
+    60,
+  )
+  return b.build()
+}
+
+/**
+ * Three devices share a 4-bit bus through tri-state buffers. An arbiter built from gates grants the bus to the lowest-numbered
+ * requester only; the Override switch turns the arbiter off so every requester is granted, and the bus goes unknown.
+ */
+function arbiter(): Circuit {
+  const b = new CircuitBuilder()
+  const junction = b.add('busjoin', 360, 110, { params: { bits: 4, drivers: 3 }, label: 'Bus' })
+  const disp = b.add('busdisp', 520, 110, { params: { bits: 4, format: 'hex' }, label: 'Bus value' })
+  const req = [0, 1, 2].map((i) => b.add('switch', 0, i * 120 + 70, { label: `Request ${i + 1}` }))
+  const bufs = [0, 1, 2].map((i) => {
+    const dev = b.add('busin', 0, i * 120, { params: { bits: 4, value: ['3', '6', 'C'][i] }, label: `Device ${i + 1}` })
+    const buf = b.add('tribuf', 150, i * 120, { params: { bits: 4 }, label: `Buffer ${i + 1}` })
+    b.wire(`${dev}.Q`, `${buf}.A`)
+    b.wire(`${buf}.Y`, `${junction}.${'ABC'[i]}`)
+    return buf
+  })
+  const over = b.add('switch', 0, 440, { label: 'Override arbiter' })
+  const not0 = b.add('not', 150, 400)
+  const or1 = b.add('or', 250, 400)
+  const grant1 = b.add('and', 370, 400)
+  const nor01 = b.add('nor', 150, 480)
+  const or2 = b.add('or', 250, 480)
+  const grant2 = b.add('and', 370, 480)
+  const led = [0, 1, 2].map((i) => b.add('led', 500, 360 + i * 60, { label: `Grant ${i + 1}`, params: { color: 'green' } }))
+  b.wire(`${req[0]}.Q`, `${bufs[0]}.EN`)
+  b.wire(`${req[0]}.Q`, `${led[0]}.A`)
+  b.wire(`${req[0]}.Q`, `${not0}.A`)
+  b.wire(`${not0}.Y`, `${or1}.B`)
+  b.wire(`${over}.Q`, `${or1}.A`)
+  b.wire(`${req[1]}.Q`, `${grant1}.A`)
+  b.wire(`${or1}.Y`, `${grant1}.B`)
+  b.wire(`${grant1}.Y`, `${bufs[1]}.EN`)
+  b.wire(`${grant1}.Y`, `${led[1]}.A`)
+  b.wire(`${req[0]}.Q`, `${nor01}.A`)
+  b.wire(`${req[1]}.Q`, `${nor01}.B`)
+  b.wire(`${nor01}.Y`, `${or2}.B`)
+  b.wire(`${over}.Q`, `${or2}.A`)
+  b.wire(`${req[2]}.Q`, `${grant2}.A`)
+  b.wire(`${or2}.Y`, `${grant2}.B`)
+  b.wire(`${grant2}.Y`, `${bufs[2]}.EN`)
+  b.wire(`${grant2}.Y`, `${led[2]}.A`)
+  b.wire(`${junction}.Y`, `${disp}.A`)
+  frameAround(b, 'Arbiter: lowest request wins', [not0, or1, grant1, nor01, or2, grant2, over, ...led], 'green')
+  note(
+    b,
+    360,
+    230,
+    'Switch on one or more Requests: only the lowest-numbered one is granted the bus, so the bus always holds one clean value. Now switch on Override: the arbiter grants everybody, the devices disagree, and the bus turns unknown.',
+    36,
+  )
+  return b.build()
+}
+
+/** The 4-bit ALU with the flags a processor keeps: zero, carry and negative. */
+function aluFlags(): Circuit {
+  const b = new CircuitBuilder()
+  const a = b.add('hexin', 0, 0, { label: 'A', params: { value: 7 } })
+  const bb = b.add('hexin', 0, 140, { label: 'B', params: { value: 9 } })
+  const alu = b.add('alu', 150, 0)
+  const res = b.add('hexdisp', 340, 0, { label: 'Result F' })
+  const z = b.add('led', 340, 120, { label: 'Zero (Z)', params: { color: 'yellow' } })
+  const c = b.add('led', 340, 170, { label: 'Carry (C)', params: { color: 'red' } })
+  const n = b.add('led', 340, 220, { label: 'Negative (N)', params: { color: 'green' } })
+  ;[2, 1, 0].forEach((k, i) => {
+    const sw = b.add('switch', 150 + i * 50, 250, { label: `S${k}` })
+    b.wire(`${sw}.Q`, `${alu}.S${k}`)
+  })
+  for (let i = 0; i < 4; i++) {
+    b.wire(`${a}.${'ABCD'[i]}`, `${alu}.A${i}`)
+    b.wire(`${bb}.${'ABCD'[i]}`, `${alu}.B${i}`)
+    b.wire(`${alu}.F${i}`, `${res}.${'ABCD'[i]}`)
+  }
+  b.wire(`${alu}.Z`, `${z}.A`)
+  b.wire(`${alu}.Co`, `${c}.A`)
+  b.wire(`${alu}.F3`, `${n}.A`)
+  note(
+    b,
+    0,
+    330,
+    'The S switches pick the operation (S2 S1 S0 as a binary number): 0 ADD, 1 SUB, 2 AND, 3 OR, 4 XOR, 5 NOT A, 6 A+1, 7 A-1. Z lights when the result is 0, C when the add carries out (or the subtract borrows), N when the top bit is set, i.e. the result is negative as a signed number. Try 15 + 1, then 5 - 5, then 7 + 1. A processor uses these flags to decide on a branch.',
+    60,
+  )
+  return b.build()
+}
+
+/** Pulse-width modulation: a lamp that is on for Duty ticks out of every 16. */
+function pwm(): Circuit {
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 20, { params: { hz: 16 } })
+  const cnt = b.add('counter', 130, 0, { params: { mod: 16 }, label: 'Counter' })
+  const duty = b.add('hexin', 130, 200, { label: 'Duty', params: { value: 4 } })
+  const cmp = b.add('cmp4', 330, 40)
+  const lamp = b.add('led', 500, 60, { label: 'Lamp' })
+  b.wire(`${clk}.Q`, `${cnt}.CLK`)
+  for (let i = 0; i < 4; i++) {
+    b.wire(`${cnt}.${'ABCD'[i]}`, `${cmp}.A${i}`)
+    b.wire(`${duty}.${'ABCD'[i]}`, `${cmp}.B${i}`)
+  }
+  b.wire(`${cmp}.LT`, `${lamp}.A`)
+  probes(b, [['Count bit 3', `${cnt}.D`], ['Count bit 2', `${cnt}.C`], ['Lamp', `${cmp}.LT`]], 0, 330)
+  note(
+    b,
+    0,
+    420,
+    'A counter runs from 0 to 15 over and over. The comparator lights the lamp while the count is below Duty, so the lamp is on for Duty ticks out of 16. Click Duty to change it and watch the Lamp wave in the waveform view get wider or narrower. At a real clock speed of thousands of ticks a second your eye sees only the average: a dimmer or brighter light, with no flicker. This is how microcontrollers dim LEDs and drive motors.',
+    60,
+  )
+  return b.build()
+}
+
 /** Menu order: the groups appear in this order, and the first example is what the app opens with. */
 export const EXAMPLE_GROUPS = [
   'Start here',
@@ -776,6 +915,7 @@ const ALL: Example[] = [
   g('Start here', 'gates', 'Basic gates', basicGates),
 
   g('Logic basics', 'mux', '4:1 multiplexer', muxDemo),
+  g('Logic basics', 'encoder', 'Priority encoder and decoder', encoderDecoder),
   g('Logic basics', 'labels', 'Net labels (wireless connections)', netLabels),
 
   g('Memory and sequential', 'sr-latch', 'SR latch from NOR gates', srLatch),
@@ -785,10 +925,12 @@ const ALL: Example[] = [
   g('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)', rippleCounter),
 
   g('Arithmetic', 'adder', '4-bit adder', adder),
+  g('Arithmetic', 'alu-flags', 'ALU with zero, carry and negative flags', aluFlags),
   g('Arithmetic', 'calculator', 'Calculator: ALU, multiplier, ROM, BCD', calculator),
 
   g('Buses and tri-state', 'tristate', 'Tri-state buffers on a shared line', sharedLine),
   g('Buses and tri-state', 'buses', 'Buses: a running total on 4-bit wires', busDemo),
+  g('Buses and tri-state', 'arbiter', 'Bus arbitration: who gets the bus', arbiter),
   g('Buses and tri-state', 'databus', 'Shared data bus: tri-state buffers on 8 bits', dataBus),
 
   g('Timing and glitches', 'hazard', 'Glitch: a hazard, and its fix', hazard),
@@ -803,6 +945,7 @@ const ALL: Example[] = [
   g('Displays and gadgets', 'intersection', 'Traffic lights with pedestrian crossing', trafficLights),
   g('Displays and gadgets', 'dice', 'Electronic dice', dice),
   g('Displays and gadgets', 'clock', 'Digital clock (HH:MM:SS)', digitalClock),
+  g('Displays and gadgets', 'pwm', 'PWM: a counter and comparator dim a lamp', pwm),
   g('Displays and gadgets', 'lfsr', 'Pseudo-random generator (LFSR)', lfsr),
   g('Displays and gadgets', 'matrix', 'Dot matrix smiley (scanned)', matrixSmiley),
 
