@@ -3,7 +3,7 @@
 > **Status:** planned. Each sub-milestone is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI).
 > Tick each box when it ships.
 >
-> - [ ] M1a Index register and a 256-byte RAM
+> - [x] M1a Index register and a 256-byte RAM
 > - [ ] M1b Subroutines: CALL and RET
 > - [ ] M1c Table ROM: constants in the program (`.byte`, `LDT`)
 > - [ ] M1d A readable screen

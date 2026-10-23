@@ -46,7 +46,7 @@ export interface Op {
   flags: string
 }
 
-export type OpCategory = 'Load and store' | 'Arithmetic' | 'Logic' | 'Shifts' | 'Jumps' | 'Input and output' | 'Control'
+export type OpCategory = 'Load and store' | 'Index register' | 'Arithmetic' | 'Logic' | 'Shifts' | 'Jumps' | 'Input and output' | 'Control'
 
 /** A mnemonic that stands for another instruction with a fixed operand; it needs no hardware of its own. */
 export interface Alias {
@@ -90,6 +90,8 @@ const op = (code: number, arg: ArgKind, category: OpCategory, summary: string, f
 })
 /** An instruction of the immediate extension group. */
 const extImm = (sub: number, category: OpCategory, summary: string, flags = '') => op(EXT_IMM, 'imm', category, summary, flags, { sub })
+/** An instruction of the immediate extension group that takes no operand (the bits 8–15 are not used). */
+const extImmNone = (sub: number, category: OpCategory, summary: string, flags = '') => op(EXT_IMM, 'none', category, summary, flags, { sub })
 /** An instruction of the address / port / target extension group. */
 const extMem = (sub: number, arg: ArgKind, category: OpCategory, summary: string, flags = '') =>
   op(EXT_MEM, arg, category, summary, flags, { sub })
@@ -117,6 +119,14 @@ export const SKASM_OPS: Record<string, Op> = {
   ANDI: extImm(0, 'Logic', 'ACC = ACC AND n (bit by bit)', 'Z, C = 0'),
   ORI: extImm(1, 'Logic', 'ACC = ACC OR n (bit by bit)', 'Z, C = 0'),
   XORI: extImm(2, 'Logic', 'ACC = ACC XOR n (bit by bit)', 'Z, C = 0'),
+  // The index register X, and the 256 bytes of RAM it reaches (the first 16 are also reachable by the address of an instruction).
+  LDXI: extImm(3, 'Index register', 'X = n (a constant)'),
+  TAX: extImmNone(4, 'Index register', 'X = ACC'),
+  TXA: extImmNone(5, 'Index register', 'ACC = X'),
+  INX: extImmNone(6, 'Index register', 'X = X + 1 (255 + 1 is 0)', 'Z, C = 0'),
+  DEX: extImmNone(7, 'Index register', 'X = X − 1 (0 − 1 is 255)', 'Z, C = 0'),
+  LDX: extImmNone(8, 'Index register', 'ACC = RAM[X], any of the 256 bytes'),
+  STX: extImmNone(9, 'Index register', 'RAM[X] = ACC, any of the 256 bytes'),
   // Extension group for addresses, ports and jump targets (opcode 15).
   OUT: extMem(0, 'port', 'Input and output', 'send ACC to port p'),
   IN: extMem(1, 'port', 'Input and output', 'ACC = the value from port p (0 if nothing is connected there)'),

@@ -176,7 +176,7 @@ describe('disassembler', () => {
     expect(disassemble(SKASM, 0x1234)).toBe('.word 0x1234') // opcode 3 (JMP) but with stray bits in 12–15
     expect(disassemble(SKASM, 0x0072)).toBe('.word 0x0072') // HALT with an address
     expect(disassemble(SKASM, 0xb0f0)).toBe('.word 0xB0F0') // an extension opcode (15) with a sub-opcode nobody uses
-    expect(disassemble(SKASM, 0x0ee3)).toBe('.word 0x0EE3') // EXT-I sub-opcode 3 is free
+    expect(disassemble(SKASM, 0x0eed)).toBe('.word 0x0EED') // EXT-I sub-opcode 13 is free
   })
 })
 
@@ -220,7 +220,7 @@ describe('the original instructions never change their encoding', () => {
   })
 
   it('an unused opcode field is not an instruction (the old unused opcodes 14 and 15 are the extension groups now)', () => {
-    expect(SKASM.decode(0x00e3)).toBeNull()
+    expect(SKASM.decode(0x00ed)).toBeNull()
     expect(SKASM.decode(0xb0f0)).toBeNull()
   })
 })
@@ -241,7 +241,7 @@ describe('the instruction table', () => {
   it('uses opcodes 0–13 for the main instructions, 14 for immediates and 15 for addresses, ports and targets', () => {
     for (const [name, op] of entries) {
       if (op.sub === undefined) expect(op.code, name).toBeLessThanOrEqual(13)
-      else if (op.code === 14) expect(op.arg, name).toBe('imm')
+      else if (op.code === 14) expect(['imm', 'none'], name).toContain(op.arg)
       else {
         expect(op.code, name).toBe(15)
         expect(['addr', 'port', 'target', 'none'], name).toContain(op.arg)

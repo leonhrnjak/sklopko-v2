@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -38,6 +38,7 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
     },
     pc: () => reg('PC'),
     acc: () => reg('ACC'),
+    x: () => reg('X'),
     carry: () => sim.pinValue(id('Flags'), 'Q0'),
     zero: () => sim.pinValue(id('Flags'), 'Q1'),
     halted: () => sim.pinValue(id('Halted'), 'A'),
@@ -355,8 +356,8 @@ function agree(source: string, cycles: number): string | null {
   for (let i = 0; i < cycles; i++) {
     m.cycle()
     referenceStep(ref, words)
-    const got = { pc: m.pc(), acc: m.acc(), c: m.carry(), z: m.zero(), ram: m.ram().slice(0, 16).join(',') }
-    const want = { pc: ref.pc, acc: ref.acc, c: ref.c, z: ref.z, ram: ref.ram.join(',') }
+    const got = { pc: m.pc(), acc: m.acc(), x: m.x(), c: m.carry(), z: m.zero(), ram: m.ram().join(',') }
+    const want = { pc: ref.pc, acc: ref.acc, x: ref.x, c: ref.c, z: ref.z, ram: ref.ram.join(',') }
     if (JSON.stringify(got) !== JSON.stringify(want)) return `cycle ${i + 1}: circuit ${JSON.stringify(got)}, reference ${JSON.stringify(want)}`
   }
   return null
@@ -605,4 +606,62 @@ describe('computer 2: the gamepad', () => {
     expect(k.acc() & 16).toBe(16) // a press waits
     expect(k.acc() & 15).toBe(5)
   })
+})
+
+describe('computer: the index register X and the 256-byte RAM', () => {
+  const cyclesOf = (src: string) => src.split('\n').filter((l) => l.trim()).length + 1
+  const programs = [
+    'LDXI 7\nTXA',
+    'LDI 9\nTAX\nLDI 0\nTXA',
+    'LDXI 255\nINX\nTXA', // wraps to 0, sets zero
+    'LDXI 0\nDEX\nTXA', // wraps to 255
+    'LDXI 5\nINX\nINX\nDEX\nTXA',
+    'LDI 255\nADDI 1\nLDXI 2\nINX', // INX clears the carry the addition set
+    'LDI 255\nADDI 1\nLDXI 1\nDEX', // and DEX sets zero
+    'LDI 255\nADDI 1\nLDI 9\nTAX\nTXA', // TAX and TXA leave the flags alone
+    'LDI 5\nADDI 255\nLDXI 3\nLDI 0', // LDXI too
+    'LDI 77\nLDXI 200\nSTX\nLDI 1\nLDX', // a byte far past the first 16
+    'LDI 5\nSTA 3\nLDXI 3\nLDX', // X reaches the same bytes as an address
+    'LDI 9\nLDXI 3\nSTX\nLDA 3', // and the other way round
+    'LDI 11\nLDXI 20\nSTX\nLDI 22\nINX\nSTX\nLDXI 20\nLDX\nLDXI 21\nLDX',
+    'LDI 1\nLDXI 255\nSTX\nINX\nSTX\nLDXI 255\nLDX', // the last byte and the first
+  ]
+  for (const src of programs)
+    it(src.replace(/\n/g, '; '), () => {
+      expect(agree(src, cyclesOf(src)), src).toBeNull()
+    })
+
+  it('a loop can fill ten bytes far from the variables', () => {
+    // RAM[100 + i] = i for i = 0..9.
+    const src = `LDXI 100\nLDI 0\nfill: STX\nINX\nADDI 1\nCMPI 10\nJNZ fill\nHALT`
+    const words = assemble(SKASM, src, ROM_WORDS).words
+    const ref = newMachine()
+    for (let i = 0; i < 400 && !ref.halted; i++) referenceStep(ref, words)
+    expect(ref.halted).toBe(true)
+    expect(ref.ram.slice(100, 110)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+  })
+})
+
+describe('computer: the sieve', () => {
+  const primes = (below: number) => Array.from({ length: below }, (_, n) => n).filter((n) => n > 1 && Array.from({ length: Math.floor(Math.sqrt(n)) - 1 }, (_, i) => i + 2).every((d) => n % d !== 0))
+
+  it('prints the primes below 240, on the reference interpreter', () => {
+    const words = assemble(SKASM, SIEVE_SOURCE, ROM_WORDS).words
+    const ref = newMachine()
+    let text = ''
+    for (let i = 0; i < 200000 && !ref.halted; i++) referenceStep(ref, words, { out: (p, v) => void (p === 1 && (text += String.fromCharCode(v))) })
+    expect(ref.halted).toBe(true)
+    expect(text).toBe(primes(240).join(' ') + ' ')
+  })
+
+  it('the circuit prints the same start, in the same number of cycles', () => {
+    const m = machine(SIEVE_SOURCE, ['console'])
+    m.run(6000)
+    const words = assemble(SKASM, SIEVE_SOURCE, ROM_WORDS).words
+    const ref = newMachine()
+    let text = ''
+    for (let i = 0; i < 6000; i++) referenceStep(ref, words, { out: (p, v) => void (p === 1 && (text += String.fromCharCode(v))) })
+    expect(text.length).toBeGreaterThan(10)
+    expect(m.text().replace(/\n/g, '')).toBe(text)
+  }, 60000)
 })

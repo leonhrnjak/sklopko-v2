@@ -130,7 +130,7 @@ describe('beginner computer: random programs against the reference interpreter (
         ref.acc &= 15
         ref.ram = ref.ram.map((v) => v & 15)
         const got = `${m.pc()} ${m.acc()} ${m.ram().join(',')}`
-        const want = `${ref.pc & 15} ${ref.acc} ${ref.ram.join(',')}`
+        const want = `${ref.pc & 15} ${ref.acc} ${ref.ram.slice(0, 16).join(',')}`
         expect(got, `${source}\ncycle ${i + 1}`).toBe(want)
       }
     })
