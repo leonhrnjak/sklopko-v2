@@ -10,6 +10,7 @@ import { boundsRect, type Circuit } from './circuit'
  *   lcd       `OUT PIXEL_ON` lights the pixel at (low nibble, high nibble) of the accumulator, `OUT PIXEL_OFF` darkens it
  *   speaker   `OUT SPEAKER` flips it
  *   keypad    `IN KEY` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `OUT KEY_ACK` says it has been read
+ *   gamepad   `IN PAD` reads the buttons held right now, one bit each (up 1, down 2, left 4, right 8, A 16, B 32)
  *   number    `OUT NUMBER` shows the accumulator on a decimal display
  */
 
@@ -402,7 +403,7 @@ export const programWords = (source: string) => {
 
 // ---- The circuit -------------------------------------------------------------------------------
 
-export type Device = 'lcd' | 'speaker' | 'console' | 'keypad' | 'number'
+export type Device = 'lcd' | 'speaker' | 'console' | 'keypad' | 'gamepad' | 'number'
 
 export interface Computer2Options {
   source: string
@@ -629,6 +630,16 @@ export function computer2Builder(o: Computer2Options) {
     wire(keyWord, `${inKey}.I1`)
     wire(select(5), `${inKey}.S0`)
     portIn = `${inKey}.Y`
+  }
+  // The gamepad: IN PAD gives the six buttons held right now (up, down, left, right, A, B in bits 0–5).
+  if (has('gamepad')) {
+    const pad = part(DEVICES, 'gamepad', 'gamepad', { label: 'Gamepad' })
+    const padWord = merger(INMUX, 'padWord', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the gamepad word', ['U', 'D', 'L', 'R', 'A', 'B'].map((p) => `${pad}.${p}`).concat(`${zero}.Q`, `${zero}.Q`))
+    const inPad = part(INMUX, 'inPad', 'busmux', { params: { bits: 8, n: 2 }, label: 'IN PAD' }, 60)
+    wire(portIn, `${inPad}.I0`)
+    wire(padWord, `${inPad}.I1`)
+    wire(select(6), `${inPad}.S0`)
+    portIn = `${inPad}.Y`
   }
 
   // What the accumulator loads: the constant, the ALU result, RAM, shifted left, shifted right, or a port.
@@ -1060,11 +1071,11 @@ tie:    LDI 68          ; D
 `
 
 /**
- * Pong against a wall, on the LCD and the hex keypad. The ball is one byte (y * 16 + x) that moves by sx + sy each frame, like the
- * bouncing ball; the paddle is three pixels in column 0, kept as the byte of its top pixel. Keys 1 and 9 move it up and down.
+ * Pong against a wall, on the LCD and the gamepad. The ball is one byte (y * 16 + x) that moves by sx + sy each frame, like the
+ * bouncing ball; the paddle is three pixels in column 0, kept as the byte of its top pixel. The gamepad's up and down move it.
  * Every return scores a point on the decimal display and speeds the game up; a ball that reaches column 0 ends it.
  */
-export const PONG_SOURCE = `; Pong against a wall. Key 1 moves your paddle (the three pixels on the left edge) up, key 9 moves it down.
+export const PONG_SOURCE = `; Pong against a wall. Hold up or down on the gamepad to move your paddle (the three pixels on the left edge).
 ; The ball is one byte, y * 16 + x. Each frame it moves by sx + sy (+1 or -1 sideways, +16 or -16 up and down, as bytes).
 ; Return the ball to score (shown on the decimal display); every return makes the game faster. Miss it and the game ends.
 pos = 0           ; the ball
@@ -1097,19 +1108,14 @@ wait = 7          ; the pause between frames: counted down, and shorter after ev
         LDI 0
         OUT NUMBER
 
-; ---- a key: 1 moves the paddle up, 9 down (a pixel on at the new end, one off at the old) ----
-frame:  IN KEY
-        ANDI 16
-        JZ move
-        IN KEY
-        ANDI 15
+; ---- the gamepad: while up (bit 0) is held the paddle moves up, while down (bit 1) is held it moves down ----
+frame:  IN PAD
         STA key
-        OUT KEY_ACK
+        ANDI 1
+        JNZ up
         LDA key
-        CMPI 1
-        JZ up
-        CMPI 9
-        JZ down
+        ANDI 2
+        JNZ down
         JMP move
 up:     LDA ppos
         CMPI 0
@@ -1201,11 +1207,11 @@ lost:   HALT
 `
 
 /**
- * Snake on the LCD and the hex keypad. The body is eight RAM bytes, head first; each frame they all move one place along
+ * Snake on the LCD and the gamepad. The body is eight RAM bytes, head first; each frame they all move one place along
  * (the machine cannot address RAM by a variable, so it is eight copies in a row), and the tail pixel is darkened unless the snake
- * just ate. Keys 1 4 6 9 steer. The walls are lit pixels round the edge, and the snake dies on a wall or on itself.
+ * just ate. The gamepad steers. The walls are lit pixels round the edge, and the snake dies on a wall or on itself.
  */
-export const SNAKE_SOURCE = `; Snake. Steer with the keys 1 (up), 4 (left), 6 (right) and 9 (down). Eat the food to grow to length 8 and win.
+export const SNAKE_SOURCE = `; Snake. Steer with the direction pad of the gamepad. Eat the food to grow to length 8 and win.
 ; The snake is eight RAM bytes s0 (head) to s7 (tail); each is a screen position, y * 16 + x. Every frame each byte takes
 ; the value of the one before it, a new head goes in s0, and the pixel of the old tail is darkened.
 ; The program cannot use a variable as a RAM address, so a variable length means jumping to the right piece of code.
@@ -1268,34 +1274,31 @@ right:  OUT PIXEL_ON
         OUT NUMBER
         JMP place
 
-; ---- a key turns the snake, unless it would turn it straight back ----
+; ---- the gamepad turns the snake (up 1, down 2, left 4, right 8), unless that would turn it straight back ----
 frame:  LDA rnd
         ADDI 37
         STA rnd
-        IN KEY
-        ANDI 16
-        JZ move
-        IN KEY
-        ANDI 15
+        IN PAD
         STA key
-        OUT KEY_ACK
+        ANDI 1
+        JNZ kup
         LDA key
-        CMPI 1
-        JZ kup
-        CMPI 4
-        JZ kleft
-        CMPI 6
-        JZ kright
-        CMPI 9
-        JZ kdown
+        ANDI 2
+        JNZ kdown
+        LDA key
+        ANDI 4
+        JNZ kleft
+        LDA key
+        ANDI 8
+        JNZ kright
         JMP move
 kup:    LDI 240
+        JMP turn
+kdown:  LDI 16
         JMP turn
 kleft:  LDI 255
         JMP turn
 kright: LDI 1
-        JMP turn
-kdown:  LDI 16
 turn:   STA next
         ADD dir
         JZ move         ; the sum is 0: the opposite direction
@@ -1532,19 +1535,19 @@ export const PROGRAMS: Program[] = [
   },
   {
     id: 'computer-pong',
-    name: 'Computer + LCD + keypad: pong',
+    name: 'Computer + LCD + gamepad: pong',
     source: PONG_SOURCE,
     hz: 512,
-    devices: ['lcd', 'number', 'keypad'],
-    note: 'Pong against a wall. Key 1 moves your paddle (the three pixels on the left edge) up and key 9 moves it down; return the ball to score. The ball is one byte, row × 16 + column, moved by sideways and up/down steps like the bouncing ball. The program tests the column to find the wall, the paddle and a miss (ball in column 0: HALT), and every return shortens the pause between frames. A key is only read when the keypad says one is waiting (IN KEY, bit 4), so the ball keeps moving between presses.',
+    devices: ['lcd', 'number', 'gamepad'],
+    note: 'Pong against a wall. Hold up or down on the gamepad (click it, or use the arrow keys while it runs) to move your paddle, the three pixels on the left edge; return the ball to score. The ball is one byte, row × 16 + column, moved by sideways and up/down steps like the bouncing ball. The program tests the column to find the wall, the paddle and a miss (ball in column 0: HALT), and every return shortens the pause between frames. IN PAD reads which buttons are held right now, so the paddle moves one row per frame for as long as you hold the button.',
   },
   {
     id: 'computer-snake',
-    name: 'Computer + LCD + keypad: snake',
+    name: 'Computer + LCD + gamepad: snake',
     source: SNAKE_SOURCE,
     hz: 512,
-    devices: ['lcd', 'number', 'console', 'keypad'],
-    note: 'Snake. Steer with the keys 1 (up), 4 (left), 6 (right) and 9 (down) and eat the food to grow to length 8 (shown on the decimal display). The walls are the lit edge of the screen; hit one, or yourself, and the game halts with “Game over” on the text console. The body is eight RAM bytes, each a screen position; every frame each takes its neighbour’s value, the new head goes in the first and the old tail pixel is darkened (unless you just ate). The machine cannot use a variable as a RAM address, so the program jumps to a different piece of code for each length. Press Reset to play again.',
+    devices: ['lcd', 'number', 'console', 'gamepad'],
+    note: 'Snake. Steer with the direction pad (click it, or use the arrow keys or W A S D while it runs) and eat the food to grow to length 8 (shown on the decimal display). The walls are the lit edge of the screen; hit one, or yourself, and the game halts with “Game over” on the console. The body is eight RAM bytes, each a screen position; every frame each takes its neighbour’s value, the new head goes in the first and the old tail pixel goes out (unless you just ate). RAM cannot be addressed by a variable, so the program jumps to different code for each length. Reset to play again.',
   },
 ]
 

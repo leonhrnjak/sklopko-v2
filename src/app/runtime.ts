@@ -3,6 +3,7 @@ import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serial
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
 import { isEmbed } from './embed'
+import { installGamepadKeys } from './gamepad'
 import { loadIntoSim, sim } from './sim'
 import { loadCircuit, setRunning, showToast, useStore } from './store'
 
@@ -109,6 +110,7 @@ export function startRuntime() {
   requestAnimationFrame(loop)
   window.addEventListener('pointerdown', unlockAudio)
   window.addEventListener('keydown', unlockAudio)
+  installGamepadKeys(sim)
 }
 
 export async function shareLink() {

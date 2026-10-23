@@ -81,7 +81,7 @@ function Start() {
           jumps.
         </li>
         <li>
-          <b>Ports</b>: connections to devices (a display, a console, a screen, a speaker, a keypad). <code>OUT</code> sends
+          <b>Ports</b>: connections to devices (a display, a console, a screen, a speaker, a keypad, a gamepad). <code>OUT</code> sends
           ACC to one and <code>IN</code> reads one. See the Ports tab.
         </li>
       </ul>

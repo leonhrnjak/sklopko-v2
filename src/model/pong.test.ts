@@ -4,12 +4,12 @@ import { newMachine, step } from '../engine/skasm-ref'
 import { ROM_WORDS, PONG_SOURCE } from './computer2'
 
 const asm = assemble(SKASM, PONG_SOURCE, ROM_WORDS)
-const UP = 1
-const DOWN = 9
+const UP = 1 // gamepad bits: up 1, down 2
+const DOWN = 2
 
 /**
- * Run Pong on the reference interpreter with a screen. `player` is asked for a key every time the program reads the keypad
- * with no key pending; it sees the paddle's top row and the ball's position.
+ * Run Pong on the reference interpreter with a screen. `player` is asked which gamepad buttons are held (as a bit mask, or null
+ * for none) every time the program reads the gamepad; it sees the paddle's top row and the ball's position.
  */
 function play(steps: number, player: (s: { paddle: number; ball: [number, number] | null }) => number | null = () => null) {
   const m = newMachine()
@@ -17,7 +17,6 @@ function play(steps: number, player: (s: { paddle: number; ball: [number, number
   const ball: { last: [number, number] | null } = { last: null }
   const trail: [number, number][] = []
   const scores: number[] = []
-  let pending = -1
   const paddleTop = () => {
     for (let y = 0; y < 16; y++) if (screen.has(y * 16)) return y
     return -1
@@ -31,16 +30,10 @@ function play(steps: number, player: (s: { paddle: number; ball: [number, number
           trail.push(ball.last)
         }
       } else if (port === 3) screen.delete(v)
-      else if (port === 5) pending = -1
       else if (port === 0) scores.push(v)
     },
     in(port: number) {
-      if (port !== 5) return 0
-      if (pending < 0) {
-        const k = player({ paddle: paddleTop(), ball: ball.last })
-        if (k !== null) pending = k
-      }
-      return pending < 0 ? 0 : pending | 16
+      return port === 6 ? (player({ paddle: paddleTop(), ball: ball.last }) ?? 0) : 0
     },
   }
   let ran = 0
@@ -97,22 +90,23 @@ describe('pong program', () => {
     expect(g.m.ram[0] & 15).toBe(0) // the ball is in column 0
   })
 
-  it('key 1 moves the paddle up and key 9 down, and it stops at the edges', () => {
+  it('holding up moves the paddle up and holding down moves it down, one row a frame, and it stops at the edges', () => {
+    // The pad is read once a frame (about 70 instructions), and the ball is not missed for the first 20 frames or so.
     const presses = (key: number, n: number) => {
       let left = n
       return () => (left-- > 0 ? key : null)
     }
-    // One key is read per frame (about 70 instructions), and the ball is not missed for the first 20 frames or so.
-    expect(play(400, presses(UP, 1)).paddleTop()).toBe(5)
+    expect(play(120, presses(UP, 1)).paddleTop()).toBe(5)
     expect(play(900, presses(UP, 10)).paddleTop()).toBe(0)
-    expect(play(400, presses(DOWN, 1)).paddleTop()).toBe(7)
+    expect(play(120, presses(DOWN, 1)).paddleTop()).toBe(7)
     expect(play(900, presses(DOWN, 10)).paddleTop()).toBe(13)
     const g = play(900, presses(DOWN, 10))
     expect([...g.screen].filter((p) => (p & 15) === 0)).toHaveLength(3)
   })
 
-  it('other keys do nothing', () => {
-    let n = 5
-    expect(play(400, () => (n-- > 0 ? 7 : null)).paddleTop()).toBe(6)
+  it('the A and B buttons do nothing, and up and down together cancel to up (the program checks up first)', () => {
+    expect(play(400, () => 16 | 32).paddleTop()).toBe(6)
+    let n = 2
+    expect(play(400, () => (n-- > 0 ? UP | DOWN : null)).paddleTop()).toBe(4)
   })
 })
