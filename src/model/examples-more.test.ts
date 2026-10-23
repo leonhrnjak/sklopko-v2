@@ -236,3 +236,55 @@ describe('stopwatch example', () => {
     expect(time()).toBe('000')
   })
 })
+
+describe('UART example', () => {
+  const STEP = 4 // ms per frame; one baud period is 62.5 ms
+  const setup = () => {
+    const r = rig('uart')
+    const wait = (ms: number) => {
+      for (let t = 0; t < ms; t += STEP) r.sim.frame(STEP)
+    }
+    const setNum = (label: string, value: number) => {
+      r.sim.setParams(r.part(label), { ...r.c.comps[r.part(label)].params, value })
+      r.sim.settle()
+    }
+    const read = (label: string) => ['A', 'B', 'C', 'D'].reduce((n, p, i) => n | (r.sim.pinValue(r.part(label), p) << i), 0)
+    const lineNow = () => r.sim.pinValue(r.part('Line'), 'Y')
+    /** Send a byte; returns the line as seen once per frame step, and what the receiver holds afterwards. */
+    const send = (byte: number) => {
+      setNum('Data low', byte & 15)
+      setNum('Data high', byte >> 4)
+      const line: number[] = []
+      r.set('Send', true)
+      for (let t = 0; t < 1000; t += STEP) {
+        r.sim.frame(STEP)
+        if (t === 40) r.set('Send', false)
+        line.push(lineNow())
+      }
+      return { line, got: read('Received high') * 16 + read('Received low') }
+    }
+    return { r, wait, send, lineNow, read }
+  }
+
+  it('puts start bit, 8 data bits (least significant first) and stop bit on the line', () => {
+    for (const byte of [0xa5, 0x00, 0xff, 0x81, 0x3c]) {
+      const { wait, send, lineNow } = setup()
+      wait(300)
+      expect(lineNow()).toBe(1) // idle is high
+      const { line } = send(byte)
+      const start = line.indexOf(0)
+      expect(start).toBeGreaterThanOrEqual(0)
+      const bit = (k: number) => line[start + Math.round(((k + 0.5) * 62.5) / STEP)]
+      const frame = Array.from({ length: 10 }, (_, k) => bit(k))
+      const want = [0, ...Array.from({ length: 8 }, (_, k) => (byte >> k) & 1), 1]
+      expect(frame, byte.toString(16)).toEqual(want)
+    }
+  })
+
+  it('the receiver gets the byte back, two bytes in a row, and nothing arrives without Send', () => {
+    const { wait, send, read } = setup()
+    wait(500)
+    expect([read('Received low'), read('Received high')]).toEqual([0, 0])
+    for (const byte of [0xa5, 0x3c, 0xff, 0x00, 0x81]) expect(send(byte).got, byte.toString(16)).toBe(byte)
+  })
+})

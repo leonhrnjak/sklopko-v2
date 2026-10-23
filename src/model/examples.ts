@@ -1003,6 +1003,137 @@ function stopwatch(): Circuit {
   return b.build()
 }
 
+/**
+ * A UART: one byte sent over a single wire and received again. The transmitter loads start bit, 8 data bits and stop bit into a
+ * 12-bit shift register chain and shifts them out, one per baud tick. The receiver has its own clock, four times as fast: it
+ * waits for the line to fall, then samples in the middle of each bit and collects the byte. (A real UART uses 16 times.)
+ */
+function uart(): Circuit {
+  const b = new CircuitBuilder()
+  const one = b.add('const', 0, 600, { params: { value: 1 } })
+  const zero = b.add('const', 0, 650, { params: { value: 0 } })
+
+  // Transmitter
+  const lo = b.add('hexin', 0, 0, { label: 'Data low', params: { value: 5 } })
+  const hi = b.add('hexin', 0, 140, { label: 'Data high', params: { value: 10 } })
+  const send = b.add('switch', 0, 300, { label: 'Send' })
+  const baud = b.add('clock', 0, 380, { params: { hz: 16 }, label: 'Baud clock' })
+  const t1 = b.add('shiftreg', 200, 0, { label: 'TX 1' })
+  const t2 = b.add('shiftreg', 400, 0, { label: 'TX 2' })
+  const t3 = b.add('shiftreg', 600, 0, { label: 'TX 3' })
+  const tbusy = b.add('dff', 200, 300, { label: 'TX busy' })
+  const tstart = b.add('and', 340, 300)
+  const tcnt = b.add('counter', 200, 460, { params: { mod: 16 }, label: 'TX bit counter' })
+  const tdone = b.add('and', 340, 420)
+  const tnd = b.add('not', 440, 420)
+  const tkeep = b.add('and', 520, 400)
+  const tnext = b.add('or', 620, 340)
+  const line = b.add('or', 760, 40, { label: 'Line' })
+  const lineLed = b.add('led', 860, 50, { label: 'Line (1 = idle)', params: { color: 'yellow' } })
+  b.wire(`${baud}.Q`, `${t1}.CLK`)
+  b.wire(`${baud}.Q`, `${t2}.CLK`)
+  b.wire(`${baud}.Q`, `${t3}.CLK`)
+  b.wire(`${baud}.Q`, `${tbusy}.CLK`)
+  b.wire(`${baud}.Q`, `${tcnt}.CLK`)
+  // Frame, in the order it leaves TX 3: start, d0..d7, stop (then idle ones).
+  const loads: [string, string, string, string, string][] = [
+    [t3, `${lo}.C`, `${lo}.B`, `${lo}.A`, `${zero}.Q`],
+    [t2, `${hi}.C`, `${hi}.B`, `${hi}.A`, `${lo}.D`],
+    [t1, `${one}.Q`, `${one}.Q`, `${one}.Q`, `${hi}.D`],
+  ]
+  for (const [sr, a, bb, c, d] of loads) {
+    b.wire(a, `${sr}.A`)
+    b.wire(bb, `${sr}.B`)
+    b.wire(c, `${sr}.C`)
+    b.wire(d, `${sr}.D`)
+    b.wire(`${tstart}.Y`, `${sr}.LD`)
+  }
+  b.wire(`${one}.Q`, `${t1}.SI`)
+  b.wire(`${t1}.QD`, `${t2}.SI`)
+  b.wire(`${t2}.QD`, `${t3}.SI`)
+  b.wire(`${tbusy}.NQ`, `${tstart}.A`)
+  b.wire(`${send}.Q`, `${tstart}.B`)
+  b.wire(`${tbusy}.NQ`, `${tcnt}.R`)
+  b.wire(`${tcnt}.A`, `${tdone}.A`)
+  b.wire(`${tcnt}.D`, `${tdone}.B`)
+  b.wire(`${tdone}.Y`, `${tnd}.A`)
+  b.wire(`${tbusy}.Q`, `${tkeep}.A`)
+  b.wire(`${tnd}.Y`, `${tkeep}.B`)
+  b.wire(`${tstart}.Y`, `${tnext}.A`)
+  b.wire(`${tkeep}.Y`, `${tnext}.B`)
+  b.wire(`${tnext}.Y`, `${tbusy}.D`)
+  b.wire(`${tbusy}.NQ`, `${line}.A`)
+  b.wire(`${t3}.QD`, `${line}.B`)
+  b.wire(`${line}.Y`, `${lineLed}.A`)
+  frameAround(b, 'Transmitter', [lo, hi, send, baud, t1, t2, t3, tbusy, tstart, tcnt, tdone, tnd, tkeep, tnext], 'blue')
+
+  // Receiver
+  const y = 820
+  const rxclk = b.add('clock', 0, y, { params: { hz: 64 }, label: 'Receiver clock' })
+  const rbusy = b.add('dff', 200, y, { label: 'RX busy' })
+  const nl = b.add('not', 200, y + 180)
+  const rstart = b.add('and', 300, y + 160)
+  const phase = b.add('counter', 200, y + 280, { params: { mod: 4 }, label: 'Phase' })
+  const bits = b.add('counter', 400, y + 280, { params: { mod: 16 }, label: 'RX bit counter' })
+  const rdone = b.add('and', 540, y + 200)
+  const rnd = b.add('not', 640, y + 200)
+  const rkeep = b.add('and', 720, y + 180)
+  const rnext = b.add('or', 820, y + 140)
+  const r1 = b.add('shiftreg', 420, y - 40, { label: 'RX 1' })
+  const r2 = b.add('shiftreg', 620, y - 40, { label: 'RX 2' })
+  const r3 = b.add('shiftreg', 820, y - 40, { label: 'RX 3' })
+  const regLo = b.add('register', 1020, y - 40, { label: 'Received low' })
+  const regHi = b.add('register', 1020, y + 200, { label: 'Received high' })
+  const outLo = b.add('hexdisp', 1200, y - 40, { label: 'Received low' })
+  const outHi = b.add('hexdisp', 1200, y + 200, { label: 'Received high' })
+  const rxLed = b.add('led', 1020, y + 400, { label: 'Receiving', params: { color: 'green' } })
+  b.wire(`${line}.Y`, `${nl}.A`)
+  b.wire(`${rxclk}.Q`, `${rbusy}.CLK`)
+  b.wire(`${rbusy}.NQ`, `${rstart}.A`)
+  b.wire(`${nl}.Y`, `${rstart}.B`)
+  b.wire(`${rstart}.Y`, `${rnext}.A`)
+  b.wire(`${rbusy}.Q`, `${rkeep}.A`)
+  b.wire(`${rnd}.Y`, `${rkeep}.B`)
+  b.wire(`${rkeep}.Y`, `${rnext}.B`)
+  b.wire(`${rnext}.Y`, `${rbusy}.D`)
+  b.wire(`${rxclk}.Q`, `${phase}.CLK`)
+  b.wire(`${rbusy}.NQ`, `${phase}.R`)
+  b.wire(`${phase}.B`, `${bits}.CLK`)
+  b.wire(`${rbusy}.NQ`, `${bits}.R`)
+  b.wire(`${bits}.D`, `${rdone}.A`)
+  b.wire(`${bits}.B`, `${rdone}.B`)
+  b.wire(`${rdone}.Y`, `${rnd}.A`)
+  // The phase counter's second bit is the sample clock: it rises in the middle of every bit.
+  for (const sr of [r1, r2, r3]) b.wire(`${phase}.B`, `${sr}.CLK`)
+  b.wire(`${line}.Y`, `${r1}.SI`)
+  b.wire(`${r1}.QD`, `${r2}.SI`)
+  b.wire(`${r2}.QD`, `${r3}.SI`)
+  const lowBits = [`${r3}.QA`, `${r2}.QD`, `${r2}.QC`, `${r2}.QB`]
+  const highBits = [`${r2}.QA`, `${r1}.QD`, `${r1}.QC`, `${r1}.QB`]
+  'ABCD'.split('').forEach((p, i) => {
+    b.wire(lowBits[i], `${regLo}.${p}`)
+    b.wire(highBits[i], `${regHi}.${p}`)
+    b.wire(`${regLo}.Q${p}`, `${outLo}.${p}`)
+    b.wire(`${regHi}.Q${p}`, `${outHi}.${p}`)
+  })
+  for (const reg of [regLo, regHi]) {
+    b.wire(`${rxclk}.Q`, `${reg}.CLK`)
+    b.wire(`${rdone}.Y`, `${reg}.LD`)
+  }
+  b.wire(`${rbusy}.Q`, `${rxLed}.A`)
+  frameAround(b, 'Receiver', [rxclk, rbusy, nl, rstart, phase, bits, rdone, rnd, rkeep, rnext, r1, r2, r3, regLo, regHi, outLo, outHi, rxLed], 'green')
+
+  probes(b, [['Baud clock', `${baud}.Q`], ['Line', `${line}.Y`], ['Sample clock', `${phase}.B`], ['Receiving', `${rbusy}.Q`]], 0, y + 560)
+  note(
+    b,
+    0,
+    y + 640,
+    'Set the byte with the two Data inputs, then switch Send on (and off again). The line drops to 0 for the start bit, carries the eight data bits least significant first, and returns to 1 for the stop bit; open the waveform view with Line and Baud clock to see the frame. The receiver notices the falling edge, waits half a bit, then reads the line once per bit and copies the byte into Received.',
+    60,
+  )
+  return b.build()
+}
+
 /** Menu order: the groups appear in this order, and the first example is what the app opens with. */
 export const EXAMPLE_GROUPS = [
   'Start here',
@@ -1048,6 +1179,7 @@ const ALL: Example[] = [
   g('Timing and glitches', 'ripple', 'Ripple-carry adder: the carry chain and flicker', ripple),
   g('Timing and glitches', 'oscillator', 'Ring oscillator (unstable)', ringOscillator),
 
+  g('State machines', 'uart', 'UART: a byte over one wire', uart),
   g('State machines', 'fsm-traffic', 'Traffic light (generated)', () => generateFsm(TRAFFIC_LIGHT).circuit),
   g('State machines', 'fsm-detector', '1011 sequence detector (generated)', () => generateFsm(SEQUENCE_DETECTOR).circuit),
   g('State machines', 'fsm-vending', 'Vending machine, nickels and dimes (generated)', () => generateFsm(VENDING_MACHINE).circuit),
