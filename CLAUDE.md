@@ -18,20 +18,25 @@
    Wait for it with `gh pr checks --watch`.
 3. **Green:** ask the user whether to merge. Merge only on their yes.
 4. **Red:** read the failing job's log (`gh run view --log-failed`), fix the cause, re-run **only the failed
-   tests** locally, push, and wait for CI again. Repeat until green, then go back to step 3.
+   tests** locally (`-g`), push, and wait for CI again. Repeat until green, then go back to step 3.
 
 Merging to `main` deploys to Cloudflare Pages.
 
 ## Testing while making changes
 
-Run only what the change touches; CI runs the full suite. Don't run the full suite locally.
+Run only what the change touches; CI runs the full suite. Don't run the full suite locally. Use quiet
+reporters so passing runs print almost nothing.
 
 ```sh
-npx vitest related --run src/path/changed.ts ...   # unit tests that import the changed files
-npx oxlint src/path/changed.ts ...                 # lint only the changed files
-npx tsc -b                                         # type-check, when types or signatures changed
-npx playwright test e2e/editor.spec.ts -g "name"   # only the e2e tests covering the changed behavior
+npx vitest related --run --reporter=dot src/path/changed.ts ...   # unit tests that import the changed files
+npx oxlint src/path/changed.ts ...                                # lint only the changed files
+npx tsc -b                                                        # type-check, when types or signatures changed
+npx playwright test --reporter=line e2e/editor.spec.ts            # the whole e2e spec file for the changed area
 ```
+
+Before pushing, run the related unit tests and the e2e spec file(s) for the area you changed (whole files,
+not single tests picked with `-g`), so most regressions show up before CI. Use `-g` only to re-run a
+specific failed test while fixing it.
 
 Full suite (what CI runs), for reference: `npm test`, `npm run lint`, `npm run build`, `npm run e2e`
 (Playwright, desktop + emulated phone).
