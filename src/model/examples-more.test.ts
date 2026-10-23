@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { simComps } from './circuit'
 import { EXAMPLES } from './examples'
+import { flatten } from './buses'
 
 /** Load an example into a simulator, with helpers to find its parts by label and to flip switches and buttons. */
 function rig(id: string) {
@@ -85,5 +86,88 @@ describe('generated state machine examples', () => {
     r.set('D', true)
     r.cycle()
     expect(r.sim.pinValue(d, 'A')).toBe(1)
+  })
+})
+
+describe('priority encoder example', () => {
+  it('reports the highest request and lights the matching decoder output; none lights nothing', () => {
+    const r = rig('encoder')
+    const [bar] = r.ofType('bar')
+    const lit = () => Array.from({ length: 8 }, (_, i) => r.sim.pinValue(bar, `I${i}`))
+    expect(lit()).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
+    expect(r.lit('Any request (V)')).toBe(0)
+    r.set('Request 2', true)
+    r.set('Request 5', true)
+    expect(lit()).toEqual([0, 0, 0, 0, 0, 1, 0, 0])
+    expect(r.lit('Any request (V)')).toBe(1)
+    r.set('Request 5', false)
+    expect(lit()).toEqual([0, 0, 1, 0, 0, 0, 0, 0])
+  })
+})
+
+describe('bus arbitration example', () => {
+  it('grants the lowest request only, and with Override on two devices make the bus unknown', () => {
+    const r = rig('arbiter')
+    const flat = flatten(r.c)
+    const sim = new Simulator()
+    sim.load(flat)
+    sim.settle()
+    const bus = () => {
+      const bits = [0, 1, 2, 3].map((i) => sim.pinValue(r.part('Bus'), `Y${i}`))
+      return bits.some((v) => v > 1) ? null : bits.reduce((n: number, v, i) => n | (v << i), 0)
+    }
+    const set = (label: string, on: boolean) => {
+      sim.setParams(r.part(label), { ...r.c.comps[r.part(label)].params, on })
+      sim.settle()
+    }
+    expect(bus()).toBeNull() // nobody drives it: floating
+    set('Request 3', true)
+    expect(bus()).toBe(0xc)
+    set('Request 2', true)
+    expect(bus()).toBe(0x6) // 2 beats 3
+    set('Request 1', true)
+    expect(bus()).toBe(0x3) // 1 beats both
+    set('Override arbiter', true)
+    expect(bus()).toBeNull() // everybody drives: contention
+    set('Request 2', false)
+    set('Request 3', false)
+    expect(bus()).toBe(0x3)
+  })
+})
+
+describe('ALU flags example', () => {
+  const run = (a: number, bv: number, op: number) => {
+    const r = rig('alu-flags')
+    const setPart = (label: string, params: object) => {
+      r.sim.setParams(r.part(label), { ...r.c.comps[r.part(label)].params, ...params })
+      r.sim.settle()
+    }
+    setPart('A', { value: a })
+    setPart('B', { value: bv })
+    ;[2, 1, 0].forEach((k) => setPart(`S${k}`, { on: ((op >> k) & 1) === 1 }))
+    const [alu] = r.ofType('alu')
+    const f = [0, 1, 2, 3].reduce((n, i) => n | (r.sim.pinValue(alu, `F${i}`) << i), 0)
+    return { f, z: r.lit('Zero (Z)'), c: r.lit('Carry (C)'), n: r.lit('Negative (N)') }
+  }
+  it('sets Zero, Carry and Negative', () => {
+    expect(run(15, 1, 0)).toEqual({ f: 0, z: 1, c: 1, n: 0 })
+    expect(run(5, 5, 1)).toMatchObject({ f: 0, z: 1 })
+    expect(run(7, 1, 0)).toEqual({ f: 8, z: 0, c: 0, n: 1 })
+  })
+})
+
+describe('PWM example', () => {
+  it('the lamp is on for Duty ticks out of every 16', () => {
+    for (const duty of [0, 1, 4, 9, 15]) {
+      const r = rig('pwm')
+      r.sim.setParams(r.part('Duty'), { ...r.c.comps[r.part('Duty')].params, value: duty })
+      r.sim.settle()
+      let on = 0
+      for (let i = 0; i < 16; i++) {
+        r.cycle()
+        on += r.lit('Lamp')
+      }
+      expect(on, `duty ${duty}`).toBe(duty)
+    }
   })
 })
