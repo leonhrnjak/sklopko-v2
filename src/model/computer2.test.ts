@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -544,5 +544,33 @@ describe('computer 2: pong on the circuit', () => {
       for (; ran < n; ran++) referenceStep(ref, prog, ports)
       expect(new Set(m.pixels().map(([x, y]) => y * 16 + x)), `after ${n} instructions`).toEqual(px)
     }
+  }, 60000)
+})
+
+describe('computer 2: snake on the circuit', () => {
+  it('draws the same screen as the reference interpreter, and ends with Game over at the wall', () => {
+    const m = machine(SNAKE_SOURCE, ['number', 'console', 'lcd', 'keypad'])
+    const ref = newMachine()
+    const px = new Set<number>()
+    let text = ''
+    const prog = assemble(SKASM, SNAKE_SOURCE, ROM_WORDS).words
+    const ports = {
+      out(port: number, v: number) {
+        if (port === 1) text += String.fromCharCode(v)
+        else if (port === 2) px.add(v)
+        else if (port === 3) px.delete(v)
+      },
+    }
+    let ran = 0
+    for (const n of [300, 700, 1500]) {
+      m.run(n - ran)
+      for (; ran < n; ran++) referenceStep(ref, prog, ports)
+      expect(new Set(m.pixels().map(([x, y]) => y * 16 + x)), `after ${n} instructions`).toEqual(px)
+    }
+    m.run(4000)
+    for (; ran < 5500; ran++) referenceStep(ref, prog, ports)
+    expect(text).toBe('Game over')
+    expect(m.text()).toBe('Game over')
+    expect(m.halted()).toBe(1)
   }, 60000)
 })
