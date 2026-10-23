@@ -3,7 +3,7 @@ import type { Expr, Program } from '../logic/expr'
 import { minimizeExpr } from '../logic/minimize'
 import { tableOfProgram, type Cell, type TruthTable } from '../logic/table'
 import { CircuitBuilder } from './builder'
-import type { Circuit } from './circuit'
+import { boundsRect, type Circuit } from './circuit'
 
 /** The most inputs one gate has (the gate parts go up to 8); wider ones are built from several. */
 const MAX_FAN_IN = 8
@@ -88,11 +88,28 @@ class Graph {
 export interface SynthOptions {
   /** Replace each output by the smallest sum of products of its truth table, instead of building it as written. */
   simplify?: boolean
+  /** Inputs that come from a Receive label of the same name instead of a switch (something else sends them). */
+  labelInputs?: string[]
+  /** Outputs that go out through a Send label of the same name instead of an LED (something else receives them). */
+  labelOutputs?: string[]
+}
+
+/** What `synthesizeInto` added: the part of each input and each output, and the area it covers. */
+export interface Synthesized {
+  /** The switch (or Receive label) of each input, by name. */
+  inputs: Record<string, string>
+  /** The LED (or Send label) of each output, by name. */
+  outputs: Record<string, string>
+  /** Every part it added. */
+  parts: string[]
+  /** The width and height it covers, from the origin it was built at. */
+  width: number
+  height: number
 }
 
 /** The part of a node: its type, and the parameters that give it the right number of inputs. */
-function partOf(n: Node): { type: string; params: Record<string, number> } {
-  if (n.kind === 'in') return { type: 'switch', params: {} }
+function partOf(n: Node, labelled: ReadonlySet<string>): { type: string; params: Record<string, number | string> } {
+  if (n.kind === 'in') return labelled.has(n.name) ? { type: 'netrecv', params: { name: n.name } } : { type: 'switch', params: {} }
   if (n.kind === 'const') return { type: 'const', params: { value: n.value ? 1 : 0 } }
   if (n.kind === 'not') return { type: 'not', params: {} }
   return { type: n.kind, params: { inputs: Math.max(2, n.args.length) } }
@@ -107,6 +124,18 @@ const INPUT_PITCH = 70
  * by how deep the logic is, and wired. Lines of the program may use each other's names; shared logic is built once.
  */
 export function synthesize(program: Program, options: SynthOptions = {}): Circuit {
+  const b = new CircuitBuilder()
+  synthesizeInto(b, program, options)
+  return b.build()
+}
+
+/**
+ * The same, built into a circuit that is being put together, with its top left corner at `origin`. The caller wires up
+ * whatever it needs (the inputs and outputs are in the result) and builds the circuit.
+ */
+export function synthesizeInto(b: CircuitBuilder, program: Program, options: SynthOptions = {}, origin: { x: number; y: number } = { x: 0, y: 0 }): Synthesized {
+  const labelIn = new Set(options.labelInputs ?? [])
+  const labelOut = new Set(options.labelOutputs ?? [])
   const g = new Graph()
   for (const name of program.inputs) g.input(name) // every input gets a switch, even one the logic ends up not using
 
@@ -150,7 +179,7 @@ export function synthesize(program: Program, options: SynthOptions = {}): Circui
 
   // ---- Layout: a column per level, inputs and constants in the first ----------------------------
   const size = (n: Node) => {
-    const p = partOf(n)
+    const p = partOf(n, labelIn)
     const l = layoutOf(p.type, p.params)
     return { w: l.w + 20, h: l.h } // the output pin or inversion bubble sticks out a little
   }
@@ -182,25 +211,37 @@ export function synthesize(program: Program, options: SynthOptions = {}): Circui
   }
 
   // ---- Build ---------------------------------------------------------------------------------------
-  const b = new CircuitBuilder()
   const ids = new Map<Node, string>()
+  const added: string[] = []
   for (const n of nodes) {
-    const p = partOf(n)
-    ids.set(n, b.add(p.type, colX[n.level], top.get(n)!, { params: p.params, ...(n.kind === 'in' ? { label: n.name } : {}) }))
+    const p = partOf(n, labelIn)
+    const id = b.add(p.type, origin.x + colX[n.level], origin.y + top.get(n)!, { params: p.params, ...(n.kind === 'in' && !labelIn.has(n.name) ? { label: n.name } : {}) })
+    ids.set(n, id)
+    added.push(id)
   }
-  const sourcePin = (n: Node) => (n.kind === 'in' || n.kind === 'const' ? 'Q' : 'Y')
+  const sourcePin = (n: Node) => (n.kind === 'in' ? (labelIn.has(n.name) ? 'Y' : 'Q') : n.kind === 'const' ? 'Q' : 'Y')
   for (const n of nodes) n.args.forEach((a, i) => b.wire(`${ids.get(a)}.${sourcePin(a)}`, `${ids.get(n)}.${n.kind === 'not' ? 'A' : String.fromCharCode(65 + i)}`))
 
-  // An LED for each output, level with the gate that drives it and kept apart from the others.
+  // An LED for each output (or a Send label), level with the gate that drives it and kept apart from the others.
   let ledBottom = -Infinity
+  const outputs: Record<string, string> = {}
   const driven = program.outputs.map((o) => ({ o, node: nodeOf(o.name) })).sort((a, c) => center(a.node) - center(c.node))
   for (const { o, node } of driven) {
     const y = Math.max(round10(center(node) - 10), ledBottom + 50)
-    const led = b.add('led', ledX, y, { label: o.name })
-    b.wire(`${ids.get(node)}.${sourcePin(node)}`, `${led}.A`)
+    const out = labelOut.has(o.name) ? b.add('netsend', origin.x + ledX, origin.y + y, { params: { name: o.name } }) : b.add('led', origin.x + ledX, origin.y + y, { label: o.name })
+    b.wire(`${ids.get(node)}.${sourcePin(node)}`, `${out}.A`)
+    outputs[o.name] = out
+    added.push(out)
     ledBottom = y + 20
   }
-  return b.build()
+  const rects = added.map((id) => boundsRect(b.c.comps[id]))
+  return {
+    inputs: Object.fromEntries(program.inputs.map((name) => [name, ids.get(g.input(name))!])),
+    outputs,
+    parts: added,
+    width: rects.length ? Math.max(...rects.map((r) => r.x + r.w)) - origin.x : 0,
+    height: rects.length ? Math.max(...rects.map((r) => r.y + r.h)) - origin.y : 0,
+  }
 }
 
 /** A circuit for a truth table: each output as its smallest sum of products (unknown values are don't cares). */
