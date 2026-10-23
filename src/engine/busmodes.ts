@@ -45,7 +45,12 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
   },
   console: { groups: () => [numbered('D', 'in', 'D', 8)], keepsHeight: () => true },
   framebuffer: {
-    groups: (p) => [numbered('X', 'in', 'X', 4), numbered('Y', 'in', 'Y', 4), ...(Number(p.colors) === 4 ? [numbered('D', 'in', 'D', 2)] : [])],
+    groups: (p) => [
+      numbered('X', 'in', 'X', 4),
+      numbered('Y', 'in', 'Y', 4),
+      ...(Number(p.colors) === 4 ? [numbered('D', 'in', 'D', 2)] : []),
+      ...(p.read === 'on' ? [numbered('RX', 'in', 'RX', 4), numbered('RY', 'in', 'RY', 4), ...(Number(p.colors) === 4 ? [numbered('Q', 'out', 'Q', 2)] : [])] : []),
+    ],
     keepsHeight: () => true,
   },
 }
