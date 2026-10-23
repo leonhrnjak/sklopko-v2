@@ -1,13 +1,15 @@
 # More examples: plan
 
-> **Status:** planned. Each batch below is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI,
+> **Status:** in progress. The PRs are stacked (each on top of the previous), from E1 to E5c. Each batch below is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI,
 > ask before merging). Tick each batch when it ships.
 >
-> - [ ] E1 Quick wins: the two unused state machines, master-slave flip-flop, LFSR
+> - [x] E1 Quick wins: the two unused state machines, master-slave flip-flop, LFSR
 > - [ ] E2 Logic and bus teaching examples: encoder/decoder, bus arbitration, ALU slice, PWM dimmer
 > - [ ] E3 Sequential gadgets: button debouncer, stopwatch
 > - [ ] E4 Serial link: UART transmitter and receiver
-> - [ ] E5 Showpieces on the 8-bit computer: tic-tac-toe or Simon, Pong or snake
+> - [ ] E5a Tic-tac-toe on the 8-bit computer
+> - [ ] E5b Pong on the 8-bit computer
+> - [ ] E5c Snake on the 8-bit computer
 
 ## Context
 The example menu is now grouped (`EXAMPLE_GROUPS` in `src/model/examples.ts`). The groups are: Start here, Logic basics,
@@ -53,12 +55,14 @@ New examples go into one of these groups; add a group only if a batch really nee
    joined by more serial examples later; for now put it in *State machines*.
 
 ### E5: showpieces on the 8-bit computer
-Both are new `Program`s in `computer2.ts` (SKASM source, using the LCD and keypad ports), exposed like `computer-lcd`.
-1. **Tic-tac-toe or Simon**, using the keypad and LCD. Pick whichever fits in the program memory. Test with the assembler and
-   simulator: feed key presses, check the LCD memory.
-2. **Pong or snake**, a bigger version of the bouncing ball. Check the program size and cycle time first.
+Each is a new `Program` in `computer2.ts` (SKASM source, using the LCD and keypad ports), exposed like `computer-lcd`, and is its
+own PR. Test with the assembler and simulator: feed key presses, check the LCD memory.
+- **E5a Tic-tac-toe** (keypad picks a cell, LCD shows the board, the computer plays the other side).
+- **E5b Pong** (a bigger version of the bouncing ball, keypad moves the paddle).
+- **E5c Snake** (keypad steers, the snake grows, the game ends when it hits itself or the wall). Check the program size and
+  cycle time first.
 
 ## Order and risk
-E1 and E2 are small and independent, so they can ship in either order. E3 depends on the debouncer from E3.1. E4 is the
+E1 and E2 are small and independent, so they can ship in either order. The stopwatch (E3.2) uses the debouncer (E3.1). E4 is the
 biggest hand-built circuit, so do it before E5 to learn how much state-machine wiring costs. E5 depends on the program memory
 size and on the LCD and keypad ports; read `docs/plan-skasm.md` first.

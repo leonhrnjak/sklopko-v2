@@ -4,7 +4,7 @@ import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
 import { hazard, ripple } from './timing-examples'
 import { generateFsm } from './fsm'
-import { SEQUENCE_DETECTOR, TRAFFIC_LIGHT } from './fsm-examples'
+import { SEQUENCE_DETECTOR, TRAFFIC_LIGHT, UP_DOWN_COUNTER, VENDING_MACHINE } from './fsm-examples'
 import type { Circuit, Rot } from './circuit'
 
 export interface Example {
@@ -690,6 +690,70 @@ function busDemo(): Circuit {
   return b.build()
 }
 
+/**
+ * A master-slave D flip-flop from two gated latches. The master is open while CLK is 1 and the slave while CLK is 0,
+ * so the output changes only at the moment CLK falls, however much D wobbles in between.
+ */
+function masterSlave(): Circuit {
+  const b = new CircuitBuilder()
+  const d = b.add('switch', 0, 20, { label: 'D' })
+  const clk = b.add('switch', 0, 140, { label: 'CLK' })
+  const inv = b.add('not', 110, 140)
+  const master = b.add('dlatch', 220, 20)
+  const slave = b.add('dlatch', 480, 20)
+  const mq = b.add('led', 330, -50, { label: 'Master', params: { color: 'yellow' } })
+  const q = b.add('led', 620, 30, { label: 'Q (slave)' })
+  b.wire(`${d}.Q`, `${master}.D`)
+  b.wire(`${clk}.Q`, `${master}.E`)
+  b.wire(`${clk}.Q`, `${inv}.A`)
+  b.wire(`${inv}.Y`, `${slave}.E`)
+  b.wire(`${master}.Q`, `${slave}.D`)
+  b.wire(`${master}.Q`, `${mq}.A`)
+  b.wire(`${slave}.Q`, `${q}.A`)
+  frameAround(b, 'Master: open while CLK = 1', [master, mq], 'yellow')
+  frameAround(b, 'Slave: open while CLK = 0', [slave, q], 'green')
+  probes(b, [['D', `${d}.Q`], ['CLK', `${clk}.Q`], ['Master', `${master}.Q`], ['Q', `${slave}.Q`]], 0, 260)
+  note(
+    b,
+    0,
+    340,
+    'Set D, then raise CLK: the master copies D but the slave is shut, so Q does not move. Lower CLK: the master closes and the slave opens, and Q takes the value D had at that moment. Flip D while CLK is 0 and nothing happens at all.',
+    60,
+  )
+  return b.build()
+}
+
+/**
+ * A 4-bit linear-feedback shift register. The new bit is the XNOR of the last two, which walks through 15 of the 16
+ * patterns before it repeats. (With XNOR the all-zero pattern is allowed, so Reset is a valid start.)
+ */
+function lfsr(): Circuit {
+  const b = new CircuitBuilder()
+  const clk = b.add('clock', 0, 20, { params: { hz: 4 } })
+  const rst = b.add('button', 0, 140, { label: 'Reset' })
+  const sr = b.add('shiftreg', 140, 0)
+  const x = b.add('xnor', 140, 220)
+  const leds = [0, 1, 2, 3].map((i) => b.add('led', 320 + i * 60, 20, { label: `Q${i}` }))
+  const disp = b.add('hexdisp', 560, 20, { label: 'State' })
+  b.wire(`${clk}.Q`, `${sr}.CLK`)
+  b.wire(`${rst}.Q`, `${sr}.CLR`)
+  b.wire(`${sr}.QC`, `${x}.A`)
+  b.wire(`${sr}.QD`, `${x}.B`)
+  b.wire(`${x}.Y`, `${sr}.SI`)
+  ;['QA', 'QB', 'QC', 'QD'].forEach((p, i) => {
+    b.wire(`${sr}.${p}`, `${leds[i]}.A`)
+    b.wire(`${sr}.${p}`, `${disp}.${'ABCD'[i]}`)
+  })
+  note(
+    b,
+    300,
+    140,
+    'Each clock the bits move one place and the XNOR of the last two feeds the first. The pattern looks random but repeats exactly every 15 clocks. Press Reset to start again from 0000. LFSRs like this make noise generators, test patterns and CRC checks.',
+    50,
+  )
+  return b.build()
+}
+
 /** Menu order: the groups appear in this order, and the first example is what the app opens with. */
 export const EXAMPLE_GROUPS = [
   'Start here',
@@ -716,6 +780,7 @@ const ALL: Example[] = [
 
   g('Memory and sequential', 'sr-latch', 'SR latch from NOR gates', srLatch),
   g('Memory and sequential', 'd-latch', 'D latch from NAND gates', nandDLatch),
+  g('Memory and sequential', 'master-slave', 'Master-slave flip-flop from two latches', masterSlave),
   g('Memory and sequential', 'shift-register', 'Shift register (D flip-flops)', shiftRegister),
   g('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)', rippleCounter),
 
@@ -732,10 +797,13 @@ const ALL: Example[] = [
 
   g('State machines', 'fsm-traffic', 'Traffic light (generated)', () => generateFsm(TRAFFIC_LIGHT).circuit),
   g('State machines', 'fsm-detector', '1011 sequence detector (generated)', () => generateFsm(SEQUENCE_DETECTOR).circuit),
+  g('State machines', 'fsm-vending', 'Vending machine, nickels and dimes (generated)', () => generateFsm(VENDING_MACHINE).circuit),
+  g('State machines', 'fsm-updown', 'Up/down counter (generated)', () => generateFsm(UP_DOWN_COUNTER).circuit),
 
   g('Displays and gadgets', 'intersection', 'Traffic lights with pedestrian crossing', trafficLights),
   g('Displays and gadgets', 'dice', 'Electronic dice', dice),
   g('Displays and gadgets', 'clock', 'Digital clock (HH:MM:SS)', digitalClock),
+  g('Displays and gadgets', 'lfsr', 'Pseudo-random generator (LFSR)', lfsr),
   g('Displays and gadgets', 'matrix', 'Dot matrix smiley (scanned)', matrixSmiley),
 
   ...PROGRAMS.map((p) => g('Computers', p.id, p.name, () => computer2(p))),
