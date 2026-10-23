@@ -1412,6 +1412,15 @@ test('the SKASM reference opens from the toolbar and from a program ROM, and has
   await expect(dialog).toBeVisible()
 })
 
+test('a program with .byte lines gives the ROM a table, which the inspector shows', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'rom', 300, 200)
+  await page.getByLabel('Contents are').selectOption('skasm')
+  await page.getByLabel('Program source').fill('LDXI 1\nLDT\nHALT\n.byte 1, 2, 255')
+  await page.getByLabel('Program source').blur()
+  await expect(page.getByLabel('Table contents', { exact: true })).toContainText('00: 01 02 FF')
+})
+
 test('the beginner computer runs its program: the listing follows the PC, and it adds 3 + 4 and halts', async ({ page }) => {
   await page.goto('/beginner', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Pause' }).click()

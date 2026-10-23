@@ -18,6 +18,8 @@ export interface Machine {
   /** Zero: the result of the last arithmetic or logic instruction was 0. */
   z: number
   ram: number[]
+  /** The table of constants that LDT reads (filled in by the assembler's .byte lines). */
+  table: number[]
   /** The return stack of CALL and RET: 16 addresses, and where the next one goes. */
   stack: number[]
   sp: number
@@ -30,7 +32,7 @@ export interface Ports {
   in?(port: number): number
 }
 
-export const newMachine = (): Machine => ({ pc: 0, acc: 0, x: 0, c: 0, z: 0, ram: new Array<number>(256).fill(0), stack: new Array<number>(16).fill(0), sp: 0, halted: false })
+export const newMachine = (): Machine => ({ pc: 0, acc: 0, x: 0, c: 0, z: 0, ram: new Array<number>(256).fill(0), table: new Array<number>(256).fill(0), stack: new Array<number>(16).fill(0), sp: 0, halted: false })
 
 /** Run one instruction. */
 export function step(m: Machine, program: number[], ports: Ports = {}): void {
@@ -97,6 +99,7 @@ export function step(m: Machine, program: number[], ports: Ports = {}): void {
       case 'DEX': m.x = (m.x - 1) & 255; m.z = m.x === 0 ? 1 : 0; m.c = 0; break
       case 'LDX': m.acc = m.ram[m.x]; break
       case 'STX': m.ram[m.x] = a; break
+      case 'LDT': m.acc = m.table[m.x] ?? 0; break
       case 'CALL':
         m.stack[m.sp] = next
         m.sp = (m.sp + 1) & 15

@@ -452,19 +452,51 @@ export const memoryRom: ComponentDef[] = [
       },
       // The assembly text of a program. `data` is always what the circuit runs; it is assembled from this.
       { key: 'source', label: 'Program', kind: 'text', default: '', maxLength: 9000 },
+      {
+        key: 'table',
+        label: 'Table of 256 bytes',
+        kind: 'select',
+        default: 'off',
+        structural: true,
+        options: [
+          { value: 'off', label: 'None' },
+          { value: 'on', label: 'A second output: a byte for each of 256 addresses' },
+        ],
+      },
+      // What a program's `.byte` lines hold, as hex bytes. Read through the extra pins TA (address) and TD (byte).
+      {
+        key: 'tdata',
+        label: 'Table contents (hex bytes)',
+        kind: 'text',
+        default: '',
+        pattern: HEX_WORDS.source,
+        maxLength: 800,
+        hint: 'Only hexadecimal digits (0–9, A–F), spaces and commas.',
+      },
     ],
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
     live: true,
     layout: (p) => {
       const { w, minRows } = tableBox(2 ** Number(p.abits), Number(p.dbits) / 4)
-      return box({ w, minRows, left: names('A', Number(p.abits)), right: names('D', Number(p.dbits)) })
+      const table = p.table === 'on'
+      return box({
+        w,
+        minRows,
+        left: [...names('A', Number(p.abits)), ...(table ? names('TA', 8) : [])],
+        right: [...names('D', Number(p.dbits)), ...(table ? names('TD', 8) : [])],
+      })
     },
     evaluate(inst) {
       const abits = Number(inst.params.abits)
       const dbits = Number(inst.params.dbits)
       const addr = toNum(inst.ins, 0, abits)
-      if (addr < 0) inst.outs.fill(X)
+      if (addr < 0) inst.outs.fill(X, 0, dbits)
       else writeNum(inst.outs, 0, dbits, parseWords(String(inst.params.data), 2 ** abits, dbits)[addr])
+      if (inst.params.table === 'on') {
+        const t = toNum(inst.ins, abits, 8)
+        if (t < 0) inst.outs.fill(X, dbits, dbits + 8)
+        else writeNum(inst.outs, dbits, 8, parseWords(String(inst.params.tdata), 256, 8)[t])
+      }
     },
   },
 ]

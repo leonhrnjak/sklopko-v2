@@ -32,7 +32,11 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
   bin2bcd: { groups: () => [numbered('B', 'in', 'B', 4), numbered('O', 'out', 'O', 4)] },
   mux: { groups: (p) => (Number(p.n) > 2 ? [numbered('S', 'in', 'S', Math.log2(Number(p.n)))] : []) },
   rom: {
-    groups: (p) => [numbered('A', 'in', 'A', Number(p.abits)), numbered('D', 'out', 'D', Number(p.dbits))],
+    groups: (p) => [
+      numbered('A', 'in', 'A', Number(p.abits)),
+      numbered('D', 'out', 'D', Number(p.dbits)),
+      ...(p.table === 'on' ? [numbered('TA', 'in', 'TA', 8), numbered('TD', 'out', 'TD', 8)] : []),
+    ],
     keepsHeight: (p) => showsTable(2 ** Number(p.abits)),
   },
   ram: {

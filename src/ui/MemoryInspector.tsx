@@ -7,12 +7,15 @@ import { pokeWord, setParams, showToast, useStore } from '../app/store'
 import type { ConsoleState } from '../engine/components/devices'
 import { HEX_WORDS, parseWords } from '../engine/components/memory'
 import { getDef } from '../engine/registry'
-import { ISAS, assemble, disassemble, getIsa, toHexWords, type Isa } from '../engine/isa'
+import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
 import { TextParam } from './TextParam'
 
 const hexOf = (n: number, digits: number) => n.toString(16).toUpperCase().padStart(digits, '0')
+
+/** The part as it is now. */
+const currentComp = (id: string): Comp | undefined => useStore.getState().circuit.comps[id]
 
 /** Parameters of the part as they are now (event handlers must not use the props of an earlier render). */
 const currentParams = (id: string): Params => useStore.getState().circuit.comps[id]?.params ?? {}
@@ -35,6 +38,17 @@ function chooseIsa(comp: Comp, id: string) {
   setParams(comp.id, patch)
 }
 
+/** What a program that assembled changes in the ROM: its words, and its table (turned on if the program has one). */
+function assembled(isa: Isa, source: string, r: AsmResult, comp: Comp): Params {
+  const patch: Params = { source, data: toHexWords(r.words, isa.bits) }
+  const tdata = toHexBytes(r.table)
+  if (comp.params.table === 'on' || tdata) {
+    patch.table = 'on'
+    patch.tdata = tdata
+  }
+  return patch
+}
+
 /** Source of a program, checked as you type and applied when you click away (one undo step). */
 function ProgramEditor({ comp, isa, words }: { comp: Comp; isa: Isa; words: number }) {
   const saved = String(comp.params.source)
@@ -50,7 +64,7 @@ function ProgramEditor({ comp, isa, words }: { comp: Comp; isa: Isa; words: numb
     latest.current.saved = d // the remount that follows must not apply it a second time
     const r = assemble(isa, d, words)
     // With errors the source is kept, but the circuit keeps running the last program that assembled.
-    setParams(comp.id, r.errors.length ? { source: d } : { source: d, data: toHexWords(r.words, isa.bits) })
+    setParams(comp.id, r.errors.length ? { source: d } : assembled(isa, d, r, comp))
   }
   // Apply a pending edit when the inspector goes away (another part gets selected).
   // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -106,6 +120,25 @@ function Listing({ comp, isa, values, digits }: { comp: Comp; isa?: Isa; values:
   )
 }
 
+/** The bytes of a ROM's table, sixteen to a row, with the address at the start of each row. */
+function TableDump({ text }: { text: string }) {
+  const bytes = parseWords(text, 256, 8)
+  const used = bytes.reduce((n, v, i) => (v ? i + 1 : n), 0)
+  const rows = Array.from({ length: Math.ceil(used / 16) }, (_, r) => bytes.slice(r * 16, r * 16 + 16))
+  return (
+    <div className="field">
+      <span>Table (read with LDT; filled in by .byte)</span>
+      {rows.length ? (
+        <pre className="table-dump" aria-label="Table contents">
+          {rows.map((row, r) => `${hexOf(r * 16, 2)}: ${row.map((v) => hexOf(v, 2)).join(' ')}`).join('\n')}
+        </pre>
+      ) : (
+        <small>Empty. Add .byte lines to the program.</small>
+      )}
+    </div>
+  )
+}
+
 export function RomSection({ comp }: { comp: Comp }) {
   const p = comp.params
   const isa = getIsa(String(p.isa))
@@ -124,7 +157,7 @@ export function RomSection({ comp }: { comp: Comp }) {
     if (!file) return
     if (isa) {
       const r = assemble(isa, file.text, words)
-      setParams(comp.id, r.errors.length ? { source: file.text } : { source: file.text, data: toHexWords(r.words, isa.bits) })
+      setParams(comp.id, r.errors.length ? { source: file.text } : assembled(isa, file.text, r, currentComp(comp.id) ?? comp))
       showToast(r.errors.length ? `Opened ${file.name}, with ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}.` : `Opened ${file.name}.`)
     } else if (HEX_WORDS.test(file.text)) {
       setParams(comp.id, { data: file.text.trim().replace(/\s+/g, ' ') })
@@ -158,6 +191,7 @@ export function RomSection({ comp }: { comp: Comp }) {
         <TextParam key={`data|${String(p.data)}`} comp={comp} p={dataDef} />
       )}
       <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} />
+      {p.table === 'on' && <TableDump text={String(p.tdata)} />}
       <div className="row">
         <button onClick={load} title={isa ? 'Replace the program with a .asm file' : 'Replace the contents with a file of hex words'}>
           Open…

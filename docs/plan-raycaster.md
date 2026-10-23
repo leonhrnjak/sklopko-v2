@@ -5,7 +5,7 @@
 >
 > - [x] M1a Index register and a 256-byte RAM
 > - [x] M1b Subroutines: CALL and RET
-> - [ ] M1c Table ROM: constants in the program (`.byte`, `LDT`)
+> - [x] M1c Table ROM: constants in the program (`.byte`, `LDT`)
 > - [ ] M1d A readable screen
 > - [ ] M1e The spike: a raycaster on the reference interpreter, to size M2
 > - [ ] M2 (decided after the spike, see below)
@@ -49,9 +49,11 @@ group. Existing encodings never change.
 - Tests: nested calls, a recursion that fits, RET in the middle of a loop.
 
 ### M1c Table ROM
-- A second ROM next to the program ROM: 256 bytes of constants. `LDT` (ACC = TABLE[X]). The assembler learns `.byte 1, 2, 3` (and
-  `.byte` with names) which places bytes in the table in order; the table is part of the same source text and the same ROM part
-  (a second memory tab in the inspector).
+- The program ROM part gets an optional second output: a table of 256 bytes with its own address pins (`TA`) and data pins
+  (`TD`), switched on by a `Table` parameter (off by default, so nothing old changes). `LDT` (ACC = TABLE[X]) reads it at X.
+- The assembler learns `.byte 1, 2, 3` (numbers, names, negative numbers; up to 256 bytes). A label in front of `.byte` names a
+  place in the table. The bytes are kept in the same ROM part as the program (`tdata`), so editing the program in the
+  inspector updates both, and the inspector shows the table under the listing.
 - This is how sine tables, maps and sprites get in without spending instructions.
 
 ### M1d A readable screen

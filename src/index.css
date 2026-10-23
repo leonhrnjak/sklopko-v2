@@ -2467,3 +2467,13 @@ button.linklike:hover {
   gap: 4px;
   margin-bottom: 4px;
 }
+
+.table-dump {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  overflow-x: auto;
+}
