@@ -12,7 +12,7 @@ const TABS: [ReferenceTab, string][] = [
   ['examples', 'Examples'],
 ]
 
-const CATEGORIES: OpCategory[] = ['Load and store', 'Arithmetic', 'Logic', 'Shifts', 'Jumps', 'Input and output', 'Control']
+const CATEGORIES: OpCategory[] = ['Load and store', 'Index register', 'Arithmetic', 'Logic', 'Shifts', 'Jumps', 'Input and output', 'Control']
 
 /** How an operand is written in the table: n is a value, a an address, t a jump target, p a port. */
 const OPERAND: Record<ArgKind, string> = { none: '', imm: 'n', addr: 'a', target: 't', port: 'p' }
@@ -68,7 +68,7 @@ function Start() {
           <b>ACC</b>, the accumulator: one 8-bit number (0–255). Almost every instruction works on it.
         </li>
         <li>
-          <b>RAM</b>: 16 bytes, numbered 0 to 15. <code>STA a</code> stores ACC there, <code>LDA a</code> loads it back.
+          <b>RAM</b>: 256 bytes. <code>STA a</code> stores ACC in one of the first 16 (the address is part of the instruction), <code>LDA a</code> loads it back. The index register <b>X</b> reaches all 256: <code>TAX</code> puts a number in it, then <code>LDX</code> and <code>STX</code> read and write the byte it points to, so a program can walk through a table.
         </li>
         <li>
           <b>Flags</b>: <b>C</b> (carry) and <b>Z</b> (zero). Arithmetic sets them. After an addition, C = 1 means the sum

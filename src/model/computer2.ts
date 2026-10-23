@@ -12,6 +12,8 @@ import { boundsRect, type Circuit } from './circuit'
  *   keypad    `IN KEY` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `OUT KEY_ACK` says it has been read
  *   gamepad   `IN PAD` reads the buttons held right now, one bit each (up 1, down 2, left 4, right 8, A 16, B 32)
  *   number    `OUT NUMBER` shows the accumulator on a decimal display
+ *
+ * The data RAM has 256 bytes: an instruction's address field reaches the first 16, the index register X (TAX, LDX, STX...) all of them.
  */
 
 export const ROM_WORDS = 256
@@ -38,10 +40,11 @@ export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toStrin
  *   10 subtract                       11 the second operand is the constant instead of RAM
  *   12 the ALU result is logic, not the adder's      13–14 which logic: 0 AND, 1 OR, 2 XOR
  *   15 the adder takes the carry flag in (ADC, SBC)
- * Control ROM 2: 0 jump if not zero, 1 jump if carry, 2 write to a port.
+ * Control ROM 2: 0 jump if not zero, 1 jump if carry, 2 write to a port, 3 the RAM address is X (not the instruction's address
+ *   field), 4 load X from the accumulator, 5 load X from the constant, 6 add 1 to X, 7 subtract 1 from X.
  */
 const LOAD = 1
-const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5 }
+const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5, X: 6 }
 const src = (s: number) => s << 1
 const RAM_WRITE = 1 << 4
 const FLAGS = 1 << 5
@@ -57,6 +60,11 @@ const CARRY_IN = 1 << 15
 const JNZ2 = 1
 const JC2 = 2
 const PORT_WRITE = 4
+const INDIRECT = 8
+const X_FROM_ACC = 16
+const X_FROM_CONST = 32
+const X_UP = 64
+const X_DOWN = 128
 
 const ARITH = LOAD | src(SRC.ALU) | FLAGS
 
@@ -90,6 +98,13 @@ const CONTROL: Record<string, [number, number]> = {
   ADC: [ARITH | CARRY_IN, 0],
   SBC: [ARITH | SUBTRACT | CARRY_IN, 0],
   NOP: [0, 0],
+  LDXI: [0, X_FROM_CONST],
+  TAX: [0, X_FROM_ACC],
+  TXA: [LOAD | src(SRC.X), 0],
+  INX: [FLAGS, X_UP],
+  DEX: [FLAGS, X_DOWN],
+  LDX: [LOAD | src(SRC.RAM), INDIRECT],
+  STX: [RAM_WRITE, INDIRECT],
 }
 
 /** The two control ROMs as arrays of words, indexed by opcode + 16 × sub-opcode. */
@@ -528,8 +543,8 @@ export function computer2Builder(o: Computer2Options) {
   named(SUBTRACT, 'SUBTRACT')
   named(B_IS_NUM, 'B_IS_NUM')
   named(LOGIC, 'LOGIC')
-  const cs2 = splitter(CTL, 'cs2', 8, [1, 1, 1, 5], 'control 2 bits', `${ctl2}.D`)
-  const [JNZ2, JC2, PORT_WRITE] = [0, 1, 2].map((i) => `${cs2}.Y${i}`)
+  const cs2 = splitter(CTL, 'cs2', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'control 2 bits', `${ctl2}.D`)
+  const [JNZ2, JC2, PORT_WRITE, INDIRECT_W, X_FROM_ACC_W, X_FROM_CONST_W, X_UP_W, X_DOWN_W] = Array.from({ length: 8 }, (_, i) => `${cs2}.Y${i}`)
 
   const flags = part(ACC, 'flags', 'busreg', { params: { bits: 2 }, label: 'Flags' })
   const fs = splitter(ACC, 'fs', 2, [1, 1], 'carry, zero', `${flags}.Q`)
@@ -568,14 +583,43 @@ export function computer2Builder(o: Computer2Options) {
   const writeTo = (n: number, label: string) => `${gate(DECODE, `we${n}`, 'and', label, [PORT_WRITE, select(n)])}.Y`
 
   // ---- Execute: RAM, adder/subtractor, logic, accumulator ----------------------------------------------
-  const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8 }, label: 'Data RAM' })
+  const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8, abits: 8 }, label: 'Data RAM' })
   const acc = part(ACC, 'acc', 'busreg', { params: { bits: 8 }, label: 'ACC' })
   const ACC_OUT = `${acc}.Q`
   named(ACC_OUT, 'ACC', 8)
-  wire(ADDR, `${ram}.A`)
   wire(WRITE_RAM, `${ram}.WE`)
   wire(`${clk}.Q`, `${ram}.CLK`)
   wire(ACC_OUT, `${ram}.D`)
+
+  // The index register X, and the RAM address: the instruction's address field (the first 16 bytes) or X (all 256).
+  // X loads the accumulator (TAX), the constant (LDXI) or itself plus or minus 1 (INX, DEX).
+  const x = part(MEM, 'x', 'busreg', { params: { bits: 8 }, label: 'X' })
+  const X_OUT = `${x}.Q`
+  const addrLow = merger(MEM, 'addrLow', 8, [4, 4], 'direct address', [ADDR, busconst(MEM, 'zero4a', 4, 0)])
+  const raddr = part(MEM, 'raddr', 'busmux', { params: { bits: 8, n: 2 }, label: 'RAM address: direct or X' }, 60)
+  wire(addrLow, `${raddr}.I0`)
+  wire(X_OUT, `${raddr}.I1`)
+  wire(INDIRECT_W, `${raddr}.S0`)
+  wire(`${raddr}.Y`, `${ram}.A`)
+  const xStep = gate(MEM, 'xStep', 'or', 'INX or DEX', [X_UP_W, X_DOWN_W])
+  const step = part(MEM, 'step', 'busmux', { params: { bits: 8, n: 2 }, label: '+1 or −1' }, 20)
+  wire(busconst(MEM, 'one8', 8, 1), `${step}.I0`)
+  wire(busconst(MEM, 'minusOne8', 8, 255), `${step}.I1`)
+  wire(X_DOWN_W, `${step}.S0`)
+  const xAdder = part(MEM, 'xAdder', 'busadd', { params: { bits: 8 }, label: 'X ± 1' })
+  wire(X_OUT, `${xAdder}.A`)
+  wire(`${step}.Y`, `${xAdder}.B`)
+  const xSel = merger(MEM, 'xSel', 2, [1, 1], 'X from: ACC, constant, or ±1', [X_FROM_CONST_W, `${xStep}.Y`])
+  const xNext = part(MEM, 'xNext', 'busmux', { params: { bits: 8, n: 4 }, label: 'next X' }, 20)
+  wire(ACC_OUT, `${xNext}.I0`)
+  wire(num, `${xNext}.I1`)
+  wire(`${xAdder}.S`, `${xNext}.I2`)
+  wire(`${xAdder}.S`, `${xNext}.I3`)
+  wire(xSel, `${xNext}.S`)
+  const xLoad = gate(MEM, 'xLoad', 'or', 'load X', [X_FROM_ACC_W, X_FROM_CONST_W, X_UP_W, X_DOWN_W])
+  wire(`${xNext}.Y`, `${x}.D`)
+  wire(`${xLoad}.Y`, `${x}.LD`)
+  wire(`${clk}.Q`, `${x}.CLK`)
 
   // The second operand: RAM, or the constant of the instruction (ADDI, SUBI, CMPI, ANDI...), then inverted for subtraction.
   const bsel = part(BSEL, 'bsel', 'busmux', { params: { bits: 8, n: 2 }, label: 'operand B' }, 60)
@@ -647,7 +691,7 @@ export function computer2Builder(o: Computer2Options) {
   const shl = merger(ACCMUX, 'shl', 8, [1, 1, 6], 'ACC shifted left', [`${zero}.Q`, `${nibbles}.Y0`, `${nibbles}.Y1`])
   const shr = merger(ACCMUX, 'shr', 8, [6, 1, 1], 'ACC shifted right', [`${nibbles}.Y1`, `${nibbles}.Y2`, `${zero}.Q`])
   const amux = part(ACCMUX, 'amux', 'busmux', { params: { bits: 8, n: 8 }, label: 'ACC input' }, 60)
-  ;[num, RESULT_OUT, `${ram}.Q`, shl, shr, portIn].forEach((from, i) => wire(from, `${amux}.I${i}`))
+  ;[num, RESULT_OUT, `${ram}.Q`, shl, shr, portIn, X_OUT].forEach((from, i) => wire(from, `${amux}.I${i}`))
   wire(SRC, `${amux}.S`)
   wire(`${amux}.Y`, `${acc}.D`)
   wire(LOAD_ACC, `${acc}.LD`)
@@ -658,13 +702,19 @@ export function computer2Builder(o: Computer2Options) {
   const cx = part(ALU, 'cx', 'xor', { label: 'carry xor SUB' })
   wire(`${adder}.Co`, `${cx}.A`)
   wire(SUBTRACT, `${cx}.B`)
-  const nlogic = part(ALU, 'nlogic', 'not', { label: 'not a logic instruction' }, 20)
-  wire(LOGIC, `${nlogic}.A`)
+  const nlogic = part(ALU, 'nlogic', 'not', { label: 'not a logic or X instruction' }, 20)
+  const logicOrX = gate(ALU, 'logicOrX', 'or', 'logic, INX or DEX', [LOGIC, `${xStep}.Y`])
+  wire(`${logicOrX}.Y`, `${nlogic}.A`)
   const carryOut = part(ALU, 'carryOut', 'and', { label: 'carry, 0 for logic' }, 20)
   wire(`${cx}.Y`, `${carryOut}.A`)
   wire(`${nlogic}.Y`, `${carryOut}.B`)
   const isZero = part(ALU, 'isZero', 'buscmp', { params: { bits: 8 }, label: 'result is zero' })
-  wire(RESULT_OUT, `${isZero}.A`)
+  // INX and DEX set the zero flag from the new X, not from the ALU.
+  const zsrc = part(ALU, 'zsrc', 'busmux', { params: { bits: 8, n: 2 }, label: 'zero test: result, or X ± 1' }, 20)
+  wire(RESULT_OUT, `${zsrc}.I0`)
+  wire(`${xAdder}.S`, `${zsrc}.I1`)
+  wire(`${xStep}.Y`, `${zsrc}.S0`)
+  wire(`${zsrc}.Y`, `${isZero}.A`)
   wire(zero8, `${isZero}.B`)
   const flagWord = merger(ACC, 'flagWord', 2, [1, 1], 'carry, zero', [`${carryOut}.Y`, `${isZero}.EQ`])
   wire(flagWord, `${flags}.D`)
@@ -1489,6 +1539,94 @@ won:    LDI 89          ; Y
         HALT
 `
 
+/**
+ * The sieve of Eratosthenes: a flag for each number in RAM, reached with the index register X (the flag of n is at n + 16, because
+ * the first 16 bytes are the program's variables). Prints the primes below 240.
+ */
+export const SIEVE_SOURCE = `; The sieve of Eratosthenes. A flag for each number lives in RAM at address n + 16: 0 means "might be prime", 1 means
+; "a multiple of something smaller". The first 16 bytes are variables, reached directly. The flags are reached through the
+; index register X: TAX puts the address in X, LDX reads the byte it points to, STX writes it.
+n = 0             ; the candidate
+m = 1             ; its multiples
+t = 2             ; the number being printed
+h = 3             ; hundreds digit
+u = 4             ; tens digit
+
+        LDI 2
+        STA n
+outer:  LDA n
+        ADDI 16
+        TAX             ; X points to the flag of n
+        LDX             ; ACC = the flag
+        CMPI 0
+        JNZ next        ; not zero: a multiple of a smaller number
+
+; ---- n is prime: print it as a decimal number and a space ----
+        LDA n
+        STA t
+        LDI 0
+        STA h
+        STA u
+hloop:  LDA t
+        CMPI 100
+        JNC hsub
+tloop:  LDA t
+        CMPI 10
+        JNC tsub
+        LDA h
+        CMPI 0
+        JZ nohund
+        ADDI 48
+        OUT CHAR
+        JMP tens        ; after hundreds the tens digit is printed even if it is 0
+nohund: LDA u
+        CMPI 0
+        JZ ones
+tens:   LDA u
+        ADDI 48
+        OUT CHAR
+ones:   LDA t
+        ADDI 48
+        OUT CHAR
+        LDI 32
+        OUT CHAR
+        JMP multiples
+hsub:   SUBI 100
+        STA t
+        LDA h
+        ADDI 1
+        STA h
+        JMP hloop
+tsub:   SUBI 10
+        STA t
+        LDA u
+        ADDI 1
+        STA u
+        JMP tloop
+
+; ---- flag 2n, 3n, 4n ... as multiples, up to 239 ----
+multiples: LDA n
+        STA m
+mark:   LDA m
+        ADD n
+        JC next         ; past 255
+        STA m
+        CMPI 240
+        JNC next        ; 240 or more: done with this prime
+        ADDI 16
+        TAX
+        LDI 1
+        STX             ; flag it
+        JMP mark
+
+next:   LDA n
+        ADDI 1
+        STA n
+        CMPI 240
+        JC outer        ; carry: n is still below 240
+        HALT
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -1548,6 +1686,14 @@ export const PROGRAMS: Program[] = [
     hz: 512,
     devices: ['lcd', 'number', 'console', 'gamepad'],
     note: 'Snake. Steer with the direction pad (click it, or use the arrow keys or W A S D while it runs) and eat the food to grow to length 8 (shown on the decimal display). The walls are the lit edge of the screen; hit one, or yourself, and the game halts with “Game over” on the console. The body is eight RAM bytes, each a screen position; every frame each takes its neighbour’s value, the new head goes in the first and the old tail pixel goes out (unless you just ate). RAM cannot be addressed by a variable, so the program jumps to different code for each length. Reset to play again.',
+  },
+  {
+    id: 'computer-sieve',
+    name: 'Computer + console: prime sieve (index register)',
+    source: SIEVE_SOURCE,
+    hz: 1024,
+    devices: ['console'],
+    note: 'The sieve of Eratosthenes: it prints the primes below 240. A flag for every number is kept in the 256-byte RAM, and the program reaches them with the index register X: TAX points X at a flag, LDX reads it and STX writes it. Without X an instruction can only name one of the first 16 bytes. It needs a few thousand instructions, so give it a high speed. Click the Data RAM to watch the flags fill in.',
   },
 ]
 

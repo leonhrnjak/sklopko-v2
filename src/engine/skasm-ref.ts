@@ -4,12 +4,14 @@ import { SKASM } from './isa'
  * A plain TypeScript model of the SKASM machine: the definition of what every instruction does. The computers built out
  * of parts are tested against it, step by step.
  *
- * The machine has an 8-bit accumulator (ACC), two flags (carry C and zero Z), 16 bytes of RAM, an 8-bit program counter
- * (PC) and up to 256 instructions. It runs one instruction per clock cycle. A word that is not an instruction does nothing.
+ * The machine has an 8-bit accumulator (ACC), an 8-bit index register (X), two flags (carry C and zero Z), 256 bytes of RAM
+ * (an instruction's address field reaches the first 16, X reaches all), an 8-bit program counter (PC) and up to 256 instructions. It runs one instruction per clock cycle. A word that is not an instruction does nothing.
  */
 export interface Machine {
   pc: number
   acc: number
+  /** The index register. */
+  x: number
   /** Carry. After a subtraction or comparison it means "borrowed": ACC was smaller than what was taken away. */
   c: number
   /** Zero: the result of the last arithmetic or logic instruction was 0. */
@@ -24,7 +26,7 @@ export interface Ports {
   in?(port: number): number
 }
 
-export const newMachine = (): Machine => ({ pc: 0, acc: 0, c: 0, z: 0, ram: new Array<number>(16).fill(0), halted: false })
+export const newMachine = (): Machine => ({ pc: 0, acc: 0, x: 0, c: 0, z: 0, ram: new Array<number>(256).fill(0), halted: false })
 
 /** Run one instruction. */
 export function step(m: Machine, program: number[], ports: Ports = {}): void {
@@ -84,6 +86,13 @@ export function step(m: Machine, program: number[], ports: Ports = {}): void {
       case 'ADC': add(mem, m.c); break
       case 'SBC': sub(mem, m.c); break
       case 'NOP': break
+      case 'LDXI': m.x = n; break
+      case 'TAX': m.x = a; break
+      case 'TXA': m.acc = m.x; break
+      case 'INX': m.x = (m.x + 1) & 255; m.z = m.x === 0 ? 1 : 0; m.c = 0; break
+      case 'DEX': m.x = (m.x - 1) & 255; m.z = m.x === 0 ? 1 : 0; m.c = 0; break
+      case 'LDX': m.acc = m.ram[m.x]; break
+      case 'STX': m.ram[m.x] = a; break
     }
   }
   m.pc = next
