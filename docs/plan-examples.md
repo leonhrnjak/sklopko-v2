@@ -7,7 +7,7 @@
 > - [x] E2 Logic and bus teaching examples: encoder/decoder, bus arbitration, ALU slice, PWM dimmer
 > - [x] E3 Sequential gadgets: button debouncer, stopwatch
 > - [x] E4 Serial link: UART transmitter and receiver
-> - [ ] E5a Tic-tac-toe on the 8-bit computer
+> - [x] E5a Tic-tac-toe on the 8-bit computer
 > - [ ] E5b Pong on the 8-bit computer
 > - [ ] E5c Snake on the 8-bit computer
 
@@ -57,7 +57,7 @@ New examples go into one of these groups; add a group only if a batch really nee
 ### E5: showpieces on the 8-bit computer
 Each is a new `Program` in `computer2.ts` (SKASM source, using the LCD and keypad ports), exposed like `computer-lcd`, and is its
 own PR. Test with the assembler and simulator: feed key presses, check the LCD memory.
-- **E5a Tic-tac-toe** (keypad picks a cell, LCD shows the board, the computer plays the other side).
+- **E5a Tic-tac-toe** (keypad picks a cell, LCD shows the board, the console announces the result). Two players take turns: there is no room for a computer opponent, because the machine has 16 bytes of RAM and no indirect addressing.
 - **E5b Pong** (a bigger version of the bouncing ball, keypad moves the paddle).
 - **E5c Snake** (keypad steers, the snake grows, the game ends when it hits itself or the wall). Check the program size and
   cycle time first.

@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, CONTROL_1, CONTROL_2, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -488,4 +488,40 @@ describe('computer: the decimal display (OUT NUMBER)', () => {
       expect([r.output(), r.decimal()], `${n}`).toEqual([n, n])
     }
   })
+})
+
+describe('computer 2: tic-tac-toe on the circuit', () => {
+  it('plays a game to a win: the same screen and text as the reference interpreter', () => {
+    const keys = [0, 4, 1, 5, 2] // X takes the top row, O the middle row's first two cells
+    const m = machine(TICTACTOE_SOURCE, ['console', 'lcd', 'keypad'])
+    m.run(2000) // the grid
+    for (const k of keys) {
+      m.press(k)
+      m.run(400)
+    }
+    const ref = newMachine()
+    const px = new Set<number>()
+    let text = ''
+    const prog = assemble(SKASM, TICTACTOE_SOURCE, ROM_WORDS).words
+    const queue = [...keys]
+    let pending = -1
+    for (let i = 0; i < 60000 && !ref.halted; i++) {
+      referenceStep(ref, prog, {
+        out(port, v) {
+          if (port === 1) text += String.fromCharCode(v)
+          else if (port === 2) px.add(v)
+          else if (port === 5) pending = -1
+        },
+        in(port) {
+          if (port !== 5) return 0
+          if (pending < 0 && queue.length) pending = queue.shift()!
+          return pending < 0 ? 0 : pending | 16
+        },
+      })
+    }
+    expect(text).toBe('X wins')
+    expect(m.text()).toBe('X wins')
+    expect(m.halted()).toBe(1)
+    expect(new Set(m.pixels().map(([x, y]) => y * 16 + x))).toEqual(px)
+  }, 60000)
 })
