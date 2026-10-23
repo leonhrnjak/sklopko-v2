@@ -856,6 +856,12 @@ button.danger {
   fill: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.bus-readout {
+  font-size: 20px;
+  font-weight: 700;
+  fill: var(--seg-on, #facc15);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 .led-fill {
   opacity: 0.3;
 }

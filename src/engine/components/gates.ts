@@ -11,7 +11,7 @@ const inputsParam: ParamDef = {
   structural: true,
 }
 
-function and(ins: V[]): V {
+export function and(ins: V[]): V {
   let r: V = 1
   for (const v of ins) {
     if (v === 0) return 0
@@ -20,7 +20,7 @@ function and(ins: V[]): V {
   return r
 }
 
-function or(ins: V[]): V {
+export function or(ins: V[]): V {
   let r: V = 0
   for (const v of ins) {
     if (v === 1) return 1
@@ -29,7 +29,7 @@ function or(ins: V[]): V {
   return r
 }
 
-function xor(ins: V[]): V {
+export function xor(ins: V[]): V {
   let r = 0
   for (const v of ins) {
     if (v === X) return X

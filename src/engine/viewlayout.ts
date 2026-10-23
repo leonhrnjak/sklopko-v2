@@ -23,13 +23,13 @@ export function viewLayoutOf(type: string, params: Params): Layout {
   let v = viewCache.get(key)
   if (!v) {
     if (viewCache.size > 500) viewCache.clear()
-    v = collapse(layoutOf(type, params), groupsOf(def, params))
+    v = collapse(layoutOf(type, params), groupsOf(def, params), !!def.keepsHeight?.(params))
     viewCache.set(key, v)
   }
   return v
 }
 
-function collapse(l: Layout, groups: PinGroup[]): Layout {
+function collapse(l: Layout, groups: PinGroup[], keepHeight: boolean): Layout {
   if (!groups.length) return l
   const groupOf = new Map<string, PinGroup>()
   for (const g of groups) for (const n of g.pins) groupOf.set(n, g)
@@ -48,7 +48,7 @@ function collapse(l: Layout, groups: PinGroup[]): Layout {
     }
   }
   const rows = Math.max(sides.l.length, sides.r.length, 2)
-  const h = Math.min(l.h, PITCH * (rows + 1))
+  const h = keepHeight ? l.h : Math.min(l.h, PITCH * (rows + 1))
   const pins: PinDef[] = []
   for (const side of ['l', 't', 'b', 'r'] as Side[]) {
     const list = sides[side]

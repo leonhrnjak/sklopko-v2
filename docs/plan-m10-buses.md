@@ -1,11 +1,11 @@
 # Milestone 10: buses and tri-state — plan
 
 > **Status:** in progress. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each from its own feature branch per
-> `CLAUDE.md`. **Resume with 10c**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
+> `CLAUDE.md`. **Resume with 10d**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
 >
 > - [x] 10a Z and tri-state (scalar), v0.0.1-34
 > - [x] 10b Bus plumbing, v0.0.1-35
-> - [ ] 10c Parts
+> - [x] 10c Parts, v0.0.1-36
 > - [ ] 10d Rebuild the computer
 > - [ ] 10e Docs and polish
 
@@ -126,8 +126,25 @@ inspector heading "N-bit bus". Example `/buses`. Tests: `src/model/buses.test.ts
 equivalence with the hand-wired circuit, zero delay, widths 2 to 16, labels, widths in `connect`/`prune`/`autoConnect`/`deserialize`,
 old files, trace, timing) and e2e tests in `editor.spec.ts` and `mobile.spec.ts`. Not done here (10c): bus mode on the other parts,
 symbols that index pins by position, bus probe, the memory inspector.
-**10c. Parts (large)** — n-bit family, bus constant/input/display, `bus` toggle on the existing parts, bus probe, bus `busjoin`/`tribuf`,
-symbols pass, inspector/memory-inspector pin lookups, timing/delay tables, palette and help text.
+**10c. Parts (large) — done** — n-bit family, bus constant/input/display, `bus` toggle on the existing parts, bus probe, bus `busjoin`/`tribuf`,
+symbols pass, timing/delay tables, palette.
+*What 10c did, and where it differs from the plan above:* the bus mode of the existing parts is declared in one table, `src/engine/busmodes.ts`
+(`withBusModes` in the registry wraps each part with `withBus`; the inline `withBus` of `register` and `add4` moved there). Parts with bus mode:
+`hexin` (group `Q`), `hexdisp` (`IN`), `bar` (`I`), `breakpoint` (`A`, when `width` > 1), `register`, `counterld` (`D`, `Q`), `add4`, `sub4`,
+`addsub4`, `cmp4`, `alu` (`A`, `B`, `F`, and the select as `S`), `mux` (`S`), `rom`, `ram`, `console`, `framebuffer`. New `ComponentDef.keepsHeight`
+keeps the body height in bus mode for parts whose body draws something that needs the room (memory table, screens, the hex digit). The symbols did
+not need the name-lookup refactor the plan feared: they read values with `sim.inputValues` (scalar order, unchanged) and only draw pins from the
+view layout; only `bar` (LEDs side by side in bus mode) needed work.
+The n-bit family is `src/engine/components/nbit.ts`, category `Buses`, always in bus mode, `bits` 2–16: `busconst`, `busin` (hex value, click counts up,
+new `ComponentDef.cycle` for a part with its own click rule), `busdisp` (hex/dec/bin readout), `busreg`, `busctr` (counter with load), `busadd`, `bussub`,
+`busaddsub`, `buscmp`, `busgate` (and/or/xor/nand/nor/xnor/not, as slow as the single gate), `busmux` (2/4/8 inputs, select `S` a bus from 4 inputs up).
+No shifter yet: the computer did not need one. *Deviations:* `tribuf` and `busjoin` got a `bits` param (1 = the old scalar pins; more = buses `A`/`Y`, or
+`A`..`H`/`Y` on the junction, joined bit by bit) instead of a `bus` toggle, and so did the probe: `bits` > 1 makes it a bus probe that records the number
+(`NumberTrace`; `-1` while some bit is unknown), one row in the waveform panel and one signal in the VCD file (`Row.bus`). Not done: bit toggles on the bus
+input (click counts, or type the hex value), a Z level in the waveform.
+Tests: `src/engine/nbit.test.ts` (each part against a reference at widths 2, 8 and 16 with random inputs, tri-state buses), `src/model/busparts.test.ts` (names,
+grid and overlap of every part's pins for every setting, bus-mode ROM/RAM/console equal bit mode, bus probe equals a group of probes, delays and timing),
+`src/ui/symbols.test.ts` (every symbol renders in every mode) and two e2e tests in `editor.spec.ts`.
 **10d. Rebuild the computer (medium)** — `computer2Builder` (`src/model/computer2.ts`) uses `bus` helpers added to `CircuitBuilder`
 (`wire` auto-detects bus pins; `split`, `merge`); keep every label the tests use (`PC low`, `ACC high`, `Flags`, `Halted`, `Data RAM`,
 `Program`, `LCD`, `Keypad`, `Hundreds/Tens/Ones`…) or update `computer2.test.ts`, `examples.test.ts:437-470`, `beginner.test.ts`

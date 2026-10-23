@@ -1,3 +1,4 @@
+import { names } from './layouts'
 import { RECV, SEND } from './netlabels'
 import type { ComponentDef, ParamDef, Params, PinDef, PinGroup } from './types'
 
@@ -11,9 +12,12 @@ import type { ComponentDef, ParamDef, Params, PinDef, PinGroup } from './types'
 export const BUS_PARAM: ParamDef = { key: 'bus', label: 'Bus ports', kind: 'bool', default: true, legacy: false, structural: true }
 
 /** Give a part a bus mode: the `bus` param, and the groups its bus mode draws. */
-export function withBus(def: ComponentDef, groups: (p: Params) => PinGroup[]): ComponentDef {
-  return { ...def, params: [...(def.params ?? []), BUS_PARAM], groups }
+export function withBus(def: ComponentDef, groups: (p: Params) => PinGroup[], keepsHeight?: ComponentDef['keepsHeight']): ComponentDef {
+  return { ...def, params: [...(def.params ?? []), BUS_PARAM], groups, ...(keepsHeight ? { keepsHeight } : {}) }
 }
+
+/** A bus pin made of `n` scalar pins `prefix0..`, least significant first (the group's name is not the prefix: `D` for `D0..`, `IN` for `A..D`). */
+export const numbered = (name: string, dir: PinGroup['dir'], prefix: string, n: number): PinGroup => ({ name, dir, pins: names(prefix, n) })
 
 /** The bits of a bus pin (1 for an ordinary pin). */
 export const pinWidth = (p: Pick<PinDef, 'bus'>) => p.bus ?? 1

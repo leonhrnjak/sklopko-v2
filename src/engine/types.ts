@@ -120,6 +120,10 @@ export interface ComponentDef {
    * on, or, without one, it is always on. The simulator never sees groups: `flatten` turns a bus wire into one wire per bit.
    */
   groups?(p: Params): PinGroup[]
+  /** In bus mode the body keeps its height (it draws something that needs the room: a table, a screen, a digit). */
+  keepsHeight?(p: Params): boolean
+  /** An `interactive: 'cycle'` part with a value of its own: the params after a click (or an Alt-click, `back`). */
+  cycle?(p: Params, back: boolean): Params
   /** Pure wiring (splitter, merger): never simulated, `flatten` follows it back to the parts that drive its outputs. */
   wiring?: boolean
 }

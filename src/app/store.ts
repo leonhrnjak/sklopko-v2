@@ -278,7 +278,7 @@ export function setParams(id: string, patch: Params) {
  */
 export function groupProbes(ids: string[], name: string) {
   const c = get().circuit
-  const probes = ids.map((id) => c.comps[id]).filter((k) => k?.type === 'probe')
+  const probes = ids.map((id) => c.comps[id]).filter((k) => k?.type === 'probe' && !(Number(k.params.bits) > 1))
   if (!probes.length || probes.length > 16) return
   const ordered = [...probes].sort((a, b) => naturalOrder(a.label ?? '', b.label ?? '') || a.y - b.y || a.x - b.x)
   checkpoint()
@@ -330,7 +330,7 @@ export function interact(id: string, alt: boolean) {
   const def = getDef(k.type)
   let params = k.params
   if (def.interactive === 'toggle') params = { ...params, on: !params.on }
-  else if (def.interactive === 'cycle') params = { ...params, value: (Number(params.value) + (alt ? 15 : 1)) % 16 }
+  else if (def.interactive === 'cycle') params = def.cycle ? def.cycle(params, alt) : { ...params, value: (Number(params.value) + (alt ? 15 : 1)) % 16 }
   else return
   edit((c) => {
     c.comps[id].params = params

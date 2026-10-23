@@ -4,6 +4,7 @@ import { CONSOLE_ROWS, FB_SIZE, KEYPAD_LAYOUTS, speakerPitch, type ConsoleState,
 import { SEG_HEX } from '../engine/components/io'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
+import { probeBits } from '../engine/components/io'
 import { getDef } from '../engine/registry'
 import { X, Z, toNum, type Layout, type PinDef, type V } from '../engine/types'
 import { useSettings } from '../app/settings'
@@ -436,6 +437,11 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       break
     }
     case 'probe': {
+      if (probeBits(p) > 1) {
+        const n = toNum(ins(), 0, probeBits(p))
+        content = <BoxSym l={l} title={n < 0 ? '?' : n.toString(16).toUpperCase().padStart(Math.ceil(probeBits(p) / 4), '0')} />
+        break
+      }
       content = (
         <>
           <Stub pin={l.pins[0]} inner={{ x: 0, y: 10 }} />
@@ -733,6 +739,19 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     }
     case 'bar': {
       const vs = ins()
+      if (p.bus) {
+        // One bus pin: the LEDs sit side by side.
+        content = (
+          <>
+            <Stub pin={l.pins[0]} inner={edgePoint(l.pins[0], l)} />
+            <rect className="display-body" x={0} y={0} width={l.w} height={l.h} rx={4} />
+            {vs.map((v, i) => (
+              <rect key={i} x={6 + i * 10} y={l.h / 2 - 6} width={8} height={12} rx={2} className={v === 1 ? 'seg on' : 'seg'} />
+            ))}
+          </>
+        )
+        break
+      }
       content = (
         <>
           {l.pins.map((q) => (
@@ -769,10 +788,37 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       break
     }
     case 'mux':
+    case 'busmux':
     case 'demux':
       content = <MuxSym l={l} title={def.title!(p)} demux={comp.type === 'demux'} />
       break
+    case 'busdisp': {
+      const bits = Number(p.bits)
+      const n = toNum(ins(), 0, bits)
+      const text =
+        n < 0 ? '?' : p.format === 'dec' ? String(n) : p.format === 'bin' ? n.toString(2).padStart(bits, '0') : n.toString(16).toUpperCase().padStart(Math.ceil(bits / 4), '0')
+      content = (
+        <>
+          {l.pins.map((q) => (
+            <Stub key={q.name} pin={q} inner={edgePoint(q, l)} />
+          ))}
+          <rect className="display-body" x={0} y={0} width={l.w} height={l.h} rx={4} />
+          <Txt x={6} y={l.h / 2} anchor="start" className="pin-label display-label">
+            A
+          </Txt>
+          <Txt x={l.w / 2 + 6} y={l.h / 2 + 1} className="bus-readout">
+            {text}
+          </Txt>
+        </>
+      )
+      break
+    }
     case 'tribuf': {
+      // A bus of several bits is drawn as a box: its pins are buses.
+      if (Number(p.bits) > 1) {
+        content = <BoxSym l={l} title="TRI" />
+        break
+      }
       // A buffer triangle with its enable stub coming in from below.
       const { w, h } = l
       content = (
@@ -787,8 +833,15 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     }
     case 'busjoin': {
       // Warn when two or more drivers are active and the line came out unknown: contention.
-      const active = live ? ins().filter((v) => v !== Z).length : 0
-      content = <BoxSym l={l} title="BUS" warn={live && active > 1 && val('Y') === X} />
+      const n = Number(p.bits) || 1
+      const vs = live ? ins() : []
+      let clash = false
+      for (let bit = 0; bit < n && live && !clash; bit++) {
+        let active = 0
+        for (let d = 0; d < Number(p.drivers); d++) if (vs[d * n + bit] !== Z) active++
+        clash = active > 1 && val(n === 1 ? 'Y' : `Y${bit}`) === X
+      }
+      content = <BoxSym l={l} title="BUS" warn={clash} />
       break
     }
     default:

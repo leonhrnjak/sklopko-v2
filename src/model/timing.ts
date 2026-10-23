@@ -20,7 +20,7 @@ import { compLayout, isAnnotation, type Circuit, type Comp, type PinRef, type Wi
  */
 
 /** Parts that remember a value across a clock edge. (A RAM also remembers, but is handled on its own.) */
-const SEQUENTIAL = new Set(['srlatch', 'dlatch', 'dff', 'jkff', 'tff', 'counter', 'counterld', 'register', 'shiftreg', 'ringcounter'])
+const SEQUENTIAL = new Set(['srlatch', 'dlatch', 'dff', 'jkff', 'tff', 'counter', 'counterld', 'register', 'shiftreg', 'ringcounter', 'busreg', 'busctr'])
 /** Parts that measure rather than are part of the hardware: nothing needs to arrive at them in time. */
 const MEASURING = new Set(['probe', 'breakpoint'])
 

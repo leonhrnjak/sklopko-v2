@@ -33,6 +33,11 @@ const BY_TYPE: Record<string, number> = {
   addsub4: 12,
   cmp4: 8,
   mul: 12,
+  busadd: 10,
+  bussub: 10,
+  busaddsub: 12,
+  buscmp: 8,
+  busmux: 3,
   alu: 12,
   mux: 3,
   tribuf: 2,
@@ -47,5 +52,7 @@ const BY_CATEGORY: Partial<Record<Category, number>> = { sequential: 3, arithmet
 
 /** The "realistic" delay for a part, in gate delays. */
 export function realisticDelay(k: Comp): number {
-  return Math.min(MAX_DELAY, BY_TYPE[k.type] ?? BY_CATEGORY[getDef(k.type).category] ?? 1)
+  // A bitwise gate is as slow as the single gate it is made of.
+  const type = k.type === 'busgate' ? String(k.params.op) : k.type
+  return Math.min(MAX_DELAY, BY_TYPE[type] ?? BY_CATEGORY[getDef(k.type).category] ?? 1)
 }

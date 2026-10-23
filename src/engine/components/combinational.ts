@@ -1,4 +1,3 @@
-import { withBus } from '../bus'
 import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
@@ -9,7 +8,7 @@ import { HEX_WORDS, parseWords, tableBox } from './memory'
  * Wraps a pure boolean function. If any input is X every output is X,
  * otherwise `fn` gets plain 0/1 inputs and returns 0/1 (or boolean) outputs.
  */
-function comb(fn: (ins: number[], p: Params) => (number | boolean)[]): ComponentDef['evaluate'] {
+export function comb(fn: (ins: number[], p: Params) => (number | boolean)[]): ComponentDef['evaluate'] {
   return (inst) => {
     if (inst.ins.includes(X)) {
       inst.outs.fill(X)
@@ -46,22 +45,15 @@ export const arithmetic: ComponentDef[] = [
     layout: () => box({ left: ['A', 'B', { name: 'Ci', def: 0 }], right: ['S', 'Co'] }),
     evaluate: comb(([a, b, c]) => bitsOf(a + b + c, 2)),
   },
-  withBus(
-    {
-      type: 'add4',
-      name: '4-bit adder',
-      category: 'arithmetic',
-      description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
-      title: () => 'Σ\n4-bit',
-      layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
-      evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
-    },
-    () => [
-      { name: 'A', dir: 'in', pins: names('A', 4) },
-      { name: 'B', dir: 'in', pins: names('B', 4) },
-      { name: 'S', dir: 'out', pins: names('S', 4) },
-    ],
-  ),
+  {
+    type: 'add4',
+    name: '4-bit adder',
+    category: 'arithmetic',
+    description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
+    title: () => 'Σ\n4-bit',
+    layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
+    evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
+  },
   {
     type: 'halfsub',
     name: 'Half subtractor',
