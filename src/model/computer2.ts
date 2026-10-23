@@ -807,6 +807,258 @@ loop:   LDA 1
         HALT
 `
 
+/**
+ * Tic-tac-toe for two players on the LCD and the hex keypad. Each player's marks are kept as three row bytes (bit c of row r =
+ * a mark in column c), always for "the player to move" (me) and "the other player" (opp); after every move the two sets swap, so
+ * one copy of the code serves both players. A win is tested with the bits: three in a row is a row byte of 7, three in a column
+ * is a non-zero AND of the three rows, and a diagonal is the AND of the rows shifted so its cells line up in bit 0.
+ */
+export const TICTACTOE_SOURCE = `; Tic-tac-toe for two players. X starts. The nine keys 0 1 2 / 4 5 6 / 8 9 A of the keypad are the nine cells.
+; The board is drawn on the 16x16 screen: cells are 4x4 pixels, 5 apart, with grid lines between them.
+; Each player's marks are three row bytes: bit c of row r is set for a mark at row r, column c.
+; "me" is the player to move and "opp" the other one; after each move the two swap, so the code serves both.
+me0 = 0
+me1 = 1
+me2 = 2
+opp0 = 3
+opp1 = 4
+opp2 = 5
+turn = 6          ; 0 = X to move, 1 = O to move
+moves = 7         ; marks placed so far
+key = 8
+b = 9             ; the bit of the chosen column (1, 2 or 4)
+cx = 10           ; 5 * the chosen column
+pos = 11          ; the screen position of the cell's top left pixel: y * 16 + x
+t = 12
+
+; ---- the grid: two vertical lines at x = 5 and 10, two horizontal ones at y = 5 and 10 ----
+        LDI 5
+vline1: OUT PIXEL_ON
+        ADDI 16
+        JNC vline1      ; the carry says we have gone past the bottom
+        LDI 10
+vline2: OUT PIXEL_ON
+        ADDI 16
+        JNC vline2
+        LDI 80          ; y = 5, x = 0
+hline1: OUT PIXEL_ON
+        ADDI 1
+        CMPI 96
+        JNZ hline1
+        LDI 160         ; y = 10
+hline2: OUT PIXEL_ON
+        ADDI 1
+        CMPI 176
+        JNZ hline2
+
+; ---- wait for a key (bit 4 of IN KEY says one is waiting), read it and acknowledge it ----
+wait:   IN KEY
+        ANDI 16
+        JZ wait
+        IN KEY
+        ANDI 15
+        STA key
+        OUT KEY_ACK
+
+; ---- the column is the low two bits of the key (3 is no column); the row is the key divided by 4 (3 is no row) ----
+        ANDI 3
+        CMPI 3
+        JZ wait
+        CMPI 0
+        JZ col0
+        CMPI 1
+        JZ col1
+        LDI 4           ; column 2
+        STA b
+        LDI 10
+        STA cx
+        JMP rows
+col0:   LDI 1
+        STA b
+        LDI 0
+        STA cx
+        JMP rows
+col1:   LDI 2
+        STA b
+        LDI 5
+        STA cx
+rows:   LDA key
+        SHR
+        SHR
+        CMPI 3
+        JZ wait
+        CMPI 0
+        JZ row0
+        CMPI 1
+        JZ row1
+
+; ---- place the mark if the cell is free; the top left pixel of the cell is 17 + 80 * row + 5 * column ----
+        LDA me2
+        OR opp2
+        AND b
+        JNZ wait        ; taken: ignore the key
+        LDA me2
+        OR b
+        STA me2
+        LDI 177
+        ADD cx
+        STA pos
+        JMP draw
+row0:   LDA me0
+        OR opp0
+        AND b
+        JNZ wait
+        LDA me0
+        OR b
+        STA me0
+        LDI 17
+        ADD cx
+        STA pos
+        JMP draw
+row1:   LDA me1
+        OR opp1
+        AND b
+        JNZ wait
+        LDA me1
+        OR b
+        STA me1
+        LDI 97
+        ADD cx
+        STA pos
+
+; ---- draw an X or an O: eight pixels, each reached from the last by adding the difference ----
+draw:   LDA turn
+        CMPI 0          ; LDA does not set the zero flag
+        JNZ drawo
+        LDA pos
+        OUT PIXEL_ON
+        ADDI 17
+        OUT PIXEL_ON
+        ADDI 17
+        OUT PIXEL_ON
+        ADDI 17
+        OUT PIXEL_ON
+        ADDI 253
+        OUT PIXEL_ON
+        ADDI 241
+        OUT PIXEL_ON
+        ADDI 241
+        OUT PIXEL_ON
+        ADDI 241
+        OUT PIXEL_ON
+        JMP check
+drawo:  LDA pos
+        ADDI 1
+        OUT PIXEL_ON
+        ADDI 1
+        OUT PIXEL_ON
+        ADDI 17
+        OUT PIXEL_ON
+        ADDI 16
+        OUT PIXEL_ON
+        ADDI 15
+        OUT PIXEL_ON
+        ADDI 255
+        OUT PIXEL_ON
+        ADDI 239
+        OUT PIXEL_ON
+        ADDI 240
+        OUT PIXEL_ON
+
+; ---- three in a row? rows: a row byte of 7. Columns: the three rows have a bit in common. Diagonals: shift rows so cells line up ----
+check:  LDA me0
+        CMPI 7
+        JZ win
+        LDA me1
+        CMPI 7
+        JZ win
+        LDA me2
+        CMPI 7
+        JZ win
+        LDA me0
+        AND me1
+        AND me2
+        JNZ win
+        LDA me1         ; the diagonal from top left: bit 0 of row 0, bit 1 of row 1, bit 2 of row 2
+        SHR
+        STA t
+        LDA me2
+        SHR
+        SHR
+        AND t
+        AND me0
+        ANDI 1
+        JNZ win
+        LDA me0         ; the other diagonal: bit 2 of row 0, bit 1 of row 1, bit 0 of row 2
+        SHR
+        SHR
+        STA t
+        LDA me1
+        SHR
+        AND t
+        AND me2
+        ANDI 1
+        JNZ win
+
+; ---- no win: a full board is a draw, otherwise swap the players and wait for the next key ----
+        LDA moves
+        ADDI 1
+        STA moves
+        CMPI 9
+        JZ tie
+        LDA me0
+        STA t
+        LDA opp0
+        STA me0
+        LDA t
+        STA opp0
+        LDA me1
+        STA t
+        LDA opp1
+        STA me1
+        LDA t
+        STA opp1
+        LDA me2
+        STA t
+        LDA opp2
+        STA me2
+        LDA t
+        STA opp2
+        LDA turn
+        XORI 1
+        STA turn
+        JMP wait
+
+; ---- the result goes to the text console ----
+win:    LDA turn
+        CMPI 0
+        JNZ owins
+        LDI 88          ; X
+        JMP said
+owins:  LDI 79          ; O
+said:   OUT CHAR
+        LDI 32
+        OUT CHAR
+        LDI 119         ; w
+        OUT CHAR
+        LDI 105         ; i
+        OUT CHAR
+        LDI 110         ; n
+        OUT CHAR
+        LDI 115         ; s
+        OUT CHAR
+        HALT
+tie:    LDI 68          ; D
+        OUT CHAR
+        LDI 114         ; r
+        OUT CHAR
+        LDI 97          ; a
+        OUT CHAR
+        LDI 119         ; w
+        OUT CHAR
+        HALT
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -842,6 +1094,14 @@ export const PROGRAMS: Program[] = [
     devices: ['console', 'keypad'],
     keypad: 'calc',
     note: 'The 8-bit computer with a calculator keypad and a display. Click keys to type a sum of whole numbers up to 255, such as 23 + 10, then = (E means too big or divided by zero; C clears). The keypad sends each key as a number; IN KEY reads it, OUT KEY_ACK says it has been read, OUT CHAR prints a character. A digit does cur × 10 + digit with shifts; × and ÷ are repeated addition and subtraction; the answer is turned into digits by subtracting hundreds and tens.',
+  },
+  {
+    id: 'computer-tictactoe',
+    name: 'Computer + LCD + keypad: tic-tac-toe',
+    source: TICTACTOE_SOURCE,
+    hz: 512,
+    devices: ['lcd', 'console', 'keypad'],
+    note: 'Tic-tac-toe for two players, X first. The nine keys 0 1 2 / 4 5 6 / 8 9 A of the keypad are the nine cells of the board on the LCD; the other keys do nothing. Each player’s marks are three bytes in RAM, one per row, with a bit per column, and after every move the two sets swap so the same code serves both players. A row is won when a byte is 7, a column when the three bytes share a bit, a diagonal when the bits line up after shifting. The result is printed on the text console. Press Reset to play again.',
   },
 ]
 
