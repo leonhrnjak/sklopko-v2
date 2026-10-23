@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { GAMEPAD_BUTTONS, gamepadHeld } from '../engine/components/devices'
 import { buttonOfKey, installGamepadKeys } from './gamepad'
 import { CircuitBuilder } from '../model/builder'
 import { simComps } from '../model/circuit'
 
-function rig() {
+function rig(minHoldMs = 0) {
   const b = new CircuitBuilder()
   const pad = b.add('gamepad', 0, 0)
   const c = b.build()
@@ -13,7 +13,7 @@ function rig() {
   sim.load({ comps: simComps(c), wires: [] })
   sim.settle()
   const target = new EventTarget()
-  installGamepadKeys(sim, target as unknown as Window)
+  installGamepadKeys(sim, target as unknown as Window, minHoldMs)
   const send = (type: 'keydown' | 'keyup', key: string, extra: object = {}) => {
     const e = Object.assign(new Event(type, { cancelable: true }), { key, metaKey: false, ctrlKey: false, altKey: false }, extra)
     target.dispatchEvent(e)
@@ -77,6 +77,45 @@ describe('gamepad', () => {
     const { sim, send, outs, target } = rig()
     send('keydown', 'ArrowRight')
     target.dispatchEvent(new Event('blur'))
+    sim.settle()
+    expect(outs()).toBe('000000')
+  })
+})
+
+describe('gamepad: a short tap is kept down long enough to be seen', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('a key let go before the minimum time stays down until it is up, and a long press is let go at once', () => {
+    vi.useFakeTimers()
+    const { send, outs, sim } = rig(300)
+    send('keydown', 'ArrowUp')
+    vi.advanceTimersByTime(100)
+    send('keyup', 'ArrowUp')
+    expect(outs()).toBe('100000') // 100 ms: still down
+    vi.advanceTimersByTime(199)
+    sim.settle()
+    expect(outs()).toBe('100000')
+    vi.advanceTimersByTime(2)
+    sim.settle()
+    expect(outs()).toBe('000000') // 300 ms: let go
+
+    send('keydown', 'ArrowDown')
+    vi.advanceTimersByTime(500)
+    send('keyup', 'ArrowDown')
+    expect(outs()).toBe('000000') // held for long enough already
+  })
+
+  it('pressing again while the release is waiting keeps it down', () => {
+    vi.useFakeTimers()
+    const { send, outs, sim } = rig(300)
+    send('keydown', 'z')
+    send('keyup', 'z')
+    send('keydown', 'z')
+    vi.advanceTimersByTime(1000)
+    sim.settle()
+    expect(outs()).toBe('000010') // pressed again, never let go
+    send('keyup', 'z')
+    vi.advanceTimersByTime(1000)
     sim.settle()
     expect(outs()).toBe('000000')
   })

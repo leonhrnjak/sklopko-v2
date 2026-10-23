@@ -1926,7 +1926,7 @@ export const PROGRAMS: Program[] = [
     source: RAYCASTER_SOURCE,
     hz: 1024,
     devices: ['lcd', 'gamepad'],
-    note: 'A first-person view of an 8×8 maze, drawn by a raycaster. For each of the 16 screen columns the program marches a ray through the map in half-cell steps until it hits a wall; the number of steps is the distance, and a table turns it into the height and shade of the wall bar. Press left and right on the gamepad (or the arrow keys) to turn and up and down to walk, then wait: a picture takes about 6,000 instructions, a few seconds on the circuit, so run it fast. The map, the angle tables and the heights are in the table ROM and the rays share a CALL subroutine.',
+    note: 'A first-person view of an 8×8 maze, drawn by a raycaster: one ray per screen column, marched through the map until it hits a wall; the distance sets the height and shade of the wall bar. It is slow: the picture is redrawn left to right and takes a few seconds, so run it fast. Each tap of left or right turns you 17°, up and down walk half a cell (arrow keys work too); taps made while it draws are remembered and used when it is done. The map and tables are in the table ROM.',
   },
 ]
 
