@@ -173,6 +173,8 @@ function CompInspector({ comp }: { comp: Comp }) {
       {def.params?.map((p) => {
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
         if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
+        // The bytes of the table are typed here only for a ROM of hex words; a program makes them with .byte (shown below).
+        if (comp.type === 'rom' && p.key === 'tdata' && (comp.params.table !== 'on' || comp.params.isa !== 'none')) return null
         if (comp.type === 'lut' && p.key === 'data') return null // edited in the table below
         // A breakpoint that waits for any change has no value to compare with.
         if (comp.type === 'breakpoint' && p.key === 'value' && comp.params.when === 'changes') return null

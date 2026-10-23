@@ -1,4 +1,4 @@
-import { SKASM, SKASM_OPS, assemble, toHexWords } from '../engine/isa'
+import { SKASM, SKASM_OPS, assemble, toHexBytes, toHexWords } from '../engine/isa'
 import { CircuitBuilder } from './builder'
 import { boundsRect, type Circuit } from './circuit'
 
@@ -45,7 +45,7 @@ export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toStrin
  * Control ROM 3: 0 CALL (push the return address and jump), 1 RET (pop it and jump).
  */
 const LOAD = 1
-const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5, X: 6 }
+const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5, X: 6, TABLE: 7 }
 const src = (s: number) => s << 1
 const RAM_WRITE = 1 << 4
 const FLAGS = 1 << 5
@@ -108,6 +108,7 @@ const CONTROL: Record<string, [number, number] | [number, number, number]> = {
   DEX: [FLAGS, X_DOWN],
   LDX: [LOAD | src(SRC.RAM), INDIRECT],
   STX: [RAM_WRITE, INDIRECT],
+  LDT: [LOAD | src(SRC.TABLE), 0],
   CALL: [0, 0, CALL3],
   RET: [0, 0, RET3],
 }
@@ -418,11 +419,14 @@ clear:  LDI 10
         JMP reset
 `
 
-export const programWords = (source: string) => {
+const assembled = (source: string) => {
   const r = assemble(SKASM, source, ROM_WORDS)
   if (r.errors.length) throw new Error(`Program does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
-  return toHexWords(r.words, SKASM.bits)
+  return r
 }
+export const programWords = (source: string) => toHexWords(assembled(source).words, SKASM.bits)
+/** The table of a program (its `.byte` lines) as the hex text of the ROM's `tdata`. */
+export const programTable = (source: string) => toHexBytes(assembled(source).table)
 
 // ---- The circuit -------------------------------------------------------------------------------
 
@@ -505,7 +509,7 @@ export function computer2Builder(o: Computer2Options) {
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
   const pc = part(FETCH, 'pc', 'busctr', { params: { bits: 8 }, label: 'PC' })
   const zero = part(FETCH, 'zero0', 'const', { params: { value: 0 } })
-  const prog = part(ROM, 'prog', 'rom', { params: { ...BUS, abits: 8, dbits: 16, isa: SKASM.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
+  const prog = part(ROM, 'prog', 'rom', { params: { ...BUS, abits: 8, dbits: 16, isa: SKASM.id, source: o.source, data: programWords(o.source), table: 'on', tdata: programTable(o.source) }, label: 'Program' })
   named(`${clk}.Q`, 'CLK')
   named(`${zero}.Q`, 'GND')
   wire(`${pc}.Q`, `${prog}.A`)
@@ -638,6 +642,7 @@ export function computer2Builder(o: Computer2Options) {
   // X loads the accumulator (TAX), the constant (LDXI) or itself plus or minus 1 (INX, DEX).
   const x = part(MEM, 'x', 'busreg', { params: { bits: 8 }, label: 'X' })
   const X_OUT = `${x}.Q`
+  wire(X_OUT, `${prog}.TA`) // LDT: the table in the program ROM, read at X
   const addrLow = merger(MEM, 'addrLow', 8, [4, 4], 'direct address', [ADDR, busconst(MEM, 'zero4a', 4, 0)])
   const raddr = part(MEM, 'raddr', 'busmux', { params: { bits: 8, n: 2 }, label: 'RAM address: direct or X' }, 60)
   wire(addrLow, `${raddr}.I0`)
@@ -734,7 +739,7 @@ export function computer2Builder(o: Computer2Options) {
   const shl = merger(ACCMUX, 'shl', 8, [1, 1, 6], 'ACC shifted left', [`${zero}.Q`, `${nibbles}.Y0`, `${nibbles}.Y1`])
   const shr = merger(ACCMUX, 'shr', 8, [6, 1, 1], 'ACC shifted right', [`${nibbles}.Y1`, `${nibbles}.Y2`, `${zero}.Q`])
   const amux = part(ACCMUX, 'amux', 'busmux', { params: { bits: 8, n: 8 }, label: 'ACC input' }, 60)
-  ;[num, RESULT_OUT, `${ram}.Q`, shl, shr, portIn, X_OUT].forEach((from, i) => wire(from, `${amux}.I${i}`))
+  ;[num, RESULT_OUT, `${ram}.Q`, shl, shr, portIn, X_OUT, `${prog}.TD`].forEach((from, i) => wire(from, `${amux}.I${i}`))
   wire(SRC, `${amux}.S`)
   wire(`${amux}.Y`, `${acc}.D`)
   wire(LOAD_ACC, `${acc}.LD`)
@@ -1670,6 +1675,56 @@ next:   LDA n
         HALT
 `
 
+/**
+ * A sine wave scrolls across the LCD. The height of the wave at each of 16 columns is a byte of the table (`.byte`), read with
+ * LDT: X picks the table entry, which moves one place along every frame.
+ */
+export const SINE_SOURCE = `; A sine wave scrolls across the screen. The heights of the wave at 16 columns are in the table (the .byte line at the
+; end), which the program reads with LDT: TAX points X at an entry, LDT puts that byte in the accumulator.
+c = 0             ; the column being drawn
+p = 1             ; the phase: how far the wave has moved
+
+        LDI 0
+        STA p
+frame:  LDI 0
+        STA c
+col:    LDA c           ; the old pixel of this column: the entry before the current one
+        ADD p
+        ADDI 15
+        ANDI 15
+        TAX
+        LDT             ; its height
+        SHL
+        SHL
+        SHL
+        SHL             ; height * 16
+        ADD c           ; + column = the screen position
+        OUT PIXEL_OFF
+        LDA c           ; the new pixel
+        ADD p
+        ANDI 15
+        TAX
+        LDT
+        SHL
+        SHL
+        SHL
+        SHL
+        ADD c
+        OUT PIXEL_ON
+        LDA c
+        ADDI 1
+        STA c
+        CMPI 16
+        JNZ col
+        LDA p
+        ADDI 1
+        ANDI 15
+        STA p
+        JMP frame
+
+wave:   .byte 8, 10, 12, 14, 14, 14, 12, 10, 8, 5, 3, 1, 0, 1, 3, 5
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -1737,6 +1792,14 @@ export const PROGRAMS: Program[] = [
     hz: 1024,
     devices: ['console'],
     note: 'The sieve of Eratosthenes: it prints the primes below 240. A flag for every number is kept in the 256-byte RAM, and the program reaches them with the index register X: TAX points X at a flag, LDX reads it and STX writes it. Without X an instruction can only name one of the first 16 bytes. It needs a few thousand instructions, so give it a high speed. Click the Data RAM to watch the flags fill in.',
+  },
+  {
+    id: 'computer-sine',
+    name: 'Computer + LCD: a scrolling sine wave (table ROM)',
+    source: SINE_SOURCE,
+    hz: 1024,
+    devices: ['lcd'],
+    note: 'A sine wave scrolls across the LCD. The height of the wave at each of the 16 columns is a byte in a table: the .byte line at the end of the program fills a second ROM output, and LDT reads the byte at the index register X. Without a table the program would need an instruction for every number. Open the Program ROM to see the table under the listing.',
   },
 ]
 

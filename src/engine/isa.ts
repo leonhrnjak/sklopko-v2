@@ -21,9 +21,13 @@
  *            JNC loop     operands: decimal, 0x7F or $7F hex, 0b101 binary, a constant, a label or a port name
  *            OUT CHAR     port names are built in (see PORTS)
  *            .word 0x1234 a raw word, for data (this is also how the disassembler shows a word that isn't an instruction)
+ *            .byte 1, 2, 3  bytes for the table (up to 256), read with LDT; a label in front of it is the table address of the first
  */
 
 const WORD = '.WORD'
+const BYTE = '.BYTE'
+/** The size of the table that `.byte` fills. */
+export const TABLE_SIZE = 256
 
 /** What follows the mnemonic: nothing, a memory address, a jump target (which reaches further than an address), an immediate value or a port number. */
 export type ArgKind = 'none' | 'addr' | 'target' | 'imm' | 'port'
@@ -127,6 +131,7 @@ export const SKASM_OPS: Record<string, Op> = {
   DEX: extImmNone(7, 'Index register', 'X = X − 1 (0 − 1 is 255)', 'Z, C = 0'),
   LDX: extImmNone(8, 'Index register', 'ACC = RAM[X], any of the 256 bytes'),
   STX: extImmNone(9, 'Index register', 'RAM[X] = ACC, any of the 256 bytes'),
+  LDT: extImmNone(10, 'Index register', 'ACC = TABLE[X]: a constant from the table that .byte fills in (read only)'),
   // Extension group for addresses, ports and jump targets (opcode 15).
   OUT: extMem(0, 'port', 'Input and output', 'send ACC to port p'),
   IN: extMem(1, 'port', 'Input and output', 'ACC = the value from port p (0 if nothing is connected there)'),
@@ -227,6 +232,8 @@ export interface AsmResult {
   /** Source line (1-based) of the instruction at each address, for the instructions that were assembled. */
   lineOf: number[]
   errors: AsmError[]
+  /** The bytes of the table (`.byte`), at most 256 of them, in order. */
+  table: number[]
   /** Label addresses and named constants (not the built-in port names). */
   symbols: Record<string, number>
 }
@@ -257,6 +264,7 @@ export function assemble(isa: Isa, source: string, capacity: number): AsmResult 
   const err = (line: number, message: string) => errors.push({ line, message })
   const symbols: Record<string, number> = {}
   const program: Parsed[] = []
+  const bytes: { line: number; token: string }[] = []
   const mask = 2 ** isa.bits
   const isInstruction = (name: string) => name.toUpperCase() in isa.ops || name.toUpperCase() in isa.aliases
 
@@ -285,9 +293,15 @@ export function assemble(isa: Isa, source: string, capacity: number): AsmResult 
     }
     const label = /^([^\s:]+)\s*:\s*(.*)$/.exec(text)
     if (label) {
-      define(label[1], program.length, line, 'label')
+      // A label in front of .byte names a place in the table, in front of anything else a place in the program.
+      define(label[1], label[2].toUpperCase().startsWith(BYTE) ? bytes.length : program.length, line, 'label')
       text = label[2]
       if (!text) return
+    }
+    if (text.toUpperCase().startsWith(BYTE) && /^\.byte(\s|$)/i.test(text)) {
+      const list = text.slice(BYTE.length).split(/[\s,]+/).filter(Boolean)
+      if (!list.length) return err(line, '.byte needs at least one value.')
+      return list.forEach((token) => bytes.push({ line, token }))
     }
     const [mnemonic, ...operands] = text.split(/\s+/)
     const upper = mnemonic.toUpperCase()
@@ -340,8 +354,18 @@ export function assemble(isa: Isa, source: string, capacity: number): AsmResult 
     const arg = value < 0 ? value + isa.maxImm + 1 : value
     words[address] = isa.encode(o, arg) % mask
   })
+  // The table: the bytes of every .byte, in order.
+  const table: number[] = []
+  bytes.forEach(({ line, token }, i) => {
+    if (i === TABLE_SIZE) err(line, `The table has more than ${TABLE_SIZE} bytes.`)
+    if (i >= TABLE_SIZE) return
+    const value = valueOf(token)
+    if (value === null) return err(line, IDENT.test(token) ? `Unknown name “${token}”.` : `“${token}” is not a number or a name.`)
+    if (value < -128 || value > 255) return err(line, `.byte: the value ${value} doesn't fit, it must be from -128 to 255.`)
+    table[i] = value < 0 ? value + 256 : value
+  })
   errors.sort((a, b) => a.line - b.line)
-  return { words, lineOf, errors, symbols }
+  return { words, lineOf, errors, table, symbols }
 }
 
 /** One word as text: `LDI 200`, `HALT`, `OUT CHAR`, or `.word 0x1A2B` for a word that is not exactly an instruction. */
@@ -361,6 +385,13 @@ export function disassemble(isa: Isa, word: number): string {
 /** Machine words as the ROM's hex text: one word per group, zero-padded to the word width. */
 export const toHexWords = (words: number[], bits: number): string =>
   words.map((w) => w.toString(16).toUpperCase().padStart(Math.ceil(bits / 4), '0')).join(' ')
+
+/** The table as the ROM's hex text: one byte per group, up to the last one that is not 0 (empty if they are all 0). */
+export const toHexBytes = (table: number[]): string => {
+  let last = table.length
+  while (last > 0 && !table[last - 1]) last--
+  return table.slice(0, last).map((b) => (b ?? 0).toString(16).toUpperCase().padStart(2, '0')).join(' ')
+}
 
 /** One part of an instruction word: bits `from`..`to` (0 is the lowest bit, which is the ROM's `D0`) and what they hold. */
 export interface WordField {

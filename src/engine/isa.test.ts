@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexWords, wordFields } from './isa'
+import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexBytes, toHexWords, wordFields } from './isa'
 
 const asm = (source: string, capacity = 16) => assemble(SKASM, source, capacity)
 const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SKASM.bits)
@@ -405,5 +405,37 @@ describe('wordFields: how an instruction word is made up', () => {
   it('is null for a word that is not exactly an instruction', () => {
     expect(wordFields(SKASM, 0x1234)).toBeNull()
     expect(wordFields(SKASM, 0xf0f0)).toBeNull()
+  })
+})
+
+describe('.byte and the table', () => {
+  const table = (src: string) => asm(src).table
+  it('collects the bytes of every .byte line, in order, from numbers, constants and labels', () => {
+    const r = asm('K = 7\n.byte 1, 2 3\n.byte K, 0x10, -1, 255\nHALT')
+    expect(r.errors).toEqual([])
+    expect(r.table).toEqual([1, 2, 3, 7, 16, 255, 255])
+    expect(r.words[0]).toBe(0x70) // the table does not use up program words
+  })
+  it('a label in front of .byte is a table address, in front of an instruction a program address', () => {
+    const r = asm('LDI 1\nfirst: .byte 9, 9\nsecond: .byte 9\nthere: HALT')
+    expect(r.symbols).toMatchObject({ first: 0, second: 2, there: 1 })
+  })
+  it('says what is wrong with a .byte line', () => {
+    expect(asm('.byte').errors[0]).toMatchObject({ line: 1, message: '.byte needs at least one value.' })
+    expect(asm('.byte 300').errors[0].message).toContain("doesn't fit")
+    expect(asm('.byte nope').errors[0].message).toBe('Unknown name “nope”.')
+    expect(asm(`.byte ${Array.from({ length: 257 }, () => 1).join(',')}`).errors[0].message).toBe('The table has more than 256 bytes.')
+  })
+  it('has no table without .byte, and 256 bytes fit', () => {
+    expect(table('HALT')).toEqual([])
+    expect(table(`.byte ${Array.from({ length: 256 }, (_, i) => i).join(',')}`)).toHaveLength(256)
+  })
+  it('LDT is an instruction without an operand', () => {
+    expect(asm('LDT').words[0]).toBe(SKASM.encode(SKASM.ops.LDT, 0))
+    expect(disassemble(SKASM, asm('LDT').words[0])).toBe('LDT')
+  })
+  it('the table as hex text stops at the last byte that is not 0', () => {
+    expect(toHexBytes([1, 2, 0, 255, 0, 0])).toBe('01 02 00 FF')
+    expect(toHexBytes([0, 0])).toBe('')
   })
 })

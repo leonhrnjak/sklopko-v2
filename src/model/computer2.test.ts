@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -17,7 +17,7 @@ function machine(source: string, devices: Device[] = ['console', 'keypad']) {
   let base = bases.get(key)
   if (!base) bases.set(key, (base = buildComputer2({ id: 'test', name: 'test', source: 'HALT', hz: 16, devices, note: '' })))
   const data = programWords(source)
-  const comps = Object.values(base.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, source, data } } : k))
+  const comps = Object.values(base.comps).map((k) => (k.label === 'Program' ? { ...k, params: { ...k.params, source, data, tdata: programTable(source) } } : k))
   const c: Circuit = { ...base, comps: Object.fromEntries(comps.map((k) => [k.id, k])) }
   const sim = new Simulator()
   sim.load(flatten(c))
@@ -343,7 +343,7 @@ const rig = (() => {
         made = { m, prog, base: m.c.comps[prog].params }
       }
       const { m, prog, base } = made
-      m.sim.setParams(prog, { ...base, source, data: programWords(source) } as never)
+      m.sim.setParams(prog, { ...base, source, data: programWords(source), tdata: programTable(source) } as never)
       m.sim.reset()
       m.sim.settle()
       return m
@@ -354,8 +354,10 @@ const rig = (() => {
 /** Run a program on the circuit and on the reference machine, a cycle at a time; every cycle they must agree on everything. */
 function agree(source: string, cycles: number): string | null {
   const m = rig.load(source)
-  const words = assemble(SKASM, source, ROM_WORDS).words
+  const asm = assemble(SKASM, source, ROM_WORDS)
+  const words = asm.words
   const ref = newMachine()
+  ref.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
   for (let i = 0; i < cycles; i++) {
     m.cycle()
     referenceStep(ref, words)
@@ -463,7 +465,7 @@ describe('computer: the decimal display (OUT NUMBER)', () => {
         made = { m, prog, base: m.c.comps[prog].params }
       }
       const { m, prog, base } = made
-      m.sim.setParams(prog, { ...base, source, data: programWords(source) } as never)
+      m.sim.setParams(prog, { ...base, source, data: programWords(source), tdata: programTable(source) } as never)
       m.sim.reset()
       m.sim.settle()
       const reg = (label: string, pins: string[]) => pins.reduce((n, p, i) => n | (m.sim.pinValue(m.id(label), p) << i), 0)
@@ -701,4 +703,86 @@ describe('computer: CALL and RET', () => {
     expect(ref.acc).toBe(131)
     expect(ref.sp).toBe(0)
   })
+})
+
+describe('computer: the table ROM (.byte and LDT)', () => {
+  const cyclesOf = (src: string) => src.split('\n').filter((l) => l.trim() && !l.trim().startsWith('.byte') && !/^\w+:\s*\.byte/.test(l.trim())).length + 1
+  const programs: Record<string, string> = {
+    'the first byte': 'LDXI 0\nLDT\nHALT\n.byte 17, 34, 51',
+    'a byte in the middle': 'LDXI 2\nLDT\nHALT\n.byte 17, 34, 51',
+    'a loop sums the table': 'LDXI 0\nLDI 0\nl: STA 0\nLDT\nADD 0\nINX\nCMPI 100\nJNC end\nJMP l\nend: HALT\n.byte 1, 2, 3, 4',
+    'bytes past the end read 0': 'LDXI 200\nLDI 9\nLDT',
+    'a label names a place in the table': 'LDXI second\nLDT\nHALT\nfirst: .byte 5, 6\nsecond: .byte 7, 8',
+    'negative bytes and names': 'K = 40\nLDXI 1\nLDT\nLDXI 2\nLDT\nHALT\n.byte K, -1, 0xFF',
+    'LDT leaves the flags alone': 'LDI 255\nADDI 1\nLDXI 1\nLDT\nHALT\n.byte 0, 0, 0',
+  }
+  for (const [name, src] of Object.entries(programs))
+    it(name, () => {
+      expect(agree(src, cyclesOf(src) + 12), src).toBeNull()
+    })
+
+  it('prints a text from the table, one byte at a time', () => {
+    const src = `        LDXI 0
+next:   LDT
+        CMPI 0
+        JZ done
+        OUT CHAR
+        INX
+        JMP next
+done:   HALT
+        .byte 72, 101, 108, 108, 111, 0`
+    const asm = assemble(SKASM, src, ROM_WORDS)
+    expect(asm.errors).toEqual([])
+    const ref = newMachine()
+    ref.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
+    let text = ''
+    for (let i = 0; i < 100 && !ref.halted; i++) referenceStep(ref, asm.words, { out: (p, v) => void (p === 1 && (text += String.fromCharCode(v))) })
+    expect(text).toBe('Hello')
+    const m = machine(src, ['console'])
+    m.run(60)
+    expect(m.text()).toBe('Hello')
+  })
+})
+
+describe('computer: the sine wave', () => {
+  /** The lit pixels of a screen as column -> row, for a screen with one pixel per column. */
+  const columns = (px: Set<number>) => [...px].map((v) => [v & 15, v >> 4]).sort((a, b) => a[0] - b[0])
+
+  it('shows the table as a wave that moves one column a frame, on the reference interpreter', () => {
+    const asm = assemble(SKASM, SINE_SOURCE, ROM_WORDS)
+    expect(asm.errors).toEqual([])
+    expect(asm.table).toHaveLength(16)
+    // It is a sine: within a pixel of 7.5 + 7 sin(2πx/16) everywhere.
+    asm.table.forEach((h, x) => expect(Math.abs(h - (7.5 + 7 * Math.sin((2 * Math.PI * x) / 16)))).toBeLessThanOrEqual(0.5))
+    const ref = newMachine()
+    ref.table = [...asm.table, ...new Array<number>(240).fill(0)]
+    const px = new Set<number>()
+    let frames = 0
+    for (let i = 0; i < 20000 && frames < 40; i++) {
+      if (ref.pc === asm.symbols.frame) {
+        frames++
+        if (frames > 1) {
+          // Every column has exactly one lit pixel, at the height of the wave moved by the phase.
+          const phase = ref.ram[1]
+          expect(columns(px), `frame ${frames}`).toEqual(Array.from({ length: 16 }, (_, c) => [c, asm.table[(c + phase + 15) & 15]]))
+        }
+      }
+      referenceStep(ref, asm.words, { out: (p, v) => void (p === 2 ? px.add(v) : p === 3 && px.delete(v)) })
+    }
+    expect(frames).toBe(40)
+  })
+
+  it('the circuit draws the same screen as the reference interpreter', () => {
+    const m = machine(SINE_SOURCE, ['lcd'])
+    const asm = assemble(SKASM, SINE_SOURCE, ROM_WORDS)
+    const ref = newMachine()
+    ref.table = [...asm.table, ...new Array<number>(240).fill(0)]
+    const px = new Set<number>()
+    let ran = 0
+    for (const n of [200, 900, 1500]) {
+      m.run(n - ran)
+      for (; ran < n; ran++) referenceStep(ref, asm.words, { out: (p, v) => void (p === 2 ? px.add(v) : p === 3 && px.delete(v)) })
+      expect(new Set(m.pixels().map(([x, y]) => y * 16 + x))).toEqual(px)
+    }
+  }, 60000)
 })
