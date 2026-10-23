@@ -280,7 +280,7 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 - [ ] Multi-bit wires with split/merge parts and width-parameterised register, adder, RAM, mux.
 - [ ] Tri-state buffers and a shared-bus net with contention (X) detection.
 - [ ] Rebuild the 8-bit computer on buses (≈40 wires instead of ≈240).
-- This changes the net model in the engine, so it comes last and needs its own detailed plan.
+- This changes the net model in the engine, so it comes last. The detailed plan is `docs/plan-m10-buses.md`.
 
 ## Critical files
 - **Simulation glue**: `src/app/sim.ts` (`loadIntoSim`), `src/engine/simulator.ts` (`load`, `pinValue`, alias map).
