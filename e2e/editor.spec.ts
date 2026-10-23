@@ -465,6 +465,28 @@ test('net labels example: the counter shows on a display with no wires between t
   await expect(page.locator('.comp.selected')).toHaveCount(3)
 })
 
+test('tri-state example: one source drives the shared line, two that disagree are a contention', async ({ page }) => {
+  await page.goto('/tristate', { waitUntil: 'networkidle' })
+  const idOf = (label: string) =>
+    page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).first().getAttribute('data-id') as Promise<string>
+  const line = await idOf('Shared line')
+  const enableA = await idOf('Enable A')
+  const enableB = await idOf('Enable B')
+  // Only source A is enabled, and its data is 1.
+  await expect.poll(() => ledOn(page, line)).toBe(true)
+  await expect(page.locator('.wire.vz').first()).toBeVisible() // the other two buffers let go of the line
+  await expect(page.locator('.sym-body.contention')).toHaveCount(0)
+  // B joins in with data 0: the two disagree.
+  await clickComp(page, enableB)
+  await expect(page.locator('.sym-body.contention')).toHaveCount(1)
+  await expect.poll(() => ledOn(page, line)).toBe(false)
+  // A lets go: B alone drives the line, with 0.
+  await clickComp(page, enableA)
+  await expect(page.locator('.sym-body.contention')).toHaveCount(0)
+  await expect.poll(() => ledOn(page, line)).toBe(false)
+  await expect(page.locator('.wire.v0').first()).toBeVisible()
+})
+
 /** Select a part by the label shown above it. */
 async function pickByLabel(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()

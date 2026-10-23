@@ -2,6 +2,7 @@ import { annotation } from './components/annotation'
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
 import { devices } from './components/devices'
 import { gates } from './components/gates'
+import { tristate } from './components/tristate'
 import { breakpoint, display, io, probe } from './components/io'
 import { memoryRam, sequential } from './components/sequential'
 import type { Category, ComponentDef } from './types'
@@ -18,7 +19,7 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'annotation', name: 'Notes & frames' },
 ]
 
-export const DEFS: ComponentDef[] = [...io, probe, breakpoint, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...coding, ...display, ...devices, ...annotation]
+export const DEFS: ComponentDef[] = [...io, probe, breakpoint, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...tristate, ...coding, ...display, ...devices, ...annotation]
 
 const byType = new Map(DEFS.map((d) => [d.type, d]))
 

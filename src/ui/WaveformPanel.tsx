@@ -90,7 +90,7 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
     ctx.fillRect(0, 0, width, height)
   }
 
-  const colors: Record<V, string> = { 0: cssVar('--wire-0'), 1: cssVar('--wire-1'), 2: cssVar('--wire-x') }
+  const colors: Record<V, string> = { 0: cssVar('--wire-0'), 1: cssVar('--wire-1'), 2: cssVar('--wire-x'), 3: cssVar('--wire-z') }
   const text = cssVar('--text')
   const muted = cssVar('--muted')
   const line = cssVar('--panel-border')
@@ -137,7 +137,7 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
     const tr = sim.state(row.probes[0].id) as Trace | undefined
     if (!tr || !tr.t.length) return
     // Horizontal runs take the colour of their value, vertical edges the colour of the new value.
-    const paths: Record<V, Path2D> = { 0: new Path2D(), 1: new Path2D(), 2: new Path2D() }
+    const paths: Record<V, Path2D> = { 0: new Path2D(), 1: new Path2D(), 2: new Path2D(), 3: new Path2D() }
     let k = Math.max(0, upperBound(tr.t, t0) - 1)
     let x = Math.max(px(tr.t[k]), x0)
     let v = tr.v[k]
@@ -162,7 +162,7 @@ function draw(canvas: HTMLCanvasElement, rows: Row[], width: number, windowMs: n
     ctx.clip()
     ctx.lineWidth = 2
     ctx.lineJoin = 'round'
-    for (const val of [2, 0, 1] as V[]) {
+    for (const val of [3, 2, 0, 1] as V[]) {
       ctx.strokeStyle = colors[val]
       ctx.stroke(paths[val])
     }

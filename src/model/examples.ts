@@ -590,6 +590,35 @@ function netLabels(): Circuit {
   return b.build()
 }
 
+function sharedLine(): Circuit {
+  // Three sources can talk on one line, but only one at a time: each has a tri-state buffer that lets go of the line (Z)
+  // unless its enable switch is on. The bus junction joins them; two enabled at once make the line unknown (contention).
+  const b = new CircuitBuilder()
+  const junction = b.add('busjoin', 300, 80, { params: { drivers: 3 } })
+  const line = b.add('led', 440, 100, { label: 'Shared line' })
+  const names = ['A', 'B', 'C']
+  const ids = names.map((n, i) => {
+    const y = i * 120
+    const data = b.add('switch', 0, y, { label: `Data ${n}`, params: { on: i === 0 } })
+    const buf = b.add('tribuf', 120, y, { label: `Buffer ${n}` })
+    const en = b.add('switch', 100, y + 60, { label: `Enable ${n}`, params: { on: i === 0 } })
+    b.wire(`${data}.Q`, `${buf}.A`)
+    b.wire(`${en}.Q`, `${buf}.EN`)
+    b.wire(`${buf}.Y`, `${junction}.${n}`)
+    return [data, buf, en]
+  })
+  b.wire(`${junction}.Y`, `${line}.A`)
+  note(
+    b,
+    300,
+    220,
+    'The wires are dashed grey while a buffer lets go of the line (Z). Turn on one Enable switch and the line follows that source. Turn on two sources that disagree and the junction turns red: contention, the line is unknown.',
+    36,
+  )
+  frameAround(b, 'Three sources, one line', ids.flat())
+  return b.build()
+}
+
 export const EXAMPLES: Example[] = [
   { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
   { id: 'beginner', name: 'Beginner: a tiny computer (ROM, RAM, adder)', build: beginnerComputer },
@@ -600,6 +629,7 @@ export const EXAMPLES: Example[] = [
   ...PROGRAMS.map((p): Example => ({ id: p.id, name: p.name, build: () => computer2(p) })),
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
+  { id: 'tristate', name: 'Tri-state buffers on a shared line', build: sharedLine },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
   { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },

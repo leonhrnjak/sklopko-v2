@@ -35,6 +35,8 @@ const BY_TYPE: Record<string, number> = {
   mul: 12,
   alu: 12,
   mux: 3,
+  tribuf: 2,
+  busjoin: 1,
   demux: 3,
   decoder: 3,
   rom: 6,

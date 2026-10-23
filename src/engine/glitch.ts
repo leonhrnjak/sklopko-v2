@@ -29,14 +29,14 @@ export function findGlitches(frames: Uint8Array[]): Glitch[] {
   const nets = frames[0].length
   for (let net = 0; net < nets; net++) {
     const first = frames[0][net]
-    if (first === X) continue
+    if (first >= X) continue
     let changes = 0
     let from = 0
     let to = 0
     let known = true
     for (let k = 1; k < frames.length; k++) {
       const v = frames[k][net]
-      if (v === X) {
+      if (v >= X) {
         known = false
         break
       }
