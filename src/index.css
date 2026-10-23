@@ -2086,3 +2086,335 @@ table.truth td.in.changed {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ---- State machine editor ---- */
+
+.modal.fsm {
+  width: min(1240px, 100%);
+}
+.fsm-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.fsm-side h3,
+.fsm-main h3 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.fsm-side > .row,
+.fsm-side > .field,
+.fsm-side > label.field {
+  margin-top: 8px;
+}
+.fsm-main h3:first-child {
+  margin-top: 0;
+}
+.fsm-side .seg {
+  flex-wrap: wrap;
+}
+.fsm-names {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fsm-names li {
+  display: flex;
+  gap: 4px;
+}
+.fsm-names input {
+  flex: 1;
+  min-width: 0;
+}
+.fsm-codes {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.fsm-codes th,
+.fsm-codes td {
+  text-align: left;
+  padding: 1px 12px 1px 0;
+  font-weight: 400;
+}
+.fsm-codes thead th {
+  color: var(--muted);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.fsm-code-input {
+  width: 8em;
+  font-size: 13px;
+  padding: 1px 6px;
+}
+.fsm-ok {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+.fsm-issues {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 12px;
+}
+.fsm-issue {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.fsm-issue > span:last-child,
+.fsm-issue > button {
+  flex: 1;
+  min-width: 0;
+}
+.fsm-issue.error {
+  color: var(--danger);
+}
+.fsm-issue.warning {
+  color: #a16207;
+}
+.fsm-issue.info {
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  .fsm-issue.warning {
+    color: #facc15;
+  }
+}
+button.linklike {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.linklike:hover {
+  text-decoration: underline;
+}
+.fsm-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.fsm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+.fsm-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+.fsm-tools {
+  align-items: center;
+  margin: 0 0 8px;
+}
+.fsm-tools button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.fsm-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 62vh;
+  min-height: 260px;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  touch-action: none;
+  user-select: none;
+}
+.fsm-state circle {
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 2;
+  cursor: grab;
+}
+.fsm-state.reset circle {
+  stroke-width: 3;
+}
+.fsm-state.selected circle,
+.fsm-state:focus-visible circle {
+  stroke: var(--accent);
+  stroke-width: 3.5;
+}
+.fsm-state text {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.fsm-state text.small {
+  font-size: 11px;
+}
+.fsm-state text.outs {
+  font-size: 10px;
+  font-weight: 400;
+  fill: var(--muted);
+}
+.fsm-state:focus,
+.fsm-arrow:focus {
+  outline: none;
+}
+.fsm-arrow .line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+}
+.fsm-arrow .hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  cursor: pointer;
+}
+.fsm-arrow polygon {
+  fill: var(--ink);
+}
+.fsm-arrow text {
+  fill: var(--text);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  stroke: var(--bg);
+  stroke-width: 4px;
+  paint-order: stroke;
+  pointer-events: none;
+}
+.fsm-arrow.selected .line,
+.fsm-arrow:focus-visible .line {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.fsm-arrow.selected polygon,
+.fsm-arrow:focus-visible polygon {
+  fill: var(--accent);
+}
+.fsm-entry path {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+}
+.fsm-entry polygon {
+  fill: var(--muted);
+}
+.fsm-entry text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.fsm-preview path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.fsm-selected {
+  margin-top: 10px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.fsm-selected h3 {
+  margin: 0 0 6px;
+}
+.fsm-selected-row {
+  align-items: flex-end;
+  gap: 12px;
+}
+.fsm-selected-row .field {
+  margin-bottom: 0;
+}
+.field.grow {
+  flex: 1;
+  min-width: 12em;
+}
+.field.grow input {
+  flex: 1;
+  min-width: 0;
+}
+.fsm-scroll {
+  overflow-x: auto;
+  margin: 4px 0 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+}
+.fsm-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.fsm-table th,
+.fsm-table td {
+  padding: 3px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--panel-border);
+  white-space: nowrap;
+}
+.fsm-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+.fsm-table tr.selected td {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.fsm-table input[type='text'],
+.fsm-table input:not([type]),
+.fsm-table select {
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+  min-width: 6em;
+}
+.fsm-table input.invalid {
+  border-color: var(--danger);
+}
+.fsm-actions {
+  white-space: nowrap;
+}
+.fsm-actions button {
+  padding: 1px 7px;
+}
+.fsm-add-row td {
+  background: transparent;
+}
+.fsm-issue-row td {
+  border-bottom-style: dashed;
+}
+.fsm-table.derived td {
+  color: var(--text);
+}
+.fsm-out {
+  color: var(--accent-strong);
+}
+@media (max-width: 760px) {
+  .fsm-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fsm-main {
+    order: -1;
+  }
+}
+.fsm-build {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 4px;
+}

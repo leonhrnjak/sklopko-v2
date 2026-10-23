@@ -24,19 +24,19 @@ Merging to `main` deploys to Cloudflare Pages.
 
 ## Testing while making changes
 
-Run only what the change touches; CI runs the full suite. Don't run the full suite locally. Use quiet
-reporters so passing runs print almost nothing.
+Run **all unit tests** locally (they take about 15 seconds), but only the **e2e** specs the change touches;
+CI runs the full e2e suite. Use quiet reporters so passing runs print almost nothing.
 
 ```sh
-npx vitest related --run --reporter=dot src/path/changed.ts ...   # unit tests that import the changed files
+npm test -- --reporter=dot                                        # all unit tests (quick)
 npx oxlint src/path/changed.ts ...                                # lint only the changed files
 npx tsc -b                                                        # type-check, when types or signatures changed
 npx playwright test --reporter=line e2e/editor.spec.ts            # the whole e2e spec file for the changed area
 ```
 
-Before pushing, run the related unit tests and the e2e spec file(s) for the area you changed (whole files,
+Before pushing, run all the unit tests and the e2e spec file(s) for the area you changed (whole files,
 not single tests picked with `-g`), so most regressions show up before CI. Use `-g` only to re-run a
-specific failed test while fixing it.
+specific failed test while fixing it. Don't run the whole e2e suite locally.
 
 Full suite (what CI runs), for reference: `npm test`, `npm run lint`, `npm run build`, `npm run e2e`
 (Playwright, desktop + emulated phone).
@@ -48,8 +48,8 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 The roadmap is in `docs/plan-next-features.md` (milestones 0–10, in order; tick each box when it ships).
 
-**To resume:** milestone 9, step 9e (the state machine editor). `docs/plan-m9-timing-fsm.md` holds only the remaining steps, with the
-decisions behind them. Milestone 10 (buses and tri-state) follows and needs its own detailed plan first.
+**To resume:** milestone 10 (buses and tri-state), which needs its own detailed plan first (see the end of
+`docs/plan-next-features.md`). Milestone 9 (timing view and state machine editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
-Finished plans, for background: `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
+Finished plans, for background: `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is postponed).

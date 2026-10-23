@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
+import { openFsm } from '../app/fsm'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
@@ -147,6 +148,9 @@ export function Toolbar() {
       </button>
       <button onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
         Logic…
+      </button>
+      <button onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
+        State machines…
       </button>
       <button onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
         SKASM…

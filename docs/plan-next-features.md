@@ -271,9 +271,10 @@ way. Serialize round-trip. Every example has no overlapping parts. e2e: place a 
 ## Milestone 9: Timing view and state machine editor (large)
 - [x] **Per-part propagation delay, timing view and glitches** (steps 9a–9c, v0.0.1-22 to 27): a `delay` on each part, a Timing tab with the
       slowest path, the clock speed it allows and feedback loops, and a tick-by-tick capture that finds glitches (`/hazard`, `/ripple`).
-- [ ] **State machine editor**: draw states and transitions, choose an encoding, generate flip-flops and logic.
-      Step 9d (the core, no UI: model, checking, codes, circuit generation; `src/model/fsm.ts`) is done. **Step 9e (the editor) remains.**
-- The remaining steps, in detail: `plan-m9-timing-fsm.md`.
+- [x] **State machine editor** (steps 9d and 9e, v0.0.1-30 and 31): *State machines…* opens an editor with a diagram and a table view,
+      encodings, checks, save/load and *Generate circuit* (flip-flops and logic). Core: `src/model/fsm.ts`; editor: `src/ui/fsm/*`.
+- The details of the steps: `plan-m9-timing-fsm.md`.
+- **Status: done** (v0.0.1-31).
 
 ## Milestone 10: Buses and tri-state (large)
 - [ ] Multi-bit wires with split/merge parts and width-parameterised register, adder, RAM, mux.
