@@ -6,7 +6,8 @@ import { randomExpr, rng } from '../logic/testing'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
 import { boundsRect, type Circuit } from './circuit'
-import { synthesize, synthesizeTable } from './synth'
+import { CircuitBuilder } from './builder'
+import { synthesize, synthesizeInto, synthesizeTable } from './synth'
 
 const programOf = (text: string): Program => {
   const r = resolveProgram(parseProgram(text).statements)
@@ -158,5 +159,75 @@ describe('building a circuit from a truth table', () => {
   it('handles several outputs, and outputs that are always 0 or always 1', () => {
     const table: TruthTable = { inputs: ['A', 'B'], outputs: ['X', 'Zero', 'One'], values: [[0, 1, 1, 0], [0, 0, 0, 0], [1, 1, 1, 1]] }
     expect(simulate(synthesizeTable(table), table.inputs, table.outputs)).toEqual(table)
+  })
+})
+
+describe('building into a circuit that is being put together', () => {
+  const program = programOf('Y = A·B + ¬C')
+  const load = (c: Circuit) => {
+    const sim = new Simulator()
+    sim.load({ comps: Object.values(c.comps).map(({ id, type, params }) => ({ id, type, params })), wires: Object.values(c.wires).map(({ from, to }) => ({ from, to })) })
+    sim.settle()
+    return sim
+  }
+
+  it('puts the logic at the origin it is given, and says what it added', () => {
+    const b = new CircuitBuilder()
+    const info = synthesizeInto(b, program, {}, { x: 300, y: 120 })
+    expect(info.parts.length).toBe(Object.keys(b.c.comps).length)
+    for (const id of info.parts) {
+      const r = boundsRect(b.c.comps[id])
+      expect(r.x).toBeGreaterThanOrEqual(300)
+      expect(r.y).toBeGreaterThanOrEqual(120)
+      expect(r.x + r.w).toBeLessThanOrEqual(300 + info.width)
+      expect(r.y + r.h).toBeLessThanOrEqual(120 + info.height)
+    }
+    expect(Object.keys(info.inputs)).toEqual(['A', 'B', 'C'])
+    expect(Object.keys(info.outputs)).toEqual(['Y'])
+    expect(b.c.comps[info.inputs.A].type).toBe('switch')
+    expect(b.c.comps[info.outputs.Y].type).toBe('led')
+  })
+
+  it('gives the same circuit as synthesize() when built at the origin', () => {
+    const b = new CircuitBuilder()
+    synthesizeInto(b, program)
+    const whole = synthesize(program)
+    expect(Object.values(b.c.comps).map((k) => [k.type, k.x, k.y, k.label])).toEqual(Object.values(whole.comps).map((k) => [k.type, k.x, k.y, k.label]))
+  })
+
+  it('an input can come from a Receive label and an output go out through a Send label', () => {
+    const b = new CircuitBuilder()
+    const info = synthesizeInto(b, program, { labelInputs: ['B'], labelOutputs: ['Y'] })
+    expect(b.c.comps[info.inputs.B]).toMatchObject({ type: 'netrecv', params: { name: 'B' } })
+    expect(b.c.comps[info.outputs.Y]).toMatchObject({ type: 'netsend', params: { name: 'Y' } })
+    expect(Object.values(b.c.comps).some((k) => k.type === 'switch' && k.label === 'B')).toBe(false)
+    expect(Object.values(b.c.comps).some((k) => k.type === 'led')).toBe(false)
+    expect(b.c.comps[info.inputs.A].type).toBe('switch') // the others are as before
+  })
+
+  it('works like the plain version once the labels are connected to something', () => {
+    const b = new CircuitBuilder()
+    synthesizeInto(b, program, { labelInputs: ['B'], labelOutputs: ['Y'] })
+    // Somewhere else: a switch that sends B, and an LED that receives Y.
+    const sendB = b.add('switch', 0, 500, { label: 'sendB' })
+    const tapB = b.add('netsend', 100, 500, { params: { name: 'B' } })
+    b.wire(`${sendB}.Q`, `${tapB}.A`)
+    const getY = b.add('netrecv', 100, 600, { params: { name: 'Y' } })
+    const led = b.add('led', 200, 600, { label: 'seeY' })
+    b.wire(`${getY}.Y`, `${led}.A`)
+    const sw = (label: string) => Object.values(b.c.comps).find((k) => k.type === 'switch' && k.label === label)!
+    const sim = load(b.c)
+    for (let row = 0; row < 8; row++) {
+      const [a, bb, c] = [(row >> 2) & 1, (row >> 1) & 1, row & 1]
+      for (const [label, v] of [['A', a], ['sendB', bb], ['C', c]] as const) sim.setParams(sw(label).id, { ...sw(label).params, on: v === 1 })
+      sim.settle()
+      expect(sim.pinValue(led, 'A'), `A=${a} B=${bb} C=${c}`).toBe((a & bb) | (1 - c))
+    }
+  })
+
+  it('a program with no inputs and no outputs adds nothing', () => {
+    const b = new CircuitBuilder()
+    const info = synthesizeInto(b, { inputs: [], outputs: [] })
+    expect(info).toEqual({ inputs: {}, outputs: {}, parts: [], width: 0, height: 0 })
   })
 })
