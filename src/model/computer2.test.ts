@@ -243,7 +243,8 @@ describe('computer 2: the programs', () => {
     expect(new Set(gaps.slice(0, 14)).size).toBeLessThanOrEqual(2)
   }, 60000)
 
-  describe('the calculator', () => {
+  // Each sum runs thousands of cycles of the whole computer, which takes a few seconds on a slow CI runner.
+  describe('the calculator', { timeout: 30000 }, () => {
     const PLUS = 10
     const MINUS = 11
     const TIMES = 12
