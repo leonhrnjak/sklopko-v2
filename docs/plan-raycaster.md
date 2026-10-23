@@ -7,8 +7,8 @@
 > - [x] M1b Subroutines: CALL and RET
 > - [x] M1c Table ROM: constants in the program (`.byte`, `LDT`)
 > - [x] M1d A readable screen
-> - [ ] M1e The spike: a raycaster on the reference interpreter, to size M2
-> - [ ] M2 (decided after the spike, see below)
+> - [x] M1e The spike: a raycaster on the reference interpreter, to size M2
+> - [ ] M2 Shades of grey for the LCD
 > - [ ] M3 The raycaster example
 
 ## Where this is going
@@ -61,33 +61,34 @@ group. Existing encodings never change.
   0 or 1 for that pixel. The framebuffer part gets a read port.
 - Enables collision tests ("is the pixel ahead lit?") without keeping a copy of the screen in RAM.
 
-### M1e The spike
-Before spending time on M2, write the raycaster as an SKASM program on the reference interpreter (not on the circuit), 16
-columns on the existing 16×16 screen: the map in the table ROM, DDA stepping with subroutines. Measure instruction count and
-words. The answer decides M2:
-- **fits in 256 words**: M2 is only "a bigger screen" (see below).
-- **does not**: M2 also widens the program counter to 12 bits (jump targets use bits 12–15 of the main-group word, which jumps do
-  not use today; the extension-group jumps `JNZ` and `JC` stay 8-bit and get long forms or a note).
+### M1e The spike (done)
+The raycaster was written as an SKASM program (`src/model/raycaster.ts`) and run on the reference interpreter, 16 columns on the
+existing 16×16 screen: an 8×8 map, tables of 64 angles and wall heights in the table ROM, a ray marched in half-cell steps,
+`CALL probe` shared by the rays and the walking code. Its picture is tested against an independent TypeScript raycaster. Results:
+- **144 words** of the 256 program words, and 213 of the 256 table bytes. Nothing needs a wider program counter.
+- **About 6,300 instructions a picture.** The app steps at most about two thousand instructions a second whatever the clock
+  setting (64 clock edges per animation frame), so a picture takes three to six seconds on the circuit: fine for a program that
+  waits for a button, not for animation.
+- **No multiplier is needed.** Distance is a step count and the wall height is a table lookup.
+- A bigger screen would not help: 32 columns would double the rays and need a 128-angle table, and the picture would take
+  half a minute. The limit is the simulator, not the machine.
 
-## M2: a screen worth looking at (scope fixed after the spike)
-- The framebuffer part gets a size (16×16, 32×32, 64×64) and colour depth (2, 4 or 16 shades) instead of the fixed 16×16
-  (`FB_SIZE` in `devices.ts`; the inspector and symbol follow). The computer builder passes the size, and `PIXEL_ON` and
-  `PIXEL_OFF` take wider coordinates: a new `OUT PIXEL_X`, `OUT PIXEL_Y`, `OUT PIXEL_COLOR` trio (or one packed port) for screens
-  larger than 16×16, because ACC is 8 bits and one byte cannot hold both coordinates of a 64×64 screen.
-- If the spike says so: a hardware multiplier port (`OUT MUL_A`, `OUT MUL_B`, `IN MUL_LO`, `IN MUL_HI`) using the existing `mul`
-  part, so distance times height is one instruction sequence, and the 12-bit program counter.
-- Not planned: a 16-bit ISA. 16-bit arithmetic is already possible with `ADC`/`SBC` in software, and a second ISA means a second
-  control ROM, a second builder and a second reference interpreter.
+## M2: shades of grey for the LCD (fixed after the spike)
+The spike shows the 16×16 screen is enough, but a wall of one brightness looks flat. The screen part already has a four-colour
+mode, so:
+- The computer's LCD becomes four shades. A new port `OUT PIXEL_COLOR` (port 8) sets the shade (0–3) that `PIXEL_ON` paints;
+  `PIXEL_OFF` still paints 0. The register starts at 1 (so every program that exists keeps drawing white on black).
+- `IN PIXEL` returns the shade (0–3), and `PIXEL_AT` works as before.
+- Not planned any more: a bigger screen, a hardware multiplier, a 12-bit program counter, a 16-bit ISA (see the spike).
 
 ## M3 The raycaster example
-- `computer-raycaster`: a map (a small maze) in the table ROM, the player's position and angle in RAM, the gamepad turns and
-  walks, and the screen shows the view in front of the player, one column per ray. Shades by wall side and distance.
+- `computer-raycaster`: the program of the spike, with the gamepad turning and walking, plus shades by distance (and by which
+  side of the wall was hit) from M2. It waits for a button, draws, and waits again.
 - Tested against the reference interpreter (frame equal to the reference at several positions and angles) and on the circuit
   for one frame.
 
 ## Risks
-- **Simulation speed.** One frame of a raycaster is thousands of instructions; the circuit runs about a thousand per second at
-  best. The example sets a fast clock and says plainly that it draws a frame in seconds on the circuit and faster on the
+- **Simulation speed.** One picture is about 6,300 instructions and the circuit runs about two thousand a second at best. The example sets a fast clock and says plainly that it draws a frame in seconds on the circuit and faster on the
   reference interpreter (the app could run the interpreter for a "turbo" mode; not planned).
 - **The control ROM has 16 control bits and they are nearly all used.** M1a to M1d need roughly ten more signals. The control
   ROM words may need a third ROM (it is a build-time table, so this costs parts on the canvas but no new mechanism).
