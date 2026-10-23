@@ -11,6 +11,7 @@ export interface Example {
   /** Also the URL slug: sklopko.example/<id> opens this example. */
   id: string
   name: string
+  group: ExampleGroup
   build(): Circuit
 }
 
@@ -689,32 +690,59 @@ function busDemo(): Circuit {
   return b.build()
 }
 
-export const EXAMPLES: Example[] = [
-  { id: 'counter', name: 'Counter → 7-segment display', build: counterDisplay },
-  { id: 'beginner', name: 'Beginner: a tiny computer (ROM, RAM, adder)', build: beginnerComputer },
-  { id: 'intersection', name: 'Traffic lights with pedestrian crossing', build: trafficLights },
-  { id: 'dice', name: 'Electronic dice', build: dice },
-  { id: 'clock', name: 'Digital clock (HH:MM:SS)', build: digitalClock },
-  { id: 'matrix', name: 'Dot matrix smiley (scanned)', build: matrixSmiley },
-  ...PROGRAMS.map((p): Example => ({ id: p.id, name: p.name, build: () => computer2(p) })),
-  { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
-  { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
-  { id: 'tristate', name: 'Tri-state buffers on a shared line', build: sharedLine },
-  { id: 'databus', name: 'Shared data bus: tri-state buffers on 8 bits', build: dataBus },
-  { id: 'buses', name: 'Buses: a running total on 4-bit wires', build: busDemo },
-  { id: 'gates', name: 'Basic gates', build: basicGates },
-  { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },
-  { id: 'd-latch', name: 'D latch from NAND gates', build: nandDLatch },
-  { id: 'shift-register', name: 'Shift register (D flip-flops)', build: shiftRegister },
-  { id: 'ripple-counter', name: 'Ripple counter (T flip-flops)', build: rippleCounter },
-  { id: 'adder', name: '4-bit adder', build: adder },
-  { id: 'mux', name: '4:1 multiplexer', build: muxDemo },
-  { id: 'hazard', name: 'Glitch: a hazard, and its fix', build: hazard },
-  { id: 'ripple', name: 'Ripple-carry adder: the carry chain and flicker', build: ripple },
-  { id: 'fsm-traffic', name: 'State machine: traffic light (generated)', build: () => generateFsm(TRAFFIC_LIGHT).circuit },
-  { id: 'fsm-detector', name: 'State machine: 1011 sequence detector (generated)', build: () => generateFsm(SEQUENCE_DETECTOR).circuit },
-  { id: 'oscillator', name: 'Ring oscillator (unstable)', build: ringOscillator },
+/** Menu order: the groups appear in this order, and the first example is what the app opens with. */
+export const EXAMPLE_GROUPS = [
+  'Start here',
+  'Logic basics',
+  'Memory and sequential',
+  'Arithmetic',
+  'Buses and tri-state',
+  'Timing and glitches',
+  'State machines',
+  'Displays and gadgets',
+  'Computers',
+] as const
+export type ExampleGroup = (typeof EXAMPLE_GROUPS)[number]
+
+const g = (group: ExampleGroup, id: string, name: string, build: () => Circuit): Example => ({ id, name, group, build })
+
+const ALL: Example[] = [
+  g('Start here', 'counter', 'Counter → 7-segment display', counterDisplay),
+  g('Start here', 'beginner', 'Beginner: a tiny computer (ROM, RAM, adder)', beginnerComputer),
+  g('Start here', 'gates', 'Basic gates', basicGates),
+
+  g('Logic basics', 'mux', '4:1 multiplexer', muxDemo),
+  g('Logic basics', 'labels', 'Net labels (wireless connections)', netLabels),
+
+  g('Memory and sequential', 'sr-latch', 'SR latch from NOR gates', srLatch),
+  g('Memory and sequential', 'd-latch', 'D latch from NAND gates', nandDLatch),
+  g('Memory and sequential', 'shift-register', 'Shift register (D flip-flops)', shiftRegister),
+  g('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)', rippleCounter),
+
+  g('Arithmetic', 'adder', '4-bit adder', adder),
+  g('Arithmetic', 'calculator', 'Calculator: ALU, multiplier, ROM, BCD', calculator),
+
+  g('Buses and tri-state', 'tristate', 'Tri-state buffers on a shared line', sharedLine),
+  g('Buses and tri-state', 'buses', 'Buses: a running total on 4-bit wires', busDemo),
+  g('Buses and tri-state', 'databus', 'Shared data bus: tri-state buffers on 8 bits', dataBus),
+
+  g('Timing and glitches', 'hazard', 'Glitch: a hazard, and its fix', hazard),
+  g('Timing and glitches', 'ripple', 'Ripple-carry adder: the carry chain and flicker', ripple),
+  g('Timing and glitches', 'oscillator', 'Ring oscillator (unstable)', ringOscillator),
+
+  g('State machines', 'fsm-traffic', 'Traffic light (generated)', () => generateFsm(TRAFFIC_LIGHT).circuit),
+  g('State machines', 'fsm-detector', '1011 sequence detector (generated)', () => generateFsm(SEQUENCE_DETECTOR).circuit),
+
+  g('Displays and gadgets', 'intersection', 'Traffic lights with pedestrian crossing', trafficLights),
+  g('Displays and gadgets', 'dice', 'Electronic dice', dice),
+  g('Displays and gadgets', 'clock', 'Digital clock (HH:MM:SS)', digitalClock),
+  g('Displays and gadgets', 'matrix', 'Dot matrix smiley (scanned)', matrixSmiley),
+
+  ...PROGRAMS.map((p) => g('Computers', p.id, p.name, () => computer2(p))),
 ]
+
+/** Sorted by group so the flat list and the menu agree. */
+export const EXAMPLES: Example[] = EXAMPLE_GROUPS.flatMap((grp) => ALL.filter((e) => e.group === grp))
 
 /** The example named by a URL path like "/intersection", if any. */
 export function exampleFromPath(pathname: string): Example | undefined {

@@ -19,7 +19,7 @@ import {
   undo,
   useStore,
 } from '../app/store'
-import { EXAMPLES } from '../model/examples'
+import { EXAMPLES, EXAMPLE_GROUPS } from '../model/examples'
 import { exportImage } from './canvas/exportImage'
 import { fitView } from './canvas/viewport'
 
@@ -208,10 +208,14 @@ export function Toolbar() {
         <option value="" disabled>
           Examples…
         </option>
-        {EXAMPLES.map((x) => (
-          <option key={x.id} value={x.id}>
-            {x.name}
-          </option>
+        {EXAMPLE_GROUPS.map((group) => (
+          <optgroup key={group} label={group}>
+            {EXAMPLES.filter((x) => x.group === group).map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <button onClick={clearAll} title="Start an empty circuit (undoable)">
