@@ -54,6 +54,8 @@ interface CComp {
    * outputs per tick. Each tick the oldest group is committed. Undefined for the (common) delay of 1.
    */
   pipe?: Uint8Array
+  /** Position in `comps` (-1 for a Receive label that only shares another part's net and is never evaluated). */
+  index: number
 }
 
 const pinKey = (comp: string, pin: string) => `${comp}:${pin}`
@@ -135,6 +137,12 @@ export class Simulator {
   /** Simulated time in ms since the last reset. Advances with the clocks while the simulation runs. */
   time = 0
   private samplers: CComp[] = []
+  /**
+   * A part is evaluated again only when one of its input nets changed (or it was operated or edited, or it has a delay pipeline,
+   * which moves on every tick): evaluating it with the same inputs and the same state would give the same outputs.
+   */
+  private stale = new Uint8Array(0)
+  private readers: number[][] = []
   /** A snapshot after each clock edge (and one before the first), for stepping back. */
   private history: Snapshot[] = []
   /** Which snapshot the simulation is at, when it has not moved on since (see `moved`). */
@@ -182,6 +190,7 @@ export class Simulator {
         inNets: new Int32Array(ins.length).fill(-1),
         inDefaults: ins.map((p) => p.def ?? X),
         outNets: new Int32Array(outs.length),
+        index: -1,
         pipe: sc.delay && sc.delay > 1 && outs.length ? new Uint8Array((Math.min(MAX_DELAY, Math.round(sc.delay)) - 1) * outs.length) : undefined,
       }
     }
@@ -190,6 +199,7 @@ export class Simulator {
         cc.outNets[i] = nets
         this.netByOut.set(pinKey(cc.id, name), nets++)
       })
+      cc.index = this.comps.length
       this.comps.push(cc)
       this.byId.set(cc.id, cc)
     }
@@ -219,6 +229,11 @@ export class Simulator {
       if (i >= 0) target.inNets[i] = net
     }
 
+    // Which parts read each net: when a net changes, only these need evaluating again.
+    this.readers = Array.from({ length: nets }, () => [] as number[])
+    for (const cc of this.comps) for (const n of new Set(cc.inNets)) if (n >= 0) this.readers[n].push(cc.index)
+    this.stale = new Uint8Array(this.comps.length).fill(1)
+
     this.values = new Uint8Array(nets).fill(X)
     for (const [key, net] of this.netByOut) {
       const v = oldValues.get(key)
@@ -233,11 +248,17 @@ export class Simulator {
     this.dirty = true
   }
 
+  /** Evaluate a part again at the next tick (it was operated, edited or changed from outside). */
+  private touch(cc: CComp) {
+    if (cc.index >= 0) this.stale[cc.index] = 1
+  }
+
   /** Forget all values and internal state, as if the circuit was just switched on. */
   reset() {
     this.dropCapture()
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
+    this.stale.fill(1)
     for (const cc of this.slow) this.fillPipe(cc)
     this.ticks = 0
     this.time = 0
@@ -260,8 +281,11 @@ export class Simulator {
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
-    const { values, next } = this
+    const { values, next, stale, readers } = this
+    next.set(values) // the parts that are not evaluated keep what they show
     for (const cc of this.comps) {
+      if (stale[cc.index] === 0 && cc.pipe === undefined) continue
+      stale[cc.index] = 0
       const { ins, outs } = cc.inst
       const zOk = cc.def.acceptsZ
       for (let i = 0; i < ins.length; i++) {
@@ -285,7 +309,7 @@ export class Simulator {
     for (let i = 0; i < next.length; i++) {
       if (next[i] !== values[i]) {
         changed = true
-        break
+        for (const r of readers[i]) stale[r] = 1
       }
     }
     this.values = next
@@ -393,11 +417,17 @@ export class Simulator {
     return this.unstable ? 2 : 1000
   }
 
-  /** Advance real time by `ms`, toggling clocks at their edges and settling after each edge. */
-  advance(ms: number) {
+  /**
+   * Advance real time by `ms`, toggling clocks at their edges and settling after each edge. At most 64 edges are done, or, with
+   * a `deadline` (a `performance.now()` time), as many as fit before it: time that cannot be simulated in time is skipped, so a
+   * circuit that is too big for the clock runs slower than the clock says.
+   */
+  advance(ms: number, deadline?: number) {
     let left = ms
     this.hit = null // a stop is reported for the call that tripped it (see takeBreak)
-    for (let edges = 0; edges < 64 && this.clocks.length; edges++) {
+    const maxEdges = deadline === undefined ? 64 : 100000
+    for (let edges = 0; edges < maxEdges && this.clocks.length; edges++) {
+      if (deadline !== undefined && (edges & 3) === 3 && performance.now() > deadline) break
       // A breakpoint stops the simulation at the edge that tripped it: no further edges, and the rest of the time is dropped.
       if (this.hit !== null) return
       let step = Infinity
@@ -413,6 +443,7 @@ export class Simulator {
         if (st.elapsed >= c.def.clockHalfPeriod!(c.inst.params) - 1e-9) {
           st.elapsed = 0
           st.phase = st.phase === 1 ? 0 : 1
+          this.stale[c.index] = 1
         }
       }
       this.nextCause = 'clock'
@@ -467,6 +498,7 @@ export class Simulator {
     })
     this.time = snap.time
     this.unstable = snap.unstable
+    this.stale.fill(1)
     this.cursor = target
     this.dirty = true
     // Settle again, in case a switch was flipped since (parameters are not part of the snapshot), and let the
@@ -490,8 +522,8 @@ export class Simulator {
   }
 
   /** One animation frame of a running simulation. */
-  frame(ms: number) {
-    this.advance(ms)
+  frame(ms: number, workMs?: number) {
+    this.advance(ms, workMs === undefined ? undefined : performance.now() + workMs)
     this.settle(this.budget())
   }
 
@@ -560,6 +592,7 @@ export class Simulator {
     const mem = (cc?.inst.state as { mem?: number[] } | undefined)?.mem
     if (!cc || !mem || !(index >= 0 && index < mem.length)) return false
     mem[index] = value & (2 ** Number(cc.inst.params.dbits ?? 4) - 1)
+    this.touch(cc)
     this.dirty = true
     this.moved = true
     return true
@@ -570,6 +603,7 @@ export class Simulator {
     const cc = this.byId.get(compId)
     if (!cc) return
     cc.inst.params = params
+    this.touch(cc)
     this.dirty = true
   }
 
@@ -577,6 +611,7 @@ export class Simulator {
     const cc = this.byId.get(compId)
     if (!cc) return
     cc.inst.state = { ...cc.inst.state, ...patch }
+    this.touch(cc)
     this.dirty = true
   }
 

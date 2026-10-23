@@ -66,9 +66,10 @@ The raycaster was written as an SKASM program (`src/model/raycaster.ts`) and run
 existing 16×16 screen: an 8×8 map, tables of 64 angles and wall heights in the table ROM, a ray marched in half-cell steps,
 `CALL probe` shared by the rays and the walking code. Its picture is tested against an independent TypeScript raycaster. Results:
 - **144 words** of the 256 program words, and 213 of the 256 table bytes. Nothing needs a wider program counter.
-- **About 6,300 instructions a picture.** The app steps at most about two thousand instructions a second whatever the clock
-  setting (64 clock edges per animation frame), so a picture takes three to six seconds on the circuit: fine for a program that
-  waits for a button, not for animation.
+- **About 6,300 instructions a picture.** When this was measured the app did at most about two thousand instructions a second
+  (a cap of 64 clock edges per animation frame, and a simulator that evaluated every part at every gate delay). Both were
+  improved afterwards (a time budget per frame and event-driven evaluation, about three times faster), and clocks of 2 and 4 kHz
+  were added, so a picture now takes a second or two: fine for a program that waits for a button, not for animation.
 - **No multiplier is needed.** Distance is a step count and the wall height is a table lookup.
 - A bigger screen would not help: 32 columns would double the rays and need a 128-angle table, and the picture would take
   half a minute. The limit is the simulator, not the machine.

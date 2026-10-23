@@ -95,7 +95,7 @@ export function startRuntime() {
     const dt = Math.min(t - last, 100)
     last = t
     const { running, speed } = useStore.getState()
-    if (running) sim.frame(dt * speed)
+    if (running) sim.frame(dt * speed, 10) // up to 10 ms of simulation work a frame, however many clock edges that is
     // A breakpoint stopped the simulation (while running or on a single step): say which one.
     const hit = sim.takeBreak()
     if (hit) {

@@ -422,6 +422,25 @@ const selectParam = (key: string, label: string, values: number[], def: number, 
   options: values.map((v) => ({ value: v, label: fmt(v) })),
 })
 
+/**
+ * The words (and the table) of a ROM, parsed once for each set of params: a ROM is evaluated at every clock edge, and its text can
+ * be kilobytes long. (The params of a part are replaced, never changed, when it is edited.)
+ */
+const parsed = new WeakMap<Params, { data: unknown; tdata: unknown; words: number[]; table: number[] }>()
+function romWords(p: Params) {
+  let r = parsed.get(p)
+  if (!r || r.data !== p.data || r.tdata !== p.tdata) {
+    r = {
+      data: p.data,
+      tdata: p.tdata,
+      words: parseWords(String(p.data), 2 ** Number(p.abits), Number(p.dbits)),
+      table: p.table === 'on' ? parseWords(String(p.tdata), 256, 8) : [],
+    }
+    parsed.set(p, r)
+  }
+  return r
+}
+
 export const memoryRom: ComponentDef[] = [
   {
     type: 'rom',
@@ -489,13 +508,14 @@ export const memoryRom: ComponentDef[] = [
     evaluate(inst) {
       const abits = Number(inst.params.abits)
       const dbits = Number(inst.params.dbits)
+      const { words, table } = romWords(inst.params)
       const addr = toNum(inst.ins, 0, abits)
       if (addr < 0) inst.outs.fill(X, 0, dbits)
-      else writeNum(inst.outs, 0, dbits, parseWords(String(inst.params.data), 2 ** abits, dbits)[addr])
+      else writeNum(inst.outs, 0, dbits, words[addr])
       if (inst.params.table === 'on') {
         const t = toNum(inst.ins, abits, 8)
         if (t < 0) inst.outs.fill(X, dbits, dbits + 8)
-        else writeNum(inst.outs, dbits, 8, parseWords(String(inst.params.tdata), 256, 8)[t])
+        else writeNum(inst.outs, dbits, 8, table[t])
       }
     },
   },
