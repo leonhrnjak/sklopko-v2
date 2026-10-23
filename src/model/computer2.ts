@@ -7,7 +7,8 @@ import { boundsRect, type Circuit } from './circuit'
  * `OUT` and `IN` through the ports every computer shares:
  *
  *   console   `OUT CHAR` prints the accumulator as a character
- *   lcd       `OUT PIXEL_ON` lights the pixel at (low nibble, high nibble) of the accumulator, `OUT PIXEL_OFF` darkens it
+ *   lcd       `OUT PIXEL_ON` lights the pixel at (low nibble, high nibble) of the accumulator, `OUT PIXEL_OFF` darkens it;
+ *             `OUT PIXEL_AT` chooses a pixel and `IN PIXEL` reads it (1 if lit)
  *   speaker   `OUT SPEAKER` flips it
  *   keypad    `IN KEY` reads it (the key in bits 0–3, bit 4 set while a press is waiting); `OUT KEY_ACK` says it has been read
  *   gamepad   `IN PAD` reads the buttons held right now, one bit each (up 1, down 2, left 4, right 8, A 16, B 32)
@@ -723,6 +724,16 @@ export function computer2Builder(o: Computer2Options) {
     wire(select(5), `${inKey}.S0`)
     portIn = `${inKey}.Y`
   }
+  // The screen can be read back: IN PIXEL gives 1 or 0 for the pixel chosen with OUT PIXEL_AT (wired up with the screen, below).
+  let pixelWord = ''
+  if (has('lcd')) {
+    pixelWord = part(INMUX, 'pixelWord', 'merger', { params: { bits: 8, split: '1,1,1,1,1,1,1,1' }, label: 'the pixel read back' }, 20)
+    const inPixel = part(INMUX, 'inPixel', 'busmux', { params: { bits: 8, n: 2 }, label: 'IN PIXEL' }, 60)
+    wire(portIn, `${inPixel}.I0`)
+    wire(`${pixelWord}.Y`, `${inPixel}.I1`)
+    wire(select(2), `${inPixel}.S0`)
+    portIn = `${inPixel}.Y`
+  }
   // The gamepad: IN PAD gives the six buttons held right now (up, down, left, right, A, B in bits 0–5).
   if (has('gamepad')) {
     const pad = part(DEVICES, 'gamepad', 'gamepad', { label: 'Gamepad' })
@@ -777,7 +788,7 @@ export function computer2Builder(o: Computer2Options) {
     wire(ACC_OUT, `${con}.D`)
   }
   if (has('lcd')) {
-    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { ...BUS, colors: 2 }, label: 'LCD' })
+    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { ...BUS, colors: 2, read: 'on' }, label: 'LCD' })
     const xy = splitter(DEVICES, 'xy', 8, [4, 4], 'column, row', ACC_OUT)
     wire(`${xy}.Y0`, `${screen}.X`)
     wire(`${xy}.Y1`, `${screen}.Y`)
@@ -786,6 +797,16 @@ export function computer2Builder(o: Computer2Options) {
     const fbWe = gate(DECODE, 'fbWe', 'and', 'OUT to the screen', [PORT_WRITE, `${fbSel}.Y`])
     wire(`${fbWe}.Y`, `${screen}.WE`)
     wire(`${clk}.Q`, `${screen}.CLK`)
+    // OUT PIXEL_AT chooses the pixel to read: a register holds the address, split into column and row.
+    const readAt = part(DEVICES, 'readAt', 'busreg', { params: { bits: 8 }, label: 'PIXEL_AT: the pixel to read' })
+    wire(ACC_OUT, `${readAt}.D`)
+    wire(writeTo(7, 'OUT PIXEL_AT'), `${readAt}.LD`)
+    wire(`${clk}.Q`, `${readAt}.CLK`)
+    const rxy = splitter(DEVICES, 'rxy', 8, [4, 4], 'column, row to read', `${readAt}.Q`)
+    wire(`${rxy}.Y0`, `${screen}.RX`)
+    wire(`${rxy}.Y1`, `${screen}.RY`)
+    wire(`${screen}.Q`, `${pixelWord}.A0`)
+    for (let i = 1; i < 8; i++) wire(`${zero}.Q`, `${pixelWord}.A${i}`)
   }
   if (has('speaker')) {
     // OUT SPEAKER flips the speaker's T flip-flop.
@@ -1725,6 +1746,77 @@ col:    LDA c           ; the old pixel of this column: the entry before the cur
 wave:   .byte 8, 10, 12, 14, 14, 14, 12, 10, 8, 5, 3, 1, 0, 1, 3, 5
 `
 
+/**
+ * Langton's ant: a tiny machine on the LCD that reads the pixel under it, flips it, turns and steps. It needs to read the
+ * screen back (OUT PIXEL_AT, IN PIXEL), so it keeps nothing but its own position and heading.
+ */
+export const ANT_SOURCE = `; Langton's ant. The ant stands on a pixel of the 16x16 screen (the edges wrap round). It reads the pixel under it:
+;   dark: turn right, light the pixel, step forward      lit: turn left, darken the pixel, step forward
+; Out of these two rules comes a messy pattern and, after a few hundred steps, a diagonal road. The ant needs no memory of
+; where it has been: the screen is its memory (OUT PIXEL_AT chooses a pixel and IN PIXEL tells whether it is lit).
+pos = 0           ; the ant's pixel: y * 16 + x
+dir = 1           ; 0 up, 1 right, 2 down, 3 left
+t = 2
+
+        LDI 0x88
+        STA pos
+        LDI 0
+        STA dir
+step:   LDA pos
+        OUT PIXEL_AT
+        IN PIXEL
+        CMPI 0
+        JNZ lit
+        LDA dir         ; dark: turn right, light it
+        ADDI 1
+        ANDI 3
+        STA dir
+        LDA pos
+        OUT PIXEL_ON
+        JMP move
+lit:    LDA dir         ; lit: turn left, darken it
+        ADDI 3
+        ANDI 3
+        STA dir
+        LDA pos
+        OUT PIXEL_OFF
+move:   LDA dir
+        CMPI 0
+        JZ up
+        CMPI 1
+        JZ right
+        CMPI 2
+        JZ down
+left:   LDA pos         ; x - 1, wrapping inside the row
+        ANDI 15
+        SUBI 1
+        ANDI 15
+        STA t
+        LDA pos
+        ANDI 0xF0
+        ADD t
+        STA pos
+        JMP step
+right:  LDA pos
+        ANDI 15
+        ADDI 1
+        ANDI 15
+        STA t
+        LDA pos
+        ANDI 0xF0
+        ADD t
+        STA pos
+        JMP step
+up:     LDA pos         ; one row up; the byte wraps round by itself
+        SUBI 16
+        STA pos
+        JMP step
+down:   LDA pos
+        ADDI 16
+        STA pos
+        JMP step
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -1800,6 +1892,14 @@ export const PROGRAMS: Program[] = [
     hz: 1024,
     devices: ['lcd'],
     note: 'A sine wave scrolls across the LCD. The height of the wave at each of the 16 columns is a byte in a table: the .byte line at the end of the program fills a second ROM output, and LDT reads the byte at the index register X. Without a table the program would need an instruction for every number. Open the Program ROM to see the table under the listing.',
+  },
+  {
+    id: 'computer-ant',
+    name: 'Computer + LCD: Langton\'s ant (reads the screen)',
+    source: ANT_SOURCE,
+    hz: 1024,
+    devices: ['lcd'],
+    note: 'Langton’s ant: on a dark pixel it turns right and lights it, on a lit pixel it turns left and darkens it, then steps forward (the edges wrap round). The program has no map of where it has been, because the screen is its memory: OUT PIXEL_AT chooses a pixel and IN PIXEL reads whether it is lit. Run it fast and watch the pattern turn messy, then build a diagonal road.',
   },
 ]
 

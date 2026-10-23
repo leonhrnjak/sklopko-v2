@@ -1,5 +1,5 @@
 import { box, names } from '../layouts'
-import { X, toNum, type ComponentDef, type V } from '../types'
+import { X, toNum, writeNum, type ComponentDef, type V } from '../types'
 import { HEX_WORDS, parseWords } from './memory'
 
 /** Detects a 0 -> 1 transition on a clock input; state.pc holds the previous level. */
@@ -178,16 +178,38 @@ export const devices: ComponentDef[] = [
           { value: 4, label: '4' },
         ],
       },
+      {
+        key: 'read',
+        label: 'Read a pixel back',
+        kind: 'select',
+        default: 'off',
+        structural: true,
+        options: [
+          { value: 'off', label: 'No' },
+          { value: 'on', label: 'Yes: the pixel at RX, RY appears on Q' },
+        ],
+      },
     ],
     title: () => '',
     live: true,
     init: (): FramebufferState => ({ px: new Array<number>(FB_SIZE * FB_SIZE).fill(0), pc: X, rev: 0 }),
-    layout: (p) =>
-      box({
+    layout: (p) => {
+      const nd = Number(p.colors) === 4 ? 2 : 1
+      return box({
         w: 220,
         minRows: 12,
-        left: [...names('X', 4), ...names('Y', 4), ...(Number(p.colors) === 4 ? names('D', 2) : ['D']), { name: 'WE', def: 0 }, { name: 'CLR', def: 0 }, { name: 'CLK', clock: true }],
-      }),
+        left: [
+          ...names('X', 4),
+          ...names('Y', 4),
+          ...(nd === 2 ? names('D', 2) : ['D']),
+          { name: 'WE', def: 0 },
+          { name: 'CLR', def: 0 },
+          { name: 'CLK', clock: true },
+          ...(p.read === 'on' ? [...names('RX', 4), ...names('RY', 4)] : []),
+        ],
+        right: p.read === 'on' ? (nd === 2 ? names('Q', 2) : ['Q']) : [],
+      })
+    },
     evaluate(inst) {
       const st = inst.state as FramebufferState
       const nd = Number(inst.params.colors) === 4 ? 2 : 1
@@ -199,16 +221,21 @@ export const devices: ComponentDef[] = [
           st.px.fill(0)
           st.rev++
         }
-        return
+      } else if (edge && we === 1) {
+        const x = toNum(inst.ins, 0, 4)
+        const y = toNum(inst.ins, 4, 4)
+        const d = toNum(inst.ins, 8, nd)
+        if (x >= 0 && y >= 0 && d >= 0 && st.px[y * FB_SIZE + x] !== d) {
+          st.px[y * FB_SIZE + x] = d
+          st.rev++
+        }
       }
-      if (!edge || we !== 1) return
-      const x = toNum(inst.ins, 0, 4)
-      const y = toNum(inst.ins, 4, 4)
-      const d = toNum(inst.ins, 8, nd)
-      if (x < 0 || y < 0 || d < 0) return
-      if (st.px[y * FB_SIZE + x] !== d) {
-        st.px[y * FB_SIZE + x] = d
-        st.rev++
+      // The pixel that the read address points to (X when the address is unknown), after any write of this edge.
+      if (inst.params.read === 'on') {
+        const rx = toNum(inst.ins, 11 + nd, 4)
+        const ry = toNum(inst.ins, 15 + nd, 4)
+        if (rx < 0 || ry < 0) inst.outs.fill(X)
+        else writeNum(inst.outs, 0, nd, st.px[ry * FB_SIZE + rx])
       }
     },
   },

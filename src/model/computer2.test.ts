@@ -3,7 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
-import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
+import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, ANT_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
@@ -358,9 +358,20 @@ function agree(source: string, cycles: number): string | null {
   const words = asm.words
   const ref = newMachine()
   ref.table = [...asm.table, ...new Array<number>(256 - asm.table.length).fill(0)]
+  // The screen of the rig, as the reference sees it: lit pixels, and the one that IN PIXEL reads.
+  const lit = new Set<number>()
+  let at = 0
+  const screen = {
+    out(port: number, v: number) {
+      if (port === 2) lit.add(v)
+      else if (port === 3) lit.delete(v)
+      else if (port === 7) at = v
+    },
+    in: (port: number) => (port === 2 && lit.has(at) ? 1 : 0),
+  }
   for (let i = 0; i < cycles; i++) {
     m.cycle()
-    referenceStep(ref, words)
+    referenceStep(ref, words, screen)
     const got = { pc: m.pc(), acc: m.acc(), x: m.x(), c: m.carry(), z: m.zero(), ram: m.ram().join(','), sp: m.sp(), stack: m.stack().join(',') }
     const want = { pc: ref.pc, acc: ref.acc, x: ref.x, c: ref.c, z: ref.z, ram: ref.ram.join(','), sp: ref.sp, stack: ref.stack.join(',') }
     if (JSON.stringify(got) !== JSON.stringify(want)) return `cycle ${i + 1}: circuit ${JSON.stringify(got)}, reference ${JSON.stringify(want)}`
@@ -783,6 +794,107 @@ describe('computer: the sine wave', () => {
       m.run(n - ran)
       for (; ran < n; ran++) referenceStep(ref, asm.words, { out: (p, v) => void (p === 2 ? px.add(v) : p === 3 && px.delete(v)) })
       expect(new Set(m.pixels().map(([x, y]) => y * 16 + x))).toEqual(px)
+    }
+  }, 60000)
+})
+
+describe('computer: reading the screen back (OUT PIXEL_AT, IN PIXEL)', () => {
+  const cyclesOf = (src: string) => src.split('\n').filter((l) => l.trim()).length + 1
+  const programs: Record<string, string> = {
+    'a lit pixel reads 1': 'LDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_AT\nIN PIXEL',
+    'a dark pixel reads 0': 'LDI 0x35\nOUT PIXEL_AT\nIN PIXEL',
+    'a pixel darkened again reads 0': 'LDI 0x35\nOUT PIXEL_ON\nOUT PIXEL_OFF\nOUT PIXEL_AT\nIN PIXEL',
+    'only the chosen pixel is read': 'LDI 0x35\nOUT PIXEL_ON\nLDI 0x36\nOUT PIXEL_AT\nIN PIXEL',
+    'the first and the last pixel': 'LDI 0\nOUT PIXEL_ON\nLDI 255\nOUT PIXEL_ON\nLDI 0\nOUT PIXEL_AT\nIN PIXEL\nSTA 0\nLDI 255\nOUT PIXEL_AT\nIN PIXEL\nADD 0',
+    'choosing a pixel does not light it': 'LDI 0x77\nOUT PIXEL_AT\nIN PIXEL\nOUT PIXEL_ON\nIN PIXEL',
+  }
+  for (const [name, src] of Object.entries(programs))
+    it(name, () => {
+      expect(agree(src, cyclesOf(src) + 4), src).toBeNull()
+    })
+
+  it('a program can test the pixel under it: it follows a line until it ends', () => {
+    // Light 10, 11, 12 on row 0; walk from 0 to the first dark pixel by reading.
+    const src = 'LDI 10\nOUT PIXEL_ON\nLDI 11\nOUT PIXEL_ON\nLDI 12\nOUT PIXEL_ON\nLDI 10\nSTA 0\nloop: LDA 0\nOUT PIXEL_AT\nIN PIXEL\nCMPI 0\nJZ end\nLDA 0\nADDI 1\nSTA 0\nJMP loop\nend: HALT'
+    const m = machine(src, ['lcd'])
+    m.run(200)
+    expect(m.halted()).toBe(1)
+    expect(m.ram()[0]).toBe(13)
+  })
+})
+
+describe("computer: Langton's ant", () => {
+  /** The ant in plain TypeScript, to compare with: steps of the same rules on the same 16x16 torus. */
+  const antAfter = (steps: number) => {
+    const lit = new Set<number>()
+    let x = 8
+    let y = 8
+    let dir = 0
+    for (let i = 0; i < steps; i++) {
+      const p = y * 16 + x
+      if (lit.has(p)) {
+        dir = (dir + 3) & 3
+        lit.delete(p)
+      } else {
+        dir = (dir + 1) & 3
+        lit.add(p)
+      }
+      if (dir === 0) y = (y - 1) & 15
+      else if (dir === 1) x = (x + 1) & 15
+      else if (dir === 2) y = (y + 1) & 15
+      else x = (x - 1) & 15
+    }
+    return { lit, x, y, dir }
+  }
+
+  it('follows the rules: after 1, 11, 100 and 3000 steps the screen and the ant are as in plain TypeScript', () => {
+    const asm = assemble(SKASM, ANT_SOURCE, ROM_WORDS)
+    expect(asm.errors).toEqual([])
+    const ref = newMachine()
+    const lit = new Set<number>()
+    let at = 0
+    const ports = {
+      out(port: number, v: number) {
+        if (port === 2) lit.add(v)
+        else if (port === 3) lit.delete(v)
+        else if (port === 7) at = v
+      },
+      in: (port: number) => (port === 2 && lit.has(at) ? 1 : 0),
+    }
+    let steps = 0
+    for (let i = 0; i < 200000 && steps <= 3000; i++) {
+      if (ref.pc === asm.symbols.step) {
+        if ([1, 11, 100, 3000].includes(steps)) {
+          const want = antAfter(steps)
+          expect([...lit].sort((a, b) => a - b), `after ${steps} steps`).toEqual([...want.lit].sort((a, b) => a - b))
+          expect([ref.ram[0], ref.ram[1]]).toEqual([want.y * 16 + want.x, want.dir])
+        }
+        steps++
+      }
+      referenceStep(ref, asm.words, ports)
+    }
+    expect(steps).toBeGreaterThan(3000)
+  })
+
+  it('the circuit draws the same ant as the interpreter', () => {
+    const m = machine(ANT_SOURCE, ['lcd'])
+    const asm = assemble(SKASM, ANT_SOURCE, ROM_WORDS)
+    const ref = newMachine()
+    const lit = new Set<number>()
+    let at = 0
+    const ports = {
+      out(port: number, v: number) {
+        if (port === 2) lit.add(v)
+        else if (port === 3) lit.delete(v)
+        else if (port === 7) at = v
+      },
+      in: (port: number) => (port === 2 && lit.has(at) ? 1 : 0),
+    }
+    let ran = 0
+    for (const n of [100, 700, 2500]) {
+      m.run(n - ran)
+      for (; ran < n; ran++) referenceStep(ref, asm.words, ports)
+      expect(new Set(m.pixels().map(([x, y]) => y * 16 + x)), `after ${n} instructions`).toEqual(lit)
     }
   }, 60000)
 })
