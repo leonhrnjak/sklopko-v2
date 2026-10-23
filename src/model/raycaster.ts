@@ -1,6 +1,6 @@
 /**
  * A raycaster for the 16×16 screen, written in SKASM: for each of the 16 screen columns a ray is marched through an 8×8 map
- * in half-cell steps until it hits a wall, and the distance gives the height of the wall bar drawn in that column.
+ * in half-cell steps until it hits a wall, and the distance gives the height and the shade of the wall bar drawn in that column.
  *
  * Numbers: a position is 7 bits, 1/16 of a cell, so the 8×8 map is 128 units across and wraps with `AND 127`. The direction
  * of a ray is two signed bytes (−8 to 8, half a cell per step) from tables of 64 angles. The tables, the map and the wall
@@ -28,6 +28,32 @@ export const stepX = (a: number) => Math.round(8 * Math.cos((2 * Math.PI * a) / 
 export const stepY = (a: number) => Math.round(8 * Math.sin((2 * Math.PI * a) / ANGLES))
 /** Half the height of the wall bar (0 to 8 rows) for a ray that hit after n steps; n = 21 means no wall in range. */
 export const halfHeight = (n: number) => (n > MAX_STEPS ? 0 : Math.min(8, Math.round(16 / n)))
+/** The shade of a wall bar of half height h: near walls are brightest. */
+export const shadeOf = (h: number) => (h >= 4 ? 3 : h >= 2 ? 2 : 1)
+
+/** The picture in plain TypeScript, to check the program against: the half height and shade of the bar of each of the 16 columns. */
+export function bars(px: number, py: number, ang: number): { half: number; shade: number }[] {
+  return Array.from({ length: 16 }, (_, col) => {
+    const a = (ang + col + 56) & (ANGLES - 1)
+    let rx = px
+    let ry = py
+    for (let n = 1; n <= MAX_STEPS; n++) {
+      rx = (rx + stepX(a)) & 127
+      ry = (ry + stepY(a)) & 127
+      if (MAP[ry >> 4][rx >> 4]) return { half: halfHeight(n), shade: shadeOf(halfHeight(n)) }
+    }
+    return { half: 0, shade: 0 }
+  })
+}
+
+/** The lit pixels of a picture (position -> shade), from the bars. */
+export function picture(b: { half: number; shade: number }[]): Map<number, number> {
+  const px = new Map<number, number>()
+  b.forEach(({ half, shade }, col) => {
+    for (let y = 8 - half; y < 8 + half; y++) px.set(y * 16 + col, shade)
+  })
+  return px
+}
 
 const byte = (v: number) => v & 255
 const tableBytes = [
@@ -46,7 +72,7 @@ const byteLines = () =>
   }).join('\n')
 
 export const RAYCASTER_SOURCE = `; A raycaster. Each of the 16 screen columns gets a ray, marched through the 8x8 map in half-cell steps until it hits a wall;
-; the number of steps is the distance, and the distance gives the height of the wall bar drawn in that column.
+; the number of steps is the distance, and the distance gives the height and the shade of the wall bar drawn in that column.
 ; Positions are 7 bits (1/16 of a cell, 128 across); a ray's step is a signed byte from the table, and AND 127 wraps it.
 ; Table: 0-63 the x step per angle, 64-127 the y step, 128-191 the map (1 = wall), 192-212 half the wall height by distance.
 ; Left and right turn, up and down walk; the picture is drawn again after every move.
@@ -119,6 +145,17 @@ hit:    LDA n
 bar:    STA h
         SHL
         STA u           ; the bar is the rows from 8 - h up to, not including, 8 + h
+        LDA h           ; near walls are bright, far walls dim: shade 3 from half height 4, 2 from 2, otherwise 1
+        CMPI 4
+        JNC bright
+        CMPI 2
+        JNC middle
+        LDI 1
+        JMP shade
+bright: LDI 3
+        JMP shade
+middle: LDI 2
+shade:  OUT PIXEL_COLOR
         LDI 0
         STA y
         LDA col

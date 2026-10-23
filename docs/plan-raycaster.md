@@ -1,6 +1,6 @@
 # Toward a 3D raycaster: plan
 
-> **Status:** planned. Each sub-milestone is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI).
+> **Status:** done. Each sub-milestone is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI).
 > Tick each box when it ships.
 >
 > - [x] M1a Index register and a 256-byte RAM
@@ -9,7 +9,7 @@
 > - [x] M1d A readable screen
 > - [x] M1e The spike: a raycaster on the reference interpreter, to size M2
 > - [x] M2 Shades of grey for the LCD
-> - [ ] M3 The raycaster example
+> - [x] M3 The raycaster example
 
 ## Where this is going
 The long-term joke is "can it run Doom". It cannot, honestly: Doom needs a 32-bit CPU, megabytes of RAM and tens of millions of
