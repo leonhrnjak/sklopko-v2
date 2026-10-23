@@ -474,8 +474,8 @@ export function computer2Builder(o: Computer2Options) {
   const ACCMUX = 3780
   const ACC = 4120
   const DEVICES = 4460
-  const NUMBER_A = 4800
-  const NUMBER_B = 5140
+  const NUMBER_A = 4830
+  const NUMBER_B = 5170
 
   // ---- Fetch: the 8-bit program counter and the program ROM -------------------------------------------
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
@@ -1200,6 +1200,292 @@ slow:   SUBI 1
 lost:   HALT
 `
 
+/**
+ * Snake on the LCD and the hex keypad. The body is eight RAM bytes, head first; each frame they all move one place along
+ * (the machine cannot address RAM by a variable, so it is eight copies in a row), and the tail pixel is darkened unless the snake
+ * just ate. Keys 1 4 6 9 steer. The walls are lit pixels round the edge, and the snake dies on a wall or on itself.
+ */
+export const SNAKE_SOURCE = `; Snake. Steer with the keys 1 (up), 4 (left), 6 (right) and 9 (down). Eat the food to grow to length 8 and win.
+; The snake is eight RAM bytes s0 (head) to s7 (tail); each is a screen position, y * 16 + x. Every frame each byte takes
+; the value of the one before it, a new head goes in s0, and the pixel of the old tail is darkened.
+; The program cannot use a variable as a RAM address, so a variable length means jumping to the right piece of code.
+s0 = 0
+s1 = 1
+s2 = 2
+s3 = 3
+s4 = 4
+s5 = 5
+s6 = 6
+s7 = 7
+dir = 8           ; the step per frame: 1 right, 255 left (-1), 16 down, 240 up (-16)
+len = 9           ; how many of the eight bytes are the snake
+food = 10
+next = 11         ; the new head
+key = 12
+wait = 13         ; the pause between frames, shorter after every meal
+rnd = 14          ; changes every frame; the food goes where it points
+grow = 15         ; 1 when the snake ate in this frame
+
+        LDI 136
+        STA s0
+        LDI 135
+        STA s1
+        LDI 134
+        STA s2
+        LDI 1
+        STA dir
+        LDI 3
+        STA len
+        LDI 24
+        STA wait
+        LDI 91
+        STA rnd
+; ---- the walls: the four edges of the screen ----
+        LDI 0
+top:    OUT PIXEL_ON
+        ADDI 1
+        CMPI 16
+        JNZ top
+        LDI 240
+bottom: OUT PIXEL_ON
+        ADDI 1
+        JNC bottom
+        LDI 0
+left:   OUT PIXEL_ON
+        ADDI 16
+        JNC left
+        LDI 15
+right:  OUT PIXEL_ON
+        ADDI 16
+        JNC right
+        LDA s0
+        OUT PIXEL_ON
+        LDA s1
+        OUT PIXEL_ON
+        LDA s2
+        OUT PIXEL_ON
+        LDA len
+        OUT NUMBER
+        JMP place
+
+; ---- a key turns the snake, unless it would turn it straight back ----
+frame:  LDA rnd
+        ADDI 37
+        STA rnd
+        IN KEY
+        ANDI 16
+        JZ move
+        IN KEY
+        ANDI 15
+        STA key
+        OUT KEY_ACK
+        LDA key
+        CMPI 1
+        JZ kup
+        CMPI 4
+        JZ kleft
+        CMPI 6
+        JZ kright
+        CMPI 9
+        JZ kdown
+        JMP move
+kup:    LDI 240
+        JMP turn
+kleft:  LDI 255
+        JMP turn
+kright: LDI 1
+        JMP turn
+kdown:  LDI 16
+turn:   STA next
+        ADD dir
+        JZ move         ; the sum is 0: the opposite direction
+        LDA next
+        STA dir
+
+; ---- the new head, and the walls (column 0 or 15, row 0 or 15) ----
+move:   LDA s0
+        ADD dir
+        STA next
+        ANDI 15
+        CMPI 0
+        JZ dead
+        CMPI 15
+        JZ dead
+        LDA next
+        SHR
+        SHR
+        SHR
+        SHR
+        CMPI 0
+        JZ dead
+        CMPI 15
+        JZ dead
+
+; ---- the body: the new head is on s1 (impossible), s2 (if it is body), ... ----
+        LDA next
+        CMP s1
+        JZ dead
+        LDA next
+        CMP s2
+        JNZ c3
+        LDA len
+        CMPI 4          ; s2 is body when the snake is at least 4 long (otherwise it is the tail, which moves away)
+        JC c3
+        JMP dead
+c3:     LDA next
+        CMP s3
+        JNZ c4
+        LDA len
+        CMPI 5
+        JC c4
+        JMP dead
+c4:     LDA next
+        CMP s4
+        JNZ c5
+        LDA len
+        CMPI 6
+        JC c5
+        JMP dead
+c5:     LDA next
+        CMP s5
+        JNZ meal
+        LDA len
+        CMPI 7
+        JC meal
+        JMP dead
+
+; ---- food: the snake grows and the tail stays; otherwise the tail pixel goes out ----
+meal:   LDA next
+        CMP food
+        JNZ walk
+        LDA len
+        ADDI 1
+        STA len
+        OUT NUMBER
+        LDA wait
+        SUBI 2
+        STA wait
+        LDI 1
+        STA grow
+        JMP shift
+walk:   LDI 0
+        STA grow
+        LDA len
+        CMPI 3
+        JZ tail3
+        CMPI 4
+        JZ tail4
+        CMPI 5
+        JZ tail5
+        CMPI 6
+        JZ tail6
+        LDA s6          ; length 7
+        JMP erase
+tail6:  LDA s5
+        JMP erase
+tail5:  LDA s4
+        JMP erase
+tail4:  LDA s3
+        JMP erase
+tail3:  LDA s2
+erase:  OUT PIXEL_OFF
+
+; ---- every byte takes its neighbour's value; the new head goes in s0 and lights up ----
+shift:  LDA s6
+        STA s7
+        LDA s5
+        STA s6
+        LDA s4
+        STA s5
+        LDA s3
+        STA s4
+        LDA s2
+        STA s3
+        LDA s1
+        STA s2
+        LDA s0
+        STA s1
+        LDA next
+        STA s0
+        OUT PIXEL_ON
+        LDA len
+        CMPI 8
+        JZ won
+        LDA grow
+        CMPI 0
+        JNZ place
+more:   LDA food
+        OUT PIXEL_ON    ; the food is lit again every frame, in case the tail's pixel put it out
+        LDA wait
+slow:   SUBI 1
+        JNZ slow
+        JMP frame
+
+; ---- a new meal at (rnd mod 16, rnd / 16), moved in from the wall if it is on it ----
+place:  LDA rnd
+        ANDI 15
+        CMPI 0
+        JNZ px1
+        LDI 1
+px1:    CMPI 15
+        JNZ px2
+        LDI 14
+px2:    STA next
+        LDA rnd
+        SHR
+        SHR
+        SHR
+        SHR
+        CMPI 0
+        JNZ py1
+        LDI 1
+py1:    CMPI 15
+        JNZ py2
+        LDI 14
+py2:    SHL
+        SHL
+        SHL
+        SHL
+        OR next
+        STA food
+        JMP more
+
+dead:   LDI 71          ; G
+        OUT CHAR
+        LDI 97          ; a
+        OUT CHAR
+        LDI 109         ; m
+        OUT CHAR
+        LDI 101         ; e
+        OUT CHAR
+        LDI 32
+        OUT CHAR
+        LDI 111         ; o
+        OUT CHAR
+        LDI 118         ; v
+        OUT CHAR
+        LDI 101         ; e
+        OUT CHAR
+        LDI 114         ; r
+        OUT CHAR
+        HALT
+won:    LDI 89          ; Y
+        OUT CHAR
+        LDI 111         ; o
+        OUT CHAR
+        LDI 117         ; u
+        OUT CHAR
+        LDI 32
+        OUT CHAR
+        LDI 119         ; w
+        OUT CHAR
+        LDI 105         ; i
+        OUT CHAR
+        LDI 110         ; n
+        OUT CHAR
+        HALT
+`
+
 export const PROGRAMS: Program[] = [
   {
     id: 'computer',
@@ -1251,6 +1537,14 @@ export const PROGRAMS: Program[] = [
     hz: 512,
     devices: ['lcd', 'number', 'keypad'],
     note: 'Pong against a wall. Key 1 moves your paddle (the three pixels on the left edge) up and key 9 moves it down; return the ball to score. The ball is one byte, row × 16 + column, moved by sideways and up/down steps like the bouncing ball. The program tests the column to find the wall, the paddle and a miss (ball in column 0: HALT), and every return shortens the pause between frames. A key is only read when the keypad says one is waiting (IN KEY, bit 4), so the ball keeps moving between presses.',
+  },
+  {
+    id: 'computer-snake',
+    name: 'Computer + LCD + keypad: snake',
+    source: SNAKE_SOURCE,
+    hz: 512,
+    devices: ['lcd', 'number', 'console', 'keypad'],
+    note: 'Snake. Steer with the keys 1 (up), 4 (left), 6 (right) and 9 (down) and eat the food to grow to length 8 (shown on the decimal display). The walls are the lit edge of the screen; hit one, or yourself, and the game halts with “Game over” on the text console. The body is eight RAM bytes, each a screen position; every frame each takes its neighbour’s value, the new head goes in the first and the old tail pixel is darkened (unless you just ate). The machine cannot use a variable as a RAM address, so the program jumps to a different piece of code for each length. Press Reset to play again.',
   },
 ]
 

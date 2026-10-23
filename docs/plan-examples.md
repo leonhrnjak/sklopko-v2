@@ -1,7 +1,7 @@
 # More examples: plan
 
-> **Status:** in progress. The PRs are stacked (each on top of the previous), from E1 to E5c. Each batch below is one PR from its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI,
-> ask before merging). Tick each batch when it ships.
+> **Status:** done (all batches built, in stacked PRs from E1 to E5c, each on top of the previous). Each batch was one PR from
+> its own feature branch per `CLAUDE.md` (version bump, scoped tests, CI).
 >
 > - [x] E1 Quick wins: the two unused state machines, master-slave flip-flop, LFSR
 > - [x] E2 Logic and bus teaching examples: encoder/decoder, bus arbitration, ALU slice, PWM dimmer
@@ -9,7 +9,7 @@
 > - [x] E4 Serial link: UART transmitter and receiver
 > - [x] E5a Tic-tac-toe on the 8-bit computer
 > - [x] E5b Pong on the 8-bit computer
-> - [ ] E5c Snake on the 8-bit computer
+> - [x] E5c Snake on the 8-bit computer
 
 ## Context
 The example menu is now grouped (`EXAMPLE_GROUPS` in `src/model/examples.ts`). The groups are: Start here, Logic basics,
