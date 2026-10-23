@@ -1,7 +1,7 @@
 import { memo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
-import { layoutOf } from '../engine/simulator'
+import { viewLayoutOf } from '../engine/viewlayout'
 import { paramDefaults, type ComponentDef } from '../engine/types'
 import type { Comp } from '../model/circuit'
 import { paletteDrag } from './paletteDrag'
@@ -9,7 +9,7 @@ import { CompSymbol } from './symbols'
 
 const Thumb = memo(function Thumb({ def }: { def: ComponentDef }) {
   const params = paramDefaults(def)
-  const l = layoutOf(def.type, params)
+  const l = viewLayoutOf(def.type, params)
   let x1 = 0
   let y1 = 0
   let x2 = l.w

@@ -16,6 +16,7 @@
   --wire-0: #dc2626;
   --wire-x: #9aa5a1;
   --wire-z: #8f9bb0;
+  --wire-bus: #2563eb;
   --select: #2563eb;
   --select-soft: rgba(37, 99, 235, 0.14);
   --trace: #d97706;
@@ -56,6 +57,7 @@
     --wire-0: #f87171;
     --wire-x: #6b7672;
     --wire-z: #7886a0;
+    --wire-bus: #60a5fa;
     --select: #60a5fa;
     --select-soft: rgba(96, 165, 250, 0.16);
     --trace: #fbbf24;
@@ -601,6 +603,11 @@ button.danger {
 .swatch.vx {
   background: var(--wire-x);
 }
+.swatch.vb {
+  background: var(--wire-bus);
+  height: 6px;
+  border-radius: 3px;
+}
 .swatch.vz {
   background: repeating-linear-gradient(90deg, var(--wire-z) 0 3px, transparent 3px 5px);
 }
@@ -919,6 +926,13 @@ button.danger {
   stroke: var(--wire-z);
   stroke-dasharray: 6 4;
 }
+/* A bus: one thick wire for several bits. Blue while every bit is known, grey when any is unknown. */
+.wire.bus {
+  stroke-width: 5;
+}
+.wire.vb {
+  stroke: var(--wire-bus);
+}
 .wire-trace {
   fill: none;
   stroke: var(--trace);
@@ -980,6 +994,9 @@ button.danger {
 .wire-group:hover .wire {
   stroke-width: 3.5;
 }
+.wire-group:hover .wire.bus {
+  stroke-width: 6.5;
+}
 .wire.ghost {
   stroke: var(--select);
   stroke-dasharray: 6 4;
@@ -1003,6 +1020,15 @@ button.danger {
 }
 .junction.vz {
   fill: var(--wire-z);
+}
+.junction.vb {
+  fill: var(--wire-bus);
+}
+.sym-line.bus {
+  stroke-width: 4;
+}
+.sym-line.bus-slash {
+  stroke-width: 1.5;
 }
 .sym-body.contention {
   stroke: var(--wire-0);

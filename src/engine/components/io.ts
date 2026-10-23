@@ -15,8 +15,15 @@ const labelName: ParamDef = {
   structural: true, // the flag's width, and so a Receive label's pin, depends on the name
 }
 
+/** More than one bit makes a label carry a bus (see `isBusLabel`). */
+const labelBits: ParamDef = { key: 'bits', label: 'Bits', kind: 'number', min: 1, max: 16, default: 1, structural: true }
+
 /** Width of a label flag: wide enough for its name (or the "name" placeholder shown while it is empty), on the 10px grid. */
-const flagWidth = (p: Params) => Math.ceil((Math.max(String(p.name).length, 4) * 8 + 22) / 10) * 10
+const flagWidth = (p: Params) => {
+  const bits = Number(p.bits ?? 1)
+  const chars = Math.max(String(p.name).length, 4) + (bits > 1 ? String(bits).length + 2 : 0)
+  return Math.ceil((chars * 8 + 22) / 10) * 10
+}
 
 export const io: ComponentDef[] = [
   {
@@ -93,8 +100,8 @@ export const io: ComponentDef[] = [
     description:
       'Publishes its input under a name. Every Receive label with the same name carries this signal, with no wire ' +
       'in between and no delay. If several Send labels share a name, the first one that is driven wins.',
-    params: [labelName],
-    layout: (p) => ({ w: flagWidth(p), h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
+    params: [labelName, labelBits],
+    layout: (p) => ({ w: flagWidth(p), h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10, ...(Number(p.bits) > 1 ? { bus: Number(p.bits) } : {}) }] }),
     evaluate() {},
   },
   {
@@ -104,10 +111,10 @@ export const io: ComponentDef[] = [
     description:
       'Carries the signal that the Send label with the same name publishes. Unknown (grey) when no driven Send ' +
       'label has that name.',
-    params: [labelName],
+    params: [labelName, labelBits],
     layout: (p) => {
       const w = flagWidth(p)
-      return { w, h: 20, pins: [{ name: 'Y', dir: 'out', side: 'r', x: w + 10, y: 10 }] }
+      return { w, h: 20, pins: [{ name: 'Y', dir: 'out', side: 'r', x: w + 10, y: 10, ...(Number(p.bits) > 1 ? { bus: Number(p.bits) } : {}) }] }
     },
     evaluate(inst) {
       // Only reached when nothing publishes this name; a matched label shares the sender's net instead.

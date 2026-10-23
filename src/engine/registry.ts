@@ -1,4 +1,5 @@
 import { annotation } from './components/annotation'
+import { buses } from './components/buses'
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
 import { devices } from './components/devices'
 import { gates } from './components/gates'
@@ -14,12 +15,13 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'arithmetic', name: 'Arithmetic' },
   { id: 'memory', name: 'Memory' },
   { id: 'routing', name: 'Multiplexers' },
+  { id: 'buses', name: 'Buses' },
   { id: 'coding', name: 'Encoders & decoders' },
   { id: 'display', name: 'Displays' },
   { id: 'annotation', name: 'Notes & frames' },
 ]
 
-export const DEFS: ComponentDef[] = [...io, probe, breakpoint, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...tristate, ...coding, ...display, ...devices, ...annotation]
+export const DEFS: ComponentDef[] = [...io, probe, breakpoint, ...gates, ...sequential, ...arithmetic, ...memoryRom, ...memoryRam, ...routing, ...tristate, ...buses, ...coding, ...display, ...devices, ...annotation]
 
 const byType = new Map(DEFS.map((d) => [d.type, d]))
 

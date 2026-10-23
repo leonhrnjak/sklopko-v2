@@ -1,5 +1,6 @@
 import { routeWires, wireEndpoints } from '../routing/router'
 import { adjustEnds } from '../routing/path'
+import { pinWidth } from '../engine/bus'
 import { bodyRect, findPin, isAnnotation, newId, worldPins, type Circuit, type PinRef, type Point, type Rect, type Wire } from './circuit'
 
 /** True if any segment of the path passes through the interior of the rectangle. */
@@ -77,14 +78,14 @@ export function rerouteAround(c: Circuit, ids: string[]) {
   reroute(c, todo)
 }
 
-/** Drop wires whose pins no longer exist (after a param change or deletion). */
+/** Drop wires whose pins no longer exist, or no longer have the same width (after a param change or deletion). */
 export function pruneWires(c: Circuit) {
   for (const w of Object.values(c.wires)) {
     const fc = c.comps[w.from.comp]
     const tc = c.comps[w.to.comp]
     const fp = fc && findPin(fc, w.from.pin)
     const tp = tc && findPin(tc, w.to.pin)
-    if (!fp || !tp || fp.def.dir !== 'out' || tp.def.dir !== 'in') delete c.wires[w.id]
+    if (!fp || !tp || fp.def.dir !== 'out' || tp.def.dir !== 'in' || pinWidth(fp.def) !== pinWidth(tp.def)) delete c.wires[w.id]
   }
 }
 
@@ -94,12 +95,12 @@ export function pruneWires(c: Circuit) {
  * like any other wire. Inputs that already have a wire are left alone. Returns true if wires were added.
  */
 export function autoConnect(c: Circuit, ids: string[]): boolean {
-  const at = new Map<string, (PinRef & { dir: 'in' | 'out' })[]>()
+  const at = new Map<string, (PinRef & { dir: 'in' | 'out'; width: number })[]>()
   const key = (p: Point) => `${p.x},${p.y}`
   for (const k of Object.values(c.comps))
     for (const p of worldPins(k)) {
       const list = at.get(key(p.pos)) ?? []
-      list.push({ comp: k.id, pin: p.def.name, dir: p.def.dir })
+      list.push({ comp: k.id, pin: p.def.name, dir: p.def.dir, width: pinWidth(p.def) })
       at.set(key(p.pos), list)
     }
   const fed = new Set(Object.values(c.wires).map((w) => `${w.to.comp}:${w.to.pin}`))
@@ -109,7 +110,7 @@ export function autoConnect(c: Circuit, ids: string[]): boolean {
     if (!k) continue
     for (const p of worldPins(k)) {
       for (const o of at.get(key(p.pos)) ?? []) {
-        if (o.comp === id || o.dir === p.def.dir) continue
+        if (o.comp === id || o.dir === p.def.dir || o.width !== pinWidth(p.def)) continue
         const mine = { comp: id, pin: p.def.name }
         const other = { comp: o.comp, pin: o.pin }
         const [from, to] = p.def.dir === 'out' ? [mine, other] : [other, mine]

@@ -1,11 +1,10 @@
 # Milestone 10: buses and tri-state — plan
 
-> **Status:** planned, not started. No code has been written. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each
-> from its own feature branch per `CLAUDE.md`. **Resume with 10a**, and wait for the user's go before starting it.
-> Tick each sub-milestone here as it ships.
+> **Status:** in progress. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each from its own feature branch per
+> `CLAUDE.md`. **Resume with 10c**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
 >
 > - [x] 10a Z and tri-state (scalar), v0.0.1-34
-> - [ ] 10b Bus plumbing
+> - [x] 10b Bus plumbing, v0.0.1-35
 > - [ ] 10c Parts
 > - [ ] 10d Rebuild the computer
 > - [ ] 10e Docs and polish
@@ -102,9 +101,31 @@ junction in red via `.sym-body.contention`). `busjoin` is 1 bit for now: 10c add
 changes); showing Z in the waveform is a possible follow-up. Example `/tristate`. Tests: `src/engine/tristate.test.ts` (including a test that
 every part gives the same outputs for a Z input and an X input) and an e2e test in `editor.spec.ts`.
 
-**10b. Bus plumbing (large)** — groups, `viewLayout`, `legacy` params, width rules in `connect/prune/autoConnect/serialize`,
+**10b. Bus plumbing (large) — done** — groups, `viewLayout`, `legacy` params, width rules in `connect/prune/autoConnect/serialize`,
 `flatten()` wired into every sim-input caller, thick wire + `useBusValue`, splitter, merger, bus labels, trace through
 splitters/mergers/labels (`model/trace.ts`), `/buses` example (a bus-width demo using the 4-bit `register` + `add4` in bus mode).
+*What 10b did, and where it differs from the plan above:* `PinDef.bus` (width of a bus pin, only in the view layout and in parts that are
+pure wiring), `PinGroup` and `ComponentDef.groups`, `ParamDef.legacy` with `legacyDefaults()` (used by `deserialize` and by
+`CircuitBuilder`, so old files and every existing example keep scalar pins; `paramDefaults()` is what a part placed now gets).
+`src/engine/bus.ts` (pure helpers: `withBus`, `groupsOf`, `pinWidth`, `splitWidths`) and `src/engine/viewlayout.ts`
+(`viewLayoutOf`, `isWiringPart`; kept apart so the component files can import `bus.ts` without a cycle). `compLayout` in
+`model/circuit.ts` is now the *view* layout; the simulator keeps `layoutOf`. `withBus` is applied to `register` (groups `IN`, `Q`: a
+group may not be called like a scalar pin, and `D` is one) and `add4` (`A`, `B`, `S`); the other parts follow in 10c.
+`src/model/buses.ts`: `busModel(circuit)` (cached per circuit in a `WeakMap`) gives `sim` (what `flatten` returns: parts without the
+wiring parts, one wire per bit, in the circuit's own order, so a circuit without buses flattens to exactly what it was), `bits` (for
+each wire, what drives each bit), `netBits` and `upstream(wire)`; a bit nothing publishes reads X from the one synthetic part `#x`.
+`loadIntoSim`, `analyze`, `challengecheck`, `trace` and `timing` all go through it, and so do the wire colours (`useSignal` in
+`app/hooks.ts` reads the driving scalar pins, so a wire leaving a splitter shows its source's value). *Deviation:* bus labels are
+the existing `netsend`/`netrecv` with a new `bits` param (1 is the old scalar label, more is a bus label that `flatten` resolves
+by name and width instead of aliasing nets), so name hints, related-label outlines and warnings are shared. Splitter (`bits`,
+`split` like `4,4`; pieces that don't add up fall back to one bit each) and merger are in the new `Buses` category, `wiring: true`
+(no delay setting). Wires: `connect` refuses a width mismatch with a toast ("use a splitter"/"use a merger"), `pruneWires` and so
+`deserialize` drop mismatched wires, `autoConnect` skips them. Thick wire `.wire.bus` (`vb` blue when every bit is known, `vx`,
+`vz`), bus pin stubs with a slash, pin tooltips with the width, hex value in the wire tooltip, bus swatch in the legend,
+inspector heading "N-bit bus". Example `/buses`. Tests: `src/model/buses.test.ts` (name clashes, layouts, flatten identity, bit-wise
+equivalence with the hand-wired circuit, zero delay, widths 2 to 16, labels, widths in `connect`/`prune`/`autoConnect`/`deserialize`,
+old files, trace, timing) and e2e tests in `editor.spec.ts` and `mobile.spec.ts`. Not done here (10c): bus mode on the other parts,
+symbols that index pins by position, bus probe, the memory inspector.
 **10c. Parts (large)** — n-bit family, bus constant/input/display, `bus` toggle on the existing parts, bus probe, bus `busjoin`/`tribuf`,
 symbols pass, inspector/memory-inspector pin lookups, timing/delay tables, palette and help text.
 **10d. Rebuild the computer (medium)** — `computer2Builder` (`src/model/computer2.ts`) uses `bus` helpers added to `CircuitBuilder`

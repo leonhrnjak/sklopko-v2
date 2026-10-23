@@ -120,3 +120,34 @@ test('state machines: edit in the table on a phone, join states by tapping, and 
   await expect(panel).toHaveCount(0)
   await expect(page.locator('.comp-label', { hasText: /^State bit 0$/ })).toHaveCount(1)
 })
+
+test('a bus wire can be drawn by touch between two bus pins', async ({ page, context }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByRole('button', { name: 'New' }).tap()
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  const put = async (type: string, x: number, y: number) => {
+    const item = page.locator(`.palette-item[data-type="${type}"]`)
+    await item.scrollIntoViewIfNeeded()
+    await item.tap()
+    await page.touchscreen.tap(canvas.x + x, canvas.y + y)
+    return (await page.locator('.comp.selected').getAttribute('data-id'))!
+  }
+  const reg = await put('register', 40, 60)
+  const add = await put('add4', 60, 220)
+  const center = async (comp: string, pin: string) => {
+    const b = (await page.locator(`circle.pin[data-comp="${comp}"][data-pin="${pin}"]`).boundingBox())!
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  }
+  const from = await center(reg, 'Q')
+  const to = await center(add, 'A')
+  const cdp = await context.newCDPSession(page)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] })
+  for (let i = 1; i <= 10; i++)
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: from.x + ((to.x - from.x) * i) / 10, y: from.y + ((to.y - from.y) * i) / 10 }],
+    })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await expect(page.locator('.wire.bus')).toHaveCount(1)
+})

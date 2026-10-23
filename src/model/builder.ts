@@ -1,5 +1,5 @@
 import { getDef } from '../engine/registry'
-import { paramDefaults, type Params } from '../engine/types'
+import { legacyDefaults, paramDefaults, type Params } from '../engine/types'
 import { routeWires } from '../routing/router'
 import { isLabel } from './labels'
 import { boundsRect, emptyCircuit, findPin, rectsIntersect, type Circuit, type Comp, type Rot } from './circuit'
@@ -25,7 +25,8 @@ export class CircuitBuilder {
       y,
       rot: o.rot ?? 0,
       flip: o.flip ?? false,
-      params: { ...paramDefaults(getDef(type)), ...o.params },
+      // Parts that gained a bus mode keep their scalar pins here (as in old files) unless the caller asks for `bus: true`.
+      params: { ...legacyDefaults(getDef(type)), ...o.params },
       ...(o.label ? { label: o.label } : {}),
     }
     return id
@@ -36,12 +37,12 @@ export class CircuitBuilder {
    * label's pin connected to it by a wire. If it would run into another part, it is moved out 10px at a time, and
    * if it still doesn't fit nothing is added. Returns the label's id, or undefined if there was no room.
    */
-  private flag(type: 'netsend' | 'netrecv', name: string, at: string, gap: number): string | undefined {
+  private flag(type: 'netsend' | 'netrecv', name: string, at: string, gap: number, bits = 1): string | undefined {
     const [compId, pinName] = at.split('.')
     const target = findPin(this.c.comps[compId], pinName)
     if (!target) throw new Error(`No pin ${at}`)
     const mine = type === 'netsend' ? 'A' : 'Y'
-    const params = { ...paramDefaults(getDef(type)), name }
+    const params = { ...paramDefaults(getDef(type)), name, bits }
     for (const rot of [0, 1, 2, 3] as Rot[]) {
       const probe: Comp = { id: '', type, x: 0, y: 0, rot, flip: false, params }
       const pin = findPin(probe, mine)!
@@ -67,13 +68,13 @@ export class CircuitBuilder {
   }
 
   /** Publish the output pin `from` ('comp.pin') under `name` with a Send label right next to it, if there is room. */
-  tap(from: string, name: string, gap = 20): string | undefined {
-    return this.flag('netsend', name, from, gap)
+  tap(from: string, name: string, gap = 20, bits = 1): string | undefined {
+    return this.flag('netsend', name, from, gap, bits)
   }
 
   /** Feed the input pin `to` ('comp.pin') from the signal published under `name`, with a Receive label right next to it, if there is room. */
-  tag(to: string, name: string, gap = 20): string | undefined {
-    return this.flag('netrecv', name, to, gap)
+  tag(to: string, name: string, gap = 20, bits = 1): string | undefined {
+    return this.flag('netrecv', name, to, gap, bits)
   }
 
   /** wire('and1.Y', 'led2.A') */

@@ -10,7 +10,7 @@ export { MAX_DELAY }
 export function hasDelay(k: Comp): boolean {
   if (isAnnotation(k) || isLabel(k.type)) return false
   const def = getDef(k.type)
-  if (def.interactive || def.clockHalfPeriod || k.type === 'const') return false
+  if (def.wiring || def.interactive || def.clockHalfPeriod || k.type === 'const') return false
   return compLayout(k).pins.some((p) => p.dir === 'out')
 }
 

@@ -26,6 +26,17 @@ export interface PinDef {
   invert?: boolean
   /** Value an input reads when nothing is connected. Defaults to X. */
   def?: V
+  /** A bus pin: the number of bits it carries (2 or more). Only in the view layout and in parts that are pure wiring. */
+  bus?: number
+}
+
+/** The scalar pins of a part that its bus mode draws as one bus pin (see `ComponentDef.groups`). */
+export interface PinGroup {
+  /** The bus pin's name. Never the name of a scalar pin of the same part. */
+  name: string
+  dir: 'in' | 'out'
+  /** Scalar pin names, least significant bit first. They sit next to each other on one side. */
+  pins: string[]
 }
 
 export interface Layout {
@@ -56,6 +67,8 @@ export interface ParamDef {
   /** For a single-line 'text': take the keyboard focus while it is empty (a new part asks for its name at once). */
   focus?: boolean
   default: ParamValue
+  /** What a saved file that lacks this param means (when it differs from `default`, which a part placed now gets). */
+  legacy?: ParamValue
   /** Changing it alters pins or behavior that needs a recompile (false for e.g. LED color). */
   structural?: boolean
 }
@@ -68,7 +81,7 @@ export interface Instance {
   params: Params
 }
 
-export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'coding' | 'display' | 'annotation'
+export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'buses' | 'coding' | 'display' | 'annotation'
 
 export interface ComponentDef {
   type: string
@@ -102,11 +115,25 @@ export interface ComponentDef {
   clockHalfPeriod?(p: Params): number
   /** Reads Z as Z. Every other part sees a Z input as X. */
   acceptsZ?: boolean
+  /**
+   * Bus mode: which scalar pins are shown as one bus pin each. The part has a `bus` param (see `withBus`) that switches it
+   * on, or, without one, it is always on. The simulator never sees groups: `flatten` turns a bus wire into one wire per bit.
+   */
+  groups?(p: Params): PinGroup[]
+  /** Pure wiring (splitter, merger): never simulated, `flatten` follows it back to the parts that drive its outputs. */
+  wiring?: boolean
 }
 
 export function paramDefaults(def: ComponentDef): Params {
   const p: Params = {}
   for (const d of def.params ?? []) p[d.key] = d.default
+  return p
+}
+
+/** The params of a part as old files (and the example builders) mean them: `legacy` where a param has one. */
+export function legacyDefaults(def: ComponentDef): Params {
+  const p: Params = {}
+  for (const d of def.params ?? []) p[d.key] = d.legacy ?? d.default
   return p
 }
 

@@ -1,3 +1,4 @@
+import { withBus } from '../bus'
 import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
@@ -45,15 +46,22 @@ export const arithmetic: ComponentDef[] = [
     layout: () => box({ left: ['A', 'B', { name: 'Ci', def: 0 }], right: ['S', 'Co'] }),
     evaluate: comb(([a, b, c]) => bitsOf(a + b + c, 2)),
   },
-  {
-    type: 'add4',
-    name: '4-bit adder',
-    category: 'arithmetic',
-    description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
-    title: () => 'Σ\n4-bit',
-    layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
-    evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
-  },
+  withBus(
+    {
+      type: 'add4',
+      name: '4-bit adder',
+      category: 'arithmetic',
+      description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
+      title: () => 'Σ\n4-bit',
+      layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
+      evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
+    },
+    () => [
+      { name: 'A', dir: 'in', pins: names('A', 4) },
+      { name: 'B', dir: 'in', pins: names('B', 4) },
+      { name: 'S', dir: 'out', pins: names('S', 4) },
+    ],
+  ),
   {
     type: 'halfsub',
     name: 'Half subtractor',

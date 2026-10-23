@@ -1,5 +1,6 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
+import { pinWidth } from '../engine/bus'
 import { naturalOrder } from '../engine/groups'
 import { getDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
@@ -346,6 +347,12 @@ export function connect(a: PinRef, b: PinRef, replacing?: string): boolean {
   const pb = c.comps[b.comp] && findPin(c.comps[b.comp], b.pin)
   if (!pa || !pb || pa.def.dir === pb.def.dir) return false
   const [from, to] = pa.def.dir === 'out' ? [a, b] : [b, a]
+  const [fw, tw] = (pa.def.dir === 'out' ? [pa, pb] : [pb, pa]).map((p) => pinWidth(p.def))
+  if (fw !== tw) {
+    const what = (n: number) => (n === 1 ? 'a single wire' : `a ${n}-bit bus`)
+    showToast(`Can't connect ${what(fw)} to ${tw === 1 ? 'a single-bit pin' : `a ${tw}-bit pin`}: use a ${fw > tw ? 'splitter' : 'merger'} to change the width.`)
+    return false
+  }
   checkpoint()
   const id = newId('w')
   edit((d) => {

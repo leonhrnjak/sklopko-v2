@@ -1,5 +1,6 @@
 import { box, names, type PinSpec } from '../layouts'
 import { X, inv, toNum, writeNum, type ComponentDef, type Instance, type Params, type V } from '../types'
+import { withBus } from '../bus'
 import { tableBox } from './memory'
 
 const CLK: PinSpec = { name: 'CLK', clock: true }
@@ -202,28 +203,34 @@ export const sequential: ComponentDef[] = [
       outs[4] = en === X ? X : st.n === 15 && en === 1 ? 1 : 0
     },
   },
-  {
-    type: 'register',
-    name: '4-bit register',
-    category: 'sequential',
-    description: 'Loads inputs A–D on the rising clock edge while LD=1. CLR clears it to 0.',
-    title: () => 'REG',
-    init: () => ({ n: 0, pc: X as V }),
-    layout: () =>
-      box({
-        left: ['A', 'B', 'C', 'D', { name: 'LD', def: 1 }, CLK],
-        bottom: [{ name: 'CLR', def: 0 }],
-        right: ['QA', 'QB', 'QC', 'QD'],
-      }),
-    evaluate(inst) {
-      const ins = inst.ins
-      const st = inst.state
-      const edge = rising(st, ins[5])
-      if (ins[6] === 1) st.n = 0
-      else if (edge && ins[4] === 1) st.n = toNum(ins, 0, 4)
-      writeNum(inst.outs, 0, 4, st.n)
+  withBus(
+    {
+      type: 'register',
+      name: '4-bit register',
+      category: 'sequential',
+      description: 'Loads inputs A–D on the rising clock edge while LD=1. CLR clears it to 0.',
+      title: () => 'REG',
+      init: () => ({ n: 0, pc: X as V }),
+      layout: () =>
+        box({
+          left: ['A', 'B', 'C', 'D', { name: 'LD', def: 1 }, CLK],
+          bottom: [{ name: 'CLR', def: 0 }],
+          right: ['QA', 'QB', 'QC', 'QD'],
+        }),
+      evaluate(inst) {
+        const ins = inst.ins
+        const st = inst.state
+        const edge = rising(st, ins[5])
+        if (ins[6] === 1) st.n = 0
+        else if (edge && ins[4] === 1) st.n = toNum(ins, 0, 4)
+        writeNum(inst.outs, 0, 4, st.n)
+      },
     },
-  },
+    () => [
+      { name: 'IN', dir: 'in', pins: ['A', 'B', 'C', 'D'] },
+      { name: 'Q', dir: 'out', pins: ['QA', 'QB', 'QC', 'QD'] },
+    ],
+  ),
   {
     type: 'shiftreg',
     name: 'Shift register',

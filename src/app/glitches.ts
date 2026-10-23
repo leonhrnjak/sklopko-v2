@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { findGlitches, type Glitch } from '../engine/glitch'
 import type { Capture } from '../engine/simulator'
 import { isLabel } from '../model/labels'
+import { busModel } from '../model/buses'
 import type { Circuit } from '../model/circuit'
 import { partName } from '../model/timing'
 import { sim } from './sim'
@@ -41,7 +42,8 @@ export function glitchingWires(circuit: Circuit, view: CaptureView | null): Set<
   const out = new Set<string>()
   if (!view || !view.glitches.length) return out
   const bad = new Set(view.glitches.map((g) => g.net))
-  for (const w of Object.values(circuit.wires)) if (bad.has(sim.netOf(w.from.comp, w.from.pin))) out.add(w.id)
+  const { bits } = busModel(circuit)
+  for (const w of Object.values(circuit.wires)) if ((bits.get(w.id) ?? []).some((b) => b && bad.has(sim.netOf(b.comp, b.pin)))) out.add(w.id)
   return out
 }
 

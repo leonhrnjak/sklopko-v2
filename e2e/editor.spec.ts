@@ -487,6 +487,42 @@ test('tri-state example: one source drives the shared line, two that disagree ar
   await expect(page.locator('.wire.v0').first()).toBeVisible()
 })
 
+test('buses example: 4-bit wires are thick and show their value, and the total counts up', async ({ page }) => {
+  await page.goto('/buses', { waitUntil: 'networkidle' })
+  // The merger → adder, adder → register and register → splitter wires are buses (the label pair carries one too).
+  await expect.poll(() => page.locator('.wire.bus').count()).toBeGreaterThanOrEqual(3)
+  await expect(page.locator('.wire.bus.vb').first()).toBeVisible()
+  await expect(page.locator('.wire-hit title').first()).toHaveText(/^4-bit bus: 0x[0-9A-F]$/)
+  // The display shows a hex digit once the register has loaded something other than 0.
+  await expect.poll(() => page.locator('.seg.on').count(), { timeout: 8000 }).toBeGreaterThan(0)
+})
+
+test('bus pins: a bus wire joins bus pins, a mismatch is refused with a hint, and bus ports can be switched off', async ({ page }) => {
+  await freshEmpty(page)
+  const reg = await place(page, 'register', 200, 200)
+  const add = await place(page, 'add4', 520, 200)
+  await wire(page, [reg, 'Q'], [add, 'A'])
+  await expect(page.locator('.wire.bus')).toHaveCount(1)
+  // A 4-bit bus into a single-bit pin: refused, and the toast says what to use.
+  await wire(page, [reg, 'Q'], [add, 'Ci'])
+  await expect(page.getByText(/use a splitter/)).toBeVisible()
+  await expect(page.locator('.wire')).toHaveCount(1)
+  // With bus ports off the parts have single-bit pins again, so the bus wire goes.
+  await page.locator(`.comp[data-id="${reg}"] > g`).first().click()
+  await page.getByLabel('Bus ports').uncheck()
+  await expect(page.locator('.wire.bus')).toHaveCount(0)
+  await expect(page.locator(`circle.pin[data-comp="${reg}"][data-pin="QA"]`)).toHaveCount(1)
+})
+
+test('splitter and merger: a 4-bit piece of a splitter joins a merger input, single bits stay ordinary wires', async ({ page }) => {
+  await freshEmpty(page)
+  const split = await place(page, 'splitter', 200, 200)
+  const merge = await place(page, 'merger', 500, 200)
+  await wire(page, [split, 'Y0'], [merge, 'A0']) // 4 bits to 4 bits
+  await wire(page, [split, 'Y1'], [merge, 'A1'])
+  await expect(page.locator('.wire.bus')).toHaveCount(2)
+})
+
 /** Select a part by the label shown above it. */
 async function pickByLabel(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
