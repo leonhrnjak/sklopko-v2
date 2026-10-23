@@ -28,6 +28,8 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
   alu: {
     groups: () => [numbered('A', 'in', 'A', 4), numbered('B', 'in', 'B', 4), numbered('F', 'out', 'F', 4), numbered('S', 'in', 'S', 3)],
   },
+  bcdadd: { groups: () => [numbered('A', 'in', 'A', 4), numbered('B', 'in', 'B', 4), numbered('S', 'out', 'S', 4)] },
+  bin2bcd: { groups: () => [numbered('B', 'in', 'B', 4), numbered('O', 'out', 'O', 4)] },
   mux: { groups: (p) => (Number(p.n) > 2 ? [numbered('S', 'in', 'S', Math.log2(Number(p.n)))] : []) },
   rom: {
     groups: (p) => [numbered('A', 'in', 'A', Number(p.abits)), numbered('D', 'out', 'D', Number(p.dbits))],

@@ -1,12 +1,12 @@
 # Milestone 10: buses and tri-state — plan
 
 > **Status:** in progress. Work goes in five PRs, 10a to 10e (see *Sub-milestones*), each from its own feature branch per
-> `CLAUDE.md`. **Resume with 10d**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
+> `CLAUDE.md`. **Resume with 10e**, and wait for the user's go before starting it. Tick each sub-milestone here as it ships.
 >
 > - [x] 10a Z and tri-state (scalar), v0.0.1-34
 > - [x] 10b Bus plumbing, v0.0.1-35
 > - [x] 10c Parts, v0.0.1-36
-> - [ ] 10d Rebuild the computer
+> - [x] 10d Rebuild the computer, v0.0.1-37
 > - [ ] 10e Docs and polish
 
 ## Context
@@ -151,6 +151,16 @@ grid and overlap of every part's pins for every setting, bus-mode ROM/RAM/consol
 and `e2e/editor.spec.ts:411,688,718` in the same PR. Keep `/computer`, `/computer-lcd`, `/computer-sound`, `/computer-calc`. Use a
 shared data bus with `tribuf`/`busjoin` for ACC/RAM/input sources if it stays readable, otherwise muxes (muxes stay the default;
 the shared bus gets its own `/databus` example). Tighten the router budget; the 4-bit beginner computer is left alone.
+*What 10d did, and where it differs from the plan above:* `computer2Builder` is rewritten on buses: one 8-bit `busctr` PC, `busreg` ACC / Flags (2 bits) / Output,
+`busmux` for the operand, the logic result, the ALU result and the accumulator's input (8 inputs, 3-bit select), `busadd`, `busgate` (the logic unit and the
+operand's complement), `buscmp` for the zero flag and for every port decode (one comparator plus a bus constant per port, replacing the AND/NOT trees). The instruction
+word and the two control ROMs' outputs are taken apart with splitters (fields 4,1,1,1,1,4,4; control bits 1,3,1,…,2,1) and the jump target, the constant, the
+shifts and the flag word are made with mergers. `ACC`, `ADDR` and the clock are still sent by (bus) labels. `bcdadd` and `bin2bcd` got a bus mode so the decimal
+display is wired in nibbles. Labels changed: `PC low/high`, `ACC low/high`, `Output low/high` are now `PC`, `ACC`, `Output`; `Flags` is a 2-bit register
+(`Q0` carry, `Q1` zero). The probes are bus probes (`PC`, `ACC`), so the waveform panel shows its number format for bus rows too. The computer has 148 wires
+instead of about 240, and routes in 2.0 million search steps instead of 8.4 million (the router budget in `router.test.ts` is now 2.5 million). Muxes stayed the
+default; the shared bus is its own example, `/databus` (two inputs and a register on an 8-bit `busjoin` through tri-state buffers). Tests that build a sim from a
+circuit by hand (`computer2.test.ts`, `examples.test.ts`, `delays.test.ts`) go through `flatten`.
 **10e. Docs and polish (small)** — `docs/plan-m10-buses.md` (decisions, as `plan-m9-timing-fsm.md`), tick the boxes in
 `docs/plan-next-features.md`, update `CLAUDE.md` "Current work", README parts list, in-app help. Not in scope: output→output wires,
 bus-width inference, bus-aware logic/FSM generators (they keep producing scalar gates), per-bit bus tracing in the tick diagram.

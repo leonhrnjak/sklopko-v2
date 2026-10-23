@@ -90,7 +90,7 @@ describe('bus pins of the parts', () => {
 describe('flatten', () => {
   it('leaves a circuit without buses exactly as it was: same parts, same wires, same order', () => {
     for (const e of EXAMPLES) {
-      if (e.id === 'buses' || e.id.startsWith('computer') || e.id === 'calculator') continue
+      if (e.id === 'buses' || e.id === 'databus' || e.id.startsWith('computer') || e.id === 'calculator') continue
       const c = e.build()
       const flat = flatten(c)
       expect(flat.comps, e.id).toEqual(simComps(c))

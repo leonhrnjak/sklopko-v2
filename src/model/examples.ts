@@ -619,6 +619,46 @@ function sharedLine(): Circuit {
   return b.build()
 }
 
+function dataBus(): Circuit {
+  // The way a real computer moves data: one shared 8-bit bus that several parts can drive, one at a time. Each source reaches
+  // the bus through a tri-state buffer; the register loads whatever is on the bus when Load is on. (The 8-bit computer uses
+  // multiplexers instead, which is simpler to read; this is the other design.)
+  const b = new CircuitBuilder()
+  const junction = b.add('busjoin', 380, 80, { params: { bits: 8, drivers: 3 }, label: 'Data bus' })
+  const sources: string[] = []
+  const ids = ['Input A', 'Input B', 'Register'].map((name, i) => {
+    const y = i * 130
+    const buf = b.add('tribuf', 240, y, { params: { bits: 8 }, label: `Buffer ${name}` })
+    const en = b.add('switch', 220, y + 70, { label: `Enable ${name}`, params: { on: i === 0 } })
+    b.wire(`${en}.Q`, `${buf}.EN`)
+    b.wire(`${buf}.Y`, `${junction}.${'ABC'[i]}`)
+    sources.push(`${buf}.A`)
+    return [buf, en]
+  })
+  const a = b.add('busin', 0, 0, { params: { bits: 8, value: '5A' }, label: 'Input A' })
+  const bb = b.add('busin', 0, 130, { params: { bits: 8, value: '27' }, label: 'Input B' })
+  const reg = b.add('busreg', 620, 130, { params: { bits: 8 }, label: 'Register' })
+  const clk = b.add('clock', 620, 0, { params: { hz: 1 }, label: 'Clock' })
+  const load = b.add('switch', 620, 290, { label: 'Load', params: { on: false } })
+  const disp = b.add('busdisp', 620, 380, { params: { bits: 8, format: 'hex' }, label: 'Bus value' })
+  b.wire(`${a}.Q`, sources[0])
+  b.wire(`${bb}.Q`, sources[1])
+  b.wire(`${reg}.Q`, sources[2])
+  b.wire(`${junction}.Y`, `${reg}.D`)
+  b.wire(`${junction}.Y`, `${disp}.A`)
+  b.wire(`${load}.Q`, `${reg}.LD`)
+  b.wire(`${clk}.Q`, `${reg}.CLK`)
+  note(
+    b,
+    0,
+    300,
+    'Turn on one Enable switch and its source drives the bus (hover the thick wire to read it). Switch on Load and the register copies the bus at the next clock tick. Enable the register too and it drives the bus with what it holds. Two Enables at once make the bus unknown (contention, the junction turns red); none at all leaves it floating.',
+    40,
+  )
+  frameAround(b, 'Sources', [a, bb, ...ids.flat()])
+  return b.build()
+}
+
 function busDemo(): Circuit {
   // A running total on thick 4-bit wires. A merger gathers the four bits of the input into one bus for the adder; the total
   // comes back to the adder's other input through a pair of bus labels (no wire in between); a splitter takes the total apart
@@ -660,6 +700,7 @@ export const EXAMPLES: Example[] = [
   { id: 'calculator', name: 'Calculator: ALU, multiplier, ROM, BCD', build: calculator },
   { id: 'labels', name: 'Net labels (wireless connections)', build: netLabels },
   { id: 'tristate', name: 'Tri-state buffers on a shared line', build: sharedLine },
+  { id: 'databus', name: 'Shared data bus: tri-state buffers on 8 bits', build: dataBus },
   { id: 'buses', name: 'Buses: a running total on 4-bit wires', build: busDemo },
   { id: 'gates', name: 'Basic gates', build: basicGates },
   { id: 'sr-latch', name: 'SR latch from NOR gates', build: srLatch },

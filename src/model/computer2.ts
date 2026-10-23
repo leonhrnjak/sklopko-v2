@@ -402,10 +402,6 @@ export const programWords = (source: string) => {
 
 // ---- The circuit -------------------------------------------------------------------------------
 
-const NIB = ['A', 'B', 'C', 'D']
-const Q = ['QA', 'QB', 'QC', 'QD']
-const bits = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
-
 export type Device = 'lcd' | 'speaker' | 'console' | 'keypad' | 'number'
 
 export interface Computer2Options {
@@ -418,11 +414,17 @@ export interface Computer2Options {
   octaves?: number
   /** The keypad's keys. */
   keypad?: 'hex' | 'calc'
-  /** Add probes (CLK, PC, ACC and Carry as grouped traces) for the waveform panel. */
+  /** Add probes (CLK, PC, ACC and Carry) for the waveform panel. */
   probes?: boolean
 }
 
-/** The computer, and the id of each named part. Parts are stacked in columns, left to right in the order data flows. */
+/** Parts that have a bus mode are placed with it on (the builder otherwise keeps their scalar pins, like an old file). */
+const BUS = { bus: true }
+
+/**
+ * The computer, and the id of each named part. Parts are stacked in columns, left to right in the order data flows. Data
+ * travels on 8-bit buses (PC, ACC, RAM, the instruction's fields); single control bits are ordinary wires.
+ */
 export function computer2Builder(o: Computer2Options) {
   const has = (d: Device) => o.devices.includes(d)
   const b = new CircuitBuilder()
@@ -435,269 +437,244 @@ export function computer2Builder(o: Computer2Options) {
     c.y += boundsRect(b.c.comps[id]).h + gap + (opts.label ? 20 : 0)
     return (keys[key] = id)
   }
-  // The buses that reach many parts (the control bits, the clock, the accumulator, the constant in the instruction) are sent
-  // by name: a Send label at the source and a Receive label at each destination are one wire. Labels are placed last, when
-  // every part is in place; a label that has no room is replaced by an ordinary wire.
+  // The signals that reach many parts (the control bits, the clock, the accumulator, the address field) are sent by name: a
+  // Send label at the source and a Receive label at each destination are one wire. Labels are placed last, when every part
+  // is in place; a label that has no room is replaced by an ordinary wire.
   const links: { from: string; to: string }[] = []
-  const netNames = new Map<string, string>()
+  const netNames = new Map<string, { name: string; bits: number }>()
   const wire = (from: string, to: string) => {
     links.push({ from, to })
   }
-  const named = (pin: string, name: string) => netNames.set(pin, name)
-  const wireBits = (from: string, fromPins: string[], to: string, toPins: string[]) => fromPins.forEach((p, i) => wire(`${from}.${p}`, `${to}.${toPins[i]}`))
+  const named = (pin: string, name: string, bits = 1) => netNames.set(pin, { name, bits })
+  const splitter = (col: number, key: string, bits: number, split: number[], label: string, from: string) => {
+    const s = part(col, key, 'splitter', { params: { bits, split: split.join(',') }, label }, 20)
+    wire(from, `${s}.A`)
+    return s
+  }
+  const merger = (col: number, key: string, bits: number, split: number[], label: string, from: string[]) => {
+    const m = part(col, key, 'merger', { params: { bits, split: split.join(',') }, label }, 20)
+    from.forEach((f, i) => wire(f, `${m}.A${i}`))
+    return `${m}.Y`
+  }
+  const busconst = (col: number, key: string, bits: number, value: number, label?: string) =>
+    `${part(col, key, 'busconst', { params: { bits, value: value.toString(16).toUpperCase() }, ...(label ? { label } : {}) }, 20)}.Q`
 
   // Columns, left to right.
   const FETCH = 0
   const ROM = 380
-  const CTL = 780
-  const DECODE = 1140
-  const MEM = 1420
-  const BSEL = 1700
-  const XOR = 1960
-  const ADD = 2140
-  const LOGIC_UNIT = 2400
-  const RESULT = 2700
-  const INMUX = 2960
-  const ACCMUX_LO = 3240
-  const ACCMUX_HI = 3520
-  const ACC = 3820
-  const DEVICES = 4120
-  const NUMBER_A = 4420
-  const NUMBER_B = 4700
+  const FIELDS = 760
+  const CTL = 1080
+  const DECODE = 1440
+  const MEM = 1740
+  const BSEL = 2060
+  const ALU = 2400
+  const LOGIC_UNIT = 2760
+  const RESULT = 3100
+  const INMUX = 3440
+  const ACCMUX = 3780
+  const ACC = 4120
+  const DEVICES = 4460
+  const NUMBER_A = 4800
+  const NUMBER_B = 5140
 
-  // ---- Fetch: program counter (8 bits: two counters) and the program ROM ----------------------------
+  // ---- Fetch: the 8-bit program counter and the program ROM -------------------------------------------
   const clk = part(FETCH, 'clk', 'clock', { params: { hz: o.hz }, label: 'Clock' })
-  const pcLo = part(FETCH, 'pcLo', 'counterld', { label: 'PC low' })
-  const pcHi = part(FETCH, 'pcHi', 'counterld', { label: 'PC high' })
+  const pc = part(FETCH, 'pc', 'busctr', { params: { bits: 8 }, label: 'PC' })
   const zero = part(FETCH, 'zero0', 'const', { params: { value: 0 } })
-  const prog = part(ROM, 'prog', 'rom', { params: { abits: 8, dbits: 16, isa: SKASM.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
+  const prog = part(ROM, 'prog', 'rom', { params: { ...BUS, abits: 8, dbits: 16, isa: SKASM.id, source: o.source, data: programWords(o.source) }, label: 'Program' })
   named(`${clk}.Q`, 'CLK')
   named(`${zero}.Q`, 'GND')
-  for (let i = 0; i < 4; i++) {
-    named(`${prog}.D${i}`, `ADDR${i}`) // the address field: a RAM address, a port, or the low bits of a jump target
-    named(`${prog}.D${4 + i}`, `OP${i}`)
-  }
-  for (let i = 8; i < 16; i++) named(`${prog}.D${i}`, `NUM${i - 8}`) // the constant of the instruction
-  wireBits(pcLo, bits('Q', 4), prog, bits('A', 4))
-  for (let i = 0; i < 4; i++) wire(`${pcHi}.Q${i}`, `${prog}.A${4 + i}`)
-  wire(`${clk}.Q`, `${pcLo}.CLK`)
-  wire(`${clk}.Q`, `${pcHi}.CLK`)
-  // The high counter counts when the low one wraps round, and loads the upper bits of a jump target (bits 8–11 of the word).
-  wire(`${pcLo}.CO`, `${pcHi}.EN`)
-  for (let i = 0; i < 4; i++) wire(`${prog}.D${8 + i}`, `${pcHi}.D${i}`)
-  wireBits(prog, bits('D', 4), pcLo, bits('D', 4))
+  wire(`${pc}.Q`, `${prog}.A`)
+  wire(`${clk}.Q`, `${pc}.CLK`)
+
+  // The instruction word: the address field (bits 0–3: a RAM address, a port, or the low bits of a jump target), the four
+  // opcode bits (4–7) one by one, and the constant (bits 8–15) in two nibbles.
+  const ir = splitter(FIELDS, 'ir', 16, [4, 1, 1, 1, 1, 4, 4], 'instruction fields', `${prog}.D`)
+  const ADDR = `${ir}.Y0`
+  named(ADDR, 'ADDR', 4)
+  const num = merger(FIELDS, 'num', 8, [4, 4], 'the constant', [`${ir}.Y5`, `${ir}.Y6`])
+  const target = merger(FIELDS, 'target', 8, [4, 4], 'jump target', [ADDR, `${ir}.Y5`])
+  wire(target, `${pc}.D`)
 
   // ---- Decode: two control ROMs, addressed by the opcode and the sub-opcode ----------------------------
-  const d = (i: number) => `${prog}.D${i}` // bit i of the instruction word
+  // Opcodes 14 and 15 are extension groups: their sub-opcode is in bits 0–3 (14) or bits 12–15 (15). For every other
+  // opcode the sub-opcode is 0.
   const gate = (col: number, key: string, type: string, label: string, ins: string[], inputs = ins.length) => {
     const g = part(col, key, type, { ...(type === 'not' || inputs === 2 ? {} : { params: { inputs } }), label }, 20)
     ins.forEach((from, i) => wire(from, `${g}.${String.fromCharCode(65 + i)}`))
     return g
   }
-  // Opcodes 14 and 15 are extension groups: their sub-opcode is in bits 0–3 (14) or bits 12–15 (15). For every other
-  // opcode the sub-opcode is 0.
-  const nd4 = gate(CTL, 'nd4', 'not', 'not bit 4', [d(4)])
-  const op14 = gate(CTL, 'op14', 'and', 'opcode 14: immediate extension', [`${nd4}.Y`, d(5), d(6), d(7)])
-  const op15 = gate(CTL, 'op15', 'and', 'opcode 15: address extension', [d(4), d(5), d(6), d(7)])
-  const ctl = part(CTL, 'ctl', 'rom', { params: { abits: 8, dbits: 16, data: CONTROL_1 }, label: 'Control' })
-  const ctl2 = part(CTL, 'ctl2', 'rom', { params: { abits: 8, dbits: 8, data: CONTROL_2 }, label: 'Control 2' })
-  for (let i = 0; i < 4; i++) {
-    wire(d(4 + i), `${ctl}.A${i}`)
-    wire(d(4 + i), `${ctl2}.A${i}`)
-    const s14 = gate(CTL, `sub14_${i}`, 'and', `sub-opcode bit ${i} from bit ${i}`, [`${op14}.Y`, d(i)])
-    const s15 = gate(CTL, `sub15_${i}`, 'and', `sub-opcode bit ${i} from bit ${12 + i}`, [`${op15}.Y`, d(12 + i)])
-    const sub = gate(CTL, `sub${i}`, 'or', `sub-opcode bit ${i}`, [`${s14}.Y`, `${s15}.Y`])
-    wire(`${sub}.Y`, `${ctl}.A${4 + i}`)
-    wire(`${sub}.Y`, `${ctl2}.A${4 + i}`)
-  }
-  const flags = part(ACC, 'flags', 'register', { label: 'Flags' })
-  ;['LOAD_ACC', 'SRC0', 'SRC1', 'SRC2', 'WRITE_RAM', 'SAVE_FLAGS', 'JUMP', '', '', '', 'SUBTRACT', 'B_IS_NUM', 'LOGIC', 'LOGIC_OP0', 'LOGIC_OP1'].forEach((name, i) => name && named(`${ctl}.D${i}`, name))
-  named(`${flags}.QA`, 'CARRY')
-  named(`${flags}.QB`, 'ZERO')
+  const isExt = gate(CTL, 'ext', 'and', 'opcode 14 or 15: extension', [`${ir}.Y2`, `${ir}.Y3`, `${ir}.Y4`])
+  const subWhich = part(CTL, 'subWhich', 'busmux', { params: { bits: 4, n: 2 }, label: 'sub-opcode: bits 0–3 (14) or 12–15 (15)' }, 20)
+  wire(ADDR, `${subWhich}.I0`)
+  wire(`${ir}.Y6`, `${subWhich}.I1`)
+  wire(`${ir}.Y1`, `${subWhich}.S0`)
+  const sub = part(CTL, 'sub', 'busmux', { params: { bits: 4, n: 2 }, label: 'sub-opcode (0 for other opcodes)' }, 20)
+  wire(busconst(CTL, 'zero4', 4, 0), `${sub}.I0`)
+  wire(`${subWhich}.Y`, `${sub}.I1`)
+  wire(`${isExt}.Y`, `${sub}.S0`)
+  const ctlAddr = merger(CTL, 'ctlAddr', 8, [1, 1, 1, 1, 4], 'opcode, sub-opcode', [`${ir}.Y1`, `${ir}.Y2`, `${ir}.Y3`, `${ir}.Y4`, `${sub}.Y`])
+  const ctl = part(CTL, 'ctl', 'rom', { params: { ...BUS, abits: 8, dbits: 16, data: CONTROL_1 }, label: 'Control' })
+  const ctl2 = part(CTL, 'ctl2', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_2 }, label: 'Control 2' })
+  wire(ctlAddr, `${ctl}.A`)
+  wire(ctlAddr, `${ctl2}.A`)
+  // The control bits, one wire each (the source of the accumulator and the logic operation are small buses).
+  const cs = splitter(CTL, 'cs', 16, [1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1], 'control bits', `${ctl}.D`)
+  const [LOAD_ACC, SRC, WRITE_RAM, SAVE_FLAGS, JUMP, JNC, JZ, HALT, SUBTRACT, B_IS_NUM, LOGIC, LOGIC_OP, CARRY_IN] = Array.from({ length: 13 }, (_, i) => `${cs}.Y${i}`)
+  named(LOAD_ACC, 'LOAD_ACC')
+  named(WRITE_RAM, 'WRITE_RAM')
+  named(SAVE_FLAGS, 'SAVE_FLAGS')
+  named(SUBTRACT, 'SUBTRACT')
+  named(B_IS_NUM, 'B_IS_NUM')
+  named(LOGIC, 'LOGIC')
+  const cs2 = splitter(CTL, 'cs2', 8, [1, 1, 1, 5], 'control 2 bits', `${ctl2}.D`)
+  const [JNZ2, JC2, PORT_WRITE] = [0, 1, 2].map((i) => `${cs2}.Y${i}`)
+
+  const flags = part(ACC, 'flags', 'busreg', { params: { bits: 2 }, label: 'Flags' })
+  const fs = splitter(ACC, 'fs', 2, [1, 1], 'carry, zero', `${flags}.Q`)
+  const [CARRY, ZERO] = [`${fs}.Y0`, `${fs}.Y1`]
+  named(CARRY, 'CARRY')
 
   // The program counter loads a jump target when the instruction jumps, or when its condition holds: JNC with the carry
   // clear, JC with it set, JZ with the zero flag, JNZ without it.
-  const ncarry = gate(CTL, 'ncarry', 'not', 'no carry', [`${flags}.QA`])
-  const nzero = gate(CTL, 'nzero', 'not', 'not zero', [`${flags}.QB`])
-  const jnc = gate(CTL, 'jnc', 'and', 'JNC and no carry', [`${ctl}.D7`, `${ncarry}.Y`])
-  const jc = gate(CTL, 'jc', 'and', 'JC and carry', [`${ctl2}.D1`, `${flags}.QA`])
-  const jz = gate(CTL, 'jz', 'and', 'JZ and zero', [`${ctl}.D8`, `${flags}.QB`])
-  const jnz = gate(CTL, 'jnz', 'and', 'JNZ and not zero', [`${ctl2}.D0`, `${nzero}.Y`])
-  const take = gate(CTL, 'take', 'or', 'load PC', [`${ctl}.D6`, `${jnc}.Y`, `${jc}.Y`, `${jz}.Y`, `${jnz}.Y`])
-  for (const pc of [pcLo, pcHi]) wire(`${take}.Y`, `${pc}.LD`)
-  const nhalt = gate(CTL, 'nhalt', 'not', 'not halted', [`${ctl}.D9`])
-  wire(`${nhalt}.Y`, `${pcLo}.EN`)
+  const ncarry = gate(CTL, 'ncarry', 'not', 'no carry', [CARRY])
+  const nzero = gate(CTL, 'nzero', 'not', 'not zero', [ZERO])
+  const jnc = gate(CTL, 'jnc', 'and', 'JNC and no carry', [JNC, `${ncarry}.Y`])
+  const jc = gate(CTL, 'jc', 'and', 'JC and carry', [JC2, CARRY])
+  const jz = gate(CTL, 'jz', 'and', 'JZ and zero', [JZ, ZERO])
+  const jnz = gate(CTL, 'jnz', 'and', 'JNZ and not zero', [JNZ2, `${nzero}.Y`])
+  const take = gate(CTL, 'take', 'or', 'load PC', [JUMP, `${jnc}.Y`, `${jc}.Y`, `${jz}.Y`, `${jnz}.Y`])
+  wire(`${take}.Y`, `${pc}.LD`)
+  const nhalt = gate(CTL, 'nhalt', 'not', 'not halted', [HALT])
+  wire(`${nhalt}.Y`, `${pc}.EN`)
   const halted = part(FETCH, 'halted', 'led', { label: 'Halted', params: { color: 'red' } })
-  wire(`${ctl}.D9`, `${halted}.A`)
+  wire(HALT, `${halted}.A`)
   const stop = part(FETCH, 'stop', 'breakpoint', { label: 'Pause at HALT', params: { value: 1 } })
-  wire(`${ctl}.D9`, `${stop}.A`)
+  wire(HALT, `${stop}.A`)
 
-  // ---- Which port is addressed: only the decoding the devices need ----------------------------------------
-  // The port number of OUT and IN is the address field (bits 0–3).
-  const gates: Record<string, string> = {}
-  const not = (key: string, label: string, from: string) =>
-    (gates[key] ??= (() => {
-      const g = part(DECODE, key, 'not', { label }, 20)
-      wire(from, `${g}.A`)
-      return `${g}.Y`
+  // ---- Which port is addressed: one comparator per port the devices need --------------------------------
+  // The port number of OUT and IN is the address field.
+  const ports: Record<number, string> = {}
+  /** The output of a comparator that is 1 when the port number is `n`. */
+  const select = (n: number) =>
+    (ports[n] ??= (() => {
+      const c = part(DECODE, `sel${n}`, 'buscmp', { params: { bits: 4 }, label: `port ${n}` }, 20)
+      wire(ADDR, `${c}.A`)
+      wire(busconst(DECODE, `port${n}`, 4, n), `${c}.B`)
+      return `${c}.EQ`
     })())
-  /** The output of an AND that is 1 when the port number is `n`. */
-  const select = (n: number) => {
-    const key = `sel${n}`
-    if (gates[key]) return gates[key]
-    const pins = [0, 1, 2, 3].map((i) => ((n >> i) & 1 ? d(i) : not(`na${i}`, `not bit ${i}`, d(i))))
-    const g = part(DECODE, key, 'and', { params: { inputs: 4 }, label: `port ${n}` }, 20)
-    pins.forEach((p, i) => wire(p, `${g}.${String.fromCharCode(65 + i)}`))
-    return (gates[key] = `${g}.Y`)
-  }
   /** 1 for the cycle in which the program does `OUT` to port `n`. */
-  const writeTo = (n: number, label: string) => {
-    const g = part(DECODE, `we${n}`, 'and', { label }, 20)
-    wire(`${ctl2}.D2`, `${g}.A`)
-    wire(select(n), `${g}.B`)
-    return `${g}.Y`
-  }
+  const writeTo = (n: number, label: string) => `${gate(DECODE, `we${n}`, 'and', label, [PORT_WRITE, select(n)])}.Y`
 
   // ---- Execute: RAM, adder/subtractor, logic, accumulator ----------------------------------------------
-  const ram = part(MEM, 'ram', 'ram', { params: { dbits: 8 }, label: 'Data RAM' })
-  const accLo = part(ACC, 'accLo', 'register', { label: 'ACC low' })
-  const accHi = part(ACC, 'accHi', 'register', { label: 'ACC high' })
-  const accBit = (bit: number) => `${bit < 4 ? accLo : accHi}.${Q[bit % 4]}`
-  for (let bit = 0; bit < 8; bit++) named(accBit(bit), `ACC${bit}`)
-  wireBits(prog, bits('D', 4), ram, bits('A', 4))
-  wire(`${ctl}.D4`, `${ram}.WE`)
+  const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8 }, label: 'Data RAM' })
+  const acc = part(ACC, 'acc', 'busreg', { params: { bits: 8 }, label: 'ACC' })
+  const ACC_OUT = `${acc}.Q`
+  named(ACC_OUT, 'ACC', 8)
+  wire(ADDR, `${ram}.A`)
+  wire(WRITE_RAM, `${ram}.WE`)
   wire(`${clk}.Q`, `${ram}.CLK`)
-  Q.forEach((q, i) => {
-    wire(`${accLo}.${q}`, `${ram}.D${i}`)
-    wire(`${accHi}.${q}`, `${ram}.D${i + 4}`)
-  })
+  wire(ACC_OUT, `${ram}.D`)
 
   // The second operand: RAM, or the constant of the instruction (ADDI, SUBI, CMPI, ANDI...), then inverted for subtraction.
-  const addLo = part(ADD, 'addLo', 'add4', { label: 'Adder low' })
-  const addHi = part(ADD, 'addHi', 'add4', { label: 'Adder high' })
-  wireBits(accLo, Q, addLo, bits('A', 4))
-  wireBits(accHi, Q, addHi, bits('A', 4))
-  const operandB: string[] = []
-  for (let bit = 0; bit < 8; bit++) {
-    const adder = bit < 4 ? addLo : addHi
-    const m = part(BSEL, `bsel${bit}`, 'mux', { params: { n: 2 }, label: `operand B, bit ${bit}` }, 60)
-    wire(`${ram}.Q${bit}`, `${m}.I0`)
-    wire(`${prog}.D${8 + bit}`, `${m}.I1`)
-    wire(`${ctl}.D11`, `${m}.S0`)
-    operandB.push(`${m}.Y`)
-    named(`${m}.Y`, `B${bit}`)
-    const x = part(XOR, `x${bit}`, 'xor', { label: `B xor SUB, bit ${bit}` }, 20)
-    wire(`${m}.Y`, `${x}.A`)
-    wire(`${ctl}.D10`, `${x}.B`)
-    wire(`${x}.Y`, `${adder}.B${bit % 4}`)
-  }
+  const bsel = part(BSEL, 'bsel', 'busmux', { params: { bits: 8, n: 2 }, label: 'operand B' }, 60)
+  wire(`${ram}.Q`, `${bsel}.I0`)
+  wire(num, `${bsel}.I1`)
+  wire(B_IS_NUM, `${bsel}.S0`)
+  const OPERAND_B = `${bsel}.Y`
+  const notB = part(BSEL, 'notB', 'busgate', { params: { bits: 8, op: 'not' }, label: 'B inverted' }, 40)
+  wire(OPERAND_B, `${notB}.A`)
+  const bx = part(BSEL, 'bx', 'busmux', { params: { bits: 8, n: 2 }, label: 'B, or its opposite for SUB' }, 60)
+  wire(OPERAND_B, `${bx}.I0`)
+  wire(`${notB}.Y`, `${bx}.I1`)
+  wire(SUBTRACT, `${bx}.S0`)
+  const adder = part(ALU, 'adder', 'busadd', { params: { bits: 8 }, label: 'Adder' })
+  wire(ACC_OUT, `${adder}.A`)
+  wire(`${bx}.Y`, `${adder}.B`)
   // The carry in: 0 for ADD, 1 for SUB; ADC and SBC use the carry flag (after a subtraction it is the borrow, so SBC takes its opposite).
-  const useCarry = part(ADD, 'useCarry', 'and', { label: 'ADC / SBC and carry' }, 20)
-  wire(`${ctl}.D15`, `${useCarry}.A`)
-  wire(`${flags}.QA`, `${useCarry}.B`)
-  const carryIn = part(ADD, 'carryIn', 'xor', { label: 'carry in: SUB xor flag' }, 20)
-  wire(`${ctl}.D10`, `${carryIn}.A`)
+  const useCarry = part(ALU, 'useCarry', 'and', { label: 'ADC / SBC and carry' }, 20)
+  wire(CARRY_IN, `${useCarry}.A`)
+  wire(CARRY, `${useCarry}.B`)
+  const carryIn = part(ALU, 'carryIn', 'xor', { label: 'carry in: SUB xor flag' }, 20)
+  wire(SUBTRACT, `${carryIn}.A`)
   wire(`${useCarry}.Y`, `${carryIn}.B`)
-  wire(`${carryIn}.Y`, `${addLo}.Ci`)
-  wire(`${addLo}.Co`, `${addHi}.Ci`)
+  wire(`${carryIn}.Y`, `${adder}.Ci`)
 
-  // The logic unit: AND, OR and XOR of the accumulator and the second operand, one op chosen by control bits 13–14; then,
-  // bit by bit, the ALU result is the adder's sum or the logic result (control bit 12).
-  const result: string[] = []
-  for (let bit = 0; bit < 8; bit++) {
-    const ins = [accBit(bit), operandB[bit]]
-    const lg = (kind: 'and' | 'or' | 'xor') => {
-      const g = part(LOGIC_UNIT, `${kind}${bit}`, kind, {}, 10)
-      ins.forEach((from, i) => wire(from, `${g}.${'AB'[i]}`))
-      return g
-    }
-    const gAnd = lg('and')
-    const gOr = lg('or')
-    const gXor = lg('xor')
-    const lm = part(LOGIC_UNIT, `logic${bit}`, 'mux', { params: { n: 4 }, label: `logic result, bit ${bit}` }, 80)
-    wire(`${gAnd}.Y`, `${lm}.I0`)
-    wire(`${gOr}.Y`, `${lm}.I1`)
-    wire(`${gXor}.Y`, `${lm}.I2`)
-    wire(`${ctl}.D13`, `${lm}.S0`)
-    wire(`${ctl}.D14`, `${lm}.S1`)
-    const r = part(RESULT, `result${bit}`, 'mux', { params: { n: 2 }, label: `ALU result, bit ${bit}` }, 80)
-    wire(`${(bit < 4 ? addLo : addHi)}.S${bit % 4}`, `${r}.I0`)
-    wire(`${lm}.Y`, `${r}.I1`)
-    wire(`${ctl}.D12`, `${r}.S0`)
-    result.push(`${r}.Y`)
-  }
+  // The logic unit: AND, OR and XOR of the accumulator and the second operand, one op chosen by control bits 13–14; then
+  // the ALU result is the adder's sum or the logic result (control bit 12).
+  const logicOps = (['and', 'or', 'xor'] as const).map((op) => {
+    const g = part(LOGIC_UNIT, op, 'busgate', { params: { bits: 8, op }, label: `A ${op} B` }, 20)
+    wire(ACC_OUT, `${g}.A`)
+    wire(OPERAND_B, `${g}.B`)
+    return g
+  })
+  const lm = part(LOGIC_UNIT, 'logicMux', 'busmux', { params: { bits: 8, n: 4 }, label: 'logic result' }, 60)
+  logicOps.forEach((g, i) => wire(`${g}.Y`, `${lm}.I${i}`))
+  wire(LOGIC_OP, `${lm}.S`)
+  const rm = part(RESULT, 'result', 'busmux', { params: { bits: 8, n: 2 }, label: 'ALU result' }, 60)
+  wire(`${adder}.S`, `${rm}.I0`)
+  wire(`${lm}.Y`, `${rm}.I1`)
+  wire(LOGIC, `${rm}.S0`)
+  const RESULT_OUT = `${rm}.Y`
 
   // ---- The keypad is the one device with an input: IN KEY ------------------------------------------------
   const keypad = has('keypad') ? part(DEVICES, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
-  /** What IN puts on the bus, per bit: the keypad when port KEY is addressed, otherwise 0. */
-  const portIn: string[] = []
-  for (let bit = 0; bit < 8; bit++) {
-    if (!keypad || bit > 4) {
-      portIn.push(`${zero}.Q`)
-      continue
-    }
-    const g = part(INMUX, `in${bit}`, 'and', { label: `KEY, bit ${bit}` }, 20)
-    wire(bit < 4 ? `${keypad}.K${bit}` : `${keypad}.P`, `${g}.A`)
-    wire(select(5), `${g}.B`)
-    portIn.push(`${g}.Y`)
+  const zero8 = busconst(INMUX, 'zero8', 8, 0)
+  /** What IN puts on the bus: the keypad (its key in bits 0–3, bit 4 set while a press is waiting) when port KEY is addressed, otherwise 0. */
+  let portIn = zero8
+  if (keypad) {
+    const keyWord = merger(INMUX, 'keyWord', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the keypad word', [0, 1, 2, 3].map((i) => `${keypad}.K${i}`).concat(`${keypad}.P`, `${zero}.Q`, `${zero}.Q`, `${zero}.Q`))
+    const inKey = part(INMUX, 'inKey', 'busmux', { params: { bits: 8, n: 2 }, label: 'IN KEY' }, 60)
+    wire(zero8, `${inKey}.I0`)
+    wire(keyWord, `${inKey}.I1`)
+    wire(select(5), `${inKey}.S0`)
+    portIn = `${inKey}.Y`
   }
 
-  // What the accumulator loads, bit by bit: the constant, the ALU result, RAM, shifted left, shifted right, or a port.
-  for (let bit = 0; bit < 8; bit++) {
-    const lo = bit < 4
-    const m = part(lo ? ACCMUX_LO : ACCMUX_HI, `amux${bit}`, 'mux', { params: { n: 8 }, label: `ACC input, bit ${bit}` }, 90)
-    wire(`${prog}.D${8 + bit}`, `${m}.I0`)
-    wire(result[bit], `${m}.I1`)
-    wire(`${ram}.Q${bit}`, `${m}.I2`)
-    wire(bit === 0 ? `${zero}.Q` : accBit(bit - 1), `${m}.I3`)
-    wire(bit === 7 ? `${zero}.Q` : accBit(bit + 1), `${m}.I4`)
-    wire(portIn[bit], `${m}.I5`)
-    ;['S0', 'S1', 'S2'].forEach((sel, i) => wire(`${ctl}.D${1 + i}`, `${m}.${sel}`))
-    wire(`${m}.Y`, `${lo ? accLo : accHi}.${NIB[bit % 4]}`)
-  }
-  for (const acc of [accLo, accHi]) {
-    wire(`${ctl}.D0`, `${acc}.LD`)
-    wire(`${clk}.Q`, `${acc}.CLK`)
-  }
+  // What the accumulator loads: the constant, the ALU result, RAM, shifted left, shifted right, or a port.
+  const nibbles = splitter(ACCMUX, 'shiftSplit', 8, [1, 6, 1], 'ACC for shifting', ACC_OUT)
+  const shl = merger(ACCMUX, 'shl', 8, [1, 1, 6], 'ACC shifted left', [`${zero}.Q`, `${nibbles}.Y0`, `${nibbles}.Y1`])
+  const shr = merger(ACCMUX, 'shr', 8, [6, 1, 1], 'ACC shifted right', [`${nibbles}.Y1`, `${nibbles}.Y2`, `${zero}.Q`])
+  const amux = part(ACCMUX, 'amux', 'busmux', { params: { bits: 8, n: 8 }, label: 'ACC input' }, 60)
+  ;[num, RESULT_OUT, `${ram}.Q`, shl, shr, portIn].forEach((from, i) => wire(from, `${amux}.I${i}`))
+  wire(SRC, `${amux}.S`)
+  wire(`${amux}.Y`, `${acc}.D`)
+  wire(LOAD_ACC, `${acc}.LD`)
+  wire(`${clk}.Q`, `${acc}.CLK`)
 
   // ---- Flags: carry (for SUB it means "borrowed") and zero ---------------------------------------------------
   // A logic instruction clears the carry, and the zero flag looks at the ALU result.
-  const cx = part(ADD, 'cx', 'xor', { label: 'carry xor SUB' })
-  wire(`${addHi}.Co`, `${cx}.A`)
-  wire(`${ctl}.D10`, `${cx}.B`)
-  const nlogic = part(ADD, 'nlogic', 'not', { label: 'not a logic instruction' }, 20)
-  wire(`${ctl}.D12`, `${nlogic}.A`)
-  const carryOut = part(ADD, 'carryOut', 'and', { label: 'carry, 0 for logic' }, 20)
+  const cx = part(ALU, 'cx', 'xor', { label: 'carry xor SUB' })
+  wire(`${adder}.Co`, `${cx}.A`)
+  wire(SUBTRACT, `${cx}.B`)
+  const nlogic = part(ALU, 'nlogic', 'not', { label: 'not a logic instruction' }, 20)
+  wire(LOGIC, `${nlogic}.A`)
+  const carryOut = part(ALU, 'carryOut', 'and', { label: 'carry, 0 for logic' }, 20)
   wire(`${cx}.Y`, `${carryOut}.A`)
   wire(`${nlogic}.Y`, `${carryOut}.B`)
-  const zeroGate = part(ADD, 'zeroGate', 'nor', { params: { inputs: 8 }, label: 'result is zero' })
-  result.forEach((from, i) => wire(from, `${zeroGate}.${String.fromCharCode(65 + i)}`))
-  wire(`${carryOut}.Y`, `${flags}.A`)
-  wire(`${zeroGate}.Y`, `${flags}.B`)
-  wire(`${zero}.Q`, `${flags}.C`)
-  wire(`${zero}.Q`, `${flags}.D`)
-  wire(`${ctl}.D5`, `${flags}.LD`)
+  const isZero = part(ALU, 'isZero', 'buscmp', { params: { bits: 8 }, label: 'result is zero' })
+  wire(RESULT_OUT, `${isZero}.A`)
+  wire(zero8, `${isZero}.B`)
+  const flagWord = merger(ACC, 'flagWord', 2, [1, 1], 'carry, zero', [`${carryOut}.Y`, `${isZero}.EQ`])
+  wire(flagWord, `${flags}.D`)
+  wire(SAVE_FLAGS, `${flags}.LD`)
   wire(`${clk}.Q`, `${flags}.CLK`)
 
   // ---- The devices ---------------------------------------------------------------------------------
   if (has('console')) {
-    const con = part(DEVICES, 'console', 'console', { label: 'LCD text display' })
+    const con = part(DEVICES, 'console', 'console', { params: BUS, label: 'LCD text display' })
     wire(writeTo(1, 'OUT CHAR'), `${con}.WE`)
     wire(`${clk}.Q`, `${con}.CLK`)
-    for (let i = 0; i < 4; i++) {
-      wire(`${accLo}.${Q[i]}`, `${con}.D${i}`)
-      wire(`${accHi}.${Q[i]}`, `${con}.D${i + 4}`)
-    }
+    wire(ACC_OUT, `${con}.D`)
   }
   if (has('lcd')) {
-    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { colors: 2 }, label: 'LCD' })
-    for (let i = 0; i < 4; i++) {
-      wire(`${accLo}.${Q[i]}`, `${screen}.X${i}`)
-      wire(`${accHi}.${Q[i]}`, `${screen}.Y${i}`)
-    }
+    const screen = part(DEVICES, 'screen', 'framebuffer', { params: { ...BUS, colors: 2 }, label: 'LCD' })
+    const xy = splitter(DEVICES, 'xy', 8, [4, 4], 'column, row', ACC_OUT)
+    wire(`${xy}.Y0`, `${screen}.X`)
+    wire(`${xy}.Y1`, `${screen}.Y`)
     wire(select(2), `${screen}.D`) // PIXEL_ON lights, PIXEL_OFF darkens
     const fbSel = gate(DECODE, 'fbSel', 'or', 'PIXEL_ON or PIXEL_OFF', [select(2), select(3)])
-    const fbWe = gate(DECODE, 'fbWe', 'and', 'OUT to the screen', [`${ctl2}.D2`, `${fbSel}.Y`])
+    const fbWe = gate(DECODE, 'fbWe', 'and', 'OUT to the screen', [PORT_WRITE, `${fbSel}.Y`])
     wire(`${fbWe}.Y`, `${screen}.WE`)
     wire(`${clk}.Q`, `${screen}.CLK`)
   }
@@ -720,65 +697,63 @@ export function computer2Builder(o: Computer2Options) {
   }
 
   // ---- Readouts ------------------------------------------------------------------------------------
-  const hexOf = (col: number, key: string, from: string, pins: string[], label?: string) => {
-    const d = part(col, key, 'hexdisp', label ? { label } : {})
-    wireBits(from, pins, d, NIB)
+  const readout = (col: number, key: string, from: string, label: string) => {
+    const d = part(col, key, 'busdisp', { params: { bits: 8, format: 'hex' }, label })
+    wire(from, `${d}.A`)
   }
-  hexOf(FETCH, 'pcLoDisp', pcLo, bits('Q', 4), 'PC')
-  hexOf(ACC, 'accHiDisp', accHi, Q, 'ACC')
-  hexOf(ACC, 'accLoDisp', accLo, Q)
+  readout(FETCH, 'pcDisp', `${pc}.Q`, 'PC')
+  readout(ACC, 'accDisp', ACC_OUT, 'ACC')
   const carry = part(ACC, 'carry', 'led', { label: 'Carry', params: { color: 'yellow' } })
   const zflag = part(ACC, 'zflag', 'led', { label: 'Zero', params: { color: 'red' } })
-  wire(`${flags}.QA`, `${carry}.A`)
-  wire(`${flags}.QB`, `${zflag}.A`)
+  wire(CARRY, `${carry}.A`)
+  wire(ZERO, `${zflag}.A`)
 
-  // ---- The decimal display: OUT NUMBER loads the output registers; 16 × high nibble + low nibble, added digit by digit ------
+  // ---- The decimal display: OUT NUMBER loads the output register; 16 × high nibble + low nibble, added digit by digit ------
   // The low nibble converts directly. Two ROMs hold 16 × n for the high nibble as decimal digits.
   if (has('number')) {
-    const outLo = part(NUMBER_A, 'outLo', 'register', { label: 'Output low' })
-    const outHi = part(NUMBER_A, 'outHi', 'register', { label: 'Output high' })
-    wireBits(accLo, Q, outLo, NIB)
-    wireBits(accHi, Q, outHi, NIB)
-    const load = writeTo(0, 'OUT NUMBER')
-    for (const out of [outLo, outHi]) {
-      wire(load, `${out}.LD`)
-      wire(`${clk}.Q`, `${out}.CLK`)
-    }
-    const decLo = part(NUMBER_A, 'decLo', 'bin2bcd', { label: 'Low nibble in decimal' })
-    wireBits(outLo, Q, decLo, bits('B', 4))
-    const decRomTO = part(NUMBER_A, 'decRomTO', 'rom', { params: { abits: 4, dbits: 8, data: SIXTEENS_TENS_ONES }, label: '16 × n: tens, ones' })
-    const decRomH = part(NUMBER_A, 'decRomH', 'rom', { params: { abits: 4, dbits: 4, data: SIXTEENS_HUNDREDS }, label: '16 × n: hundreds' })
-    wireBits(outHi, Q, decRomTO, bits('A', 4))
-    wireBits(outHi, Q, decRomH, bits('A', 4))
-    const decOnes = part(NUMBER_B, 'decOnes', 'bcdadd', { label: 'Ones' })
-    const decTens = part(NUMBER_B, 'decTens', 'bcdadd', { label: 'Tens' })
-    const decHund = part(NUMBER_B, 'decHund', 'bcdadd', { label: 'Hundreds' })
-    wireBits(decRomTO, bits('D', 4), decOnes, bits('A', 4))
-    wireBits(decLo, bits('O', 4), decOnes, bits('B', 4))
-    for (let i = 0; i < 4; i++) wire(`${decRomTO}.D${4 + i}`, `${decTens}.A${i}`)
-    wire(`${decLo}.T0`, `${decTens}.B0`)
-    for (const i of [1, 2, 3]) wire(`${zero}.Q`, `${decTens}.B${i}`)
+    const out = part(NUMBER_A, 'out', 'busreg', { params: { bits: 8 }, label: 'Output' })
+    wire(ACC_OUT, `${out}.D`)
+    wire(writeTo(0, 'OUT NUMBER'), `${out}.LD`)
+    wire(`${clk}.Q`, `${out}.CLK`)
+    const os = splitter(NUMBER_A, 'outSplit', 8, [4, 4], 'low nibble, high nibble', `${out}.Q`)
+    const decLo = part(NUMBER_A, 'decLo', 'bin2bcd', { params: BUS, label: 'Low nibble in decimal' })
+    wire(`${os}.Y0`, `${decLo}.B`)
+    const decRomTO = part(NUMBER_A, 'decRomTO', 'rom', { params: { ...BUS, abits: 4, dbits: 8, data: SIXTEENS_TENS_ONES }, label: '16 × n: tens, ones' })
+    const decRomH = part(NUMBER_A, 'decRomH', 'rom', { params: { ...BUS, abits: 4, dbits: 4, data: SIXTEENS_HUNDREDS }, label: '16 × n: hundreds' })
+    wire(`${os}.Y1`, `${decRomTO}.A`)
+    wire(`${os}.Y1`, `${decRomH}.A`)
+    const ts = splitter(NUMBER_B, 'tensOnes', 8, [4, 4], 'ones, tens', `${decRomTO}.D`)
+    const decOnes = part(NUMBER_B, 'decOnes', 'bcdadd', { params: BUS, label: 'Ones' })
+    const decTens = part(NUMBER_B, 'decTens', 'bcdadd', { params: BUS, label: 'Tens' })
+    const decHund = part(NUMBER_B, 'decHund', 'bcdadd', { params: BUS, label: 'Hundreds' })
+    wire(`${ts}.Y0`, `${decOnes}.A`)
+    wire(`${decLo}.O`, `${decOnes}.B`)
+    wire(`${ts}.Y1`, `${decTens}.A`)
+    wire(merger(NUMBER_B, 'tensB', 4, [1, 1, 1, 1], 'the low nibble’s tens digit', [`${decLo}.T0`, `${zero}.Q`, `${zero}.Q`, `${zero}.Q`]), `${decTens}.B`)
     wire(`${decOnes}.Co`, `${decTens}.Ci`)
-    wireBits(decRomH, bits('D', 4), decHund, bits('A', 4))
-    for (let i = 0; i < 4; i++) wire(`${zero}.Q`, `${decHund}.B${i}`)
+    wire(`${decRomH}.D`, `${decHund}.A`)
+    wire(busconst(NUMBER_B, 'zero4h', 4, 0), `${decHund}.B`)
     wire(`${decTens}.Co`, `${decHund}.Ci`)
-    hexOf(NUMBER_B, 'dispHund', decHund, bits('S', 4), 'Output (decimal)')
-    hexOf(NUMBER_B, 'dispTens', decTens, bits('S', 4))
-    hexOf(NUMBER_B, 'dispOnes', decOnes, bits('S', 4))
+    ;[
+      [decHund, 'dispHund', 'Output (decimal)'],
+      [decTens, 'dispTens', undefined],
+      [decOnes, 'dispOnes', undefined],
+    ].forEach(([from, key, label]) => {
+      const d = part(NUMBER_B, key!, 'hexdisp', { params: BUS, ...(label ? { label } : {}) })
+      wire(`${from}.S`, `${d}.IN`)
+    })
   }
 
-  // ---- Probes: the program counter and the accumulator are each drawn as one number in the waveform panel ---------
+  // ---- Probes: the program counter and the accumulator are each recorded as one number in the waveform panel ---------
   if (o.probes) {
-    const signals: [string, string][] = [
-      ['CLK', `${clk}.Q`],
-      ...bits('Q', 4).map((q, i): [string, string] => [`PC${i}`, `${pcLo}.${q}`]),
-      ...bits('Q', 4).map((q, i): [string, string] => [`PC${i + 4}`, `${pcHi}.${q}`]),
-      ...Array.from({ length: 8 }, (_, i): [string, string] => [`ACC${i}`, accBit(i)]),
-      ['Carry', `${flags}.QA`],
+    const signals: [string, string, number][] = [
+      ['CLK', `${clk}.Q`, 1],
+      ['PC', `${pc}.Q`, 8],
+      ['ACC', ACC_OUT, 8],
+      ['Carry', CARRY, 1],
     ]
-    signals.forEach(([label, from], i) => {
-      const bus = /^(PC|ACC)(\d+)$/.exec(label)
-      const probe = part(FETCH, `probe${i}`, 'probe', { label, ...(bus ? { params: { group: bus[1], bit: Number(bus[2]) } } : {}) }, 10)
+    signals.forEach(([label, from, bits], i) => {
+      const probe = part(FETCH, `probe${i}`, 'probe', { label, ...(bits > 1 ? { params: { bits } } : {}) }, 10)
       wire(from, `${probe}.A`)
     })
   }
@@ -786,9 +761,9 @@ export function computer2Builder(o: Computer2Options) {
   const byFrom = new Map<string, string[]>()
   for (const l of links) byFrom.set(l.from, [...(byFrom.get(l.from) ?? []), l.to])
   for (const [from, targets] of byFrom) {
-    const name = netNames.get(from)
-    const sent = name && targets.length >= 3 ? b.tap(from, name) : undefined
-    for (const to of targets) if (!(sent && name && b.tag(to, name))) b.wire(from, to)
+    const net = netNames.get(from)
+    const sent = net && targets.length >= 3 ? b.tap(from, net.name, 20, net.bits) : undefined
+    for (const to of targets) if (!(sent && net && b.tag(to, net.name, 20, net.bits))) b.wire(from, to)
   }
   return { b, keys }
 }
