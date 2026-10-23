@@ -4,6 +4,7 @@ import { ChallengeList } from './ui/challenges/ChallengeList'
 import { ChallengePanel } from './ui/challenges/ChallengePanel'
 import { Canvas } from './ui/canvas/Canvas'
 import { EmbedBar } from './ui/EmbedBar'
+import { FsmPanel } from './ui/fsm/FsmPanel'
 import { LogicPanel } from './ui/logic/LogicPanel'
 import { SkasmReference } from './ui/SkasmReference'
 import { fitView } from './ui/canvas/viewport'
@@ -44,6 +45,7 @@ export default function App() {
         <Inspector />
       </main>
       <LogicPanel />
+      <FsmPanel />
       <SkasmReference />
       <ChallengeList />
     </div>

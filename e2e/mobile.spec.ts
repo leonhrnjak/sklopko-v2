@@ -83,3 +83,40 @@ test('tapping a control operates it; a long-press selects it for editing', async
   await page.getByRole('button', { name: 'Close' }).tap()
   await expect(page.locator('.inspector.open')).toHaveCount(0)
 })
+
+test('state machines: edit in the table on a phone, join states by tapping, and generate', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByRole('button', { name: 'State machines…' }).tap()
+  const panel = page.getByRole('dialog', { name: 'State machines' })
+  await expect(panel).toBeVisible()
+  // The diagram comes first on a narrow screen, and nothing sticks out sideways.
+  await expect(panel.getByTestId('fsm-diagram')).toBeVisible()
+  const wide = await page.evaluate(() => {
+    const box = document.querySelector('.modal.fsm')!.getBoundingClientRect()
+    return [...document.querySelectorAll('.modal.fsm *')].filter((el) => !el.closest('.fsm-scroll') && el.getBoundingClientRect().right > box.right + 1 && el.getBoundingClientRect().width > 0).map((el) => el.className.toString() || el.tagName)
+  })
+  expect(wide).toEqual([])
+
+  // Tap + State, then + Transition and two states: a transition is added and its guard box is there to fill.
+  await panel.getByRole('button', { name: '+ State' }).tap()
+  await expect(panel.getByRole('region', { name: /^State S/ })).toBeVisible()
+  await panel.getByRole('button', { name: '+ Transition' }).tap()
+  await panel.getByRole('button', { name: 'State Start' }).tap()
+  await panel.getByRole('button', { name: /^State S4/ }).tap()
+  await expect(panel.getByRole('region', { name: 'Transition' })).toBeVisible()
+  await panel.getByLabel('Guard').fill('X')
+  await expect(panel.locator('.fsm-arrow')).toHaveCount(9)
+
+  // The table edits the same machine.
+  await panel.getByRole('tab', { name: 'Table' }).tap()
+  await expect(panel.getByLabel('Condition of the transition Start to S4')).toHaveValue('X')
+  await panel.getByLabel('Condition of the transition Start to One').fill('X &')
+  await expect(panel.getByRole('complementary', { name: 'State machine settings' }).getByRole('list', { name: 'Problems' })).toContainText('does not make sense')
+  await panel.getByLabel('Condition of the transition Start to One').fill('X & !X')
+  await panel.getByRole('button', { name: 'Delete transition' }).last().tap()
+  await expect(panel.getByRole('button', { name: 'Generate circuit' })).toBeEnabled()
+  await panel.getByRole('button', { name: 'Generate circuit' }).tap()
+  await expect(panel).toHaveCount(0)
+  await expect(page.locator('.comp-label', { hasText: /^State bit 0$/ })).toHaveCount(1)
+})

@@ -3,6 +3,8 @@ import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
 import { hazard, ripple } from './timing-examples'
+import { generateFsm } from './fsm'
+import { SEQUENCE_DETECTOR, TRAFFIC_LIGHT } from './fsm-examples'
 import type { Circuit, Rot } from './circuit'
 
 export interface Example {
@@ -607,6 +609,8 @@ export const EXAMPLES: Example[] = [
   { id: 'mux', name: '4:1 multiplexer', build: muxDemo },
   { id: 'hazard', name: 'Glitch: a hazard, and its fix', build: hazard },
   { id: 'ripple', name: 'Ripple-carry adder: the carry chain and flicker', build: ripple },
+  { id: 'fsm-traffic', name: 'State machine: traffic light (generated)', build: () => generateFsm(TRAFFIC_LIGHT).circuit },
+  { id: 'fsm-detector', name: 'State machine: 1011 sequence detector (generated)', build: () => generateFsm(SEQUENCE_DETECTOR).circuit },
   { id: 'oscillator', name: 'Ring oscillator (unstable)', build: ringOscillator },
 ]
 
