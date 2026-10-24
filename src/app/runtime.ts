@@ -7,6 +7,7 @@ import { openCircuit, startAutosave, type Opening } from './documents'
 import { isEmbed } from './embed'
 import { flushFsm, restoreFsm } from './fsm'
 import { installGamepadKeys } from './gamepad'
+import { installKeypadKeys } from './keypad'
 import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
 import { loadIntoSim, sim } from './sim'
 import { setRunning, showToast, useStore } from './store'
@@ -160,6 +161,7 @@ export async function startRuntime() {
   window.addEventListener('pointerdown', unlockAudio)
   window.addEventListener('keydown', unlockAudio)
   installGamepadKeys(sim, window, 350)
+  installKeypadKeys(sim)
 }
 
 export async function shareLink() {

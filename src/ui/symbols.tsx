@@ -410,6 +410,11 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
           <Stub pin={l.pins[0]} inner={{ x: l.w, y: 10 }} />
           <rect x={0} y={0} width={30} height={20} rx={10} className={`switch-track ${on ? 'f1' : 'f0'}`} />
           <circle cx={on ? 20 : 10} cy={10} r={7} className="switch-knob" />
+          {p.key && (
+            <text x={15} y={32} textAnchor="middle" className="switch-key">
+              {String(p.key).toUpperCase()}
+            </text>
+          )}
         </>
       )
       break

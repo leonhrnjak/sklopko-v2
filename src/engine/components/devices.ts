@@ -114,6 +114,17 @@ export const KEYPAD_LAYOUTS: Record<string, { labels: string[]; codes: number[] 
   },
 }
 
+/**
+ * The code a keyboard key sends on a keypad of this layout, or undefined: digits and A–F for the hex keypad; digits, + - * / (or x),
+ * = (or Enter) and C for the calculator.
+ */
+export function keypadCodeOfKey(layout: string, key: string): number | undefined {
+  const k = key.length === 1 ? key.toLowerCase() : key
+  if (/^[0-9]$/.test(k)) return Number(k)
+  if (layout !== 'calc') return /^[a-f]$/.test(k) ? 10 + k.charCodeAt(0) - 97 : undefined
+  return { '+': 10, '-': 11, '*': 12, x: 12, '/': 13, '=': 14, Enter: 14, c: 15 }[k]
+}
+
 // ---- Gamepad -----------------------------------------------------------------------------------
 
 /** The buttons of the gamepad, by bit: the output pin of each, and the keyboard keys that press it. */
@@ -298,7 +309,7 @@ export const devices: ComponentDef[] = [
     category: 'io',
     description:
       'Sixteen keys, laid out as hex digits 0–F or as a calculator (digits, + − × ÷, = and C, sent as codes 0–9, ' +
-      '10–13, 14 and 15). K0–K3 hold the code of the key pressed last, and P is 1 while a key is held down. ' +
+      '10–13, 14 and 15). Click the keys, or type them on the keyboard (digits, A–F; + - * / = and C on the calculator). K0–K3 hold the code of the key pressed last, and P is 1 while a key is held down. ' +
       'With "Sticky" on, P instead goes to 1 at each new press and stays there until RST goes to 1, so a slow ' +
       'program does not miss a press (and a key held down counts once).',
     params: [

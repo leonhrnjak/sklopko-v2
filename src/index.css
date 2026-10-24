@@ -2783,3 +2783,11 @@ button.linklike:hover {
   font-size: 12px;
   padding: 2px 4px;
 }
+
+/* The keyboard key of a switch, under it */
+.switch-key {
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--muted);
+  pointer-events: none;
+}
