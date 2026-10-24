@@ -17,7 +17,7 @@
 > - [x] 11c My circuits panel, state machines, backup, v0.0.1-61
 > - [x] 12a Code splitting, v0.0.1-62
 > - [x] 12b Prebuilt examples and thumbnails, v0.0.1-63
-> - [ ] 12c Rendering, only if measurement says so
+> - [x] 12c Rendering, measured and skipped, v0.0.1-64
 > - [ ] 13a Toolbar menus, collapsible help, e2e split
 > - [ ] 13b Example gallery
 > - [ ] 14a Engine groundwork
@@ -217,6 +217,17 @@ something else; delete and undo; embed mode never touches the library.
 - If it costs more than 2 ms a frame, add net-indexed subscriptions: the simulator keeps the nets that changed since the
   last publish and notifies only their subscribers.
 - Otherwise record the numbers here and skip it.
+
+*What it did, and where it differs from the plan.* Measured, and skipped. The numbers (production build with minification off, headless
+Chromium with the CPU profiler on, `/computer-raycaster` running at its 4096 Hz for 6 s, 362 frames):
+- `sim.frame` (the simulation itself, up to its 10 ms budget): 3.6 ms a frame.
+- `sim.publish`: 0.37 ms a frame, of which `checkIfSnapshotChanged` (every `useSyncExternalStore` asking whether its value changed,
+  the cost net-indexed subscriptions would remove) is 0.31 ms.
+- React render and commit for what did change: 2.4 ms a frame (render 1.5, commit 0.9), mostly `WireView` and `ComponentView` of the
+  wires and parts whose value really moved. Net-indexed subscriptions would not make that smaller.
+- The main thread was idle 31% of the time and the page kept 60 frames a second.
+So the part the optimization could save is 0.3 ms, well under the 2 ms bar. Revisit if a larger circuit than the raycaster shows
+`checkIfSnapshotChanged` over 2 ms: the first step then is `useSyncExternalStore` subscriptions keyed by net, as described above.
 
 ## Milestone 13: Toolbar and example gallery (small–medium)
 **13a. Toolbar menus, collapsible help, e2e split (small–medium)**
