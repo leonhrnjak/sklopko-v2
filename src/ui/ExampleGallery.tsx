@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { closeGallery, copyExampleLink, openFromGallery, setGalleryQuery, useGallery } from '../app/gallery'
-import { EXAMPLE_GROUPS, searchExamples } from '../model/examples-index'
+import { EXAMPLE_GROUPS } from '../model/examples-index'
+import { BLURBS, searchExamples } from '../model/examples-blurbs'
 
 /** Every example as a card with its picture, name and a line about it, in groups, with a search box. */
 export function ExampleGallery() {
@@ -49,7 +50,7 @@ export function ExampleGallery() {
                       <button className="gallery-open" onClick={() => openFromGallery(x)} data-testid={`example-${x.id}`} title={`Open ${x.name}`}>
                         <img className="gallery-thumb" src={`${import.meta.env.BASE_URL}examples/${x.id}.svg`} alt="" loading="lazy" width="160" height="100" />
                         <b>{x.name}</b>
-                        <small>{x.blurb}</small>
+                        <small>{BLURBS[x.id]}</small>
                       </button>
                       <button className="gallery-link" onClick={() => void copyExampleLink(x)} aria-label={`Copy link to ${x.name}`} title="Copy the link to this example">
                         Copy link

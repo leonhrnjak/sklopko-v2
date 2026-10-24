@@ -4,6 +4,7 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
+import { computerBlocks, icAdder } from './ic-examples'
 import { hazard, ripple } from './timing-examples'
 import { generateFsm } from './fsm'
 import { SEQUENCE_DETECTOR, TRAFFIC_LIGHT, UP_DOWN_COUNTER, VENDING_MACHINE } from './fsm-examples'
@@ -1146,6 +1147,8 @@ const BUILDERS: Record<string, () => Circuit> = {
   lfsr,
   matrix: matrixSmiley,
   ...Object.fromEntries(PROGRAMS.map((p) => [p.id, () => computer2(p)])),
+  'ic-adder': icAdder,
+  'computer-blocks': computerBlocks,
 }
 
 export const EXAMPLES: Example[] = EXAMPLE_LIST.map((info) => ({ ...info, build: BUILDERS[info.id] }))

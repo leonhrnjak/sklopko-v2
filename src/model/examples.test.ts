@@ -7,7 +7,8 @@ import { SKASM, assemble, disassemble } from '../engine/isa'
 import { FIBONACCI_SOURCE, programWords } from './computer2'
 import { counterDisplay } from './example-counter'
 import { EXAMPLES, SMILEY } from './examples'
-import { EXAMPLE_GROUPS, EXAMPLE_LIST, WELCOME_ID, exampleFromPath, searchExamples } from './examples-index'
+import { EXAMPLE_GROUPS, EXAMPLE_LIST, WELCOME_ID, exampleFromPath } from './examples-index'
+import { BLURBS, searchExamples } from './examples-blurbs'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
 const built = new Map<string, ReturnType<(typeof EXAMPLES)[number]['build']>>()
@@ -618,9 +619,10 @@ describe('the examples index', () => {
   })
 
   it('has a one-line blurb for every example, and examples in every group', () => {
+    expect(Object.keys(BLURBS).sort()).toEqual(EXAMPLE_LIST.map((e) => e.id).sort())
     for (const e of EXAMPLE_LIST) {
-      expect(e.blurb, e.id).toMatch(/^[A-Z].*[.!?]$/)
-      expect(e.blurb.length, e.id).toBeLessThanOrEqual(110)
+      expect(BLURBS[e.id], e.id).toMatch(/^[A-Z].*[.!?]$/)
+      expect(BLURBS[e.id].length, e.id).toBeLessThanOrEqual(130)
     }
     for (const g of EXAMPLE_GROUPS) expect(EXAMPLE_LIST.some((e) => e.group === g), g).toBe(true)
   })

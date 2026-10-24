@@ -6,7 +6,7 @@ import { produce } from 'immer'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
 import { circuitRect } from './bounds'
-import { emptyCircuit, snap, type Circuit, type Comp, type ICDef, type PinRef } from './circuit'
+import { emptyCircuit, findPin, isAnnotation, snap, type Circuit, type Comp, type ICDef, type PinRef } from './circuit'
 import { isLabel } from './labels'
 import { pruneWires, reroute } from './ops'
 
@@ -455,4 +455,168 @@ export function deleteDefinition(c: Circuit, id: string) {
   if (!c.ics) return
   delete c.ics[id]
   if (!Object.keys(c.ics).length) delete c.ics
+}
+
+// ---- Collapsing parts into an IC ------------------------------------------------------------------
+
+/** The params of a part made new inside an IC: what a part placed now has, with these values. */
+const made = (type: string, over: Params = {}): Params => ({ ...paramDefaults(getDef(type)), ...over })
+
+/** How many bits the pin of a part carries (1 for an ordinary pin). */
+const widthAt = (c: Circuit, ref: PinRef) => {
+  const k = c.comps[ref.comp]
+  const p = k && hasDef(k.type) ? findPin(k, ref.pin) : undefined
+  return p?.def.bus ?? 1
+}
+
+/**
+ * Replace the selected parts with one custom IC made of them (`c` is changed), wired in their place, so that the circuit behaves as
+ * it did.
+ * - Every net that crosses the selection's edge becomes a pin: a wire that comes in from a part outside is an input (one for each
+ *   driving pin, feeding everything inside it fed), a pin of a selected part that wires outside lead from is an output (one for
+ *   each such pin). A bus keeps its width. A pin is named after the part that drives it (or has the pin), or in1…, out1….
+ * - Net labels that cross the edge become pins as well, named by the label: a Receive label inside whose Send label is outside is an
+ *   input, and the instance gets a Receive label of that name outside; the same the other way round. (A name that is both published
+ *   and read inside the selection stays as it is.)
+ * Returns what to select afterwards (the new instance and the labels beside it), or null when there is nothing to collapse.
+ */
+export function collapseSelection(c: Circuit, ids: string[], name: string, makeId: (prefix: string) => string): { defId: string; instance: string; ids: string[] } | null {
+  const sel = new Set(ids.filter((id) => c.comps[id]))
+  if (![...sel].some((id) => !isAnnotation(c.comps[id]))) return null
+  const inner = emptyCircuit()
+  for (const id of sel) inner.comps[id] = clone(c.comps[id])
+
+  // Net labels that cross the edge become switches and LEDs of their own, which are pins like any other.
+  const outsideNames = { [SEND]: new Set<string>(), [RECV]: new Set<string>() } as Record<string, Set<string>>
+  for (const k of Object.values(c.comps)) if (!sel.has(k.id) && isLabel(k.type) && k.params.name) outsideNames[k.type].add(String(k.params.name))
+  const innerNames = { [SEND]: new Set<string>(), [RECV]: new Set<string>() } as Record<string, Set<string>>
+  for (const k of Object.values(inner.comps)) if (isLabel(k.type) && k.params.name) innerNames[k.type].add(String(k.params.name))
+  const passing: { id: string; dir: 'in' | 'out'; name: string; bits: number }[] = []
+  const renamedPin = new Map<string, string>() // a Receive label that became a switch: its pin Y is Q now
+  const alsoTo = new Map<string, string>() // a Send label that stays: the output that is fed like it
+  for (const k of Object.values(inner.comps)) {
+    if (!isLabel(k.type) || !k.params.name) continue
+    const label = String(k.params.name)
+    const bits = Math.max(1, Number(k.params.bits) || 1)
+    if (k.type === RECV && outsideNames[SEND].has(label)) {
+      const type = bits > 1 ? 'busin' : 'switch'
+      inner.comps[k.id] = { ...k, type, params: made(type, bits > 1 ? { bits } : {}), label }
+      renamedPin.set(k.id, 'Q')
+      passing.push({ id: k.id, dir: 'in', name: label, bits })
+    } else if (k.type === SEND && outsideNames[RECV].has(label)) {
+      const type = bits > 1 ? 'busdisp' : 'led'
+      const part: { type: string; params: Params; label: string } = { type, params: made(type, bits > 1 ? { bits } : {}), label }
+      if (!innerNames[RECV].has(label)) {
+        // Nobody inside reads the name: the label becomes the output.
+        inner.comps[k.id] = { ...k, ...part }
+        passing.push({ id: k.id, dir: 'out', name: label, bits })
+      } else {
+        // Some part inside reads it too: the label stays, and an output of its own is fed by whatever feeds the label.
+        const id = makeId('c')
+        inner.comps[id] = { id, x: k.x, y: k.y + 40, rot: 0, flip: false, ...part }
+        alsoTo.set(k.id, id)
+        passing.push({ id, dir: 'out', name: label, bits })
+      }
+    }
+  }
+  const innerPin = (ref: PinRef): PinRef => ({ comp: ref.comp, pin: renamedPin.get(ref.comp) ?? ref.pin })
+
+  // The wires: inside, coming in, going out.
+  const entering = new Map<string, { driver: PinRef; bits: number; targets: PinRef[] }>()
+  const leaving = new Map<string, { from: PinRef; bits: number; targets: PinRef[] }>()
+  const touching: string[] = []
+  const wires: { from: PinRef; to: PinRef }[] = []
+  const extra = new Set(alsoTo.values()) // outputs made beside Send labels that stay: inside, though not selected
+  const drawn = Object.values(c.wires).flatMap((w) => (alsoTo.has(w.to.comp) ? [w, { ...w, id: '', to: { comp: alsoTo.get(w.to.comp)!, pin: w.to.pin } }] : [w]))
+  for (const w of drawn) {
+    const fromIn = sel.has(w.from.comp)
+    const toIn = sel.has(w.to.comp) || extra.has(w.to.comp)
+    if (!fromIn && !toIn) continue
+    if (w.id) touching.push(w.id)
+    if (fromIn && toIn) wires.push({ from: innerPin(w.from), to: w.to })
+    else if (toIn) {
+      const key = `${w.from.comp}:${w.from.pin}`
+      const g = entering.get(key) ?? { driver: w.from, bits: widthAt(c, w.from), targets: [] }
+      g.targets.push(w.to)
+      entering.set(key, g)
+    } else {
+      const from = innerPin(w.from)
+      const key = `${from.comp}:${from.pin}`
+      const g = leaving.get(key) ?? { from, bits: widthAt(c, w.from), targets: [] }
+      g.targets.push(w.to)
+      leaving.set(key, g)
+    }
+  }
+
+  // The box the parts take up, and the pins that make them an IC.
+  const rect = circuitRect({ comps: Object.fromEntries([...sel].map((id) => [id, c.comps[id]])), wires: {} }, 0)
+  let n = 0
+  const labelOf = (ref: PinRef) => {
+    const k = c.comps[ref.comp]
+    return String((k && isLabel(k.type) ? k.params.name : k?.label) ?? '')
+  }
+  const added: { id: string; group: { driver?: PinRef; from?: PinRef; targets: PinRef[] } }[] = []
+  let i = 0
+  for (const g of entering.values()) {
+    const id = makeId('c')
+    const type = g.bits > 1 ? 'busin' : 'switch'
+    inner.comps[id] = { id, type, x: snap(rect.x - 140), y: snap(rect.y + 60 * i++), rot: 0, flip: false, params: made(type, g.bits > 1 ? { bits: g.bits } : {}), label: labelOf(g.driver) || `in${++n}` }
+    added.push({ id, group: g })
+  }
+  i = 0
+  n = 0
+  for (const g of leaving.values()) {
+    const id = makeId('c')
+    const type = g.bits > 1 ? 'busdisp' : 'led'
+    inner.comps[id] = { id, type, x: snap(rect.x + rect.w + 140), y: snap(rect.y + 60 * i++), rot: 0, flip: false, params: made(type, g.bits > 1 ? { bits: g.bits } : {}), label: labelOf(g.from) || `out${++n}` }
+    added.push({ id, group: g })
+  }
+  const innerWire = (from: PinRef, to: PinRef) => {
+    const id = makeId('w')
+    inner.wires[id] = { id, from, to, path: [] }
+    return id
+  }
+  const fresh: string[] = []
+  for (const w of wires) fresh.push(innerWire(w.from, w.to))
+  for (const g of entering.values()) {
+    const part = added.find((a) => a.group === g)!.id
+    for (const t of g.targets) fresh.push(innerWire({ comp: part, pin: 'Q' }, t))
+  }
+  for (const g of leaving.values()) fresh.push(innerWire(g.from, { comp: added.find((a) => a.group === g)!.id, pin: 'A' }))
+  reroute(inner, fresh)
+
+  const defId = newICId(c.ics, name)
+  const def: ICDef = { id: defId, name, circuit: inner }
+  const pins = deriveInterface(inner)
+  const pinOf = (comp: string) => [...pins.inputs, ...pins.outputs].find((p) => p.comp === comp)!.name
+
+  // Out with the parts and their wires; in with the instance, wired as they were.
+  for (const id of sel) delete c.comps[id]
+  for (const id of touching) delete c.wires[id]
+  ;(c.ics ??= {})[defId] = def
+  const inst = makeId('c')
+  c.comps[inst] = { id: inst, type: IC, x: snap(rect.x), y: snap(rect.y), rot: 0, flip: false, params: icParams(def) }
+  const created: string[] = [inst]
+  const wire = (from: PinRef, to: PinRef) => {
+    const id = makeId('w')
+    c.wires[id] = { id, from, to, path: [] }
+    created.push(id)
+  }
+  for (const a of added) {
+    const g = a.group
+    if (g.driver) wire(g.driver, { comp: inst, pin: pinOf(a.id) })
+    else for (const t of g.targets) wire({ comp: inst, pin: pinOf(a.id) }, t)
+  }
+  let row = 0
+  for (const p of passing) {
+    const label = makeId('c')
+    const left = p.dir === 'in'
+    const type = left ? RECV : SEND
+    c.comps[label] = { id: label, type, x: snap(rect.x - 160), y: snap(rect.y + 30 * row++), rot: 0, flip: false, params: made(type, { name: p.name, bits: p.bits }) }
+    created.push(label)
+    if (left) wire({ comp: label, pin: 'Y' }, { comp: inst, pin: pinOf(p.id) })
+    else wire({ comp: inst, pin: pinOf(p.id) }, { comp: label, pin: 'A' })
+  }
+  reroute(c, created.filter((id) => id in c.wires))
+  return { defId, instance: inst, ids: created.filter((id) => id in c.comps) }
 }

@@ -105,6 +105,38 @@ describe('making ICs in the store', () => {
   })
 })
 
+describe('collapsing in the store', () => {
+  beforeEach(() => {
+    vi.stubGlobal('window', { setTimeout })
+    loadCircuit(new CircuitBuilder().c, false)
+  })
+
+  it('replaces the selected parts with one instance, selects it, and is one undo step', () => {
+    const b = new CircuitBuilder()
+    const s = b.add('switch', 0, 0, { label: 'In' })
+    const g = b.add('not', 100, 0)
+    const l = b.add('led', 200, 0, { label: 'Out' })
+    b.wire(`${s}.Q`, `${g}.A`)
+    b.wire(`${g}.Y`, `${l}.A`)
+    loadCircuit(b.build(), false)
+    const depth = useStore.getState().past.length
+    expect(makeIC('Not', [g], true)).toBe('not')
+    expect(circuit().comps[g]).toBeUndefined()
+    const inst = Object.values(circuit().comps).find((k) => k.type === 'ic')!
+    expect(inst.params).toMatchObject({ ins: 'In:1', outs: 'out1:1' })
+    expect(useStore.getState().selection).toContain(inst.id)
+    expect(Object.values(circuit().wires).map((w) => `${w.from.comp}.${w.from.pin}>${w.to.comp}.${w.to.pin}`).sort()).toEqual([`${inst.id}.out1>${l}.A`, `${s}.Q>${inst.id}.In`].sort())
+    expect(useStore.getState().past.length).toBe(depth + 1)
+    undo()
+    expect(circuit().comps[g]).toBeDefined()
+    expect(circuit().ics).toBeUndefined()
+    // Nothing to collapse: nothing happens.
+    const depth2 = useStore.getState().past.length
+    expect(makeIC('Nothing', [], true)).toBe('')
+    expect(useStore.getState().past.length).toBe(depth2) // and no undo step was spent
+  })
+})
+
 describe('editing the inside of an IC in the store', () => {
   beforeEach(() => {
     vi.stubGlobal('window', { setTimeout })

@@ -39,7 +39,7 @@ export function SelectionBar() {
           <button onClick={rotateSelection}>Rotate</button>
           <button onClick={flipSelection}>Flip</button>
           <button onClick={duplicateSelection}>Duplicate</button>
-          {selection.length > 1 && <button onClick={openMakeIc}>Make IC</button>}
+          {selection.length > 1 && <button onClick={() => openMakeIc(true)}>Make IC</button>}
         </>
       )}
       <button

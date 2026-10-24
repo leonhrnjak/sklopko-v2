@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CircuitBuilder } from './builder'
 import type { Circuit } from './circuit'
 import { EXAMPLES } from './examples'
+import { busModel } from './buses'
 import { analyzeTiming } from './timing'
 
 /** Give parts a delay. */
@@ -242,7 +243,9 @@ describe('timing: the examples', () => {
         expect(t.critical.delay).toBeGreaterThan(0)
         expect(t.critical.steps.length).toBeGreaterThanOrEqual(2)
         expect(t.critical.wires.length).toBeGreaterThanOrEqual(1)
-        for (const id of t.critical.wires) expect(c.wires[id], id).toBeDefined()
+        // With custom ICs, the path also runs along wires inside them (named `inst/wire`).
+        const wires = busModel(c).circuit.wires
+        for (const id of t.critical.wires) expect(wires[id], id).toBeDefined()
         expect(t.endpoints[0].arrival).toBe(t.critical.delay)
       }
       for (let i = 1; i < t.endpoints.length; i++) expect(t.endpoints[i].arrival).toBeLessThanOrEqual(t.endpoints[i - 1].arrival)

@@ -49,7 +49,15 @@ export const ic: ComponentDef[] = [
     description: 'A block made from a circuit of your own: it has the inputs and outputs of the circuit it was made from.',
     params: [text('ic', 'IC'), text('name', 'Name'), text('ins', 'Inputs'), text('outs', 'Outputs')],
     title: (p) => String(p.name || 'IC'),
-    layout: (p) => box({ left: pinSpecs(icInputs(p), 'in'), right: pinSpecs(icOutputs(p), 'out') }),
+    layout: (p) => {
+      const left = pinSpecs(icInputs(p), 'in')
+      const right = pinSpecs(icOutputs(p), 'out')
+      // `box` leaves room for the pin labels and a short title; a longer name widens the body.
+      const widest = (list: typeof left) => Math.max(0, ...list.map((s) => s.label.length * 6))
+      const title = String(p.name || 'IC').length * 7
+      const w = Math.max(80, Math.ceil((widest(left) + widest(right) + Math.max(60, title + 16)) / 20) * 20)
+      return box({ w, left, right })
+    },
     groups: (p) => [...groups(icInputs(p), 'in'), ...groups(icOutputs(p), 'out')],
     // Never simulated (see above); a part of this type that is left over reads X.
     evaluate(inst) {
