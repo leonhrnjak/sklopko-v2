@@ -39,6 +39,10 @@ export const buses: ComponentDef[] = [
     description:
       'Takes a bus apart: the bits of A come out as pieces Y0, Y1... (lowest bits first). A piece of one bit is an ordinary wire. ' +
       'Pure wiring: it adds no delay.',
+    pins: {
+      A: 'The whole bus to take apart (Bits wide, bit 0 is the lowest).',
+      'Y#': 'One piece of A, lowest bits first; its range is shown on the pin, e.g. [3:0]. A piece of one bit is an ordinary wire.',
+    },
     params: [bitsParam, splitParam],
     wiring: true,
     title: () => 'SPLIT',
@@ -52,6 +56,10 @@ export const buses: ComponentDef[] = [
     description:
       'Puts wires and smaller buses together into one bus: the pieces A0, A1... (lowest bits first) make up Y. ' +
       'Pure wiring: it adds no delay.',
+    pins: {
+      'A#': 'One piece of the bus, lowest bits first; its range in Y is shown on the pin, e.g. [3:0]. A piece of one bit is an ordinary wire.',
+      Y: 'The whole bus (Bits wide) made of all the pieces: A0 gives the lowest bits.',
+    },
     params: [bitsParam, splitParam],
     wiring: true,
     title: () => 'MERGE',

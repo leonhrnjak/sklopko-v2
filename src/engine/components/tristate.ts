@@ -32,6 +32,11 @@ export const tristate: ComponentDef[] = [
     description:
       'Passes A to Y while EN is 1. While EN is 0 it lets go of the line (Z, high impedance) so another part can drive it. ' +
       'Join several of them with a Bus junction. With more than one bit it passes a whole bus.',
+    pins: {
+      'A#|A': 'The value to put on the line while EN is 1 (a single bit, or all bits as one bus when Bits is more than 1).',
+      EN: 'Enable. 1 drives Y from A; 0 releases the line (Z, high impedance). Unconnected it is 0, so nothing is driven.',
+      'Y#|Y': 'Equals A while EN is 1, Z while EN is 0. Join it with other drivers through a Bus junction; an unknown EN gives X.',
+    },
     params: [bitsParam],
     groups: (p) => (widthOf(p) > 1 ? [numbered('A', 'in', 'A', widthOf(p)), numbered('Y', 'out', 'Y', widthOf(p))] : []),
     title: (p) => (widthOf(p) > 1 ? 'TRI' : ''),
@@ -62,6 +67,17 @@ export const tristate: ComponentDef[] = [
       'Joins the outputs of several tri-state buffers into one shared line. Y is the value of the one driver that is not Z. ' +
       'Two drivers that disagree (contention) give X. With no driver the line floats (X) unless a pull-up or pull-down is set. ' +
       'With more than one bit every bit of the bus is joined on its own.',
+    pins: {
+      'A#|A': 'Driver 1: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'B#|B': 'Driver 2: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'C#|C': 'Driver 3: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'D#|D': 'Driver 4: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'E#|E': 'Driver 5: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'F#|F': 'Driver 6: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'G#|G': 'Driver 7: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'H#|H': 'Driver 8: connect a tri-state buffer output here (or a Z-capable source). It counts while it is not Z.',
+      'Y#|Y': 'The shared line: the value of the one driver that is not Z, X when two drivers disagree, and the pull value (or X) when none drives.',
+    },
     params: [
       { key: 'drivers', label: 'Drivers', kind: 'number', min: 2, max: 8, default: 3, structural: true },
       bitsParam,
