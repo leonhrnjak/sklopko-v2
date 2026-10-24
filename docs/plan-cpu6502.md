@@ -8,7 +8,7 @@
 > - [x] R2 Memory that is big enough, and cheap to snapshot
 > - [x] R3 The part: a 40-pin 6502 on the canvas, and a first board
 > - [x] R4 6502 assembly: assembler, disassembler, reference page
-> - [ ] R5 The board with devices, and 6502 example programs
+> - [x] R5 The board with devices, and 6502 example programs
 > - [ ] R6 Polish: 65C02, interrupts, timing-view presets
 
 ## Why
@@ -141,6 +141,19 @@ tab with examples in the reference (R5 brings the example programs).
 ### R5. The board with devices, and examples
 - The console, LCD, speaker, keypad and gamepad sit at memory-mapped addresses behind the decoder. Examples in 6502 assembly: counter
   on the LEDs, "Hello" on the console, a keypad echo, a bouncing ball.
+
+**What R5 did, and where it differs from the plan.** The board builder (`board6502.ts`) takes a list of devices and a program in assembly, and
+`boardExample` frames and explains it. The devices sit in the block `$4000–$7FFF`, one register each (the low three address bits pick it, a
+3-to-8 decoder gated by "A15 = 0, A14 = 1, writing" makes a strobe for each, and the block repeats): `$4000` LEDs, `$4001` console character,
+`$4002` speaker (bit 0), `$4003` keypad (read: key in bits 0–3, a press waiting in bit 4; write: acknowledge), `$4004` gamepad (read: up 1, down 2,
+left 4, right 8, A 16, B 32), `$4005` the pixel's place (x in bits 0–3, y in 4–7) and `$4006` the pixel (write: bit 0 sets or clears it). The CPU's
+read bus is a 4-input multiplexer on A15 and A14 once there is something to read (the keypad and the gamepad are told apart by A2). The first
+board is unchanged. Four examples in the *6502* group, with their programs in `programs6502.ts`: a counter on the LEDs (a subroutine and the
+stack), "Hello" on the console (a string in the ROM), a keypad echo (polling, acknowledging, a table lookup) and a bouncing ball on the 16 × 16
+screen that the gamepad steers. Each program is run on the bare core in `programs6502.test.ts` and on the board, device by device, in
+`board6502.test.ts`. Differences: the LCD of the plan is the existing 16 × 16 pixel screen (two colours); the examples have only the devices
+they use, like the SKASM computers. The screen flickers for a moment between taking the old ball off and putting the new one down: that is
+what the program does, and a real 6502 would do the same.
 
 ### R6. Polish
 - The **65C02** variant (W65C02S): `BRA`, `STZ`, `PHX/PHY/PLX/PLY`, `INC A`, `DEC A`, `(zp)`, `TSB/TRB`, `BIT #`, fixed `JMP ($xxFF)`,

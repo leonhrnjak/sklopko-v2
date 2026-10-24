@@ -469,6 +469,13 @@ test('the 6502 board: the CPU shows its registers, steps one instruction at a ti
   await expect(doing).toContainText('ASL A')
 })
 
+test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
+  await page.goto('/6502-hello', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Console \\$4001: prints what is written')
+  // The program runs by itself and prints one character at a time.
+  await expect(page.locator('.inspector')).toContainText('Hello from a 6502!', { timeout: 20000 })
+})
+
 test('the 6502 ROM holds a program in assembly: a listing of its bytes, errors by line, and the reference', async ({ page }) => {
   await page.goto('/6502', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Pause' }).click()

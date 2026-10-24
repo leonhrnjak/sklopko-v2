@@ -76,6 +76,10 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('Computers', 'computer-ant', "Computer + LCD: Langton's ant (reads the screen)"),
   e('Computers', 'computer-raycaster', 'Computer + LCD + gamepad: a 3D raycaster'),
   e('6502', '6502', 'A real 6502 CPU on a board: ROM, RAM and LEDs'),
+  e('6502', '6502-counter', '6502: a counter on the LEDs (a subroutine and the stack)'),
+  e('6502', '6502-hello', '6502 + console: hello (a string in the ROM)'),
+  e('6502', '6502-keypad', '6502 + console + keypad: type a key, see it'),
+  e('6502', '6502-ball', '6502 + screen + gamepad: a bouncing ball'),
   e('Custom ICs', 'ic-adder', 'A 4-bit adder made of ICs inside ICs'),
   e('Custom ICs', 'computer-blocks', 'The 8-bit computer as blocks'),
 ]

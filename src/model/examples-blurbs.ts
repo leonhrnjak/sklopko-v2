@@ -4,6 +4,10 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 export const BLURBS: Record<string, string> = {
   counter: 'A clock drives a decade counter, a decoder and a seven-segment display. The place to start.',
   '6502': 'A real MOS 6502 on a board: it fetches a program from a ROM, and you watch its address and data bus, clock cycle by clock cycle.',
+  '6502-counter': 'A 6502 counts on its LEDs, calling a subroutine to wait: the ROM holds the program in 6502 assembly.',
+  '6502-hello': 'A 6502 prints a greeting from a string in its ROM, one character at a time, on a text console.',
+  '6502-keypad': 'Press a key on the keypad: the 6502 polls it, prints the key on the console and shows its code on the LEDs.',
+  '6502-ball': 'A 6502 bounces a ball around a 16 × 16 screen, and the gamepad steers it.',
   beginner: 'A tiny computer you can follow by hand: a ROM of instructions, a RAM, an adder and three steps.',
   gates: 'AND, OR, NOT, NAND, NOR, XOR and XNOR side by side, with a switch for every input.',
   mux: 'Four inputs and two select switches: choose which input reaches the output.',
