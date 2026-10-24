@@ -36,7 +36,7 @@ test('the overflow menu holds the secondary actions, and the example gallery fit
   await fresh(page)
   await expect(page.locator('.toolbar > .wide-only').first()).toBeHidden()
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Logic…' })).toBeVisible()
+  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Logic', exact: true })).toBeVisible()
   await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save file' })).toBeVisible()
   await page.locator('.toolbar-menu').getByRole('button', { name: 'Examples', exact: true }).tap()
   await expect(page.locator('.toolbar-menu')).toHaveCount(0)
@@ -48,9 +48,43 @@ test('the overflow menu holds the secondary actions, and the example gallery fit
     expect(box.x).toBeGreaterThanOrEqual(0)
     expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5)
   }
+  // The keyboard stays closed until the search box is tapped, and the cards are rows, not full-screen pictures.
+  await expect(dialog.getByLabel('Search examples')).not.toBeFocused()
+  expect((await dialog.locator('.gallery-card').first().boundingBox())!.height).toBeLessThan(150)
   await dialog.getByTestId('example-gates').tap()
   await expect(dialog).toHaveCount(0)
   await expect(page.locator('.comp')).toHaveCount(10)
+})
+
+test('the Examples button leads the menu, and the speed list does not span the screen', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  const menu = page.locator('.toolbar-menu')
+  const examples = (await menu.getByRole('button', { name: 'Examples', exact: true }).boundingBox())!
+  const first = (await menu.locator('button, select').first().boundingBox())!
+  expect(examples.y).toBe(first.y)
+  const speed = (await menu.getByLabel('Simulation speed').boundingBox())!
+  expect(speed.width).toBeLessThan(page.viewportSize()!.width / 2)
+})
+
+test('the waveform panel can be closed with its X, and the picture export is one menu entry with a dialog', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByTestId('waves-toggle').tap()
+  const close = page.getByRole('button', { name: 'Close waveforms' })
+  await expect(close).toBeVisible()
+  const box = (await close.boundingBox())!
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5)
+  await close.tap()
+  await expect(page.getByTestId('waves')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: /^(SVG|PNG)/ })).toHaveCount(0)
+  await page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save picture', exact: true }).tap()
+  const dialog = page.getByRole('dialog', { name: 'Save a picture' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('PNG').check()
+  await expect(dialog.getByRole('button', { name: 'Save PNG' })).toBeVisible()
 })
 
 test('tap a part, tap the canvas to place it, then delete it from the action bar', async ({ page }) => {
@@ -99,7 +133,7 @@ test('tapping a control operates it; a long-press selects it for editing', async
 test('state machines: edit in the table on a phone, join states by tapping, and generate', async ({ page }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('menuitem', { name: 'State machines…', exact: true }).tap()
+  await page.getByRole('menuitem', { name: 'State machines', exact: true }).tap()
   const panel = page.getByRole('dialog', { name: 'State machines' })
   await expect(panel).toBeVisible()
   // The diagram comes first on a narrow screen, and nothing sticks out sideways.

@@ -195,6 +195,13 @@ input:focus-visible {
   background: rgba(255, 255, 255, 0.24);
   border-color: rgba(255, 255, 255, 0.6);
 }
+.toolbar button.examples-btn,
+.toolbar button.examples-btn:hover:not(:disabled) {
+  background: #ffe08a;
+  border-color: #ffe08a;
+  color: #4a3500;
+  font-weight: 600;
+}
 .toolbar button.primary {
   background: #fff;
   color: var(--accent-strong);
@@ -1183,6 +1190,15 @@ button.danger {
 .menu-section > * {
   flex: 1 1 auto;
 }
+.toolbar-menu .dots {
+  display: none;
+}
+.menu-section > select {
+  flex: 0 0 auto; /* the speed list is a short choice, not a full-width bar */
+}
+.menu-section > .examples-btn {
+  flex: 2 1 auto;
+}
 
 /* ---- Tools and File menus (wide screens) ---- */
 
@@ -1283,6 +1299,12 @@ button.danger {
 }
 .wave-head strong {
   margin-right: auto;
+}
+.wave-tools {
+  display: contents;
+}
+.wave-close {
+  margin-left: auto;
 }
 .wave-window {
   display: flex;
@@ -1410,6 +1432,18 @@ button.danger {
 }
 
 @media (max-width: 760px) {
+  /* The tabs and the close button share the first row; the options wrap under them instead of pushing the close button off screen. */
+  .wave-head {
+    flex-wrap: wrap;
+  }
+  .wave-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 100%;
+    order: 3;
+  }
   /* Waveforms become a bottom sheet over the parts list. */
   .wave-panel {
     position: fixed;
@@ -1497,6 +1531,7 @@ button.danger {
   z-index: 60;
   display: flex;
   align-items: center;
+  align-items: safe center; /* a dialog taller than the screen starts at the top instead of losing its top */
   justify-content: center;
   background: rgba(0, 0, 0, 0.42);
   padding: 12px;
@@ -1506,6 +1541,7 @@ button.danger {
   flex-direction: column;
   width: min(1040px, 100%);
   max-height: 92vh;
+  max-height: 92dvh; /* the visible height: on a phone 100vh is the height with the browser bar hidden, which pushed the top out of view */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
@@ -2370,6 +2406,7 @@ button.linklike:hover {
   width: 100%;
   height: auto;
   max-height: 62vh;
+  max-height: 62dvh;
   min-height: 260px;
   background: var(--bg);
   border: 1px solid var(--panel-border);
@@ -2724,6 +2761,83 @@ button.linklike:hover {
   align-self: flex-start;
   font-size: 12px;
   padding: 2px 8px;
+}
+
+@media (max-width: 760px) {
+  /* A list on a phone: a small picture beside the name and the line about it, so many fit and a thumb can scroll. */
+  .modal.gallery {
+    max-height: 94dvh;
+  }
+  .modal.gallery .modal-body {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 12px 14px;
+  }
+  .gallery-search {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .gallery-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .gallery-open {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+  .gallery-open .gallery-thumb {
+    grid-row: 1 / span 2;
+    width: 96px;
+  }
+  .gallery-open b {
+    align-self: end;
+  }
+  .gallery-open small {
+    align-self: start;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .gallery-link {
+    display: none;
+  }
+}
+
+/* ---- Save a picture ---- */
+
+.modal.picture {
+  width: min(360px, 100%);
+}
+.picture-choice {
+  border: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.picture-choice legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.picture-choice label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.picture-choice small {
+  color: var(--muted);
 }
 
 /* ---- Editing an IC: where you are ---- */
