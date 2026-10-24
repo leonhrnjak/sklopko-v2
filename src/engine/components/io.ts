@@ -32,7 +32,19 @@ export const io: ComponentDef[] = [
     name: 'Switch',
     category: 'io',
     description: 'Toggle switch. Click it to flip between 0 and 1.',
-    params: [{ key: 'on', label: 'On', kind: 'bool', default: false }],
+    params: [
+      { key: 'on', label: 'On', kind: 'bool', default: false },
+      {
+        key: 'key',
+        label: 'Key',
+        kind: 'text',
+        default: '',
+        pattern: '[1-9A-Za-z]?',
+        maxLength: 1,
+        multiline: false,
+        hint: 'One digit from 1 to 9, or a letter. Press it on the keyboard to flip the switch.',
+      },
+    ],
     interactive: 'toggle',
     layout: () => ({ w: 30, h: 20, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 40, y: 10 }] }),
     evaluate(inst) {

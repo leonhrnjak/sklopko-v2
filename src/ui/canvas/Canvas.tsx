@@ -51,6 +51,7 @@ import { timingOf, useTiming } from '../../app/timing'
 import { useWave } from '../../app/waveform'
 import { busModel, type BitSource } from '../../model/buses'
 import { enterInstance } from '../../app/ics'
+import { keyedSwitches } from '../../model/keys'
 import { placementOf } from '../../model/ic'
 import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
@@ -264,7 +265,12 @@ export function Canvas() {
       if (t.closest('input, select, textarea')) return
       const mod = e.metaKey || e.ctrlKey
       const k = e.key.toLowerCase()
-      if (e.key === ' ') {
+      // A switch with this key flips (before any shortcut: a switch's key may be R, F or H).
+      const keyed = !mod && !e.altKey && !e.repeat ? keyedSwitches(useStore.getState().circuit, e.key) : []
+      if (keyed.length) {
+        e.preventDefault()
+        for (const id of keyed) interact(id, false)
+      } else if (e.key === ' ') {
         setSpaceDown(true)
         e.preventDefault()
       } else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelection()

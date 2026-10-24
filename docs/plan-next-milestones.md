@@ -26,7 +26,7 @@
 > - [x] 14d Edit an IC, v0.0.1-70
 > - [x] 14e Collapse a selection into an IC; examples, v0.0.1-71
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
-> - [ ] 16 Small wins
+> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72)
 
 ## Context
 Milestones 0–10 are done (v0.0.1-57): 70 part types, buses and tri-state, the timing view, the state machine editor,
@@ -514,6 +514,13 @@ Each is its own small PR, in any order.
 - **Testbench for any circuit**: the challenge checker opened up. A list of steps (set inputs, pulse, expect outputs) saved
   with the circuit, with *Run tests* and a list of failing steps. It needs a `pulse` step (one rising and falling edge on a labelled input such as `CLK`) added to the step checker in
   `src/model/challengecheck.ts`, which challenges don't have today.
+
+*16a. Keyboard control: what it did.* A switch has an optional *Key* param (one digit 1–9 or a letter; `pattern` `[1-9A-Za-z]?`, so a file with
+anything else loses it), shown under the switch, that flips it when the key is pressed with no modifier and nothing being typed. It is checked
+before the editor's own shortcuts, so a switch whose key is R, F or H gets the key (`model/keys.ts`, `Canvas.tsx`). It also works in an embed.
+A keypad reads the keyboard (`app/keypad.ts`, `keypadCodeOfKey`): digits and A–F on a hex keypad; digits, + - * / (or x), = (or Enter) and C
+on the calculator one; P is high while the key is held. Letters A–F are left to the editor (F flips a selected part) while something is
+selected, and to a gamepad's keys when there is one. Tests: `app/keypad.test.ts`, `e2e/keyboard.spec.ts`.
 
 ## Considered and not planned
 - **Croatian UI**: not needed.
