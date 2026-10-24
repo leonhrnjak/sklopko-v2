@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { closeGallery, copyExampleLink, openFromGallery, setGalleryQuery, useGallery } from '../app/gallery'
+import { closeGallery, copyExampleLink, openFromGallery, setGalleryGroup, setGalleryQuery, useGallery } from '../app/gallery'
 import { EXAMPLE_GROUPS } from '../model/examples-index'
 import { BLURBS, searchExamples } from '../model/examples-blurbs'
 
@@ -7,6 +7,7 @@ import { BLURBS, searchExamples } from '../model/examples-blurbs'
 export function ExampleGallery() {
   const open = useGallery((s) => s.open)
   const query = useGallery((s) => s.query)
+  const group = useGallery((s) => s.group)
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeGallery()
@@ -15,6 +16,7 @@ export function ExampleGallery() {
   }, [open])
   if (!open) return null
   const found = searchExamples(query)
+  const shown = group === 'all' ? EXAMPLE_GROUPS : [group]
   return (
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && closeGallery()}>
       <div className="modal gallery" role="dialog" aria-modal="true" aria-label="Examples">
@@ -37,14 +39,27 @@ export function ExampleGallery() {
             ✕
           </button>
         </header>
-        <div className="modal-body">
+        <nav className="gallery-tabs" aria-label="Categories">
+          <button className={group === 'all' ? 'active' : ''} aria-pressed={group === 'all'} onClick={() => setGalleryGroup('all')}>
+            All <small>{found.length}</small>
+          </button>
+          {EXAMPLE_GROUPS.map((g) => {
+            const n = found.filter((x) => x.group === g).length
+            return (
+              <button key={g} className={group === g ? 'active' : ''} aria-pressed={group === g} disabled={n === 0} onClick={() => setGalleryGroup(g)}>
+                {g} <small>{n}</small>
+              </button>
+            )
+          })}
+        </nav>
+        <div className="modal-body" key={group}>
           {found.length === 0 && <p className="challenge-intro">No example matches “{query}”.</p>}
-          {EXAMPLE_GROUPS.map((group) => {
-            const cards = found.filter((x) => x.group === group)
+          {shown.map((g) => {
+            const cards = found.filter((x) => x.group === g)
             if (!cards.length) return null
             return (
-              <section key={group} className="gallery-group">
-                <h3>{group}</h3>
+              <section key={g} className="gallery-group">
+                {group === 'all' && <h3>{g}</h3>}
                 <ul className="gallery-grid">
                   {cards.map((x) => (
                     <li key={x.id} className="gallery-card">

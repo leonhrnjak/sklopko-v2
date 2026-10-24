@@ -51,6 +51,11 @@ test('the overflow menu holds the secondary actions, and the example gallery fit
   // The keyboard stays closed until the search box is tapped, and the cards are rows, not full-screen pictures.
   await expect(dialog.getByLabel('Search examples')).not.toBeFocused()
   expect((await dialog.locator('.gallery-card').first().boundingBox())!.height).toBeLessThan(150)
+  // The categories are one row to swipe, and choosing one swaps the list.
+  expect((await dialog.getByRole('navigation', { name: 'Categories' }).boundingBox())!.height).toBeLessThan(70)
+  await dialog.getByRole('button', { name: /^Logic basics/ }).tap()
+  await expect(dialog.getByTestId('example-mux')).toBeVisible()
+  await dialog.getByRole('button', { name: /^Start here/ }).tap()
   await dialog.getByTestId('example-gates').tap()
   await expect(dialog).toHaveCount(0)
   await expect(page.locator('.comp')).toHaveCount(10)
