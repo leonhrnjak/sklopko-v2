@@ -126,9 +126,11 @@ function cycles(nodes: string[], next: Map<string, string[]>): string[][] {
 }
 
 /** Work out the slowest paths of a circuit. */
-export function analyzeTiming(c: Circuit): Timing {
+export function analyzeTiming(circuit: Circuit): Timing {
+  const m = busModel(circuit)
+  // The circuit with its custom ICs expanded, so a path can run through one (its parts are named `inst/part`).
+  const c = m.circuit
   const comps = Object.values(c.comps)
-  const m = busModel(c)
   const labels = resolveLabels(m.sim)
   const roles = new Map<string, Role>(comps.map((k) => [k.id, roleOf(k)]))
   const role = (id: string) => roles.get(id) ?? 'ignored'

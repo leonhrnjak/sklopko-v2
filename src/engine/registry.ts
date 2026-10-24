@@ -4,6 +4,7 @@ import { buses } from './components/buses'
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
 import { devices } from './components/devices'
 import { gates } from './components/gates'
+import { ic } from './components/ic'
 import { tristate } from './components/tristate'
 import { breakpoint, display, io, probe } from './components/io'
 import { nbit } from './components/nbit'
@@ -38,6 +39,7 @@ export const DEFS: ComponentDef[] = withBusModes([
   ...nbit,
   ...coding,
   ...display,
+  ...ic,
   ...devices,
   ...annotation,
 ])

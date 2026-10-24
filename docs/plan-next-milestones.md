@@ -21,7 +21,7 @@
 > - [x] 13a Toolbar menus, collapsible help, e2e split, v0.0.1-65
 > - [x] 13b Example gallery, v0.0.1-66
 > - [x] 14a Engine groundwork, v0.0.1-67
-> - [ ] 14b ICs in the model and the simulation
+> - [x] 14b ICs in the model and the simulation, v0.0.1-68
 > - [ ] 14c Make and place ICs
 > - [ ] 14d Edit an IC
 > - [ ] 14e Collapse a selection into an IC; examples
@@ -336,6 +336,34 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
 **14b. ICs in the model and the simulation (medium)** — no UI.
 - `ICDef` (`name`, `circuit`, derived pins), `expandICs`, serialize v2 and `migrate`, the recursion check, and
   `CircuitBuilder.ic()`.
+
+*What it did, and where it differs from the plan.*
+- **An instance is an ordinary part** (`ic`, `engine/components/ic.ts`, category `ic`, so the palette's list leaves it out). Its params
+  hold the definition's id and name and its pins as text (`ins` = `A:1,B:4`, `outs` = `S:1`), so its layout comes from its params like
+  any other part's: the router, canvas and `viewLayoutOf` need no knowledge of ICs. A bus pin is a group over scalar pins `NAME[0]` …
+  (always on, like a part with no `bus` param). `Circuit.ics` is optional (`undefined` when there are none, so every circuit literal
+  and round-trip test stays as it was).
+- **Interface** (`model/ic.ts`, `deriveInterface`): switches and `busin` are inputs, LEDs and `busdisp` outputs, each from top to bottom
+  as placed; the label is the pin name (letters, digits, underscore; `_2` for a clash; `in1`, `out1` when unlabelled). `icParams(def)`
+  gives an instance's params.
+- **Expansion joins instance and inside with net labels, not by re-sourcing wires** as the plan said. The wire into an input goes to a
+  Send label and a Receive label of the same name stands where the switch was; an LED inside becomes a Send label and the wires out of
+  the output come from a Receive label. Labels add no delay and the label machinery (`resolveLabels`, bus labels, `busModel.bits`) already
+  follows them to the real driver, so wires of the top-level circuit keep their ids *and* their `bits`, nothing about unconnected
+  inputs needs a special case (a Receive label nobody publishes reads X), and no part of `flatten` knows about ICs. Names are
+  `inst/in:PIN`, `inst/out:PIN` for the connectors and `inst/l:NAME` for labels inside, so they can't meet.
+- `expandICs(circuit)` returns the plain circuit (the same object when there is no instance) and `connectors` (`inst:PIN` → label part).
+  `busModel(c).circuit` is the expanded circuit, and `busModel` runs on it; the analysis code that walks parts and wires
+  (`analyzeTiming`, `dependsOnState`, `ruleProblems`) uses it, so a path, a state dependency or a gate count goes through an IC.
+  Parts and wires inside have ids `inst/inner`; displays, notes, probes, breakpoints and speakers inside are dropped.
+- **Saving**: version 2 (`FORMAT_VERSION`) adds `ics` (only when there are some); `migrate()` is a table of steps (1 → 2 adds an empty
+  list). A file whose IC contains itself is refused with an error; an instance whose IC is not in the file goes, with its wires, and
+  every other instance takes the pins its definition has now. `findCycle` and `wouldLoop` (for refusing a placement in 14c) are in
+  `model/ic.ts`, with `icProblems` (no inputs, no outputs) for 14c's validation.
+- `CircuitBuilder.defineIC(name, circuit, id?)` and `.ic(id, x, y)`.
+- Not done here: tracing a signal into an IC (`traceNet`, `traceCone` stop at an instance), and the timing list shows inner parts by id.
+- Tests: `model/ic.test.ts` (interface, equivalence of an IC half adder and of a full adder of ICs against the built-in part, three levels,
+  bus pins, X on undriven pins, scoped labels, per-instance state, step back, rules and state through an IC, timing, saving, loops).
 
 **14c. Make and place ICs (medium)**
 - *Make IC* from the whole circuit, or from a selection that holds labelled inputs and outputs. It asks for a name and adds

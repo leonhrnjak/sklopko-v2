@@ -51,6 +51,18 @@ export interface Wire {
 export interface Circuit {
   comps: Record<string, Comp>
   wires: Record<string, Wire>
+  /**
+   * The custom ICs the circuit can place, by id (see `model/ic.ts`). Only the top-level circuit of a document has them; the
+   * circuit inside an IC refers to the ICs of the document by id.
+   */
+  ics?: Record<string, ICDef>
+}
+
+/** A custom IC: a circuit with a name. Its pins are the labelled switches and LEDs (and bus inputs and displays) inside. */
+export interface ICDef {
+  id: string
+  name: string
+  circuit: Circuit
 }
 
 /** The parts of a circuit as the simulator wants them. */

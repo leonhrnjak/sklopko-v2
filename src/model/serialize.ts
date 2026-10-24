@@ -5,7 +5,8 @@ import { MAX_DELAY } from '../engine/simulator'
 import { legacyDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
 import { validPath } from '../routing/path'
 import { wireEndpoints } from '../routing/router'
-import { emptyCircuit, type Circuit, type Point, type Rot } from './circuit'
+import { emptyCircuit, type Circuit, type ICDef, type Point, type Rot } from './circuit'
+import { IC, findCycle, icParams } from './ic'
 import { pruneWires, reroute } from './ops'
 
 interface SavedComp {
@@ -26,17 +27,44 @@ interface SavedWire {
   path?: [number, number][]
   manual?: boolean
 }
-export interface SavedCircuit {
-  app: 'sklopko'
-  version: 1
+interface SavedBody {
   comps: SavedComp[]
   wires: SavedWire[]
 }
+interface SavedIC extends SavedBody {
+  id: string
+  name: string
+}
+export interface SavedCircuit extends SavedBody {
+  app: 'sklopko'
+  /** 1: before custom ICs. 2: adds `ics`. */
+  version: number
+  /** The custom ICs of the document (version 2). */
+  ics?: SavedIC[]
+}
 
-export function serialize(c: Circuit): SavedCircuit {
+/** The version `serialize` writes. */
+export const FORMAT_VERSION = 2
+
+const MIGRATIONS: Record<number, (d: Record<string, unknown>) => Record<string, unknown>> = {
+  // 1 → 2: custom ICs came in; an older file has none.
+  1: (d) => ({ ...d, version: 2, ics: Array.isArray(d.ics) ? d.ics : [] }),
+}
+
+/** Bring saved data from an older version up to the current one, one step at a time. Anything else is returned as it is. */
+export function migrate(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data
+  let d = data as Record<string, unknown>
+  let v = typeof d.version === 'number' ? d.version : 1
+  while (v < FORMAT_VERSION && MIGRATIONS[v]) {
+    d = MIGRATIONS[v](d)
+    v = d.version as number
+  }
+  return d
+}
+
+function serializeBody(c: Circuit): SavedBody {
   return {
-    app: 'sklopko',
-    version: 1,
     comps: Object.values(c.comps).map((k) => ({
       id: k.id,
       type: k.type,
@@ -58,6 +86,16 @@ export function serialize(c: Circuit): SavedCircuit {
   }
 }
 
+export function serialize(c: Circuit): SavedCircuit {
+  const ics = Object.values(c.ics ?? {})
+  return {
+    app: 'sklopko',
+    version: FORMAT_VERSION,
+    ...serializeBody(c),
+    ...(ics.length ? { ics: ics.map((def) => ({ id: def.id, name: def.name, ...serializeBody(def.circuit) })) } : {}),
+  }
+}
+
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
 /** Does a saved value fit the parameter (type, allowed option, range, text pattern and length)? */
@@ -70,14 +108,10 @@ function validParam(p: ParamDef, v: unknown): v is ParamValue {
   return true
 }
 
-/** Parse and validate saved data. Unknown parts and broken wires are dropped; missing routes are recomputed. */
-export function deserialize(data: unknown): Circuit {
-  const d = data as Partial<SavedCircuit>
-  if (!d || d.app !== 'sklopko' || !Array.isArray(d.comps) || !Array.isArray(d.wires)) {
-    throw new Error('Not a Sklopko circuit file')
-  }
+/** The parts and wires of saved data, checked one by one. Nothing is pruned or routed yet: see `finish`. */
+function readBody(d: Partial<SavedBody>): Circuit {
   const c = emptyCircuit()
-  for (const s of d.comps) {
+  for (const s of d.comps ?? []) {
     if (!s || typeof s.id !== 'string' || !hasDef(s.type) || !isNum(s.x) || !isNum(s.y)) continue
     const def = getDef(s.type)
     // A param the file lacks means what it meant before the param existed (`legacy`), not what a part placed now gets.
@@ -101,8 +135,7 @@ export function deserialize(data: unknown): Circuit {
     }
   }
   const taken = new Set<string>()
-  const todo: string[] = []
-  for (const s of d.wires) {
+  for (const s of d.wires ?? []) {
     if (!s || typeof s.id !== 'string' || typeof s.from !== 'string' || typeof s.to !== 'string') continue
     const [fc, fp] = s.from.split('.')
     const [tc, tp] = s.to.split('.')
@@ -113,7 +146,23 @@ export function deserialize(data: unknown): Circuit {
       : []
     c.wires[s.id] = { id: s.id, from: { comp: fc, pin: fp }, to: { comp: tc, pin: tp }, path, ...(s.manual ? { manual: true } : {}) }
   }
+  return c
+}
+
+/**
+ * Make a circuit read from a file consistent: an IC instance takes the pins its definition has now (or goes, with its wires,
+ * when the definition is not in the file), wires to pins that are not there are dropped, and missing or broken routes are
+ * worked out again.
+ */
+function finish(c: Circuit, ics: Record<string, ICDef>) {
+  for (const k of Object.values(c.comps)) {
+    if (k.type !== IC) continue
+    const def = ics[String(k.params.ic)]
+    if (def) k.params = icParams(def)
+    else delete c.comps[k.id]
+  }
   pruneWires(c)
+  const todo: string[] = []
   for (const w of Object.values(c.wires)) {
     const e = wireEndpoints(c, w)
     if (!e || !validPath(w.path, e.from, e.fromDir, e.to, e.toDir)) {
@@ -123,6 +172,27 @@ export function deserialize(data: unknown): Circuit {
     }
   }
   reroute(c, todo)
+}
+
+/**
+ * Parse and validate saved data. Unknown parts and broken wires are dropped; missing routes are recomputed. Files of an older
+ * version are brought up to date first (`migrate`). Throws when the data is not a circuit, or when a custom IC in it contains
+ * itself.
+ */
+export function deserialize(data: unknown): Circuit {
+  const d = migrate(data) as Partial<SavedCircuit>
+  if (!d || d.app !== 'sklopko' || !Array.isArray(d.comps) || !Array.isArray(d.wires)) {
+    throw new Error('Not a Sklopko circuit file')
+  }
+  const c = readBody(d)
+  const ics: Record<string, ICDef> = {}
+  for (const s of Array.isArray(d.ics) ? d.ics : []) {
+    if (!s || typeof s.id !== 'string' || !s.id || ics[s.id] || !Array.isArray(s.comps) || !Array.isArray(s.wires)) continue
+    ics[s.id] = { id: s.id, name: typeof s.name === 'string' && s.name ? s.name.slice(0, 40) : 'IC', circuit: readBody(s) }
+  }
+  if (findCycle(ics)) throw new Error('A custom IC in this file contains itself.')
+  if (Object.keys(ics).length) c.ics = ics
+  for (const circuit of [c, ...Object.values(ics).map((def) => def.circuit)]) finish(circuit, ics)
   return c
 }
 
