@@ -1,6 +1,6 @@
 import { SKASM, SKASM_OPS, assemble, toHexBytes, toHexWords } from '../engine/isa'
-import { SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
-import { parseSignals, splitPlan } from '../engine/signals'
+import { SKASM_CONTROL_1, SKASM_CONTROL_2, SKASM_CONTROL_3, SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
+import { assembleSignals, parseRows, parseSignals, splitPlan } from '../engine/signals'
 import { CircuitBuilder } from './builder'
 import { RAYCASTER_SOURCE } from './raycaster'
 import { boundsRect, type Circuit } from './circuit'
@@ -38,99 +38,30 @@ export const SIXTEENS_HUNDREDS = sixteens.map((v) => Math.floor(v / 100).toStrin
  * Three ROMs turn an instruction into control signals. All are addressed by 8 bits: the opcode (bits 4–7 of the word)
  * and the sub-opcode (the instruction's bits 0–3 for opcode 14, bits 12–15 for opcode 15, otherwise 0).
  *
- * Control ROM 1, bit by bit:
- *   0 load the accumulator            1–3 where it comes from: 0 the constant, 1 the ALU (adder or logic), 2 RAM, 3 shifted
- *   4 write RAM                       left, 4 shifted right, 5 a port
- *   5 load the flags                  6 jump          7 jump if no carry       8 jump if zero         9 halt
- *   10 subtract                       11 the second operand is the constant instead of RAM
- *   12 the ALU result is logic, not the adder's      13–14 which logic: 0 AND, 1 OR, 2 XOR
- *   15 the adder takes the carry flag in (ADC, SBC)
- * Control ROM 2: 0 jump if not zero, 1 jump if carry, 2 write to a port, 3 the RAM address is X (not the instruction's address
- *   field), 4 load X from the accumulator, 5 load X from the constant, 6 add 1 to X, 7 subtract 1 from X.
- * Control ROM 3: 0 CALL (push the return address and jump), 1 RET (pop it and jump).
+ * What the bits are called, and which ones each instruction switches on, is written in words in `engine/signal-presets.ts`
+ * (`SKASM_SIGNALS_1` and `SKASM_CONTROL_1`, and the same for ROMs 2 and 3); the words are assembled from that text here. The
+ * ROMs, in short: ROM 1 loads the accumulator (from where: the constant, the ALU, RAM, a shift, a port, X or the table), writes
+ * RAM, sets the flags, jumps (also on carry or zero), halts, subtracts and picks the logic operation; ROM 2 has the
+ * jumps on the other flag states, the port write and the index register X; ROM 3 has CALL and RET.
  */
-const LOAD = 1
-const SRC = { CONST: 0, ALU: 1, RAM: 2, SHL: 3, SHR: 4, PORT: 5, X: 6, TABLE: 7 }
-const src = (s: number) => s << 1
-const RAM_WRITE = 1 << 4
-const FLAGS = 1 << 5
-const JUMP = 1 << 6
-const JNC = 1 << 7
-const JZ = 1 << 8
-const HALT = 1 << 9
-const SUBTRACT = 1 << 10
-const CONST_B = 1 << 11
-const LOGIC = 1 << 12
-const logic = (op: 0 | 1 | 2) => LOGIC | (op << 13)
-const CARRY_IN = 1 << 15
-const JNZ2 = 1
-const JC2 = 2
-const PORT_WRITE = 4
-const INDIRECT = 8
-const X_FROM_ACC = 16
-const X_FROM_CONST = 32
-const X_UP = 64
-const X_DOWN = 128
-const CALL3 = 1
-const RET3 = 2
+const ROM_BITS = [16, 8, 8]
 
-const ARITH = LOAD | src(SRC.ALU) | FLAGS
-
-/** The control bits of every instruction: [control ROM 1, control ROM 2, control ROM 3 (0 if left out)]. */
-const CONTROL: Record<string, [number, number] | [number, number, number]> = {
-  LDI: [LOAD | src(SRC.CONST), 0],
-  LDA: [LOAD | src(SRC.RAM), 0],
-  STA: [RAM_WRITE, 0],
-  JMP: [JUMP, 0],
-  ADD: [ARITH, 0],
-  SUB: [ARITH | SUBTRACT, 0],
-  JNC: [JNC, 0],
-  HALT: [HALT, 0],
-  JZ: [JZ, 0],
-  ADDI: [ARITH | CONST_B, 0],
-  CMPI: [FLAGS | SUBTRACT | CONST_B, 0],
-  SHL: [LOAD | src(SRC.SHL), 0],
-  SHR: [LOAD | src(SRC.SHR), 0],
-  SUBI: [ARITH | SUBTRACT | CONST_B, 0],
-  ANDI: [ARITH | CONST_B | logic(0), 0],
-  ORI: [ARITH | CONST_B | logic(1), 0],
-  XORI: [ARITH | CONST_B | logic(2), 0],
-  OUT: [0, PORT_WRITE],
-  IN: [LOAD | src(SRC.PORT), 0],
-  JNZ: [0, JNZ2],
-  JC: [0, JC2],
-  CMP: [FLAGS | SUBTRACT, 0],
-  AND: [ARITH | logic(0), 0],
-  OR: [ARITH | logic(1), 0],
-  XOR: [ARITH | logic(2), 0],
-  ADC: [ARITH | CARRY_IN, 0],
-  SBC: [ARITH | SUBTRACT | CARRY_IN, 0],
-  NOP: [0, 0],
-  LDXI: [0, X_FROM_CONST],
-  TAX: [0, X_FROM_ACC],
-  TXA: [LOAD | src(SRC.X), 0],
-  INX: [FLAGS, X_UP],
-  DEX: [FLAGS, X_DOWN],
-  LDX: [LOAD | src(SRC.RAM), INDIRECT],
-  STX: [RAM_WRITE, INDIRECT],
-  LDT: [LOAD | src(SRC.TABLE), 0],
-  CALL: [0, 0, CALL3],
-  RET: [0, 0, RET3],
+/** The words of one control ROM, assembled from its text (an instruction the text does not list is 0). */
+function assembleControl(signals: string, control: string, bits: number): number[] {
+  const { layout, errors: layoutErrors } = parseSignals(signals)
+  const { rows } = parseRows(SKASM_ROWS)
+  const r = assembleSignals(layout, rows, control, ROM_WORDS, bits)
+  const errors = [...layoutErrors, ...r.errors]
+  if (errors.length) throw new Error(`A control ROM does not assemble: ${errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
+  return r.words
 }
 
 /** The three control ROMs as arrays of words, indexed by opcode + 16 × sub-opcode. */
 export function controlWords(): { rom1: number[]; rom2: number[]; rom3: number[] } {
-  const rom1 = new Array<number>(256).fill(0)
-  const rom2 = new Array<number>(256).fill(0)
-  const rom3 = new Array<number>(256).fill(0)
-  for (const [name, op] of Object.entries(SKASM_OPS)) {
-    const bits = CONTROL[name]
-    if (!bits) throw new Error(`The control ROM has no row for ${name}`)
-    const at = op.code | ((op.sub ?? 0) << 4)
-    rom1[at] = bits[0]
-    rom2[at] = bits[1]
-    rom3[at] = bits[2] ?? 0
-  }
+  const texts = [SKASM_CONTROL_1, SKASM_CONTROL_2, SKASM_CONTROL_3]
+  for (const name of Object.keys(SKASM_OPS))
+    if (!texts.some((t) => new RegExp(`^${name}:`, 'm').test(t))) throw new Error(`The control ROMs have no row for ${name}`)
+  const [rom1, rom2, rom3] = [SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3].map((signals, i) => assembleControl(signals, texts[i], ROM_BITS[i]))
   return { rom1, rom2, rom3 }
 }
 

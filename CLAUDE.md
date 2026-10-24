@@ -67,7 +67,7 @@ box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (lo
 editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
 **In progress: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
-listing (C1, done), editing a row by signal (C2), a text form (C3) and polish (C4). It is developed on one branch, a commit per milestone.
+listing (C1), editing a row by signal (C2), a text form (C3) and polish (C4); one PR per milestone, stacked (`c1-decoded-listing`, `c2-edit-row`, `c3-text-form`…), tick the boxes in the plan when each merges.
 
 Finished plans, for background: `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`

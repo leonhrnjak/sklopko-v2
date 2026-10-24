@@ -74,6 +74,71 @@ export const BEGINNER_ROWS = `0 LDI
 7 HALT
 `
 
+// ---- What each instruction switches on ------------------------------------------------------------
+// The control ROMs' words, written in the text form of `assembleSignals` (rows not listed are 0). The computer builders assemble
+// these, so what an instruction does is written once, in words.
+
+/** Control ROM 1 of the SKASM computers. */
+export const SKASM_CONTROL_1 = `LDI:  LOAD_ACC SRC=CONST
+LDA:  LOAD_ACC SRC=RAM
+STA:  WRITE_RAM
+JMP:  JUMP
+ADD:  LOAD_ACC SRC=ALU SAVE_FLAGS
+SUB:  LOAD_ACC SRC=ALU SAVE_FLAGS SUBTRACT
+JNC:  JNC
+HALT: HALT
+JZ:   JZ
+ADDI: LOAD_ACC SRC=ALU SAVE_FLAGS B_IS_NUM
+CMPI: SAVE_FLAGS SUBTRACT B_IS_NUM
+SHL:  LOAD_ACC SRC=SHL
+SHR:  LOAD_ACC SRC=SHR
+SUBI: LOAD_ACC SRC=ALU SAVE_FLAGS SUBTRACT B_IS_NUM
+ANDI: LOAD_ACC SRC=ALU SAVE_FLAGS B_IS_NUM LOGIC LOGIC_OP=AND
+ORI:  LOAD_ACC SRC=ALU SAVE_FLAGS B_IS_NUM LOGIC LOGIC_OP=OR
+XORI: LOAD_ACC SRC=ALU SAVE_FLAGS B_IS_NUM LOGIC LOGIC_OP=XOR
+IN:   LOAD_ACC SRC=PORT
+CMP:  SAVE_FLAGS SUBTRACT
+AND:  LOAD_ACC SRC=ALU SAVE_FLAGS LOGIC LOGIC_OP=AND
+OR:   LOAD_ACC SRC=ALU SAVE_FLAGS LOGIC LOGIC_OP=OR
+XOR:  LOAD_ACC SRC=ALU SAVE_FLAGS LOGIC LOGIC_OP=XOR
+ADC:  LOAD_ACC SRC=ALU SAVE_FLAGS CARRY_IN
+SBC:  LOAD_ACC SRC=ALU SAVE_FLAGS SUBTRACT CARRY_IN
+NOP:                       ; switches nothing on
+TXA:  LOAD_ACC SRC=X
+INX:  SAVE_FLAGS
+DEX:  SAVE_FLAGS
+LDX:  LOAD_ACC SRC=RAM
+STX:  WRITE_RAM
+LDT:  LOAD_ACC SRC=TABLE
+`
+
+/** Control ROM 2. */
+export const SKASM_CONTROL_2 = `OUT:  PORT_WRITE
+JNZ:  JNZ
+JC:   JC
+LDXI: X_FROM_CONST
+TAX:  X_FROM_ACC
+INX:  X_UP
+DEX:  X_DOWN
+LDX:  INDIRECT
+STX:  INDIRECT
+`
+
+/** Control ROM 3. */
+export const SKASM_CONTROL_3 = `CALL: CALL
+RET:  RET
+`
+
+/** The Beginner computer's control ROM. */
+export const BEGINNER_CONTROL_TEXT = `LDI:  LOAD_ACC ACC_SRC=NUM
+LDA:  LOAD_ACC ACC_SRC=RAM
+STA:  WRITE_RAM
+JMP:  JUMP
+ADD:  LOAD_ACC ACC_SRC=ADDER SAVE_CARRY
+SUB:  LOAD_ACC ACC_SRC=ADDER SUBTRACT SAVE_CARRY
+HALT: HALT
+`
+
 export const SIGNAL_PRESETS: SignalPreset[] = [
   { id: 'skasm-1', name: 'SKASM computer, Control', abits: 8, dbits: 16, signals: SKASM_SIGNALS_1, rows: SKASM_ROWS },
   { id: 'skasm-2', name: 'SKASM computer, Control 2', abits: 8, dbits: 8, signals: SKASM_SIGNALS_2, rows: SKASM_ROWS },

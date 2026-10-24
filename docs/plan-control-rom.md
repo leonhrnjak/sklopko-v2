@@ -9,7 +9,7 @@
 >
 > - [x] C1 A decoded listing: named signals and named rows, on the four computer ROMs, v0.0.1-79
 > - [x] C2 Edit a row by signal: toggles and lists instead of hex, v0.0.1-80
-> - [ ] C3 The text form: `LDI: LOAD SRC=CONST`, and the computers' control ROMs generated from it
+> - [x] C3 The text form: `LDI: LOAD_ACC SRC=CONST`, and the computers' control ROMs generated from it, v0.0.1-81
 > - [ ] C4 Polish: the reference page, the example notes, e2e, README
 
 ## Why
@@ -119,4 +119,18 @@ addressed by opcode + 16 × sub-opcode) and the Beginner computer's `Control ROM
   area). The open row does not follow the clock; the "current row" mark on the listing already shows what is being read. The editor
   is off while the signal list has errors (the hex text still works).
 - Tests: one e2e (SUB's SUBTRACT unticked and its source list changed, hex words follow, Clear row, Done, Escape and keyboard).
+
+### C3 (v0.0.1-81)
+- `assembleSignals` and `signalsToText` in `engine/signals.ts`. A row is `NAME: SIGNAL FIELD=VALUE …` (or `0x1E:` by address); names and
+  values are not case sensitive; a field may take a number; `bitN` sets a bit no signal names; every error has its line. Writing a
+  ROM's words as text and assembling that gives the same words (tested over every word value and over the real ROMs).
+- The ROM inspector's *Contents are* offers **Control signals (text)** for a ROM whose names parse (and is the first view of one): a
+  text box checked as you type, applied on blur or Ctrl+Enter as one undo step, with *Open…* and *Save…* of a `.txt`. **Differs from
+  the plan:** no `source` is stored. The text is written from the words each time, so comments are not kept and the text can never be
+  stale; the choice between text and hex is only a view (not saved with the part).
+- The computers' control tables are now this text (`SKASM_CONTROL_1/2/3`, `BEGINNER_CONTROL_TEXT` in `signal-presets.ts`); the numeric
+  constants (`LOAD | src(SRC.CONST)`…) and `CONTROL` table are gone from `computer2.ts`, and the Beginner ROM's byte list from
+  `beginner.ts`. A golden test pins the words to what the numeric table produced, and `controlWords` refuses an instruction that no
+  text lists (`NOP:` is listed, with nothing on).
+- Tests: parser/assembler/round trip in `signals.test.ts`, the golden words and the round trip of the three SKASM ROMs, an e2e for the text view.
 

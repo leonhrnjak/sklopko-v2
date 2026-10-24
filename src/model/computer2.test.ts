@@ -4,7 +4,7 @@ import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
 import { SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
-import { describeWord, parseRows, parseSignals, splitPlan } from '../engine/signals'
+import { assembleSignals, describeWord, parseRows, parseSignals, signalsToText, splitPlan } from '../engine/signals'
 import { bars, picture, RAYCASTER_SOURCE } from './raycaster'
 import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, ANT_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
@@ -1036,6 +1036,24 @@ describe('control ROMs: the names of their bits and rows', () => {
     for (const [key, text, bits] of [['control bits', SKASM_SIGNALS_1, 16], ['control 2 bits', SKASM_SIGNALS_2, 8], ['control 3 bits', SKASM_SIGNALS_3, 8]] as const) {
       const s = Object.values(c.comps).find((k) => k.label === key)!
       expect(String(s.params.split).split(',').map(Number), key).toEqual(splitPlan(parseSignals(text).layout, bits).widths)
+    }
+  })
+
+  it('the words are the ones the control ROMs held before they were written in the text form', () => {
+    // The non-zero rows of each ROM as address:word (the golden values were taken from the numeric table that this text replaced).
+    const nonZero = (words: number[], digits: number) => words.map((w, i) => (w ? `${i.toString(16).toUpperCase().padStart(2, '0')}:${w.toString(16).toUpperCase().padStart(digits, '0')}` : '')).filter(Boolean).join(' ')
+    expect(nonZero(rom1, 4)).toBe('00:0001 01:0005 02:0010 03:0040 04:0023 05:0423 06:0080 07:0200 08:0100 09:0823 0A:0C20 0B:0007 0C:0009 0D:0C23 0E:1823 1E:3823 1F:000B 2E:5823 4F:0420 5E:000D 5F:1023 6E:0020 6F:3023 7E:0020 7F:5023 8E:0005 8F:8023 9E:0010 9F:8423 AE:000F')
+    expect(nonZero(rom2, 2)).toBe('0F:04 2F:01 3E:20 3F:02 4E:10 6E:40 7E:80 8E:08 9E:08')
+    expect(nonZero(rom3, 2)).toBe('BF:01 CF:02')
+  })
+
+  it('writing the text form of a control ROM and assembling it again gives the same words', () => {
+    for (const [signals, words, bits] of [[SKASM_SIGNALS_1, rom1, 16], [SKASM_SIGNALS_2, rom2, 8], [SKASM_SIGNALS_3, rom3, 8]] as const) {
+      const layout = parseSignals(signals).layout
+      const text = signalsToText(layout, rows.rows, words)
+      const back = assembleSignals(layout, rows.rows, text, 256, bits)
+      expect(back.errors).toEqual([])
+      expect(back.words).toEqual(words)
     }
   })
 })

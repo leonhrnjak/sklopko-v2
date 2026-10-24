@@ -43,6 +43,7 @@ test('control ROM: a row is edited by its signals, and the hex words follow', as
   await page.getByRole('button', { name: 'Pause' }).click()
   await pickByLabel(page, 'Control ROM')
   const listing = page.getByLabel('Listing')
+  await page.getByLabel('Contents are').selectOption('none') // the hex words, to see what the editor writes
   const hex = page.getByLabel('Contents (hex words)')
   await expect(hex).toHaveValue(/^01 05 08 20 83 93 00 40/)
 
@@ -71,6 +72,30 @@ test('control ROM: a row is edited by its signals, and the hex words follow', as
   await page.keyboard.press('Escape')
   await expect(page.getByRole('group', { name: /^Signals of row/ })).toHaveCount(0)
   await expect(page.locator('.inspector h2')).toHaveText('ROM')
+})
+
+test('control ROM: written as text, one row per line, with errors shown and nothing applied until the text is right', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await pickByLabel(page, 'Control ROM')
+  await expect(page.getByLabel('Contents are')).toHaveValue('signals')
+  const text = page.getByLabel('Control signals', { exact: true })
+  await expect(text).toHaveValue(/ADD: {2}LOAD_ACC ACC_SRC=ADDER SAVE_CARRY/)
+  await expect(text).toHaveValue(/^LDI: {2}LOAD_ACC ACC_SRC=NUM\nLDA:/)
+
+  // A mistake is reported with its line, and the ROM keeps its words.
+  await text.fill('LDI: LOAD_ACC ACC_SRC=NUM\nADD: LOAD_ACC ACC_SRC=NOWHERE')
+  await expect(page.getByLabel('Errors')).toContainText('Line 2')
+  await expect(page.getByLabel('Errors')).toContainText('not a value of ACC_SRC')
+  await page.getByLabel('Label').click()
+
+  // Fixed, it applies when you click away: rows that are not listed become 0.
+  await text.fill('LDI: LOAD_ACC ACC_SRC=NUM\nADD: LOAD_ACC ACC_SRC=RAM SAVE_CARRY')
+  await page.getByLabel('Label').click()
+  await expect(page.getByRole('row', { name: 'Row ADD' })).toContainText('LOAD_ACC, ACC_SRC=RAM, SAVE_CARRY')
+  await expect(page.getByRole('row', { name: 'Row SUB' })).toContainText('nothing')
+  await page.getByLabel('Contents are').selectOption('none')
+  await expect(page.getByLabel('Contents (hex words)')).toHaveValue(/^01 00 00 00 85 00 00 00/)
 })
 
 test('a ROM without names can be given the names of a built-in control ROM', async ({ page }) => {
