@@ -145,7 +145,7 @@ in one step.
 - Tests: parser/assembler/round trip in `signals.test.ts`, the golden words and the round trip of the three SKASM ROMs, an e2e for the text view.
 
 ### C4 (v0.0.1-82)
-- `pinLabels` in `engine/pinlabels.ts` (a small reader of the signal list, kept apart from `signals.ts` so the startup bundle stays under its 500 kB budget; a test checks that it accepts exactly what `parseSignals` accepts) and the ROM's `layout` (labels only when the signal list has no errors; width from the longest name).
+- `pinLabels` in `engine/pinlabels.ts` (a small reader of the signal list, kept apart from `signals.ts` so the startup bundle stays under its gzip budget; a test checks that it accepts exactly what `parseSignals` accepts) and the ROM's `layout` (labels only when the signal list has no errors; width from the longest name).
   `SIGNAL_PRESETS` now carry the control text, and `presetParams` assembles a preset into the ROM's size, names and words (tested against
   the words the computers are built with). The inspector's list replaces *Start from* and works for a ROM of any size.
 - The Beginner example's columns after the ROM moved right by 100 px: its output pins are wider now, and the net labels next to them
