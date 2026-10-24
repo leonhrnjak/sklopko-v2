@@ -73,6 +73,10 @@ editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 **In progress: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
 listing (C1), editing a row by signal (C2), a text form (C3) and polish (C4); one PR per milestone, stacked (`c1-decoded-listing`, `c2-edit-row`, `c3-text-form`…), tick the boxes in the plan when each merges.
 
+**In progress: a real CPU part, the MOS 6502** (`docs/plan-cpu6502.md`): a cycle-exact core (R1), bigger RAM and ROM (R2), the part and a first
+board (R3), 6502 assembly (R4), devices and examples (R5) and the 65C02 (R6); one PR per milestone, stacked (`r1-6502-core`,
+`r2-big-memory`, `r3-6502-part`…), tick the boxes in the plan when each merges. SKASM stays on our own computers.
+
 Finished plans, for background: `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
