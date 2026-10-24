@@ -14,6 +14,7 @@ import {
   ungroupProbes,
   useStore,
 } from '../app/store'
+import { parsePins, type IcPin } from '../engine/components/ic'
 import { getDef } from '../engine/registry'
 import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { hasDelay, MAX_DELAY } from '../model/delays'
@@ -21,6 +22,7 @@ import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
+import { expandInstance } from '../app/ics'
 import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
@@ -153,6 +155,27 @@ function DelayTools({ ids, scope }: { ids: string[]; scope: string }) {
   )
 }
 
+/** An instance of a custom IC: its pins, and unpacking it into the parts it is made of. */
+function IcSection({ comp }: { comp: Comp }) {
+  const ins = parsePins(comp.params.ins)
+  const outs = parsePins(comp.params.outs)
+  const show = (pins: IcPin[]) => (pins.length ? pins.map((p) => (p.bits > 1 ? `${p.name} (${p.bits} bits)` : p.name)).join(', ') : 'none')
+  return (
+    <>
+      <p className="desc">
+        Inputs: {show(ins)}
+        <br />
+        Outputs: {show(outs)}
+      </p>
+      <div className="row">
+        <button onClick={() => expandInstance(comp.id)} title="Replace this block by the parts it is made of, wired as they were (one undo step)">
+          Expand into parts
+        </button>
+      </div>
+    </>
+  )
+}
+
 function CompInspector({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
   const circuit = useStore((s) => s.circuit)
@@ -160,8 +183,9 @@ function CompInspector({ comp }: { comp: Comp }) {
 
   return (
     <>
-      <h2>{def.name}</h2>
+      <h2>{comp.type === 'ic' ? String(comp.params.name || def.name) : def.name}</h2>
       <p className="desc">{def.description}</p>
+      {comp.type === 'ic' && <IcSection comp={comp} />}
       {!isAnnotation(comp) && (
       <label className="field">
         <span>Label</span>
@@ -176,6 +200,8 @@ function CompInspector({ comp }: { comp: Comp }) {
       </label>
       )}
       {def.params?.map((p) => {
+        // What an IC instance is (its pins and name) comes from its definition: shown above, not edited here.
+        if (comp.type === 'ic') return null
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
         if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
         // The bytes of the table are typed here only for a ROM of hex words; a program makes them with .byte (shown below).

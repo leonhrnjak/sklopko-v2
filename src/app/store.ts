@@ -4,7 +4,7 @@ import { pinWidth } from '../engine/bus'
 import { naturalOrder } from '../engine/groups'
 import { getDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
-import { paramDefaults, type ParamValue, type Params } from '../engine/types'
+import type { ParamValue, Params } from '../engine/types'
 import {
   boundsRect,
   emptyCircuit,
@@ -16,6 +16,7 @@ import {
   snap,
   type Circuit,
   type Comp,
+  type ICDef,
   type PinRef,
   type Point,
   type Rect,
@@ -25,6 +26,7 @@ import {
 import { circuitRect } from '../model/bounds'
 import { hasDelay, realisticDelay } from '../model/delays'
 import { isInside } from '../model/frames'
+import { placedICs, placementOf } from '../model/ic'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
 import { isEmbed } from './embed'
@@ -87,7 +89,7 @@ export function checkpoint() {
  * Apply a change to the circuit. `structural` triggers a simulator recompile; so does `fn` returning true
  * (for changes that only sometimes alter the netlist, like auto-connecting touching pins).
  */
-function edit(fn: (c: Circuit) => boolean | void, structural = true, operating = false) {
+export function edit(fn: (c: Circuit) => boolean | void, structural = true, operating = false) {
   // Embedded circuits can't be edited. Operating a control (flipping a switch) is not editing.
   if (isEmbed() && !operating) return
   const s = get()
@@ -157,11 +159,14 @@ export const selectAll = () => {
 
 // ---- Components --------------------------------------------------------------------------------
 
+/** `type` is a part type, or `ic:<id>` for a custom IC of this circuit (see `placementOf`). */
 export function addComp(type: string, x: number, y: number): string {
+  const placement = placementOf(get().circuit, type)
+  if (!placement) return ''
   checkpoint()
   const id = newId('c')
   edit((c) => {
-    c.comps[id] = { id, type, x: snap(x), y: snap(y), rot: 0, flip: false, params: paramDefaults(getDef(type)) }
+    c.comps[id] = { id, type: placement.type, x: snap(x), y: snap(y), rot: 0, flip: false, params: placement.params }
     // Wires the new part was dropped onto get out of its way.
     rerouteAround(c, [id])
     autoConnect(c, [id])
@@ -427,16 +432,30 @@ export function replaceCircuit(c: Circuit) {
 
 // ---- Clipboard ---------------------------------------------------------------------------------
 
-let clipboard: { comps: Comp[]; wires: Wire[] } | null = null
+let clipboard: { comps: Comp[]; wires: Wire[]; ics: Record<string, ICDef> } | null = null
 let pasteCount = 0
 
 export function copySelection() {
   const { circuit, selection } = get()
   const ids = new Set(selection.filter((id) => id in circuit.comps))
   if (!ids.size) return false
+  const comps = [...ids].map((id) => circuit.comps[id])
+  // Custom ICs the copied parts place (and those they place in turn), so they can be pasted into another circuit.
+  const ics: Record<string, ICDef> = {}
+  const need = (list: Comp[]) => {
+    for (const id of placedICs({ comps: Object.fromEntries(list.map((k) => [k.id, k])), wires: {} })) {
+      const def = circuit.ics?.[id]
+      if (def && !ics[id]) {
+        ics[id] = def
+        need(Object.values(def.circuit.comps))
+      }
+    }
+  }
+  need(comps)
   clipboard = {
-    comps: [...ids].map((id) => circuit.comps[id]),
+    comps,
     wires: Object.values(circuit.wires).filter((w) => ids.has(w.from.comp) && ids.has(w.to.comp)),
+    ics,
   }
   pasteCount = 0
   return true
@@ -450,6 +469,8 @@ export function paste() {
   checkpoint()
   const newIds: string[] = []
   edit((c) => {
+    // ICs the circuit does not have yet come with the parts; one it has under the same id stays as it is.
+    for (const [defId, def] of Object.entries(clipboard!.ics)) if (!c.ics?.[defId]) (c.ics ??= {})[defId] = structuredClone(def)
     for (const k of clipboard!.comps) {
       const id = newId('c')
       map.set(k.id, id)

@@ -30,7 +30,6 @@ import {
 import { isEmbed } from '../../app/embed'
 import { useHops } from '../../app/hooks'
 import { viewLayoutOf } from '../../engine/viewlayout'
-import { paramDefaults } from '../../engine/types'
 import {
   GRID,
   isAnnotation,
@@ -51,6 +50,7 @@ import { glitchingWires, useCapture } from '../../app/glitches'
 import { timingOf, useTiming } from '../../app/timing'
 import { useWave } from '../../app/waveform'
 import { busModel, type BitSource } from '../../model/buses'
+import { placementOf } from '../../model/ic'
 import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
 import { traceCone, traceNet } from '../../model/trace'
@@ -201,11 +201,6 @@ export function Canvas() {
     const r = ref.current!.getBoundingClientRect()
     const v = useStore.getState().view
     return { x: (clientX - r.left - v.x) / v.zoom, y: (clientY - r.top - v.y) / v.zoom }
-  }
-
-  const ghostOrigin = (type: string, at: Point): Point => {
-    const l = viewLayoutOf(type, paramDefaults(getDef(type)))
-    return { x: snap(at.x - l.w / 2), y: snap(at.y - l.h / 2) }
   }
 
   // ---- Palette drag & click-to-place ----------------------------------------------------------
@@ -713,14 +708,25 @@ export function Canvas() {
           </>
         )}
         {marquee && <rect className="marquee" x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} />}
-        {placing && ghost && <PlacementGhost type={placing} at={ghost} />}
+        {placing && ghost && <PlacementGhost placing={placing} at={ghost} />}
       </g>
     </svg>
   )
 }
 
-function PlacementGhost({ type, at }: { type: string; at: Point }) {
-  const comp: Comp = { id: '__ghost', type, x: at.x, y: at.y, rot: 0, flip: false, params: paramDefaults(getDef(type)) }
+/** Where the part about to be placed sits when its centre is at `at`. `type` is a part type or `ic:<id>`. */
+function ghostOrigin(type: string, at: Point): Point {
+  const place = placementOf(useStore.getState().circuit, type)
+  if (!place) return at
+  const l = viewLayoutOf(place.type, place.params)
+  return { x: snap(at.x - l.w / 2), y: snap(at.y - l.h / 2) }
+}
+
+function PlacementGhost({ placing, at }: { placing: string; at: Point }) {
+  const place = placementOf(useStore.getState().circuit, placing)
+  if (!place) return null
+  const { type, params } = place
+  const comp: Comp = { id: '__ghost', type, x: at.x, y: at.y, rot: 0, flip: false, params }
   const l = viewLayoutOf(type, comp.params)
   return (
     <g className="ghost-comp" transform={compTransform(comp, l)}>

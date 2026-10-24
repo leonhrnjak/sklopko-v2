@@ -6,7 +6,7 @@ import { busModel, flatten } from './buses'
 import { type Circuit } from './circuit'
 import { analyzeCircuit, dependsOnState } from './analyze'
 import { ruleProblems } from './challengecheck'
-import { IC, deriveInterface, expandICs, findCycle, icParams, icProblems, wouldLoop } from './ic'
+import { IC, deriveInterface, expandICs, findCycle, icParams, icProblems, inlineInstance, newICId, operableInside, placementOf, placingIC, subCircuit, wouldLoop } from './ic'
 import { deserialize, migrate, serialize } from './serialize'
 import { analyzeTiming } from './timing'
 
@@ -459,5 +459,103 @@ describe('sanity', () => {
     expect(busModel(plain).circuit).toBe(plain) // nothing to expand: the same circuit
     const values: V[] = [0, 1]
     expect(values).toHaveLength(2)
+  })
+})
+
+describe('making, placing and unpacking', () => {
+  it('a sub-circuit holds the parts with these ids and the wires between them, copied', () => {
+    const c = halfAdder()
+    const ids = Object.keys(c.comps).slice(0, 3)
+    const sub = subCircuit(c, ids)
+    expect(Object.keys(sub.comps)).toEqual(ids)
+    expect(Object.values(sub.wires).every((w) => ids.includes(w.from.comp) && ids.includes(w.to.comp))).toBe(true)
+    expect(sub.comps[ids[0]]).toEqual(c.comps[ids[0]])
+    expect(sub.comps[ids[0]]).not.toBe(c.comps[ids[0]])
+    expect(Object.keys(subCircuit(c).comps)).toEqual(Object.keys(c.comps))
+  })
+
+  it('names a definition by a slug, with a number when it is taken', () => {
+    expect(newICId(undefined, 'Half adder!')).toBe('half-adder')
+    expect(newICId({ 'half-adder': { id: 'half-adder', name: '', circuit: halfAdder() } }, 'Half adder')).toBe('half-adder-2')
+    expect(newICId(undefined, '???')).toBe('ic')
+  })
+
+  it('places an IC from its palette entry, and knows nothing of one that is not there', () => {
+    const b = new CircuitBuilder()
+    const id = b.defineIC('Half adder', halfAdder())
+    expect(placementOf(b.c, placingIC(id))).toEqual({ type: 'ic', params: icParams(b.c.ics![id]), name: 'Half adder' })
+    expect(placementOf(b.c, 'and')?.type).toBe('and')
+    expect(placementOf(b.c, 'ic:nope')).toBeNull()
+    expect(placementOf(b.c, 'nope')).toBeNull()
+  })
+
+  it('lists the parts inside that nobody could operate', () => {
+    const b = new CircuitBuilder()
+    b.add('switch', 0, 0)
+    b.add('button', 0, 50, { label: 'Go' })
+    b.add('keypad', 0, 100)
+    b.add('and', 100, 0)
+    expect(operableInside(b.build())).toEqual(['Go', 'Keypad'])
+  })
+
+  /** Switches A and B into a half-adder IC, S and C out to LEDs. */
+  function withInstance() {
+    const b = new CircuitBuilder()
+    const id = b.defineIC('Half adder', halfAdder())
+    const a = b.add('switch', 0, 0)
+    const bb = b.add('switch', 0, 60)
+    const ic = b.ic(id, 100, 0)
+    const s = b.add('led', 260, 0)
+    const c = b.add('led', 260, 60)
+    b.wire(`${a}.Q`, `${ic}.A`)
+    b.wire(`${bb}.Q`, `${ic}.B`)
+    b.wire(`${ic}.S`, `${s}.A`)
+    b.wire(`${ic}.C`, `${c}.A`)
+    return { circuit: b.build(), a, bb, ic, s, c }
+  }
+
+  it('unpacking an instance leaves a circuit that behaves the same, with the IC gone and its parts in the open', () => {
+    const { circuit, a, bb, ic, s, c } = withInstance()
+    let n = 0
+    const open = structuredClone(circuit)
+    const ids = inlineInstance(open, ic, (p) => `${p}${++n}`)!
+    expect(open.comps[ic]).toBeUndefined()
+    expect(Object.values(open.comps).some((k) => k.type === IC)).toBe(false)
+    expect(Object.values(open.comps).map((k) => k.type).sort()).toEqual(['and', 'led', 'led', 'switch', 'switch', 'xor'])
+    expect(ids.length).toBe(2 + 6) // the XOR and the AND, and six wires: four in, two out
+    // Every wire has a route.
+    expect(Object.values(open.wires).every((w) => w.path.length >= 2)).toBe(true)
+    const before = run(circuit)
+    const after = run(open)
+    for (const [x, y] of [[0, 0], [0, 1], [1, 0], [1, 1]]) {
+      for (const [sim, circ] of [[before, circuit], [after, open]] as const) {
+        set(sim, circ, a, !!x)
+        set(sim, circ, bb, !!y)
+      }
+      expect([after.pinValue(s, 'A'), after.pinValue(c, 'A')]).toEqual([before.pinValue(s, 'A'), before.pinValue(c, 'A')])
+    }
+  })
+
+  it('unpacking renames a net label inside that would meet one outside, and keeps a pair together', () => {
+    const inner = new CircuitBuilder()
+    const d = inner.add('switch', 0, 0, { label: 'D' })
+    const send = inner.add('netsend', 80, 0, { params: { name: 'x', bits: 1 } })
+    const recv = inner.add('netrecv', 80, 60, { params: { name: 'x', bits: 1 } })
+    const q = inner.add('led', 200, 60, { label: 'Q' })
+    inner.wire(`${d}.Q`, `${send}.A`)
+    inner.wire(`${recv}.Y`, `${q}.A`)
+    const b = new CircuitBuilder()
+    const id = b.defineIC('Pipe', inner.build())
+    b.add('netrecv', 0, 300, { params: { name: 'x', bits: 1 } })
+    const ic = b.ic(id, 100, 0)
+    const circuit = b.build()
+    inlineInstance(circuit, ic, (p) => `${p}${Math.random()}`)
+    const names = Object.values(circuit.comps).filter((k) => k.type === 'netsend' || k.type === 'netrecv').map((k) => `${k.type}:${k.params.name}`).sort()
+    expect(names).toEqual(['netrecv:x', 'netrecv:x_2', 'netsend:x_2'])
+  })
+
+  it('unpacking returns null for something that is not an instance', () => {
+    const c = halfAdder()
+    expect(inlineInstance(c, Object.keys(c.comps)[0], (p) => p)).toBeNull()
   })
 })

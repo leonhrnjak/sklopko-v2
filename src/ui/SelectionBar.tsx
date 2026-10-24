@@ -7,7 +7,8 @@ import {
   setSheetOpen,
   useStore,
 } from '../app/store'
-import { getDef } from '../engine/registry'
+import { openMakeIc } from '../app/ics'
+import { placementOf } from '../model/ic'
 
 /**
  * Floating actions for the selection on small screens, where there is no keyboard and the inspector is hidden.
@@ -22,7 +23,7 @@ export function SelectionBar() {
     return (
       <div className="action-bar placing-hint">
         <span>
-          Tap the canvas to place <b>{getDef(placing).name}</b>
+          Tap the canvas to place <b>{placementOf(circuit, placing)?.name ?? 'the part'}</b>
         </span>
         <button onClick={() => setPlacing(null)}>Cancel</button>
       </div>
@@ -38,6 +39,7 @@ export function SelectionBar() {
           <button onClick={rotateSelection}>Rotate</button>
           <button onClick={flipSelection}>Flip</button>
           <button onClick={duplicateSelection}>Duplicate</button>
+          {selection.length > 1 && <button onClick={openMakeIc}>Make IC</button>}
         </>
       )}
       <button

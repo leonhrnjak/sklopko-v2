@@ -1,11 +1,14 @@
 import { useEffect } from 'react'
-import { closeChallengeList, resetProgress, startChallenge, useChallenges } from '../../app/challenges'
-import { CHALLENGES, challengeGroups } from '../../model/challenges'
+import { closeChallengeList, resetProgress, useChallenges } from '../../app/challenges'
+import { startChallenge } from '../../app/challengeWork'
+import { CHALLENGES, challengeGroups, getChallenge } from '../../model/challenges'
 
 /** All the challenges by group, with the ones already solved ticked. Picking one puts its starting circuit on the canvas. */
 export function ChallengeList() {
   const open = useChallenges((s) => s.listOpen)
-  const solved = useChallenges((s) => s.solved)
+  // Progress kept by an older version may name a challenge that is gone.
+  const saved = useChallenges((s) => s.solved)
+  const solved = saved.filter((id) => getChallenge(id))
   const current = useChallenges((s) => s.current)
   useEffect(() => {
     if (!open) return
