@@ -118,6 +118,7 @@ addressed by opcode + 16 × sub-opcode) and the Beginner computer's `Control ROM
 - **Differs from the plan:** the editor is *below* the listing, not inside it (inside, it was cut off by the listing's own scroll
   area). The open row does not follow the clock; the "current row" mark on the listing already shows what is being read. The editor
   is off while the signal list has errors (the hex text still works).
+- **A bug found after the PR went up:** the row editor wrote the new word into the array `parseWords` hands out (one cached array per text, shared by everyone), so after a change the old text read back wrong and the lists lagged by one change. The editor now copies it, the cached arrays are frozen so that any other write throws, and an e2e test chooses a list's values change after change.
 - Tests: one e2e (SUB's SUBTRACT unticked and its source list changed, hex words follow, Clear row, Done, Escape and keyboard).
 
 ### C3 (v0.0.1-81)
