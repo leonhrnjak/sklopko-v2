@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts/examples-plugin.ts", "scripts/sw-plugin.ts"]
+  "include": ["vite.config.ts", "scripts/examples-plugin.ts", "scripts/sw-plugin.ts", "scripts/version.ts"]
 }
