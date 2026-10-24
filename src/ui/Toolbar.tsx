@@ -8,6 +8,7 @@ import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
+import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
@@ -138,6 +139,9 @@ function MenuItem({
     </button>
   )
 }
+
+/** The "…" that says an entry opens a window. Shown in the drop-down menus; left out of the phone menu's buttons, where it only adds clutter. */
+const Dots = () => <span className="dots">…</span>
 
 /** A heading inside a menu, for a group of entries. */
 const MenuLabel = ({ children }: { children: ReactNode }) => (
@@ -270,19 +274,24 @@ export function Toolbar() {
   const toolItems = (
     <>
       <MenuItem onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
-        Logic…
+        Logic
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
-        State machines…
+        State machines
+        <Dots />
       </MenuItem>
       <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
-        SKASM…
+        SKASM
+        <Dots />
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
-        Make IC…
+        Make IC
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openTestbench} title="Steps that set switches, pulse a clock and check LEDs, saved with the circuit: run them to see what passes">
-        Tests…
+        Tests
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges
@@ -306,8 +315,6 @@ export function Toolbar() {
     </>
   )
 
-  const savePicture = (format: 'svg' | 'png', area: 'all' | 'view') => void import('./canvas/exportImage').then((m) => m.exportImage(format, area))
-
   const fileItems = (
     <>
       <MenuItem onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
@@ -328,16 +335,15 @@ export function Toolbar() {
       <MenuItem onClick={clearWires} title="Remove all wires, keep the parts (undoable)">
         Clear wires
       </MenuItem>
-      <MenuLabel>Save a picture</MenuLabel>
-      <MenuItem onClick={() => savePicture('svg', 'all')}>SVG, whole circuit</MenuItem>
-      <MenuItem onClick={() => savePicture('svg', 'view')}>SVG, what is on screen</MenuItem>
-      <MenuItem onClick={() => savePicture('png', 'all')}>PNG, whole circuit</MenuItem>
-      <MenuItem onClick={() => savePicture('png', 'view')}>PNG, what is on screen</MenuItem>
+      <MenuItem onClick={openPicture} title="Save the circuit as an SVG or PNG picture: all of it, or what is on screen">
+        Save picture
+        <Dots />
+      </MenuItem>
     </>
   )
 
   const examplesButton = (
-    <button onClick={openGallery} title="Pictures of every example, with a search: open one to see it work">
+    <button className="examples-btn" onClick={openGallery} title="Pictures of every example, with a search: open one to see it work">
       Examples
     </button>
   )
@@ -400,11 +406,11 @@ export function Toolbar() {
               if ((e.target as HTMLElement).closest('button')) setMenuOpen(false)
             }}
           >
-            <div className="menu-section">{simControls}</div>
             <div className="menu-section">
               {examplesButton}
               {shareButton}
             </div>
+            <div className="menu-section">{simControls}</div>
             <div className="menu-section" role="menu" aria-label="Tools">
               <MenuLabel>Tools</MenuLabel>
               {toolItems}

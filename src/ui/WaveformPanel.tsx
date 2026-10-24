@@ -264,7 +264,7 @@ export function WaveformPanel() {
           </button>
         </div>
         {view === 'waves' && (
-        <>
+        <div className="wave-tools">
         <label className="wave-window">
           <span>Window</span>
           <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} aria-label="Time window">
@@ -299,7 +299,7 @@ export function WaveformPanel() {
         <button onClick={clearTraces} disabled={!rows.length} title="Erase the recorded traces">
           Clear
         </button>
-        </>
+        </div>
         )}
         <button className="wave-close" onClick={() => setWaveOpen(false)} aria-label="Close waveforms">
           ✕
