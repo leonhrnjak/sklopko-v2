@@ -1,6 +1,6 @@
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -47,5 +47,15 @@ export const ball6502 = (): Circuit =>
       intro:
         'A ball bounces around a 16 × 16 screen. Every frame the program takes the old ball off, steers it from the gamepad (the arrow keys, while the simulation runs), moves it one pixel, turns it round at a wall, and puts it down again: it writes where to $4005, then a 1 (or a 0) to $4006. The ball and its speed are kept in the first bytes of the RAM, the zero page.',
       devices: MAP,
+    },
+  )
+
+/** The board with a 65C02, running a program with its new instructions. */
+export const sweep65c02 = (): Circuit =>
+  boardExample(
+    { hz: 512, chip: 'cmos', source: SWEEP_65C02_SOURCE, devices: ['leds'] },
+    {
+      intro:
+        'The same board with a WDC 65C02, the chip that is still made and that breadboard builders use. Its program (select the ROM to read it) uses what the 6502 does not have: STZ clears the pattern, SMB and RMB set and clear one bit of a byte in the zero page so that one LED sweeps along the eight, PHX and PLX keep X on the stack while it waits, and BRA branches back. The part has three more pins than the 6502: BE, VP and ML. Open the 6502 reference (Tools → 6502) and switch to the 65C02 to see every new instruction.',
     },
   )

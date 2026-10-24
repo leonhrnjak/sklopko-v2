@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { closeReference, setReferenceTab, useReference, type Reference6502Tab } from '../app/reference'
+import { closeReference, setReferenceChip, setReferenceTab, useReference, type Chip6502, type Reference6502Tab } from '../app/reference'
 import { showToast } from '../app/store'
-import { MNEMONICS_6502, type Category6502 } from '../engine/mnemonics6502'
+import { CHANGES_65C02, MNEMONICS_6502, MNEMONICS_65C02, type Category6502 } from '../engine/mnemonics6502'
 import { BY_OPCODE_6502, MODE_BYTES, OPCODES_6502, type Mode6502, type Opcode6502 } from '../engine/opcodes6502'
+import { DOCUMENTED_65C02, OPCODES_65C02 } from '../engine/opcodes65c02'
 
 const TABS: [Reference6502Tab, string][] = [
   ['start', 'Getting started'],
@@ -41,6 +42,11 @@ const FORM: Record<Mode6502, string> = { imp: '', acc: ' A', imm: ' #n', zp: ' n
 /** The cycles of an instruction as written in the tables: 4+ means one more when an indexed read crosses a page; a branch is 2+. */
 const cyclesText = (o: Opcode6502) => `${o.cycles}${o.pageCross || o.mode === 'rel' ? '+' : ''}`
 
+/** The opcodes of a chip, and which of them the NMOS chip has too. */
+const opcodesOf = (chip: Chip6502) => (chip === 'cmos' ? OPCODES_65C02 : OPCODES_6502)
+/** The instruction an opcode belongs to: `RMB3` is one of `RMBn`. */
+const familyOf = (mnemonic: string) => mnemonic.replace(/^(RMB|SMB|BBR|BBS)\d$/, '$1n')
+
 const FLAG_NAMES: Record<string, string> = { N: 'N', V: 'V', Z: 'Z', C: 'C', I: 'I', D: 'D' }
 const flagsText = (flags: string) => (flags === '' ? 'none' : flags === 'all' ? 'all' : flags.split(' ').map((f) => FLAG_NAMES[f] ?? f).join(' '))
 
@@ -63,7 +69,7 @@ function copy(text: string) {
   )
 }
 
-function Start() {
+function Start({ chip }: { chip: Chip6502 }) {
   return (
     <div className="ref-text">
       <p>
@@ -107,6 +113,33 @@ function Start() {
         </li>
       </ul>
 
+      {chip === 'cmos' && (
+        <>
+          <h3>The 65C02</h3>
+          <p>
+            The WDC 65C02 is the chip that breadboard builders use today. It runs the same programs as the 6502, with a few fixes and many additions (marked <b>65C02</b> in the
+            Instructions tab). Choose it with the part’s <b>Chip</b> setting, and write the ROM’s program as <b>A program in 65C02 assembly</b>.
+          </p>
+          <ul>
+            <li>
+              <b>New instructions</b>: <code>BRA</code> (branch always), <code>STZ</code> (store zero), <code>PHX</code>, <code>PHY</code>, <code>PLX</code>, <code>PLY</code>,{' '}
+              <code>INC A</code> and <code>DEC A</code>, <code>TSB</code> and <code>TRB</code> (set and clear bits with A), <code>RMBn</code> and <code>SMBn</code> (clear and set a bit of a
+              zero-page byte), <code>BBRn</code> and <code>BBSn</code> (branch on a bit), <code>WAI</code> and <code>STP</code>.
+            </li>
+            <li>
+              <b>New forms</b>: <code>LDA ($10)</code> (and the other seven that have <code>(n),Y</code>), <code>BIT #$80</code>, <code>BIT $10,X</code>, <code>JMP ($1234,X)</code>.
+            </li>
+            <li>
+              <b>Fixes</b>: <code>JMP ($12FF)</code> reads the high byte from <code>$1300</code>, not <code>$1200</code>; decimal mode sets N and Z from the result; BRK and interrupts clear
+              D; every opcode does something defined (a NOP at worst).
+            </li>
+            <li>
+              <b>Pins</b>: <code>BE</code> (bus enable), <code>VP</code> (vector pull) and <code>ML</code> (memory lock) in addition.
+            </li>
+          </ul>
+        </>
+      )}
+
       <h3>Writing a program</h3>
       <ul>
         <li>
@@ -146,14 +179,20 @@ function Start() {
 }
 
 /** The instruction table, one table for each group of instructions. */
-function Instructions() {
-  const byMnemonic = (m: string) => OPCODES_6502.filter((o) => o.mnemonic === m)
+function Instructions({ chip }: { chip: Chip6502 }) {
+  const opcodes = opcodesOf(chip)
+  const cmos = chip === 'cmos'
+  const mnemonics: Record<string, { category: Category6502; summary: string; flags: string }> = cmos ? { ...MNEMONICS_6502, ...MNEMONICS_65C02 } : MNEMONICS_6502
+  /** The forms of an instruction (all of a bit instruction's eight are shown as one: its first). */
+  const forms = (m: string) => opcodes.filter((o) => (m.endsWith('n') ? o.bit === 0 && familyOf(o.mnemonic) === m : o.mnemonic === m))
+  const isNew = (o: Opcode6502) => cmos && !BY_OPCODE_6502[o.opcode]
+  const nmosCycles = (o: Opcode6502) => (cmos ? BY_OPCODE_6502[o.opcode]?.cycles : undefined)
   return (
     <div className="ref-text">
       <p>
-        All {OPCODES_6502.length} documented opcodes of the 6502. A form shows how it is written, its opcode in hex, its length in bytes and its
+        All {opcodes.length} documented opcodes of the {cmos ? '65C02 (the 65C02 does not have the undocumented ones: every other opcode is a NOP of 1 to 3 bytes)' : '6502'}. A form shows how it is written, its opcode in hex, its length in bytes and its
         clock cycles. <b>+</b> after the cycles: one more cycle when an indexed read crosses a page boundary; a branch takes one more when taken, and
-        another if it lands on a different page. Opcodes that are not in the table do nothing useful: the CPU treats them as a 2-cycle <code>NOP</code>.
+        another if it lands on a different page. {cmos ? 'A cycle count that differs from the NMOS 6502’s is followed by what it was there.' : 'Opcodes that are not in the table do nothing useful: the CPU treats them as a 2-cycle NOP.'}
       </p>
       {CATEGORIES.map((category) => (
         <section key={category}>
@@ -169,25 +208,31 @@ function Instructions() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(MNEMONICS_6502)
+                {Object.entries(mnemonics)
                   .filter(([, info]) => info.category === category)
                   .map(([mnemonic, info]) => (
                     <tr key={mnemonic} id={`op-${mnemonic}`}>
                       <td>
                         <code>{mnemonic}</code>
+                        {cmos && mnemonic in MNEMONICS_65C02 && <span className="ref-badge">65C02</span>}
                       </td>
-                      <td>{info.summary}</td>
+                      <td>
+                        {info.summary}
+                        {cmos && CHANGES_65C02[mnemonic] && <div className="ref-operand">65C02: {CHANGES_65C02[mnemonic]}</div>}
+                      </td>
                       <td>{flagsText(info.flags)}</td>
                       <td>
-                        {byMnemonic(mnemonic).map((o) => (
+                        {forms(mnemonic).map((o) => (
                           <div key={o.opcode} className="ref-form">
                             <code>
-                              {mnemonic}
+                              {mnemonic.endsWith('n') ? mnemonic : o.mnemonic}
                               {FORM[o.mode]}
                             </code>{' '}
                             <span className="ref-operand">
-                              {hex(o.opcode)} · {o.bytes} · {cyclesText(o)}
+                              {mnemonic.endsWith('n') ? `${hex(o.opcode)} + ${hex(16)} × n` : hex(o.opcode)} · {o.bytes} · {cyclesText(o)}
+                              {nmosCycles(o) !== undefined && nmosCycles(o) !== o.cycles ? ` (was ${nmosCycles(o)})` : ''}
                             </span>
+                            {isNew(o) && !(mnemonic in MNEMONICS_65C02) && <span className="ref-badge">65C02</span>}
                           </div>
                         ))}
                       </td>
@@ -202,8 +247,8 @@ function Instructions() {
   )
 }
 
-function Modes() {
-  const used = (mode: Mode6502) => OPCODES_6502.filter((o) => o.mode === mode).length
+function Modes({ chip }: { chip: Chip6502 }) {
+  const used = (mode: Mode6502) => opcodesOf(chip).filter((o) => o.mode === mode).length
   return (
     <div className="ref-text">
       <p>
@@ -247,12 +292,13 @@ function Modes() {
 }
 
 /** The 16 × 16 table of opcodes: the high digit down the side, the low digit across the top. */
-function OpcodeMap() {
+function OpcodeMap({ chip }: { chip: Chip6502 }) {
   const digits = Array.from({ length: 16 }, (_, i) => i)
+  const table = chip === 'cmos' ? DOCUMENTED_65C02 : BY_OPCODE_6502
   return (
     <div className="ref-text">
       <p>
-        Opcodes by value: the high hex digit down the side, the low digit across the top. Empty cells are not documented. Hover a cell for its mode,
+        Opcodes by value: the high hex digit down the side, the low digit across the top. Empty cells are not documented{chip === 'cmos' ? ' (they are NOPs on the 65C02); the instructions the 65C02 added are shaded' : ''}. Hover a cell for its mode,
         length and cycles.
       </p>
       <div className="ref-table-wrap">
@@ -270,9 +316,9 @@ function OpcodeMap() {
               <tr key={r}>
                 <th>{r.toString(16).toUpperCase()}</th>
                 {digits.map((c) => {
-                  const o = BY_OPCODE_6502[r * 16 + c]
+                  const o = table[r * 16 + c]
                   return (
-                    <td key={c} title={o ? `${hex(o.opcode)}: ${o.mnemonic}${FORM[o.mode]}, ${o.bytes} byte${o.bytes === 1 ? '' : 's'}, ${cyclesText(o)} cycles` : `${hex(r * 16 + c)}: not documented`}>
+                    <td key={c} className={chip === 'cmos' && o && !BY_OPCODE_6502[o.opcode] ? 'ref-new' : undefined} title={o ? `${hex(o.opcode)}: ${o.mnemonic}${FORM[o.mode]}, ${o.bytes} byte${o.bytes === 1 ? '' : 's'}, ${cyclesText(o)} cycles` : `${hex(r * 16 + c)}: not documented`}>
                       {o ? o.mnemonic : ''}
                     </td>
                   )
@@ -290,6 +336,7 @@ function OpcodeMap() {
 export function Reference6502() {
   const open = useReference((s) => s.open && s.language === '6502')
   const tab = useReference((s) => s.tab as Reference6502Tab)
+  const chip = useReference((s) => s.chip)
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeReference()
@@ -313,7 +360,16 @@ export function Reference6502() {
             ✕
           </button>
         </header>
-        <div className="modal-body">{tab === 'start' ? <Start /> : tab === 'instructions' ? <Instructions /> : tab === 'modes' ? <Modes /> : <OpcodeMap />}</div>
+        <div className="modal-body">
+          <div className="seg ref-chip" role="group" aria-label="Chip">
+            {(['nmos', 'cmos'] as const).map((c) => (
+              <button key={c} aria-pressed={chip === c} className={chip === c ? 'active' : ''} onClick={() => setReferenceChip(c)}>
+                {c === 'nmos' ? 'MOS 6502' : 'WDC 65C02'}
+              </button>
+            ))}
+          </div>
+          {tab === 'start' ? <Start chip={chip} /> : tab === 'instructions' ? <Instructions chip={chip} /> : tab === 'modes' ? <Modes chip={chip} /> : <OpcodeMap chip={chip} />}
+        </div>
       </div>
     </div>
   )

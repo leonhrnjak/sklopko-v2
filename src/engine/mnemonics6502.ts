@@ -71,3 +71,43 @@ export const MNEMONICS_6502: Record<string, Mnemonic6502> = {
   BRK: { category: 'Control', summary: 'software interrupt: push PC + 2 and the flags, jump through the vector at $FFFE', flags: 'I' },
   NOP: { category: 'Control', summary: 'do nothing', flags: '' },
 }
+
+/** The instructions only the 65C02 has. `RMBn`, `SMBn`, `BBRn` and `BBSn` stand for the eight of each (n is the bit, 0 to 7). */
+export const MNEMONICS_65C02: Record<string, Mnemonic6502> = {
+  BRA: { category: 'Jumps and branches', summary: 'branch always', flags: '' },
+  STZ: { category: 'Load and store', summary: 'memory = 0', flags: '' },
+  PHX: { category: 'Stack', summary: 'push X', flags: '' },
+  PHY: { category: 'Stack', summary: 'push Y', flags: '' },
+  PLX: { category: 'Stack', summary: 'pull X', flags: 'N Z' },
+  PLY: { category: 'Stack', summary: 'pull Y', flags: 'N Z' },
+  TSB: { category: 'Logic', summary: 'test and set bits: Z = (A AND memory) is 0, then memory = memory OR A', flags: 'Z' },
+  TRB: { category: 'Logic', summary: 'test and reset bits: Z = (A AND memory) is 0, then memory = memory AND NOT A', flags: 'Z' },
+  RMBn: { category: 'Logic', summary: 'clear bit n (0 to 7) of a zero-page byte', flags: '' },
+  SMBn: { category: 'Logic', summary: 'set bit n (0 to 7) of a zero-page byte', flags: '' },
+  BBRn: { category: 'Jumps and branches', summary: 'branch if bit n (0 to 7) of a zero-page byte is 0', flags: '' },
+  BBSn: { category: 'Jumps and branches', summary: 'branch if bit n (0 to 7) of a zero-page byte is 1', flags: '' },
+  WAI: { category: 'Control', summary: 'wait for an interrupt: the CPU stops until IRQ or NMI (an IRQ goes on to the next instruction if I is 1)', flags: '' },
+  STP: { category: 'Control', summary: 'stop the CPU until it is reset', flags: '' },
+}
+
+/** What else is different about an instruction the 65C02 also has. */
+export const CHANGES_65C02: Record<string, string> = {
+  INC: 'Also INC A.',
+  DEC: 'Also DEC A.',
+  BIT: 'Also with a constant (changes only Z), and with X.',
+  JMP: 'Also JMP (nn,X); JMP (nn) no longer wraps at the end of a page.',
+  ADC: 'Also (n). In decimal mode N and Z are right, and it takes one cycle more.',
+  SBC: 'Also (n). In decimal mode N and Z are right, and it takes one cycle more.',
+  AND: 'Also (n).',
+  ORA: 'Also (n).',
+  EOR: 'Also (n).',
+  CMP: 'Also (n).',
+  LDA: 'Also (n).',
+  STA: 'Also (n).',
+  BRK: 'Also clears D.',
+  ASL: 'ASL, LSR, ROL and ROR with X take one cycle less.',
+  LSR: 'ASL, LSR, ROL and ROR with X take one cycle less.',
+  ROL: 'ASL, LSR, ROL and ROR with X take one cycle less.',
+  ROR: 'ASL, LSR, ROL and ROR with X take one cycle less.',
+}
+

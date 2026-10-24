@@ -18,13 +18,14 @@
 
 import { IDENT, matchConstant, matchLabel, stripComment, type AsmError } from './asmlex'
 import { disassemble6502 } from './disasm6502'
+import { DOCUMENTED_65C02, ENCODINGS_65C02 } from './opcodes65c02'
 import { BY_OPCODE_6502, ENCODINGS, MODE_BYTES, type Mode6502 } from './opcodes6502'
 
 /** Opcode of a mnemonic in an addressing mode, or undefined if the instruction does not have that mode. */
-export const opcodeOf6502 = (mnemonic: string, mode: Mode6502): number | undefined => ENCODINGS[mnemonic.toUpperCase()]?.[mode]
+export const opcodeOf6502 = (mnemonic: string, mode: Mode6502, cmos = false): number | undefined => (cmos ? ENCODINGS_65C02 : ENCODINGS)[mnemonic.toUpperCase()]?.[mode]
 
 /** The addressing modes a mnemonic has. */
-export const modesOf6502 = (mnemonic: string): Mode6502[] => Object.keys(ENCODINGS[mnemonic.toUpperCase()] ?? {}) as Mode6502[]
+export const modesOf6502 = (mnemonic: string, cmos = false): Mode6502[] => Object.keys((cmos ? ENCODINGS_65C02 : ENCODINGS)[mnemonic.toUpperCase()] ?? {}) as Mode6502[]
 
 /** One thing the assembler placed: an instruction, some data bytes or a gap. */
 export interface Item6502 {
@@ -94,17 +95,17 @@ function shapeOf(operand: string): { shape: Shape; expr: string } {
 }
 
 /** The ways an instruction can be written, for the message when the operand is of a form it does not have. */
-function formsOf(mnemonic: string): string {
-  return modesOf6502(mnemonic)
+function formsOf(mnemonic: string, cmos: boolean): string {
+  return modesOf6502(mnemonic, cmos)
     .map((mode) => `${mnemonic}${SYNTAX[mode] ? ` ${SYNTAX[mode]}` : ''}`)
     .join(', ')
 }
 
 /** The mode an operand of this shape means for this mnemonic, or an error message. `known` is the operand's value if it is already known (it decides between zero page and absolute). */
-function pickMode(mnemonic: string, shape: Shape, known: number | undefined): Mode6502 | string {
-  const modes = modesOf6502(mnemonic)
+function pickMode(mnemonic: string, shape: Shape, known: number | undefined, cmos: boolean): Mode6502 | string {
+  const modes = modesOf6502(mnemonic, cmos)
   const has = (m: Mode6502) => modes.includes(m)
-  const wrong = (what: string) => `${mnemonic} can't be written ${what}. It can be written: ${formsOf(mnemonic)}.`
+  const wrong = (what: string) => `${mnemonic} can't be written ${what}. It can be written: ${formsOf(mnemonic, cmos)}.`
   /** Zero page if the address is known to fit in a byte, otherwise absolute; whichever the instruction has. */
   const width = (zp: Mode6502, abs: Mode6502): Mode6502 | string => {
     if (has(zp) && has(abs)) return known !== undefined && known >= 0 && known <= 255 ? zp : abs
@@ -112,7 +113,7 @@ function pickMode(mnemonic: string, shape: Shape, known: number | undefined): Mo
   }
   switch (shape) {
     case 'none':
-      return has('imp') ? 'imp' : has('acc') ? 'acc' : `${mnemonic} needs an operand. It can be written: ${formsOf(mnemonic)}.`
+      return has('imp') ? 'imp' : has('acc') ? 'acc' : `${mnemonic} needs an operand. It can be written: ${formsOf(mnemonic, cmos)}.`
     case 'acc':
       return has('acc') ? 'acc' : wrong('on A')
     case 'imm':
@@ -124,9 +125,9 @@ function pickMode(mnemonic: string, shape: Shape, known: number | undefined): Mo
     case 'y':
       return width('zpy', 'aby')
     case 'ind':
-      return has('ind') ? 'ind' : wrong('with the address in brackets')
+      return has('ind') ? 'ind' : has('izp') ? 'izp' : wrong('with the address in brackets')
     case 'izx':
-      return has('izx') ? 'izx' : wrong('as (address,X)')
+      return has('izx') ? 'izx' : has('iax') ? 'iax' : wrong('as (address,X)')
     case 'izy':
       return has('izy') ? 'izy' : wrong('as (address),Y')
   }
@@ -237,8 +238,8 @@ interface Stmt {
 
 const DIRECTIVES: Record<string, 'org' | 'byte' | 'word' | 'res'> = { '.org': 'org', '.byte': 'byte', '.db': 'byte', '.word': 'word', '.dw': 'word', '.res': 'res', '.ds': 'res' }
 
-/** Assemble `source` into a ROM image of `capacity` bytes. */
-export function assemble6502(source: string, capacity: number): Asm6502Result {
+/** Assemble `source` into a ROM image of `capacity` bytes, for the NMOS 6502 or (`cmos`) the 65C02. */
+export function assemble6502(source: string, capacity: number, cmos = false): Asm6502Result {
   const errors: AsmError[] = []
   const err = (line: number, message: string) => errors.push({ line, message })
   const symbols: Record<string, number> = {}
@@ -247,7 +248,7 @@ export function assemble6502(source: string, capacity: number): Asm6502Result {
   let base: number | null = null
   let placed = false
 
-  const isMnemonic = (name: string) => modesOf6502(name).length > 0
+  const isMnemonic = (name: string) => modesOf6502(name, cmos).length > 0
   const define = (name: string, value: number, line: number, kind: 'label' | 'constant') => {
     if (!IDENT.test(name)) return err(line, `“${name}” is not a valid name (letters, digits and underscores, not starting with a digit).`)
     if (isMnemonic(name)) return err(line, `“${name}” is an instruction name and can't be used as a ${kind}.`)
@@ -323,11 +324,25 @@ export function assemble6502(source: string, capacity: number): Asm6502Result {
       return
     }
     const mnemonic = word.toUpperCase()
-    if (!isMnemonic(mnemonic)) return err(line, `Unknown instruction “${word}”.`)
+    if (!isMnemonic(mnemonic))
+      return err(line, !cmos && modesOf6502(mnemonic, true).length ? `“${word}” is an instruction of the 65C02, not of the NMOS 6502.` : `Unknown instruction “${word}”.`)
+    if (modesOf6502(mnemonic, cmos).includes('zpr')) {
+      // BBR and BBS: a zero-page address to test, and a label to branch to.
+      const parts = splitList(rest)
+      if (parts.length !== 2 || !parts[0] || !parts[1]) return err(line, `${mnemonic} needs a zero-page address and a label to branch to, like ${mnemonic} $10,label.`)
+      for (const part of parts) {
+        const check = evaluate(part, symbols, pc, false)
+        if (!check.ok) return err(line, check.message)
+      }
+      stmts.push({ line, addr: pc, kind: 'instruction', mnemonic, mode: 'zpr', args: parts, size: 3 })
+      pc += 3
+      placed = true
+      return
+    }
     const { shape, expr } = shapeOf(rest)
     // A name defined further down is not known yet: such an address is taken to be absolute (3 bytes).
     const v = expr === '' ? null : evaluate(expr, symbols, pc, false)
-    const mode = pickMode(mnemonic, shape, v && v.ok && v.known ? v.value : undefined)
+    const mode = pickMode(mnemonic, shape, v && v.ok && v.known ? v.value : undefined, cmos)
     if (!(mode in MODE_BYTES)) return err(line, mode)
     if (v && !v.ok) return err(line, v.message)
     const size = MODE_BYTES[mode as Mode6502]
@@ -396,9 +411,28 @@ export function assemble6502(source: string, capacity: number): Asm6502Result {
     }
     const mnemonic = s.mnemonic!
     const mode = s.mode!
-    const opcode = opcodeOf6502(mnemonic, mode)!
+    const opcode = opcodeOf6502(mnemonic, mode, cmos)!
     if (mode === 'imp' || mode === 'acc') {
       place(s, [opcode], 'code')
+      continue
+    }
+    if (mode === 'zpr') {
+      const zp = at(s.args[0])
+      const target = at(s.args[1])
+      if (!zp.ok || !target.ok) {
+        err(s.line, (!zp.ok ? zp : (target as { message: string })).message)
+        continue
+      }
+      if (zp.value < 0 || zp.value > 255) {
+        err(s.line, `${mnemonic}: the value ${zp.value} is too big for a zero-page address, it must be from 0 to 255.`)
+        continue
+      }
+      const offset = target.value - (s.addr + 3)
+      if (offset < -128 || offset > 127) {
+        err(s.line, `${mnemonic}: the branch is out of range. $${hex(target.value, 4)} is ${Math.abs(offset)} bytes ${offset < 0 ? 'back' : 'ahead'}, and a branch reaches 128 back or 127 ahead.`)
+        continue
+      }
+      place(s, [opcode, zp.value, offset & 255], 'code')
       continue
     }
     const v = at(s.args[0])
@@ -455,11 +489,11 @@ const GAP = 4
  * The rows of a listing. With the assembler's `items` they are exactly what the program placed (data as data); without them,
  * the bytes are read as instructions from the start, skipping runs of zeros, and an opcode that is not documented is a `.byte`.
  */
-export function listing6502(bytes: number[], base: number, items?: Item6502[]): ListRow6502[] {
+export function listing6502(bytes: number[], base: number, items?: Item6502[], cmos = false): ListRow6502[] {
   const rows: ListRow6502[] = []
   if (items) {
     for (const it of [...items].sort((a, b) => a.addr - b.addr)) {
-      if (it.kind === 'code') rows.push({ addr: it.addr, bytes: it.bytes, size: it.bytes.length, text: disassemble6502(it.bytes, it.addr).text, line: it.line })
+      if (it.kind === 'code') rows.push({ addr: it.addr, bytes: it.bytes, size: it.bytes.length, text: disassemble6502(it.bytes, it.addr, cmos).text, line: it.line })
       else if (it.kind === 'gap') rows.push({ addr: it.addr, bytes: [], size: it.gap ?? 0, text: `.res ${it.gap}`, line: it.line })
       else for (let i = 0; i < it.bytes.length; i += 4) rows.push({ addr: it.addr + i, bytes: it.bytes.slice(i, i + 4), size: Math.min(4, it.bytes.length - i), text: `.byte ${it.bytes.slice(i, i + 4).map(hexByte).join(', ')}`, line: it.line })
     }
@@ -474,20 +508,20 @@ export function listing6502(bytes: number[], base: number, items?: Item6502[]): 
         continue
       }
     }
-    const o = BY_OPCODE_6502[bytes[i]]
+    const o = (cmos ? DOCUMENTED_65C02 : BY_OPCODE_6502)[bytes[i]]
     const length = o ? Math.min(o.bytes, bytes.length - i) : 1
     const slice = bytes.slice(i, i + length)
-    rows.push({ addr: base + i, bytes: slice, size: length, text: o && length === o.bytes ? disassemble6502(slice, base + i).text : `.byte ${slice.map(hexByte).join(', ')}` })
+    rows.push({ addr: base + i, bytes: slice, size: length, text: o && length === o.bytes ? disassemble6502(slice, base + i, cmos).text : `.byte ${slice.map(hexByte).join(', ')}` })
     i += length
   }
   return rows
 }
 
 /** Source text for bytes that were typed as hex: the listing, one instruction per line, with a `.org` where a gap was left. */
-export function sourceFromBytes(bytes: number[], base = 0): string {
+export function sourceFromBytes(bytes: number[], base = 0, cmos = false): string {
   const lines = [`.org $${hex(base, 4)}`]
   let next = base
-  for (const r of listing6502(bytes, base)) {
+  for (const r of listing6502(bytes, base, undefined, cmos)) {
     if (r.addr !== next) lines.push(`.org $${hex(r.addr, 4)}`)
     lines.push(r.text)
     next = r.addr + r.size

@@ -3,6 +3,7 @@ import { assemble6502, listing6502, sourceFromBytes } from './asm6502'
 import { newCpu, cycle, reset } from './cpu6502'
 import { disassemble6502 } from './disasm6502'
 import { MODE_BYTES, OPCODES_6502, type Mode6502 } from './opcodes6502'
+import { OPCODES_65C02 } from './opcodes65c02'
 
 const hex = (bytes: number[]) => bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')
 /** The bytes a program assembles to (without the zeros the ROM is padded with). */
@@ -244,5 +245,61 @@ describe('listings of 6502 bytes', () => {
     const r = assemble6502(src, 64)
     expect(r.errors).toEqual([])
     expect(r.bytes).toEqual(bytes)
+  })
+})
+
+describe('the 65C02 assembler', () => {
+  const asm65 = (source: string, capacity = 64) => {
+    const r = assemble6502(source, capacity, true)
+    expect(r.errors).toEqual([])
+    const last = r.items.reduce((n, it) => Math.max(n, it.addr - r.base + Math.max(it.bytes.length, it.gap ?? 0)), 0)
+    return hex(r.bytes.slice(0, last))
+  }
+  const errors65 = (source: string) => assemble6502(source, 64, true).errors.map((e) => `${e.line}: ${e.message}`)
+
+  it('assembles every opcode of the 65C02, in every mode, and reads what the disassembler writes', () => {
+    for (const o of OPCODES_65C02) {
+      const bytes = [o.opcode, o.mode === 'rel' ? 0x10 : 0x34, o.mode === 'zpr' ? 0x05 : 0x12].slice(0, o.bytes)
+      const text = disassemble6502(bytes, 0x100, true).text
+      const r = assemble6502(`.org $100\n${text}`, 16, true)
+      expect(r.errors, text).toEqual([])
+      expect(r.bytes.slice(0, o.bytes), text).toEqual(bytes)
+    }
+  })
+
+  it('has the new forms: (zp), (abs,X), INC A, BIT #, STZ and BRA', () => {
+    expect(asm65('LDA ($10)')).toBe('B2 10')
+    expect(asm65('STA ($10)')).toBe('92 10')
+    expect(asm65('JMP ($1234,X)')).toBe('7C 34 12')
+    expect(asm65('JMP ($1234)')).toBe('6C 34 12')
+    expect(asm65('INC A\nDEC A\nINC\nDEC')).toBe('1A 3A 1A 3A')
+    expect(asm65('INC $10')).toBe('E6 10')
+    expect(asm65('BIT #$80\nBIT $10,X\nBIT $1234,X')).toBe('89 80 34 10 3C 34 12')
+    expect(asm65('STZ $10\nSTZ $10,X\nSTZ $1234\nSTZ $1234,X')).toBe('64 10 74 10 9C 34 12 9E 34 12')
+    expect(asm65('PHX\nPHY\nPLX\nPLY\nTSB $10\nTRB $1234')).toBe('DA 5A FA 7A 04 10 1C 34 12')
+    expect(asm65('.org $F000\nloop: BRA loop', 16)).toBe('80 FE')
+    expect(asm65('WAI\nSTP')).toBe('CB DB')
+  })
+
+  it('has the bit instructions: RMBn, SMBn, BBRn and BBSn (a zero-page address and a branch)', () => {
+    expect(asm65('RMB0 $10\nSMB7 $20')).toBe('07 10 F7 20')
+    expect(asm65('.org $F000\nloop: BBR3 $10,loop\nBBS7 $11,done\nNOP\ndone: NOP', 16)).toBe('3F 10 FD FF 11 01 EA EA')
+    expect(errors65('BBR0 $10')[0]).toMatch(/needs a zero-page address and a label/)
+    expect(errors65('.org 0\nBBR0 $10,far\n.res 200\nfar: NOP')[0]).toMatch(/BBR0: the branch is out of range/)
+    expect(errors65('BBR0 $1234,0')[0]).toMatch(/too big for a zero-page address/)
+  })
+
+  it('keeps the NMOS chip to its own instructions, and says which are the 65C02’s', () => {
+    expect(assemble6502('STZ $10', 16).errors[0].message).toMatch(/“STZ” is an instruction of the 65C02, not of the NMOS 6502/)
+    expect(assemble6502('LDA ($10)', 16).errors[0].message).toMatch(/LDA can't be written with the address in brackets/)
+    expect(assemble6502('INC A', 16).errors[0].message).toMatch(/INC can't be written on A/)
+    expect(assemble6502('BRA x', 16).errors[0].message).toMatch(/65C02/)
+  })
+
+  it('lists and disassembles 65C02 bytes, and shows an opcode that only acts as a NOP as data', () => {
+    const rows = listing6502([0x80, 0x01, 0x03, 0x1a, 0xb2, 0x20], 0, undefined, true)
+    expect(rows.map((r) => r.text)).toEqual(['BRA $0003', '.byte $03', 'INC A', 'LDA ($20)'])
+    const src = sourceFromBytes([0x80, 0x01, 0x03, 0x1a, 0xb2, 0x20], 0, true)
+    expect(assemble6502(src, 8, true).bytes.slice(0, 6)).toEqual([0x80, 0x01, 0x03, 0x1a, 0xb2, 0x20])
   })
 })

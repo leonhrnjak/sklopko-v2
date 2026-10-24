@@ -267,6 +267,9 @@ export const PINS: Record<string, PinDocs> = {
     'D#|D': 'Data out: the byte the CPU writes (D0 least significant bit). It is high impedance (Z) while the CPU reads if Tri-state data bus is on.',
     RWB: 'Read/write: 1 while the CPU reads the byte at the address, 0 while it writes one.',
     SYNC: '1 during the cycle that fetches an instruction (its first byte), 0 in all others.',
+    BE: '65C02 only. Bus enable: while 0 the CPU lets go of the address bus, the data bus and R/W (they float), so another part can use them. The CPU itself goes on running.',
+    VPB: '65C02 only. Vector pull, active low: 0 while the CPU reads an interrupt or reset vector.',
+    MLB: '65C02 only. Memory lock, active low: 0 during the cycles of a read-modify-write instruction (INC, ASL, TSB…), so a shared memory is not given to another CPU in between.',
   },
   mux: {
     'I#': 'Data input number n. The one picked by the select lines is passed to Y.',

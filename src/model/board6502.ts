@@ -59,15 +59,18 @@ export interface Board6502Options {
   source?: string
   /** The devices on the board; only the LEDs if not given. */
   devices?: Device6502[]
+  /** The chip: the NMOS 6502 (the default) or the WDC 65C02. The program is assembled for it. */
+  chip?: 'nmos' | 'cmos'
 }
 
 /** The ROM's parameters for a program: its source, and the bytes that assembles to. */
 function programParams(o: Board6502Options): Params {
   if (o.rom) return { data: o.rom }
   const source = o.source ?? BLINK_SOURCE
-  const r = assemble6502(source, ROM_SIZE)
+  const cmos = o.chip === 'cmos'
+  const r = assemble6502(source, ROM_SIZE, cmos)
   if (r.errors.length) throw new Error(`The program does not assemble: line ${r.errors[0].line}: ${r.errors[0].message}`)
-  return { isa: '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
+  return { isa: cmos ? '65c02' : '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
 }
 
 /** The board's parts and wires, and the id of each named part. */
@@ -101,7 +104,7 @@ export function board6502Builder(o: Board6502Options = {}) {
   wire(`${reset}.Q`, `${nreset}.A`)
 
   // The CPU. In bus mode its address, data out and data in are three bus pins.
-  const cpu = part(CPU, 'cpu', 'cpu6502', { params: { bus: true }, label: 'CPU' })
+  const cpu = part(CPU, 'cpu', 'cpu6502', { params: { bus: true, ...(o.chip === 'cmos' ? { chip: 'cmos' } : {}) }, label: o.chip === 'cmos' ? 'CPU (65C02)' : 'CPU' })
   wire(`${clk}.Q`, `${cpu}.PHI2`)
   wire(`${nreset}.Y`, `${cpu}.RESB`)
 

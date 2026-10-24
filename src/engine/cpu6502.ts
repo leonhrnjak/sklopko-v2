@@ -28,6 +28,10 @@ export interface Step {
   e?(c: Cpu6502, d: number): void
   /** The step is left out (it takes no cycle) when this is true as the previous step ends. */
   skip?(c: Cpu6502): boolean
+  /** The cycle fetches a vector (the VPB pin of the 65C02 is low). */
+  vp?: boolean
+  /** The cycle is part of a read-modify-write instruction (the MLB pin is low). */
+  ml?: boolean
 }
 
 export interface Cpu6502 {
@@ -79,6 +83,10 @@ export interface Cpu6502 {
   wait: number
   /** The bit RMB, SMB, BBR and BBS work on (set when the instruction starts). */
   bit: number
+  /** This cycle reads an interrupt or reset vector (the 65C02's VPB pin is low). */
+  vp: boolean
+  /** This cycle is one of a read-modify-write instruction (the 65C02's MLB pin is low). */
+  ml: boolean
 }
 
 export function newCpu(cmos = false): Cpu6502 {
@@ -86,7 +94,7 @@ export function newCpu(cmos = false): Cpu6502 {
     a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, p: U | I,
     addr: 0, read: true, out: 0, sync: false,
     irq: false, nmiPending: false, nmiPin: false,
-    op: 0, prog: -1, t: 0, intr: null, vec: 0xfffe, ea: 0, lo: 0, ptr: 0, val: 0, base: 0, cross: false, off: 0, newpc: 0, cycles: 0, cmos, wait: 0, bit: 0,
+    op: 0, prog: -1, t: 0, intr: null, vec: 0xfffe, ea: 0, lo: 0, ptr: 0, val: 0, base: 0, cross: false, off: 0, newpc: 0, cycles: 0, cmos, wait: 0, bit: 0, vp: false, ml: false,
   }
 }
 
@@ -100,6 +108,12 @@ const wr = (c: Cpu6502, addr: number, v: number) => {
   c.out = v & 255
 }
 const step = (a: Step['a'], e?: Step['e']): Step => ({ a, e })
+/** Put the access of a step on the pins, with its flags. */
+const begin = (c: Cpu6502, s: Step) => {
+  s.a(c)
+  c.vp = !!s.vp
+  c.ml = !!s.ml
+}
 const SKIP = 99
 
 const setNZ = (c: Cpu6502, v: number) => {
@@ -357,9 +371,9 @@ function program(o: Opcode6502, cmos: boolean): Step[] {
   const stackPush = (value: (c: Cpu6502) => number) => step((c) => wr(c, push(c), value(c)), (c) => (c.sp = (c.sp - 1) & 255))
   const stackPull = (e: Step['e']) => step((c) => rd(c, push(c)), e)
   const pullSp = step((c) => rd(c, push(c)), (c) => (c.sp = (c.sp + 1) & 255))
-  const vector = (lowAddr: (c: Cpu6502) => number) => [
-    step((c) => rd(c, lowAddr(c)), (c, d) => (c.lo = d)),
-    step((c) => rd(c, lowAddr(c) + 1), (c, d) => (c.pc = c.lo | (d << 8))),
+  const vector = (lowAddr: (c: Cpu6502) => number): Step[] => [
+    { ...step((c) => rd(c, lowAddr(c)), (c, d) => (c.lo = d)), vp: true },
+    { ...step((c) => rd(c, lowAddr(c) + 1), (c, d) => (c.pc = c.lo | (d << 8))), vp: true },
   ]
   switch (m) {
     case 'PHA':
@@ -511,12 +525,13 @@ function program(o: Opcode6502, cmos: boolean): Step[] {
   // Read-modify-write: read, write the old value back (the 6502 does) or read it again (the 65C02 does), write the new one.
   const fn = o.bit === undefined ? RMW_OPS[m] : m.startsWith('RMB') ? (_c: Cpu6502, v: number) => v & ~(1 << o.bit!) : (_c: Cpu6502, v: number) => v | (1 << o.bit!)
   const again = cmos ? step((c) => rd(c, c.ea)) : step((c) => wr(c, c.ea, c.val), (c) => (c.val = fn(c, c.val)))
+  const locked = (s: Step): Step => ({ ...s, ml: true })
   return [
     ...address,
-    ...(mode === 'abx' ? [cmos ? { a: lastByte, skip: (c: Cpu6502) => !c.cross && o.pageCross } : step((c) => rd(c, c.base))] : []),
-    step((c) => rd(c, c.ea), (c, d) => (c.val = d)),
-    cmos ? { a: again.a, e: (c: Cpu6502) => (c.val = fn(c, c.val)) } : again,
-    step((c) => wr(c, c.ea, c.val)),
+    ...(mode === 'abx' ? [cmos ? { a: lastByte, skip: (c: Cpu6502) => !c.cross && o.pageCross, ml: true } : step((c) => rd(c, c.base))] : []),
+    locked(step((c) => rd(c, c.ea), (c, d) => (c.val = d))),
+    locked(cmos ? { a: again.a, e: (c: Cpu6502) => (c.val = fn(c, c.val)) } : again),
+    locked(step((c) => wr(c, c.ea, c.val))),
   ]
 }
 
@@ -530,7 +545,7 @@ const CMOS_PROGRAMS: Step[][] = Array.from({ length: 256 }, (_, op) => program(B
 export const PROG_INTERRUPT = 256
 export const PROG_RESET = 257
 /** Waiting after WAI or STP (not a program: `prog` is this and not -1, so the fetch is not one). */
-const PROG_WAIT = -2
+export const PROG_WAIT = -2
 
 /** Seven cycles that push the return address and the flags, then jump through a vector. `B` is 0 for an interrupt. */
 const INTERRUPT: Step[] = [
@@ -538,8 +553,8 @@ const INTERRUPT: Step[] = [
   step((c) => wr(c, push(c), c.pc >> 8), (c) => (c.sp = (c.sp - 1) & 255)),
   step((c) => wr(c, push(c), c.pc & 255), (c) => (c.sp = (c.sp - 1) & 255)),
   step((c) => wr(c, push(c), (c.p | U) & ~B), (c) => ((c.sp = (c.sp - 1) & 255), (c.p |= I), c.cmos && (c.p &= ~D))),
-  step((c) => rd(c, c.vec), (c, d) => (c.lo = d)),
-  step((c) => rd(c, c.vec + 1), (c, d) => (c.pc = c.lo | (d << 8))),
+  { ...step((c) => rd(c, c.vec), (c, d) => (c.lo = d)), vp: true },
+  { ...step((c) => rd(c, c.vec + 1), (c, d) => (c.pc = c.lo | (d << 8))), vp: true },
 ]
 
 /** The reset sequence: like an interrupt, but nothing is written (the stack pointer still goes down three times). */
@@ -549,8 +564,8 @@ const RESET: Step[] = [
   step((c) => rd(c, push(c)), (c) => (c.sp = (c.sp - 1) & 255)),
   step((c) => rd(c, push(c)), (c) => (c.sp = (c.sp - 1) & 255)),
   step((c) => rd(c, push(c)), (c) => ((c.sp = (c.sp - 1) & 255), (c.p |= I), c.cmos && (c.p &= ~D))),
-  step((c) => rd(c, 0xfffc), (c, d) => (c.lo = d)),
-  step((c) => rd(c, 0xfffd), (c, d) => (c.pc = c.lo | (d << 8))),
+  { ...step((c) => rd(c, 0xfffc), (c, d) => (c.lo = d)), vp: true },
+  { ...step((c) => rd(c, 0xfffd), (c, d) => (c.pc = c.lo | (d << 8))), vp: true },
 ]
 
 const NMOS: Step[][] = [...NMOS_PROGRAMS, INTERRUPT, RESET]
@@ -562,6 +577,7 @@ const programsOf = (c: Cpu6502) => (c.cmos ? CMOS : NMOS)
 /** Set up an opcode fetch at `pc`, or, if an interrupt is waiting, one that turns into the interrupt sequence. */
 function startFetch(c: Cpu6502) {
   c.prog = -1
+  c.vp = c.ml = false
   if (c.wait) {
     // After WAI or STP the CPU only reads the next opcode's address, over and over, until an interrupt (WAI) or a reset (STP).
     if (c.wait === 1 && (c.nmiPending || c.irq)) c.wait = 0
@@ -592,7 +608,7 @@ export function reset(c: Cpu6502) {
   c.intr = null
   c.nmiPending = false
   c.sync = false
-  RESET[0].a(c)
+  begin(c, RESET[0])
 }
 
 /** Finish the cycle on the pins (`d` is the byte read, ignored for a write) and set up the next one. */
@@ -612,7 +628,7 @@ export function cycle(c: Cpu6502, d: number) {
     }
     c.t = 0
     const first = programsOf(c)[c.prog]
-    if (first.length) first[0].a(c)
+    if (first.length) begin(c, first[0])
     else startFetch(c) // a one-cycle instruction: the fetch was all of it
     return
   }
@@ -620,7 +636,7 @@ export function cycle(c: Cpu6502, d: number) {
   steps[c.t].e?.(c, d & 255)
   c.t++
   while (c.t < steps.length && steps[c.t].skip?.(c)) c.t++
-  if (c.t < steps.length) steps[c.t].a(c)
+  if (c.t < steps.length) begin(c, steps[c.t])
   else startFetch(c)
 }
 
