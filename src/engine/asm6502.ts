@@ -18,7 +18,13 @@
 
 import { IDENT, matchConstant, matchLabel, stripComment, type AsmError } from './asmlex'
 import { disassemble6502 } from './disasm6502'
-import { BY_OPCODE_6502, modesOf6502, opcodeOf6502, MODE_BYTES, type Mode6502 } from './opcodes6502'
+import { BY_OPCODE_6502, ENCODINGS, MODE_BYTES, type Mode6502 } from './opcodes6502'
+
+/** Opcode of a mnemonic in an addressing mode, or undefined if the instruction does not have that mode. */
+export const opcodeOf6502 = (mnemonic: string, mode: Mode6502): number | undefined => ENCODINGS[mnemonic.toUpperCase()]?.[mode]
+
+/** The addressing modes a mnemonic has. */
+export const modesOf6502 = (mnemonic: string): Mode6502[] => Object.keys(ENCODINGS[mnemonic.toUpperCase()] ?? {}) as Mode6502[]
 
 /** One thing the assembler placed: an instruction, some data bytes or a gap. */
 export interface Item6502 {

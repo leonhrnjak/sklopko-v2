@@ -44,7 +44,7 @@ const W = ['STA', 'STX', 'STY']
 const M = ['ASL', 'LSR', 'ROL', 'ROR', 'INC', 'DEC']
 
 /** Each mnemonic with the opcode of each addressing mode it has. */
-const ENCODINGS: Record<string, Partial<Record<Mode6502, number>>> = {
+export const ENCODINGS: Record<string, Partial<Record<Mode6502, number>>> = {
   LDA: { imm: 0xa9, zp: 0xa5, zpx: 0xb5, abs: 0xad, abx: 0xbd, aby: 0xb9, izx: 0xa1, izy: 0xb1 },
   LDX: { imm: 0xa2, zp: 0xa6, zpy: 0xb6, abs: 0xae, aby: 0xbe },
   LDY: { imm: 0xa0, zp: 0xa4, zpx: 0xb4, abs: 0xac, abx: 0xbc },
@@ -159,9 +159,3 @@ export const BY_OPCODE_6502: (Opcode6502 | undefined)[] = (() => {
   for (const o of OPCODES_6502) t[o.opcode] = o
   return t
 })()
-
-/** Opcode of a mnemonic in an addressing mode, or undefined if the instruction does not have that mode. */
-export const opcodeOf6502 = (mnemonic: string, mode: Mode6502): number | undefined => ENCODINGS[mnemonic.toUpperCase()]?.[mode]
-
-/** The addressing modes a mnemonic has. */
-export const modesOf6502 = (mnemonic: string): Mode6502[] => Object.keys(ENCODINGS[mnemonic.toUpperCase()] ?? {}) as Mode6502[]

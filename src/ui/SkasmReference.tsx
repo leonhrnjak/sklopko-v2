@@ -475,7 +475,7 @@ function Examples() {
 /** The language reference for SKASM. */
 export function SkasmReference() {
   const open = useReference((s) => s.open && s.language === 'skasm')
-  const tab = useReference((s) => s.tab)
+  const tab = useReference((s) => s.tab as ReferenceTab)
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeReference()

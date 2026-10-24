@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { closeReference, set6502ReferenceTab, useReference, type Reference6502Tab } from '../app/reference'
+import { closeReference, setReferenceTab, useReference, type Reference6502Tab } from '../app/reference'
 import { showToast } from '../app/store'
 import { MNEMONICS_6502, type Category6502 } from '../engine/mnemonics6502'
 import { BY_OPCODE_6502, MODE_BYTES, OPCODES_6502, type Mode6502, type Opcode6502 } from '../engine/opcodes6502'
@@ -286,7 +286,7 @@ function OpcodeMap() {
 /** The language reference for 6502 assembly, generated from the opcode table the CPU runs. */
 export function Reference6502() {
   const open = useReference((s) => s.open && s.language === '6502')
-  const tab = useReference((s) => s.tab6502)
+  const tab = useReference((s) => s.tab as Reference6502Tab)
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeReference()
@@ -301,7 +301,7 @@ export function Reference6502() {
           <strong>6502 reference</strong>
           <div className="seg" role="tablist" aria-label="Reference sections">
             {TABS.map(([id, name]) => (
-              <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => set6502ReferenceTab(id)}>
+              <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setReferenceTab(id)}>
                 {name}
               </button>
             ))}
