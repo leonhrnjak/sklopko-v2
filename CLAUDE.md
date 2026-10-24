@@ -82,6 +82,8 @@ listing (C1), editing a row by signal (C2), a text form (C3) and polish (C4); on
 examples (R5) and the 65C02, its interrupt example and probes (R6). Not done: challenges where you write a program (they need a new kind of
 challenge that runs the program on a board). SKASM stays on our own computers.
 
+**Planned: a BASIC computer on the 6502** (`docs/plan-basic-computer.md`, Ben Eater style: 32 KB RAM, 16 KB ROM, a 6551-style terminal part, Microsoft BASIC in the ROM; B1 to B4, not started; B1 bumps the minor version).
+
 Finished plans, for background: `docs/plan-cpu6502.md` (the 6502 and 65C02 parts), `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
