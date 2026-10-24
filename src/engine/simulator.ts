@@ -64,8 +64,12 @@ interface Snapshot {
   pipes: (Uint8Array | undefined)[]
 }
 
-/** Part states are plain data (numbers, strings, arrays, objects), so a recursive copy is all that is needed. */
+/**
+ * Part states are plain data (numbers, strings, arrays, objects), so a recursive copy is all that is needed. A big memory is a
+ * typed array, which is copied in one go: this runs for every part at every clock edge.
+ */
 function cloneState<T>(s: T): T {
+  if (ArrayBuffer.isView(s)) return (s as unknown as Uint8Array).slice() as unknown as T
   if (Array.isArray(s)) return s.map(cloneState) as T
   if (s && typeof s === 'object') {
     const o: Record<string, unknown> = {}

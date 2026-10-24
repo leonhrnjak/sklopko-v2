@@ -349,6 +349,26 @@ test('devices: RAM and ROM can have 8 address bits', async ({ page }) => {
   await expect(page.locator('.ram-word')).toHaveCount(256)
 })
 
+test('devices: a RAM of 2048 words and a ROM of 4096 are read a page of 256 at a time', async ({ page }) => {
+  await freshEmpty(page)
+  const ram = await place(page, 'ram', 300, 200)
+  await page.getByLabel('Address bits').selectOption('11')
+  await expect(page.locator(`.comp[data-id="${ram}"]`)).toContainText('RAM 2048×4')
+  await expect(page.locator('.ram-word')).toHaveCount(256)
+  await expect(page.getByLabel('Page of the memory').locator('option')).toHaveCount(9) // "the one being read" and 8 pages
+  await page.getByLabel('Page of the memory').selectOption('3')
+  await expect(page.locator('.ram-word').first().locator('.addr')).toHaveText('300')
+  await expect(page.locator('.ram-word').last().locator('.addr')).toHaveText('3FF')
+
+  const rom = await place(page, 'rom', 300, 500)
+  await page.getByLabel('Address bits').selectOption('12')
+  await expect(page.locator(`.comp[data-id="${rom}"]`)).toContainText('ROM 4096×4')
+  await expect(page.getByLabel('Page of the memory').locator('option')).toHaveCount(17)
+  await page.getByLabel('Page of the memory').selectOption('15')
+  await expect(page.getByRole('table', { name: 'Listing' }).locator('.row-listing').first().locator('.addr')).toHaveText('F00')
+  await expect(page.getByRole('table', { name: 'Listing' }).locator('.row-listing')).toHaveCount(256)
+})
+
 test('the SKASM reference opens from the toolbar and from a program ROM, and has the instructions, ports and examples', async ({ page }) => {
   await freshEmpty(page)
   await chooseTool(page, 'SKASM…')

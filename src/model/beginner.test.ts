@@ -29,7 +29,7 @@ function machine(source: string) {
     acc: () => nibble('acc', ['QA', 'QB', 'QC', 'QD']),
     carry: () => sim.pinValue(keys.flag, 'QA'),
     halted: () => sim.pinValue(keys.halted, 'A'),
-    ram: () => (sim.state(keys.ram).mem as number[]).slice(),
+    ram: () => Array.from(sim.state(keys.ram).mem as ArrayLike<number>),
   }
 }
 

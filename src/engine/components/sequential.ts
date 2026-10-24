@@ -301,7 +301,7 @@ export const memoryRam: ComponentDef[] = [
     name: 'RAM',
     category: 'memory',
     description:
-      'Read/write memory of 4 or 8 bit words (16 words, or up to 256 with more address bits). The word addressed by ' +
+      'Read/write memory of 4 or 8 bit words (16 words, or up to 2048 with more address bits). The word addressed by ' +
       'A is always on Q. On a rising CLK ' +
       'with WE=1 the data inputs D are written to that address (not when the address or data is unknown). ' +
       'Contents are cleared by Reset. While the simulation is paused you can edit the words in the inspector.',
@@ -320,17 +320,18 @@ export const memoryRam: ComponentDef[] = [
         kind: 'select',
         default: 4,
         structural: true,
-        options: [4, 5, 6, 7, 8].map((v) => ({ value: v, label: `${v} (${2 ** v} words)` })),
+        options: [4, 5, 6, 7, 8, 9, 10, 11].map((v) => ({ value: v, label: `${v} (${2 ** v} words)` })),
       },
     ],
     title: (p) => `RAM ${2 ** ramBits(p)}×${p.dbits}`,
     live: true,
-    init: (p) => ({ mem: new Array<number>(2 ** ramBits(p)).fill(0), pc: X as V }),
+    init: (p) => ({ mem: new Uint8Array(2 ** ramBits(p)), pc: X as V }),
     memory: {
-      size: (inst) => (inst.state as { mem: number[] }).mem.length,
-      read: (inst, i) => (inst.state as { mem: number[] }).mem[i],
+      size: (inst) => (inst.state as { mem: Uint8Array }).mem.length,
+      read: (inst, i) => (inst.state as { mem: Uint8Array }).mem[i],
       write: (inst, i, value) => {
-        ;(inst.state as { mem: number[] }).mem[i] = value & (2 ** Number(inst.params.dbits) - 1)
+        
+        ;(inst.state as { mem: Uint8Array }).mem[i] = value & (2 ** Number(inst.params.dbits) - 1)
       },
     },
     layout: (p) => {
@@ -347,10 +348,14 @@ export const memoryRam: ComponentDef[] = [
     },
     evaluate(inst) {
       const { ins, outs } = inst
-      const st = inst.state as { mem: number[]; pc: V }
+      const st = inst.state as { mem: Uint8Array; pc: V }
       // The words kept from before the address size was changed are cut or padded with zeros.
       const words = 2 ** ramBits(inst.params)
-      if (st.mem.length !== words) st.mem = Array.from({ length: words }, (_, i) => st.mem[i] ?? 0)
+      if (st.mem.length !== words) {
+        const resized = new Uint8Array(words)
+        resized.set(st.mem.subarray(0, words))
+        st.mem = resized
+      }
       // Pin order: left D0…, WE, CLK, then top A0–A3.
       const n = Number(inst.params.dbits)
       const addr = toNum(ins, n + 2, ramBits(inst.params))

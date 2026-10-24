@@ -23,6 +23,42 @@ const currentComp = (id: string): Comp | undefined => useStore.getState().circui
 /** Parameters of the part as they are now (event handlers must not use the props of an earlier render). */
 const currentParams = (id: string): Params => useStore.getState().circuit.comps[id]?.params ?? {}
 
+// ---- Pages of a big memory ----------------------------------------------------------------------
+
+/** A memory is shown 256 words at a time: thousands of rows are slow to draw and to scroll. */
+const PAGE = 256
+
+/** Which page to show: the one the user picked, or by default the one that holds the address being read. */
+function usePage(total: number, current: number) {
+  const pages = Math.ceil(total / PAGE)
+  const [picked, setPicked] = useState<number | null>(null)
+  const page = Math.min(picked ?? (current >= 0 ? Math.floor(current / PAGE) : 0), pages - 1)
+  return { pages, page, start: page * PAGE, end: Math.min(total, (page + 1) * PAGE), follow: picked === null, pick: setPicked }
+}
+
+/** A drop-down of the pages of a memory with more than 256 words; nothing for a smaller one. */
+function Pager({ paging, total }: { paging: ReturnType<typeof usePage>; total: number }) {
+  if (paging.pages <= 1) return null
+  const digits = Math.max(1, (total - 1).toString(16).length)
+  return (
+    <label className="field">
+      <span>Page</span>
+      <select
+        aria-label="Page of the memory"
+        value={paging.follow ? 'follow' : paging.page}
+        onChange={(e) => paging.pick(e.target.value === 'follow' ? null : Number(e.target.value))}
+      >
+        <option value="follow">The one being read</option>
+        {Array.from({ length: paging.pages }, (_, k) => (
+          <option key={k} value={k}>
+            {hexOf(k * PAGE, digits)}–{hexOf(Math.min(total, (k + 1) * PAGE) - 1, digits)}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 // ---- ROM ---------------------------------------------------------------------------------------
 
 /** Pick how a ROM's contents are written. A program starts from what the ROM holds now. */
@@ -112,13 +148,14 @@ interface ControlRow {
 }
 
 /** All words of a ROM: address, value and (for a program) the instruction or (for a control ROM) the row's name and signals, with the one being read right now marked. */
-function Listing({ comp, isa, values, digits, control, hideEmpty, editor }: { comp: Comp; isa?: Isa; values: number[]; digits: number; control?: ControlRow[]; hideEmpty?: boolean; editor?: RowEditing }) {
+function Listing({ comp, isa, values, digits, control, hideEmpty, editor, window: rows }: { comp: Comp; isa?: Isa; values: number[]; digits: number; control?: ControlRow[]; hideEmpty?: boolean; editor?: RowEditing; window?: { start: number; end: number } }) {
   useCompSignature(comp.id, true)
   const addr = toNum(sim.inputValues(comp.id), 0, Number(comp.params.abits))
   const addrDigits = Math.max(1, (values.length - 1).toString(16).length)
   return (
     <div className={`listing${control ? ' control' : ''}`} role="table" aria-label="Listing">
       {values.map((w, i) => {
+        if (rows && (i < rows.start || i >= rows.end)) return null
         const row = control?.[i]
         // A control ROM is mostly empty rows: leave them out when asked, except the one being read.
         if (hideEmpty && row && !row.name && !row.signals && i !== addr && i !== editor?.open) return null
@@ -406,6 +443,7 @@ export function RomSection({ comp }: { comp: Comp }) {
   )
   const [hideEmpty, setHideEmpty] = useState(true)
   const [openRow, setOpenRow] = useState<number | null>(null)
+  const paging = usePage(words, toNum(sim.inputValues(comp.id), 0, Number(p.abits)))
   /** Write one word of the ROM (the words as they are now, not as they were when this was rendered). */
   const changeRow = (row: number, word: number) => {
     const now = [...parseWords(String(currentParams(comp.id).data), words, bits)] // a copy: the parsed words are shared
@@ -482,7 +520,8 @@ export function RomSection({ comp }: { comp: Comp }) {
           <span>Only rows with a name or signals</span>
         </label>
       )}
-      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} editor={editor} />
+      <Pager paging={paging} total={words} />
+      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} editor={editor} window={paging} />
       {editor && openRow !== null && openRow < words && (
         <RowEditor
           layout={editor.layout}
@@ -544,6 +583,7 @@ export function RamSection({ comp }: { comp: Comp }) {
   const mem = useMemoryWords(comp.id)
   useCompSignature(comp.id, true)
   const addr = toNum(sim.inputValues(comp.id), bits + 2, abits)
+  const paging = usePage(2 ** abits, addr)
   const [editing, setEditing] = useState<number | null>(null)
   const cancelled = useRef(false) // Escape: the blur that follows must not apply the text
 
@@ -559,8 +599,11 @@ export function RamSection({ comp }: { comp: Comp }) {
   return (
     <div className="field">
       <span>Contents</span>
+      <Pager paging={paging} total={2 ** abits} />
       <div className="ram-grid" role="grid" aria-label="RAM contents">
-        {mem.map((v, i) => (
+        {mem.slice(paging.start, paging.end).map((v, k) => {
+          const i = paging.start + k
+          return (
           <div key={i} className={`ram-word${i === addr ? ' current' : ''}`} role="gridcell">
             <span className="addr">{hexOf(i, addrDigits)}</span>
             {editing === i && !running ? (
@@ -591,7 +634,8 @@ export function RamSection({ comp }: { comp: Comp }) {
               </button>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
       <small>{running ? 'Pause the simulation to edit the words (hex).' : 'Click a word to change it (hex). Reset clears the memory.'}</small>
       <div className="row">
