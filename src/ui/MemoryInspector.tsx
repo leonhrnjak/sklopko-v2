@@ -354,7 +354,7 @@ export function RomSection({ comp }: { comp: Comp }) {
   const [openRow, setOpenRow] = useState<number | null>(null)
   /** Write one word of the ROM (the words as they are now, not as they were when this was rendered). */
   const changeRow = (row: number, word: number) => {
-    const now = parseWords(String(currentParams(comp.id).data), words, bits)
+    const now = [...parseWords(String(currentParams(comp.id).data), words, bits)] // a copy: the parsed words are shared
     now[row] = word
     setParams(comp.id, { data: toHexWords(now, bits) })
   }
