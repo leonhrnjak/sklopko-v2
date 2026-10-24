@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { clearStorage } from './storage'
-import { fresh, freshEmpty, place, pinCenter, wire, clickComp, ledOn, chooseFile, toggleTool } from './helpers'
+import { fresh, freshEmpty, place, pinCenter, wire, clickComp, ledOn, chooseFile, toggleTool, chooseExample } from './helpers'
 
 test('build an AND circuit by drag and drop, then operate it', async ({ page }) => {
   await freshEmpty(page)
@@ -137,7 +137,7 @@ test('the parts panel never scrolls sideways and can be resized', async ({ page 
 
 test('switches operate on click; long-press, right-click or drag selects them instead', async ({ page }) => {
   await fresh(page)
-  await page.selectOption('select[aria-label="Load an example"]', 'gates')
+  await chooseExample(page, 'gates')
   const a = page.locator('.comp[data-id="switch1"]')
   const knob = () => a.locator('.switch-track').getAttribute('class')
   const box = (await a.locator('> g').boundingBox())!

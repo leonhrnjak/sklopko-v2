@@ -32,13 +32,24 @@ test('nothing overflows the screen sideways', async ({ page }) => {
   expect(tooWide).toBe(0)
 })
 
-test('the overflow menu holds the secondary actions', async ({ page }) => {
+test('the overflow menu holds the secondary actions, and the example gallery fits a phone', async ({ page }) => {
   await fresh(page)
   await expect(page.locator('.toolbar > .wide-only').first()).toBeHidden()
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await expect(page.locator('.toolbar-menu select[aria-label="Load an example"]')).toBeVisible()
-  await page.selectOption('.toolbar-menu select[aria-label="Load an example"]', 'gates')
+  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Logic…' })).toBeVisible()
+  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save file' })).toBeVisible()
+  await page.locator('.toolbar-menu').getByRole('button', { name: 'Examples', exact: true }).tap()
   await expect(page.locator('.toolbar-menu')).toHaveCount(0)
+  const dialog = page.getByRole('dialog', { name: 'Examples' })
+  await expect(dialog).toBeVisible()
+  const width = page.viewportSize()!.width
+  for (const el of [dialog, dialog.locator('.gallery-card').first(), dialog.getByLabel('Search examples')]) {
+    const box = (await el.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5)
+  }
+  await dialog.getByTestId('example-gates').tap()
+  await expect(dialog).toHaveCount(0)
   await expect(page.locator('.comp')).toHaveCount(10)
 })
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { chooseFile } from './helpers'
+import { chooseFile, chooseExample } from './helpers'
 
 test('examples have short links that open them directly', async ({ page }) => {
   await page.goto('/intersection', { waitUntil: 'networkidle' })
@@ -8,7 +8,7 @@ test('examples have short links that open them directly', async ({ page }) => {
   expect(new URL(page.url()).pathname).toBe('/intersection')
 
   // Choosing an example from the menu shows its link in the address bar.
-  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await chooseExample(page, 'dice')
   await expect(page.locator('.comp[data-id^="dicedisp"]')).toHaveCount(1)
   expect(new URL(page.url()).pathname).toBe('/dice')
 

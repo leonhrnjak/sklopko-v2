@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, clickLabelled } from './helpers'
+import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, clickLabelled, chooseExample } from './helpers'
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
@@ -12,20 +12,20 @@ test('examples load and the welcome counter ticks', async ({ page }) => {
   const first = await seg.count()
   await expect.poll(async () => seg.count(), { timeout: 4000 }).not.toBe(first)
   for (const ex of ['gates', 'sr-latch', 'd-latch', 'shift-register', 'ripple-counter', 'adder', 'mux', 'oscillator', 'intersection', 'dice', 'clock']) {
-    await page.selectOption('select[aria-label="Load an example"]', ex)
+    await chooseExample(page, ex)
     await expect(page.locator('.comp').first()).toBeVisible()
   }
 })
 
 test('4-bit input cycles on click and the push button resets the counter while held', async ({ page }) => {
   await fresh(page)
-  await page.selectOption('select[aria-label="Load an example"]', 'adder')
+  await chooseExample(page, 'adder')
   const display = page.locator('.comp[data-id^="hexdisp"] polygon.seg.on')
   await expect(display).toHaveCount(5) // 5 + 9 = E
   await clickComp(page, 'hexin1')
   await expect(display).toHaveCount(4) // 6 + 9 = F
 
-  await page.selectOption('select[aria-label="Load an example"]', 'counter')
+  await chooseExample(page, 'counter')
   const seg = page.locator('.comp[data-id^="seg7"] polygon.seg.on')
   // Wait until the counter has moved off 0 ("0" lights 6 segments, "8" lights 7).
   await expect.poll(async () => seg.count(), { timeout: 4000 }).not.toBe(6)

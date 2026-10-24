@@ -13,9 +13,16 @@ export interface ExampleFiles {
 
 export const exampleIds = (): string[] => EXAMPLES.map((e) => e.id)
 
+const made = new Map<string, ExampleFiles>()
+
 export function exampleFiles(id: string): ExampleFiles | undefined {
   const ex = EXAMPLES.find((e) => e.id === id)
   if (!ex) return undefined
-  const circuit = ex.build()
-  return { json: JSON.stringify(serialize(circuit)), svg: thumbnailSvg(circuit) }
+  let files = made.get(id)
+  if (!files) {
+    const circuit = ex.build()
+    files = { json: JSON.stringify(serialize(circuit)), svg: thumbnailSvg(circuit) }
+    made.set(id, files)
+  }
+  return files
 }
