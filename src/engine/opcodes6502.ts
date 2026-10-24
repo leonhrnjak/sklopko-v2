@@ -17,12 +17,18 @@
  *   izx   (zero page + X) is the address   LDA ($10,X)
  *   izy   (zero page) is the address, + Y  LDA ($10),Y
  *   rel   a signed offset from the next instruction    BNE label
+ *
+ * and three that only the 65C02 has (see `opcodes65c02.ts`):
+ *
+ *   izp   (zero page) is the address         LDA ($10)
+ *   iax   (address + X) is the address       JMP ($1234,X)
+ *   zpr   a zero-page address, then a branch BBR0 $10,label
  */
 
-export type Mode6502 = 'imp' | 'acc' | 'imm' | 'zp' | 'zpx' | 'zpy' | 'abs' | 'abx' | 'aby' | 'ind' | 'izx' | 'izy' | 'rel'
+export type Mode6502 = 'imp' | 'acc' | 'imm' | 'zp' | 'zpx' | 'zpy' | 'abs' | 'abx' | 'aby' | 'ind' | 'izx' | 'izy' | 'rel' | 'izp' | 'iax' | 'zpr'
 
 /** Bytes of an instruction (opcode and operand) by addressing mode. */
-export const MODE_BYTES: Record<Mode6502, number> = { imp: 1, acc: 1, imm: 2, zp: 2, zpx: 2, zpy: 2, abs: 3, abx: 3, aby: 3, ind: 3, izx: 2, izy: 2, rel: 2 }
+export const MODE_BYTES: Record<Mode6502, number> = { imp: 1, acc: 1, imm: 2, zp: 2, zpx: 2, zpy: 2, abs: 3, abx: 3, aby: 3, ind: 3, izx: 2, izy: 2, rel: 2, izp: 2, iax: 3, zpr: 3 }
 
 /** How an instruction touches memory, which decides its cycles: it reads, writes, reads then writes, or does neither. */
 export type Kind6502 = 'read' | 'write' | 'rmw' | 'other'
@@ -37,6 +43,8 @@ export interface Opcode6502 {
   /** The extra cycle when an indexed read crosses a page boundary. */
   pageCross: boolean
   kind: Kind6502
+  /** For RMB, SMB, BBR and BBS: the bit it works on, 0 to 7. */
+  bit?: number
 }
 
 const R = ['LDA', 'LDX', 'LDY', 'ADC', 'SBC', 'AND', 'ORA', 'EOR', 'CMP', 'CPX', 'CPY', 'BIT']
@@ -133,6 +141,12 @@ function baseCycles(mnemonic: string, mode: Mode6502, kind: Kind6502): number {
     case 'izy':
       return kind === 'write' ? 6 : 5
     case 'ind':
+      return 5
+    case 'izp':
+      return 5
+    case 'iax':
+      return 6
+    case 'zpr':
       return 5
   }
 }

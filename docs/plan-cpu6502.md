@@ -9,7 +9,10 @@
 > - [x] R3 The part: a 40-pin 6502 on the canvas, and a first board
 > - [x] R4 6502 assembly: assembler, disassembler, reference page
 > - [x] R5 The board with devices, and 6502 example programs
-> - [ ] R6 Polish: 65C02, interrupts, timing-view presets
+> - [ ] R6 Polish: 65C02, interrupts, timing-view presets, in three steps:
+>   - [x] R6a The 65C02 in the core: opcode table, cycle-exact model, vectors, Dormann
+>   - [ ] R6b The 65C02 in the part (a *Chip* setting, VPB, MLB and BE pins), the assembler and the reference
+>   - [ ] R6c An interrupt example, timing-view presets, a challenge or two
 
 ## Why
 Every computer so far is *invented*: SKASM is ours, and its 16-bit words exist in no chip. This adds a part you could buy: place
@@ -159,6 +162,17 @@ what the program does, and a real 6502 would do the same.
 - The **65C02** variant (W65C02S): `BRA`, `STZ`, `PHX/PHY/PLX/PLY`, `INC A`, `DEC A`, `(zp)`, `TSB/TRB`, `BIT #`, fixed `JMP ($xxFF)`,
   decimal-mode flags, `VPB`/`MLB`/`BE` pins. SingleStepTests has a `wdc65c02` set.
 - An interrupt example (NMI from a timer), timing-view presets (`PHI2`, `A`, `D`, `RWB`, `SYNC`), a challenge or two.
+
+**What R6a did, and where it differs from the plan.** The core runs a 65C02 as well (`newCpu(true)`): `opcodes65c02.ts` has the opcode
+table of the WDC W65C02S (the 151 NMOS opcodes, 29 new ones, the bit instructions RMB, SMB, BBR and BBS, WAI and STP, and a NOP of the right
+length for each opcode nothing uses), and `cpu6502.ts` builds the cycles of each from it. Differences from the NMOS chip, all in the core and
+checked against the vectors: read-modify-write reads the byte twice (not write twice), shifts by X take 6 cycles, `JMP (address)` takes 6 and does
+not wrap inside a page, decimal ADC and SBC take one more cycle and set N and Z from the result, BRK, interrupts and reset clear the decimal flag,
+BIT with a constant changes only Z, and a page crossing reads the last byte of the instruction. WAI waits for an interrupt (taking it only if I is
+clear), STP waits for a reset. Tested by `testdata/65c02-singlestep.json` (20 cases of each of the 254 opcodes the set has: all pass) and,
+opt-in, Dormann's 65C02 extended opcodes test (`VITE_DORMANN_65C02=…`, passes after 66,907,072 cycles); the NMOS tests are unchanged
+(96,241,367 cycles). Two details are the vectors', not the chip's: the extra cycle of decimal ADC with a constant reads `$007F` and SBC `$0000`.
+WAI and STP have no vectors; they are tested by hand. Not yet visible anywhere: the part, the assembler and the reference learn the 65C02 in R6b.
 
 ## Open choices (my pick in bold)
 1. **NMOS first, 65C02 in R6.** The table carries both, so the order can swap.

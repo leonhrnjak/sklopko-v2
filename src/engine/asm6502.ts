@@ -67,6 +67,9 @@ const SYNTAX: Record<Mode6502, string> = {
   izx: '(address,X)',
   izy: '(address),Y',
   rel: 'label',
+  izp: '(address)',
+  iax: '(address,X)',
+  zpr: 'address,label',
 }
 
 /** What the operand looks like, before the mnemonic decides which of the modes it is. */

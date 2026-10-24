@@ -29,6 +29,9 @@ const operand: Record<Mode6502, (v: number) => string> = {
   izx: (v) => `($${v.toString(16)},X)`,
   izy: (v) => `($${v.toString(16)}),Y`,
   rel: (v) => `$${v.toString(16)}`,
+  izp: (v) => `($${v.toString(16)})`,
+  iax: (v) => `($${v.toString(16)},X)`,
+  zpr: (v) => `$${v.toString(16)},$${v.toString(16)}`,
 }
 
 describe('the 6502 assembler', () => {
