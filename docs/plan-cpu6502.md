@@ -1,6 +1,6 @@
 # A real CPU part: the MOS 6502 (plan)
 
-> **Status: in progress.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR does not bump the version).
+> **Status: done**, apart from program challenges (see the end of R6c's note). Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR does not bump the version).
 > One PR per milestone, each stacked on the one before it (`r1-6502-core`, `r2-big-memory`, `r3-6502-part`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the plan* note under it.
 >
@@ -9,7 +9,7 @@
 > - [x] R3 The part: a 40-pin 6502 on the canvas, and a first board
 > - [x] R4 6502 assembly: assembler, disassembler, reference page
 > - [x] R5 The board with devices, and 6502 example programs
-> - [ ] R6 Polish: 65C02, interrupts, timing-view presets, in three steps:
+> - [x] R6 Polish: 65C02, interrupts, timing-view presets, in three steps:
 >   - [x] R6a The 65C02 in the core: opcode table, cycle-exact model, vectors, Dormann
 >   - [x] R6b The 65C02 in the part (a *Chip* setting, VPB, MLB and BE pins), the assembler and the reference
 >   - [x] R6c An interrupt example and probes on the bus signals (the challenges are not done, see its note)
@@ -191,7 +191,7 @@ has the probes now, and the new example *65C02 + timer* uses both: the 65C02 run
 (buses as numbers) and the single-bit ones in the Timing tab. Differences: the "timing-view presets" are probes in the examples, not a setting of the
 view, which already draws whatever probes there are. **Not done: the challenges.** The challenge system checks gate circuits against a truth table or a
 list of switch steps; a program challenge ("write a program that…") needs a new kind with an editor and a checker that runs the program on a board. It is
-better as its own milestone.
+better as its own milestone (R7, not started: a *program* kind of challenge, with the ROM's program box as the answer and a testbench-like check on a board, say "the LEDs count from 0 to 7" or "the console prints Hello").
 
 ## Open choices (my pick in bold)
 1. **NMOS first, 65C02 in R6.** The table carries both, so the order can swap.
