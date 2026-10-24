@@ -28,7 +28,7 @@ export function ChallengeList() {
         </header>
         <div className="modal-body">
           <p className="challenge-intro">
-            Short lessons, each ending in something to build. Your circuit is checked automatically by trying every combination of the switches. Starting one replaces what is on the canvas (undo brings it back, or save it first).
+            Short lessons, each ending in something to build. Your circuit is checked automatically by trying every combination of the switches. Each challenge has a circuit of its own: what you had stays in your library, and coming back to a challenge brings back what you built.
           </p>
           {challengeGroups().map(({ group, challenges }) => (
             <section key={group} className="challenge-group">

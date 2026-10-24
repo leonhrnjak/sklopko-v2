@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
+import { newCircuit } from '../app/documents'
 import { openFsm } from '../app/fsm'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
@@ -9,7 +10,6 @@ import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
 import {
-  clearAll,
   clearWires,
   redo,
   select,
@@ -218,7 +218,7 @@ export function Toolbar() {
           </optgroup>
         ))}
       </select>
-      <button onClick={clearAll} title="Start an empty circuit (undoable)">
+      <button onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
         New
       </button>
       <button onClick={clearWires} title="Remove all wires, keep the parts (undoable)">

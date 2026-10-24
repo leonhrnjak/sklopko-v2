@@ -31,7 +31,7 @@ export interface LibraryBackend {
   remove(id: string): Promise<void>
 }
 
-const metaOf = ({ id, kind, name, created, updated, origin }: DocRecord): DocMeta => ({
+export const metaOf = ({ id, kind, name, created, updated, origin }: DocRecord): DocMeta => ({
   id,
   kind,
   name,
@@ -216,18 +216,42 @@ export async function openLastDoc(kind: DocKind): Promise<DocRecord | undefined>
 
 let saving: Promise<void> = Promise.resolve()
 
+/** What a new document is called, and where it came from. The name may be worked out when it is saved. */
+export interface NewDoc {
+  name: string | (() => Promise<string>)
+  origin?: DocMeta['origin']
+}
+
 /**
- * Save the data as the active document (a new one, named `name`, when nothing is active). Saves are done one after the other,
- * so two quick ones never make two documents.
+ * Save the data as the active document. When nothing is active, a new document is made from `create` (called "My circuit" when
+ * that is left out); otherwise the document keeps its name and origin. Saves are done one after the other, so two quick ones
+ * never make two documents.
  */
-export function saveActive(kind: DocKind, data: unknown, name = 'My circuit'): Promise<void> {
+export function saveActive(kind: DocKind, data: unknown, create: NewDoc = { name: 'My circuit' }): Promise<void> {
   const now = Date.now()
   const prev = active?.kind === kind ? active : null
-  const meta: DocMeta = prev ? { ...prev, updated: now } : { id: newDocId(), kind, name, created: now, updated: now }
+  const name = prev ? null : create.name
+  const meta: DocMeta = prev
+    ? { ...prev, updated: now }
+    : { id: newDocId(), kind, name: typeof create.name === 'string' ? create.name : '', created: now, updated: now, ...(create.origin ? { origin: create.origin } : {}) }
   setActive(meta)
-  const job = saving.then(() => putDoc({ ...meta, data }))
+  const job = saving.then(async () => {
+    if (name && typeof name !== 'string') {
+      meta.name = await name()
+      if (active?.id === meta.id) active = { ...active, name: meta.name }
+    }
+    await putDoc({ ...meta, data })
+  })
   saving = job.catch(() => {}) // the next save goes ahead whatever became of this one
   return job
+}
+
+/** "Untitled 1", "Untitled 2", …: the first number no document of the kind has used. */
+export async function nextUntitled(kind: DocKind = 'circuit'): Promise<string> {
+  const used = new Set((await listDocs(kind)).map((d) => /^Untitled (\d+)$/.exec(d.name)?.[1]).filter(Boolean))
+  let n = 1
+  while (used.has(String(n))) n++
+  return `Untitled ${n}`
 }
 
 // ---- Other tabs ---------------------------------------------------------------------------------

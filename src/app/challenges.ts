@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import { CHALLENGES, getChallenge, type Challenge } from '../model/challenges'
 import { checkChallenge, type CheckResult } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
+import { deserialize } from '../model/serialize'
 import { fitView } from '../ui/canvas/viewport'
+import { openCircuit } from './documents'
+import { getDoc, listDocs, metaOf } from './library'
 import { loadCircuit, showToast, useStore } from './store'
 import { setExampleUrl } from './runtime'
 
@@ -40,16 +43,38 @@ export const closeChallengeList = () => useChallenges.setState({ listOpen: false
 export const closeChallenge = () => useChallenges.setState({ current: null, hintShown: false, result: null })
 export const showHint = () => useChallenges.setState({ hintShown: true })
 
-/** Replace the canvas with the challenge's starting circuit (undo brings the old one back) and show its panel. */
-export function startChallenge(id: string) {
+/**
+ * Open the work on a challenge: the document made the first time it was started (its starting circuit, then whatever was built),
+ * so coming back to a challenge brings your circuit back. Its panel shows under the canvas.
+ */
+export async function startChallenge(id: string) {
   const ch = getChallenge(id)
   if (!ch) return
-  const hadWork = Object.keys(useStore.getState().circuit.comps).length > 0
-  loadCircuit(ch.starter())
-  setExampleUrl(null)
-  fitSoon()
   useChallenges.setState({ current: id, listOpen: false, hintShown: false, result: null })
-  if (hadWork) showToast('The canvas now holds the challenge. Undo (⌘Z) brings your circuit back.')
+  setExampleUrl(null)
+  try {
+    const mine = (await listDocs('circuit')).find((d) => d.origin?.challenge === id)
+    const rec = mine && (await getDoc(mine.id))
+    if (rec) {
+      openCircuit(deserialize(rec.data), { mode: 'stored', meta: metaOf(rec) })
+      fitSoon()
+      return
+    }
+  } catch {
+    // A record that no longer reads: start the challenge again below.
+  }
+  openCircuit(ch.starter(), { mode: 'now', name: `Challenge: ${ch.title}`, origin: { challenge: id } })
+  fitSoon()
+}
+
+/** Put the starting circuit back on the canvas (undo brings the work back). */
+export function restartChallenge() {
+  const ch = currentChallenge()
+  if (!ch) return
+  loadCircuit(ch.starter())
+  fitSoon()
+  useChallenges.setState({ hintShown: false, result: null })
+  showToast('The starting circuit is back. Undo (⌘Z) brings your work back.')
 }
 
 /** Replace the canvas with a solution. */

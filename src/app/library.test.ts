@@ -7,6 +7,7 @@ import {
   idbBackend,
   listDocs,
   memoryBackend,
+  nextUntitled,
   openLastDoc,
   putDoc,
   saveActive,
@@ -154,6 +155,24 @@ describe('the library', () => {
     await saveActive('circuit', 1)
     expect((await getDoc('f'))?.kind).toBe('fsm')
     expect((await listDocs('circuit')).length).toBe(1)
+  })
+
+  test('a new document gets the name and origin it is made with, and a name can be worked out when it is saved', async () => {
+    await saveActive('circuit', 1, { name: 'Counter (copy)', origin: { example: 'counter' } })
+    expect(await getDoc(activeDoc()!.id)).toMatchObject({ name: 'Counter (copy)', origin: { example: 'counter' } })
+    setActive(null)
+    await saveActive('circuit', 2, { name: async () => 'Later' })
+    expect(activeDoc()!.name).toBe('Later')
+    expect(await getDoc(activeDoc()!.id)).toMatchObject({ name: 'Later' })
+  })
+
+  test('Untitled numbers: the first one not in use', async () => {
+    expect(await nextUntitled()).toBe('Untitled 1')
+    await putDoc(rec('a', 1, { name: 'Untitled 1' }))
+    await putDoc(rec('b', 2, { name: 'Untitled 3' }))
+    await putDoc(rec('c', 3, { name: 'Untitled 2', kind: 'fsm' })) // another kind has its own numbers
+    expect(await nextUntitled()).toBe('Untitled 2')
+    expect(await nextUntitled('fsm')).toBe('Untitled 1')
   })
 
   test('setActive(null) forgets the active document', async () => {
