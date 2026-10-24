@@ -4,7 +4,7 @@ import { compareTables, type Comparison } from '../logic/compare'
 import type { Cell } from '../logic/table'
 import { analyzeCircuit, circuitPorts } from './analyze'
 import { goalTable, type Challenge, type Rules } from './challenges'
-import { flatten } from './buses'
+import { busModel, flatten } from './buses'
 import type { Circuit } from './circuit'
 
 /** A step of a memory challenge that did not come out as expected. */
@@ -37,7 +37,8 @@ const FREE = new Set(['io', 'display', 'annotation'])
 /** Break the rules? One sentence for each rule that is broken. */
 export function ruleProblems(c: Circuit, rules: Rules | undefined): string[] {
   if (!rules) return []
-  const logic = Object.values(c.comps).filter((k) => hasDef(k.type) && !FREE.has(getDef(k.type).category))
+  // Custom ICs count as the parts they are made of.
+  const logic = Object.values(busModel(c).circuit.comps).filter((k) => hasDef(k.type) && !FREE.has(getDef(k.type).category))
   const problems: string[] = []
   if (rules.only) {
     const wrong = [...new Set(logic.filter((k) => !rules.only!.includes(k.type)).map((k) => getDef(k.type).name))]

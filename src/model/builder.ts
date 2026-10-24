@@ -3,6 +3,7 @@ import { legacyDefaults, paramDefaults, type Params } from '../engine/types'
 import { routeWires } from '../routing/router'
 import { isLabel } from './labels'
 import { boundsRect, emptyCircuit, findPin, rectsIntersect, type Circuit, type Comp, type Rot } from './circuit'
+import { icParams } from './ic'
 
 interface AddOpts {
   params?: Params
@@ -75,6 +76,22 @@ export class CircuitBuilder {
   /** Feed the input pin `to` ('comp.pin') from the signal published under `name`, with a Receive label right next to it, if there is room. */
   tag(to: string, name: string, gap = 20, bits = 1): string | undefined {
     return this.flag('netrecv', name, to, gap, bits)
+  }
+
+  /**
+   * Make a custom IC from a circuit (its labelled switches and LEDs become its pins, see `deriveInterface`) and add it to this
+   * circuit's ICs. Returns its id, which `ic` places.
+   */
+  defineIC(name: string, circuit: Circuit, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ic'): string {
+    ;(this.c.ics ??= {})[id] = { id, name, circuit: { comps: circuit.comps, wires: circuit.wires } }
+    return id
+  }
+
+  /** Place an instance of a custom IC defined with `defineIC`; returns its part id. */
+  ic(defId: string, x: number, y: number, o: Omit<AddOpts, 'params'> = {}): string {
+    const def = this.c.ics?.[defId]
+    if (!def) throw new Error(`No IC ${defId}`)
+    return this.add('ic', x, y, { ...o, params: icParams(def) })
   }
 
   /** wire('and1.Y', 'led2.A') */

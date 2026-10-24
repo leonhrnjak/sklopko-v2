@@ -45,8 +45,10 @@ export function circuitPorts(c: Circuit): { inputs: Port[]; outputs: Port[] } {
 }
 
 /** Does this output depend on memory or a clock, not only on the switches? (Net labels are followed.) */
-export function dependsOnState(c: Circuit, outputId: string): boolean {
-  const m = busModel(c)
+export function dependsOnState(circuit: Circuit, outputId: string): boolean {
+  const m = busModel(circuit)
+  // The circuit with its custom ICs expanded: what drives an output may be inside one.
+  const c = m.circuit
   const labels = resolveLabels(m.sim)
   const feeders = new Map<string, string[]>()
   for (const w of Object.values(c.wires)) {

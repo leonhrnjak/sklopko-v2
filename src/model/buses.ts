@@ -4,6 +4,7 @@ import { getDef, hasDef } from '../engine/registry'
 import type { SimCircuit, SimComp, SimWire } from '../engine/simulator'
 import { isWiringPart } from '../engine/viewlayout'
 import { findPin, simComps, type Circuit, type Comp, type PinRef, type Wire } from './circuit'
+import { expandICs } from './ic'
 
 /**
  * Buses are a front end. The model, the router and the canvas see one thick wire between two bus pins; before it is
@@ -19,6 +20,13 @@ export type BitSource = PinRef | null
 export const X_SOURCE: PinRef = { comp: '#x', pin: 'Y' }
 
 export interface BusModel {
+  /**
+   * The circuit with its custom ICs expanded (see `expandICs`): the circuit itself when it has none. The wires of the circuit keep
+   * their ids in it; what the simulator and `bits` name is in this circuit, and the parts inside an IC are only in this one.
+   */
+  circuit: Circuit
+  /** Where the pins of the circuit's IC instances went (`inst:PIN` → a label part), for showing their values. */
+  connectors: Map<string, PinRef>
   /** The circuit as the simulator wants it. */
   sim: SimCircuit
   /** For each wire (by id), what drives each of its bits, lowest first. One entry for an ordinary wire. */
@@ -61,7 +69,8 @@ export function scalarPins(k: Comp, pin: string): string[] {
   return g ? g.pins : [pin]
 }
 
-function build(c: Circuit): BusModel {
+function build(original: Circuit): BusModel {
+  const { circuit: c, connectors } = expandICs(original)
   const wires = Object.values(c.wires)
   const feed = new Map<string, Wire>()
   for (const w of wires) feed.set(key(w.to), w)
@@ -156,5 +165,5 @@ function build(c: Circuit): BusModel {
   }
 
   const sim = { comps, wires: simWires }
-  return { sim: { ...sim, aliases: resolveLabels(sim) }, bits, netBits, upstream }
+  return { circuit: c, connectors, sim: { ...sim, aliases: resolveLabels(sim) }, bits, netBits, upstream }
 }
