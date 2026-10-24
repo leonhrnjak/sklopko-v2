@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import LZString from 'lz-string'
 import { clearStorage } from './storage'
-import { chooseTool, chooseFile } from './helpers'
+import { chooseTool, chooseFile, chooseExample } from './helpers'
 
 /** The records of the library database, read the way the page itself would. */
 async function records(page: Page): Promise<{ id: string; name: string; kind: string; comps: number }[]> {
@@ -112,7 +112,7 @@ test('an example is not saved until it is edited; the edit makes a copy, and wha
   await addPart(page, 'switch', 300, 200)
   await expect.poll(() => names(page)).toEqual(['Untitled 1'])
 
-  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await chooseExample(page, 'dice')
   await expect(page.locator('.comp[data-id^="dicedisp"]')).toHaveCount(1)
   expect(new URL(page.url()).pathname).toBe('/dice')
   await page.waitForTimeout(900)
@@ -165,7 +165,7 @@ test('a challenge keeps your work: leave it, come back, and your circuit is ther
   await expect.poll(() => names(page)).toEqual(['Challenge: Make the light follow the switch'])
 
   // Somewhere else, and back: the same document, with the part you added.
-  await page.selectOption('select[aria-label="Load an example"]', 'gates')
+  await chooseExample(page, 'gates')
   await expect(page.locator('.comp')).not.toHaveCount(3)
   await chooseTool(page, 'Challenges')
   await page.getByTestId('challenge-wire').click()
@@ -190,7 +190,7 @@ async function twoCircuits(page: Page) {
   await chooseFile(page, 'New')
   await addPart(page, 'switch', 300, 200)
   await expect.poll(() => names(page)).toEqual(['Untitled 1'])
-  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await chooseExample(page, 'dice')
   await page.locator('.comp').first().click({ button: 'right' })
   await page.keyboard.press('Delete')
   await expect.poll(() => names(page)).toEqual(['Electronic dice (copy)', 'Untitled 1'])
@@ -373,8 +373,8 @@ test('an example opens from a ready file, with its thumbnail beside it', async (
   expect((await request.get('/examples/nonesuch.json')).headers()['content-type']).toContain('text/html') // the page, not a file
 
   // Another example from the menu comes the same way.
-  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await chooseExample(page, 'dice')
   await expect.poll(() => asked).toContain('/examples/dice.json')
-  await expect(page.getByRole('button', { name: 'Circuit name: Electronic dice (copy)' })).toHaveCount(0) // unedited: no copy yet
+  await expect(page.locator('.doc-name.unsaved')).toHaveText('Electronic dice (copy)') // unedited: no copy kept yet
   await expect(page).toHaveURL(/\/dice$/)
 })

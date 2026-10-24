@@ -78,3 +78,9 @@ export async function clickLabelled(page: Page, label: string) {
   const b = (await g.boundingBox())!
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 }
+
+/** Open an example from the gallery behind the Examples button. */
+export async function chooseExample(page: Page, id: string) {
+  await page.getByRole('button', { name: 'Examples', exact: true }).click()
+  await page.getByTestId(`example-${id}`).click()
+}

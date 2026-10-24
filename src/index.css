@@ -1190,12 +1190,6 @@ button.danger {
   display: flex;
   gap: 6px;
 }
-.toolbar .examples-select {
-  width: 124px;
-}
-.toolbar-menu .examples-select {
-  width: auto;
-}
 
 .drop-wrap {
   position: relative;
@@ -2665,4 +2659,68 @@ button.linklike:hover {
 .library-actions {
   display: flex;
   gap: 4px;
+}
+
+/* ---- Example gallery ---- */
+
+.modal.gallery {
+  width: min(1100px, 100%);
+}
+.gallery-search {
+  flex: 1;
+  min-width: 140px;
+  max-width: 340px;
+  padding: 6px 10px;
+  font: inherit;
+}
+.gallery-group h3 {
+  margin: 14px 0 8px;
+}
+.gallery-group:first-child h3 {
+  margin-top: 0;
+}
+.gallery-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.gallery-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  text-align: left;
+}
+.gallery-open:hover {
+  border-color: var(--accent);
+}
+.gallery-open small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.gallery-thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 8 / 5;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #f6f6f3;
+  border: 1px solid var(--panel-border);
+}
+.gallery-link {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 2px 8px;
 }

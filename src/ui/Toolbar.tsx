@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
+import { openGallery } from '../app/gallery'
 import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
-import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
+import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
@@ -21,7 +22,6 @@ import {
   undo,
   useStore,
 } from '../app/store'
-import { EXAMPLE_GROUPS, EXAMPLE_LIST } from '../model/examples-index'
 import { fitView } from './canvas/viewport'
 
 /** Labelled display options; used in the settings popover and in the phone menu. */
@@ -327,32 +327,10 @@ export function Toolbar() {
     </>
   )
 
-  const examplesSelect = (
-    <select
-      value=""
-      onChange={(e) => {
-        const ex = EXAMPLE_LIST.find((x) => x.id === e.target.value)
-        if (ex) {
-          void openExample(ex).then(() => requestAnimationFrame(fitView))
-          setMenuOpen(false)
-        }
-      }}
-      aria-label="Load an example"
-      className="examples-select"
-    >
-      <option value="" disabled>
-        Examples…
-      </option>
-      {EXAMPLE_GROUPS.map((group) => (
-        <optgroup key={group} label={group}>
-          {EXAMPLE_LIST.filter((x) => x.group === group).map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
+  const examplesButton = (
+    <button onClick={openGallery} title="Pictures of every example, with a search: open one to see it work">
+      Examples
+    </button>
   )
 
   const shareButton = (
@@ -391,7 +369,7 @@ export function Toolbar() {
         </span>
       </div>
       <div className="group wide-only">
-        {examplesSelect}
+        {examplesButton}
         <DropMenu label="Tools">{toolItems}</DropMenu>
         <DropMenu label="File">{fileItems}</DropMenu>
         {shareButton}
@@ -415,7 +393,7 @@ export function Toolbar() {
           >
             <div className="menu-section">{simControls}</div>
             <div className="menu-section">
-              {examplesSelect}
+              {examplesButton}
               {shareButton}
             </div>
             <div className="menu-section" role="menu" aria-label="Tools">

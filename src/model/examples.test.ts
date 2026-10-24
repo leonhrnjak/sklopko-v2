@@ -7,7 +7,7 @@ import { SKASM, assemble, disassemble } from '../engine/isa'
 import { FIBONACCI_SOURCE, programWords } from './computer2'
 import { counterDisplay } from './example-counter'
 import { EXAMPLES, SMILEY } from './examples'
-import { EXAMPLE_LIST, WELCOME_ID, exampleFromPath } from './examples-index'
+import { EXAMPLE_GROUPS, EXAMPLE_LIST, WELCOME_ID, exampleFromPath, searchExamples } from './examples-index'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
 const built = new Map<string, ReturnType<(typeof EXAMPLES)[number]['build']>>()
@@ -597,7 +597,7 @@ describe('shared data bus example', () => {
 
 describe('the examples index', () => {
   it('lists the same examples, in the same order, as the builders', () => {
-    expect(EXAMPLES.map(({ id, name, group }) => ({ id, name, group }))).toEqual(EXAMPLE_LIST)
+    expect(EXAMPLES.map(({ build: _build, ...info }) => info)).toEqual(EXAMPLE_LIST)
   })
 
   it('has a builder for every entry and no duplicate id', () => {
@@ -615,5 +615,23 @@ describe('the examples index', () => {
     expect(exampleFromPath('/Intersection/')?.id).toBe('intersection')
     expect(exampleFromPath('/')).toBeUndefined()
     expect(exampleFromPath('/nope')).toBeUndefined()
+  })
+
+  it('has a one-line blurb for every example, and examples in every group', () => {
+    for (const e of EXAMPLE_LIST) {
+      expect(e.blurb, e.id).toMatch(/^[A-Z].*[.!?]$/)
+      expect(e.blurb.length, e.id).toBeLessThanOrEqual(110)
+    }
+    for (const g of EXAMPLE_GROUPS) expect(EXAMPLE_LIST.some((e) => e.group === g), g).toBe(true)
+  })
+
+  it('searches names, blurbs and groups, every word having to match', () => {
+    expect(searchExamples('')).toEqual(EXAMPLE_LIST)
+    expect(searchExamples('  ')).toEqual(EXAMPLE_LIST)
+    expect(searchExamples('UART').map((e) => e.id)).toContain('uart')
+    expect(searchExamples('latch').map((e) => e.id)).toEqual(expect.arrayContaining(['sr-latch', 'd-latch']))
+    expect(searchExamples('computers gamepad').map((e) => e.id)).toEqual(expect.arrayContaining(['computer-pong', 'computer-snake']))
+    expect(searchExamples('latch gamepad')).toEqual([])
+    expect(searchExamples('zzzz')).toEqual([])
   })
 })

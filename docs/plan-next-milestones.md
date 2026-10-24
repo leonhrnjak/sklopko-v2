@@ -19,7 +19,7 @@
 > - [x] 12b Prebuilt examples and thumbnails, v0.0.1-63
 > - [x] 12c Rendering, measured and skipped, v0.0.1-64
 > - [x] 13a Toolbar menus, collapsible help, e2e split, v0.0.1-65
-> - [ ] 13b Example gallery
+> - [x] 13b Example gallery, v0.0.1-66
 > - [ ] 14a Engine groundwork
 > - [ ] 14b ICs in the model and the simulation
 > - [ ] 14c Make and place ICs
@@ -261,6 +261,18 @@ So the part the optimization could save is 0.3 ms, well under the 2 ms bar. Revi
 - *Examples* opens a dialog: the groups as sections, a card per example with its thumbnail (12b), name and a one-line
   blurb (a new `blurb` field, written for all 45), plus a search box. The dropdown goes away.
 - Opening follows 11b. A card's short link can be copied.
+
+*What it did, and where it differs from the plan.*
+- *Examples* is a button (toolbar and phone ☰ menu) that opens `ExampleGallery`, a lazy chunk like the other dialogs: the nine groups
+  as sections, a card per example with its thumbnail (`/examples/<id>.svg`, lazily loaded), name and blurb, and a search box
+  (focused on opening; every word has to match the name, blurb, group or id, `searchExamples` in `examples-index.ts`). The
+  dropdown is gone.
+- `ExampleInfo.blurb` is written for all 45 examples (one sentence each, under 110 characters; a unit test checks the shape).
+- A card opens the example through `openExample`, so nothing replaces your work (11b), and closes the gallery. Each card has a
+  *Copy link* button that copies `/<id>` and leaves the gallery open.
+- The dev server keeps the files it made for an example (`exampleFiles` caches per id), since the gallery asks for 45 pictures.
+- e2e: `e2e/gallery.spec.ts` (cards, search, opening, copying a link), the phone test in `mobile.spec.ts`, and `chooseExample` in
+  `e2e/helpers.ts` replaces `selectOption` on the old dropdown everywhere.
 
 ## Milestone 14: Custom ICs (large)
 Build a part from a circuit, use it like any other, nest it, and collapse part of a big circuit into a block.
