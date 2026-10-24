@@ -70,12 +70,18 @@ jobs:
       - run: npm ci
       # The offline spec tests the built app, so every shard builds it (about ten seconds).
       - run: npm run build
+      # The browser depends only on Playwright's version, so key the cache on that, not on the whole lockfile
+      # (any dependency change used to miss the cache and download Chromium again on every shard).
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright's browser
         id: browser
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          restore-keys: playwright-${{ runner.os }}-
       - name: Install Playwright Chromium
         if: steps.browser.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
