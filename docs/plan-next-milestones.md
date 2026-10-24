@@ -13,7 +13,7 @@
 >   file is the memory, so keep the boxes ticked and the "What it did" notes current.
 >
 > - [x] 11a Library storage, v0.0.1-59
-> - [ ] 11b Nothing replaces your work
+> - [x] 11b Nothing replaces your work, v0.0.1-60
 > - [ ] 11c My circuits panel, state machines, backup
 > - [ ] 12a Code splitting
 > - [ ] 12b Prebuilt examples and thumbnails
@@ -103,6 +103,23 @@ old one stays in the library.
 - **New**: a new record, "Untitled N".
 - Switching documents clears undo and redo and resets the simulator: the previous document is safe in the library.
 - All `loadCircuit` callers go through one `openDocument()`: `openExample`, `initialCircuit`, `openJSON`, `startChallenge`.
+- *What 11b did, and where it differs from the plan:* the one entry point is `openCircuit(circuit, how)` in the new
+  `src/app/documents.ts`, which also owns the autosave that used to be in `runtime.ts`. `how` is `stored` (the document the
+  library has), `now` (a new document, saved at once) or `on-edit` (shown without a document; the first edit makes one).
+  - "The first real edit" is the first undo step (`past` changing), the same moment the example's short link is dropped, so
+    flipping a switch in an example saves nothing. In a stored document a switch is still saved, as before.
+  - The pending edit of the document being left is saved first (`flushSave`; also on `pagehide`), so a quick switch never
+    loses it or writes it into the other document. Putting a circuit on the canvas must not look like an edit to the
+    autosave: that was the one bug found while testing.
+  - New is `newCircuit()`: an empty circuit that is "Untitled N" (the first number not used) once something is in it, so
+    pressing New twice makes nothing. It is not undoable any more (the old circuit is in the library); `clearAll` stays for
+    tests. `replaceCircuit` in the store shows another document and clears the undo history.
+  - Visiting an example link no longer touches the saved circuit (before, it was overwritten). A first-time visitor's
+    welcome example is called "My circuit" when it is edited.
+  - Challenges: the record is found by `origin.challenge`, so *Start* reopens the work; *Start over* is an undoable edit.
+    Opening something else while a challenge is open leaves its panel open, as before.
+  - Tests: `src/app/documents.test.ts` (unsaved until edited, switches, now/stored, switching with an edit waiting, no undo
+    history, embed, New) and four more e2e tests in `e2e/library.spec.ts`.
 
 **11c. My circuits panel, state machines, backup (medium)**
 - The document's name is shown in the toolbar; clicking it renames.

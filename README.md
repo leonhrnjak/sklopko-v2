@@ -76,7 +76,9 @@ security headers.
   switch to an LED, through gates, adders and multiplexers, to an SR latch and a gated D latch. Picking one puts
   labelled switches and LEDs on the canvas; *Check my circuit* tries every combination of the switches (or, for a
   latch, a sequence of steps) and shows which answers are wrong. Some limit the gates you may use. *Hint* and *Show a
-  solution* help when stuck; solved challenges are ticked and remembered in your browser.
+  solution* help when stuck, and *Start over* puts the starting circuit back (undoable); solved challenges are ticked and
+  remembered in your browser. Each challenge keeps a circuit of its own, so leaving one and coming back brings back what
+  you built.
 - **Notes and frames:** the *Notes & frames* group of the parts panel has a *Note* (text that wraps at the width you
   choose, in five colours) and a *Frame* (a titled, tinted box drawn behind everything). Neither has pins or any
   effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it
@@ -92,8 +94,10 @@ security headers.
   any page.
 - **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
   signals that cross show a small bridge. Stored in the browser.
-- **Files:** autosaves to the browser (in IndexedDB, as a document in your library; the single saved circuit of earlier
-  versions is brought in on the first visit); Save/Open as `.json`; Share copies a link containing the circuit.
+- **Files:** autosaves to the browser, as a document in your library (IndexedDB; the single saved circuit of earlier
+  versions is brought in on the first visit). Nothing replaces your work: an example or *New* opens without a document of
+  its own and becomes one, "<example> (copy)" or "Untitled N", the moment you edit it; a share link or an opened file is a
+  new document at once. What was open stays in the library. Save/Open as `.json`; Share copies a link containing the circuit.
 - **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
   shows its link in the address bar, and Share copies it while the example is unedited.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,

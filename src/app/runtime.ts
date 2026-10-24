@@ -1,12 +1,13 @@
 import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
-import { deserialize, fromShareHash, serialize, toJSON, toShareHash } from '../model/serialize'
+import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
+import { openCircuit, startAutosave, type Opening } from './documents'
 import { isEmbed } from './embed'
 import { installGamepadKeys } from './gamepad'
-import { openLastDoc, openLibrary, saveActive, watchLibrary } from './library'
+import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
 import { loadIntoSim, sim } from './sim'
-import { loadCircuit, setRunning, showToast, useStore } from './store'
+import { setRunning, showToast, useStore } from './store'
 
 /** Where the one saved circuit lived before the library; read once, to bring it in. */
 const LEGACY_KEY = 'sklopko.circuit.v1'
@@ -20,46 +21,47 @@ export function setExampleUrl(ex: Example | null) {
   if (location.pathname !== path || location.hash) history.replaceState(null, '', path + location.search)
 }
 
-/** Load an example and point the address bar at its short link. */
+/** An example opens without a document of its own; editing it makes one, "<name> (copy)". */
+const exampleOpening = (ex: Example): Opening => ({ mode: 'on-edit', name: `${ex.name} (copy)`, origin: { example: ex.id } })
+
+/** Open an example and point the address bar at its short link. */
 export function openExample(ex: Example) {
-  loadCircuit(ex.build())
+  openCircuit(ex.build(), exampleOpening(ex))
   setExampleUrl(ex)
 }
 
-async function initialCircuit(): Promise<Circuit> {
-  // The document this tab had (or the last one used) stays the active one: what is opened below is saved into it.
-  let saved: Circuit | null = null
-  if (!isEmbed()) {
-    try {
-      const rec = await openLastDoc('circuit')
-      if (rec) saved = deserialize(rec.data)
-    } catch {
-      // A record that no longer reads: start from the welcome example below.
-    }
-  }
+/** What the app opens with, and how that relates to the library. */
+async function initialCircuit(): Promise<{ circuit: Circuit; how: Opening }> {
   const ex = exampleFromPath(location.pathname)
-  if (ex) return ex.build()
+  if (ex) return { circuit: ex.build(), how: exampleOpening(ex) }
   if (location.pathname !== '/') setExampleUrl(null)
   try {
     const fromHash = fromShareHash(location.hash)
     if (fromHash) {
       history.replaceState(null, '', location.pathname + location.search)
-      return fromHash
+      return { circuit: fromHash, how: { mode: 'now', name: 'Shared circuit' } }
     }
   } catch {
     showToast('That share link could not be opened.')
   }
+  const welcome = { circuit: EXAMPLES[0].build(), how: { mode: 'on-edit', name: 'My circuit', origin: { example: EXAMPLES[0].id } } as Opening }
   // An embedded circuit is the one in the link, never the visitor's own saved work.
-  if (isEmbed()) return EXAMPLES[0].build()
-  if (saved) return saved
+  if (isEmbed()) return welcome
+  try {
+    // The document this tab had, or else the last one used.
+    const rec = await openLastDoc('circuit')
+    if (rec) return { circuit: deserialize(rec.data), how: { mode: 'stored', meta: metaOf(rec) } }
+  } catch {
+    // A record that no longer reads: carry on with what follows.
+  }
   try {
     // The single saved circuit of earlier versions becomes the first document of the library.
     const old = localStorage.getItem(LEGACY_KEY)
-    if (old) return deserialize(JSON.parse(old))
+    if (old) return { circuit: deserialize(JSON.parse(old)), how: { mode: 'now', name: 'My circuit' } }
   } catch {
     // Corrupt or unavailable storage: fall through to the welcome example.
   }
-  return EXAMPLES[0].build()
+  return welcome
 }
 
 let started = false
@@ -93,23 +95,9 @@ export async function startRuntime() {
   }
   useStore.subscribe(sync)
 
-  let saveTimer = 0
-  let failed = false
-  let lastSaved: Circuit | null = null
-  useStore.subscribe((s) => {
-    if (isEmbed() || s.circuit === lastSaved) return // an embedded circuit must not overwrite the visitor's saved one
-    window.clearTimeout(saveTimer)
-    saveTimer = window.setTimeout(() => {
-      lastSaved = s.circuit
-      saveActive('circuit', serialize(lastSaved)).catch(() => {
-        // Storage full or blocked; the circuit still works, it just won't survive a reload.
-        if (!failed) showToast('Your circuit could not be saved in this browser.')
-        failed = true
-      })
-    }, 400)
-  })
+  startAutosave()
 
-  loadCircuit(first, false)
+  openCircuit(first.circuit, first.how)
   sync()
 
   // The first real edit (anything that creates an undo step) leaves the example: drop its short link so a
@@ -189,7 +177,8 @@ export function openJSON() {
     const file = input.files?.[0]
     if (!file) return
     try {
-      loadCircuit(deserialize(JSON.parse(await file.text())))
+      const circuit = deserialize(JSON.parse(await file.text()))
+      openCircuit(circuit, { mode: 'now', name: file.name.replace(/(\.sklopko)?\.json$/i, '') || 'Opened circuit' })
       showToast(`Opened ${file.name}`)
     } catch (e) {
       showToast(`Could not open ${file.name}: ${(e as Error).message}`)

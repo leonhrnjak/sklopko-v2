@@ -416,6 +416,12 @@ export function loadCircuit(c: Circuit, undoable = true) {
   sim.reset()
 }
 
+/** Show another document: its circuit, with no undo history from the one before (that one is safe in the library). */
+export function replaceCircuit(c: Circuit) {
+  set({ circuit: c, past: [], future: [], structVersion: get().structVersion + 1, selection: [] })
+  sim.reset()
+}
+
 // ---- Clipboard ---------------------------------------------------------------------------------
 
 let clipboard: { comps: Comp[]; wires: Wire[] } | null = null

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { closeChallenge, nextUnsolved, openChallengeList, runCheck, showHint, showSolution, startChallenge, useChallenges } from '../../app/challenges'
+import { closeChallenge, nextUnsolved, openChallengeList, restartChallenge, runCheck, showHint, showSolution, startChallenge, useChallenges } from '../../app/challenges'
 import { useStore } from '../../app/store'
 import { CHALLENGES, goalTable, type Challenge } from '../../model/challenges'
 import { ruleProblems, type CheckResult } from '../../model/challengecheck'
@@ -200,6 +200,9 @@ export function ChallengePanel() {
             </button>
             <button onClick={showSolution} title="Replace the canvas with a circuit that solves it (undo brings yours back)">
               Show a solution
+            </button>
+            <button onClick={restartChallenge} title="Go back to the starting circuit (undo brings your work back)">
+              Start over
             </button>
           </div>
           {hintShown && <p className="challenge-hint">💡 {ch.hint}</p>}
