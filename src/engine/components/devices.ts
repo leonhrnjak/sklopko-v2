@@ -163,11 +163,6 @@ export const devices: ComponentDef[] = [
     live: true,
     init: (): ConsoleState => ({ lines: [''], pc: X, rev: 0 }),
     revision: (inst) => (inst.state as ConsoleState).rev,
-    pins: {
-      'D#|D': 'The ASCII character code to print (D0 is the least significant bit). 10 is a new line, 8 a backspace, 12 clears the screen.',
-      WE: '1 lets the character on D print at the rising clock edge; 0 ignores the edge.',
-      CLK: 'Rising edge (0 to 1): prints the code on D if WE is 1.',
-    },
     layout: () => box({ w: 280, minRows: 10, left: [...names('D', 8), { name: 'WE', def: 0 }, { name: 'CLK', clock: true }] }),
     evaluate(inst) {
       const st = inst.state as ConsoleState
@@ -221,17 +216,6 @@ export const devices: ComponentDef[] = [
     live: true,
     init: (): FramebufferState => ({ px: new Array<number>(FB_SIZE * FB_SIZE).fill(0), pc: X, rev: 0 }),
     revision: (inst) => (inst.state as FramebufferState).rev,
-    pins: {
-      'X#|X': 'Column of the pixel to write (0 to 15, X0 is the least significant bit).',
-      'Y#|Y': 'Row of the pixel to write (0 to 15, 0 is the top row).',
-      'D#|D': 'The value written to the pixel: 1 is on, 0 is off (with four colours the two bits D1 D0 pick the colour, 0 to 3).',
-      WE: '1 writes D to the pixel at X, Y at the rising clock edge; 0 ignores the edge.',
-      CLR: 'While 1, the whole screen is blanked (it overrides writing).',
-      CLK: 'Rising edge (0 to 1): writes the pixel if WE is 1.',
-      'RX#|RX': 'Column of the pixel to read back (0 to 15).',
-      'RY#|RY': 'Row of the pixel to read back (0 to 15).',
-      'Q#|Q': 'The value of the pixel at RX, RY, always up to date (X while RX or RY is unknown).',
-    },
     layout: (p) => {
       const nd = Number(p.colors) === 4 ? 2 : 1
       return box({
@@ -301,9 +285,6 @@ export const devices: ComponentDef[] = [
     live: true,
     init: (): SpeakerState => ({ last: X, edges: [], rev: 0 }),
     revision: (inst) => (inst.state as SpeakerState).rev,
-    pins: {
-      A: 'The square wave to play: the pitch follows how fast this input changes (X is ignored).',
-    },
     layout: () => ({ w: 40, h: 40, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 20 }] }),
     evaluate() {},
     sample(inst, time) {
@@ -347,11 +328,6 @@ export const devices: ComponentDef[] = [
     interactive: 'momentary',
     live: true,
     init: (): KeypadState => ({ pressed: false, prev: false, key: 0, latched: false }),
-    pins: {
-      RST: 'While 1, forgets a press (only matters with Sticky on: P goes back to 0).',
-      'K#|K': 'The code of the key pressed last, as a 4-bit number (K0 is the least significant bit).',
-      P: '1 while a key is held down; with Sticky on, 1 from a new press until RST is 1.',
-    },
     layout: () => box({ w: 140, minRows: 5, left: [{ name: 'RST', def: 0 }], right: [...names('K', 4), 'P'] }),
     evaluate(inst) {
       const st = inst.state as KeypadState
@@ -373,14 +349,6 @@ export const devices: ComponentDef[] = [
     interactive: 'momentary',
     live: true,
     init: (): GamepadState => ({ pressed: false, key: 0, keys: 0 }),
-    pins: {
-      U: '1 while the up arrow is held down.',
-      D: '1 while the down arrow is held down.',
-      L: '1 while the left arrow is held down.',
-      R: '1 while the right arrow is held down.',
-      A: '1 while button A is held down.',
-      B: '1 while button B is held down.',
-    },
     layout: () => box({ w: 140, minRows: 5, right: GAMEPAD_BUTTONS.map((b) => b.pin) }),
     evaluate(inst) {
       const held = gamepadHeld(inst.state as GamepadState)
@@ -422,10 +390,6 @@ export const devices: ComponentDef[] = [
       },
     ],
     title: (p) => `LUT ${p.inputs}→${p.outputs}`,
-    pins: {
-      'A|B|C|D|E|F|G|H': 'One bit of the row number that picks the table row (A is the most significant bit).',
-      'Y#|Y': 'One bit of the chosen row\'s value (Y0 is the least significant bit); unknown (X) while any input is unknown.',
-    },
     layout: (p) => {
       const n = Number(p.inputs)
       const m = Number(p.outputs)

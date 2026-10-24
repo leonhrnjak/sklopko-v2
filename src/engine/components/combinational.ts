@@ -33,12 +33,6 @@ export const arithmetic: ComponentDef[] = [
     name: 'Half adder',
     category: 'arithmetic',
     description: 'Adds two bits: S = A xor B, C = A and B.',
-    pins: {
-      A: 'First bit to add.',
-      B: 'Second bit to add.',
-      S: 'Sum bit: 1 when exactly one of A and B is 1 (A xor B).',
-      C: 'Carry out: 1 when both A and B are 1.',
-    },
     title: () => 'HA',
     layout: () => box({ left: ['A', 'B'], right: ['S', 'C'] }),
     evaluate: comb(([a, b]) => [a ^ b, a & b]),
@@ -48,13 +42,6 @@ export const arithmetic: ComponentDef[] = [
     name: 'Full adder',
     category: 'arithmetic',
     description: 'Adds A + B + carry-in, giving sum S and carry-out.',
-    pins: {
-      A: 'First bit to add.',
-      B: 'Second bit to add.',
-      Ci: 'Carry in from the stage below. Reads 0 when unconnected.',
-      S: 'Sum bit of A + B + Ci (the lowest bit of the total).',
-      Co: 'Carry out: 1 when A + B + Ci is 2 or 3. Wire it to the next stage’s Ci.',
-    },
     title: () => 'FA',
     layout: () => box({ left: ['A', 'B', { name: 'Ci', def: 0 }], right: ['S', 'Co'] }),
     evaluate: comb(([a, b, c]) => bitsOf(a + b + c, 2)),
@@ -64,13 +51,6 @@ export const arithmetic: ComponentDef[] = [
     name: '4-bit adder',
     category: 'arithmetic',
     description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
-    pins: {
-      "A#|A": 'First number, 4 bits. A0 is the least significant bit. The bus pin A carries all four.',
-      "B#|B": 'Second number, 4 bits. B0 is the least significant bit.',
-      Ci: 'Carry in, added to A + B. Reads 0 when unconnected; chain from the Co of a lower adder.',
-      "S#|S": 'Sum A + B + Ci, 4 bits (S0 least significant), cut to 4 bits.',
-      Co: 'Carry out: 1 when the sum went over 15.',
-    },
     title: () => 'Σ\n4-bit',
     layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
     evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
@@ -80,12 +60,6 @@ export const arithmetic: ComponentDef[] = [
     name: 'Half subtractor',
     category: 'arithmetic',
     description: 'Computes A − B: difference D = A xor B, borrow Bo = (not A) and B.',
-    pins: {
-      A: 'Bit to subtract from.',
-      B: 'Bit to subtract.',
-      D: 'Difference bit: 1 when A and B differ (A xor B).',
-      Bo: 'Borrow out: 1 when A is 0 and B is 1, so the result went below zero.',
-    },
     title: () => 'HS',
     layout: () => box({ left: ['A', 'B'], right: ['D', 'Bo'] }),
     evaluate: comb(([a, b]) => [a ^ b, !a && b]),
@@ -95,13 +69,6 @@ export const arithmetic: ComponentDef[] = [
     name: 'Full subtractor',
     category: 'arithmetic',
     description: 'Computes A − B − borrow-in, giving difference D and borrow-out.',
-    pins: {
-      A: 'Bit to subtract from.',
-      B: 'Bit to subtract.',
-      Bi: 'Borrow in from the stage below. Reads 0 when unconnected.',
-      D: 'Difference bit of A − B − Bi.',
-      Bo: 'Borrow out: 1 when A − B − Bi is below 0. Wire it to the next stage’s Bi.',
-    },
     title: () => 'FS',
     layout: () => box({ left: ['A', 'B', { name: 'Bi', def: 0 }], right: ['D', 'Bo'] }),
     evaluate: comb(([a, b, bi]) => {
@@ -114,13 +81,6 @@ export const arithmetic: ComponentDef[] = [
     name: '4-bit subtractor',
     category: 'arithmetic',
     description: 'Computes A − B − borrow-in on 4-bit numbers. Bo=1 means the result went below zero.',
-    pins: {
-      "A#|A": 'Number to subtract from, 4 bits (A0 least significant).',
-      "B#|B": 'Number to subtract, 4 bits (B0 least significant).',
-      Bi: 'Borrow in, subtracted as well. Reads 0 when unconnected.',
-      "D#|D": 'Difference A − B − Bi, 4 bits (D0 least significant); wraps round when negative.',
-      Bo: 'Borrow out: 1 when the result went below 0 (B + Bi is larger than A).',
-    },
     title: () => '−\n4-bit',
     layout: () => box({ left: [...AB, { name: 'Bi', def: 0 }], right: [...names('D', 4), 'Bo'] }),
     evaluate: comb((ins) => {
@@ -132,15 +92,8 @@ export const arithmetic: ComponentDef[] = [
     type: 'addsub4',
     name: 'Adder/subtractor',
     category: 'arithmetic',
-    description: 'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out; V is 1 when the signed result does not fit in 4 bits.',
-    pins: {
-      "A#|A": 'First number, 4 bits (A0 least significant).',
-      "B#|B": 'Second number, 4 bits (B0 least significant).',
-      M: 'Mode. 0 adds (A + B), 1 subtracts (A − B, in two’s complement). Reads 0 when unconnected.',
-      "S#|S": 'Result, 4 bits (S0 least significant).',
-      Co: 'Carry out of the adder. When subtracting, 1 means no borrow (A ≥ B unsigned).',
-      V: 'Signed overflow: 1 when the true result does not fit in 4-bit two’s complement (−8 to 7).',
-    },
+    description:
+      'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out, V signals signed overflow.',
     title: () => '±\n4-bit',
     layout: () => box({ left: [...AB, { name: 'M', def: 0 }], right: [...names('S', 4), 'Co', 'V'] }),
     evaluate: comb((ins) => {
@@ -157,14 +110,7 @@ export const arithmetic: ComponentDef[] = [
     type: 'cmp4',
     name: 'Comparator',
     category: 'arithmetic',
-    description: 'Compares two 4-bit numbers A and B. Exactly one of the outputs A>B, A=B, A<B is 1.',
-    pins: {
-      "A#|A": 'First number, 4 bits (A0 least significant).',
-      "B#|B": 'Second number, 4 bits (B0 least significant).',
-      GT: '1 when A is greater than B.',
-      EQ: '1 when A equals B.',
-      LT: '1 when A is less than B.',
-    },
+    description: 'Compares two 4-bit numbers A and B.',
     title: () => 'COMP',
     layout: () => box({ left: AB, right: [{ name: 'GT', label: 'A>B' }, { name: 'EQ', label: 'A=B' }, { name: 'LT', label: 'A<B' }] }),
     evaluate: comb((ins) => {
@@ -181,14 +127,6 @@ export const arithmetic: ComponentDef[] = [
       '4-bit arithmetic logic unit. Select lines S2 S1 S0 pick the operation on A and B: ' +
       '0 ADD, 1 SUB, 2 AND, 3 OR, 4 XOR, 5 NOT A, 6 A+1, 7 A−1. Co is the carry (ADD, A+1) or borrow ' +
       '(SUB, A−1) out, Z is 1 when the result F is zero. B is ignored by NOT A, A+1 and A−1.',
-    pins: {
-      "A#|A": 'First operand, 4 bits (A0 least significant).',
-      "B#|B": 'Second operand, 4 bits. Not used by NOT A, A+1 and A−1.',
-      "S#|S": 'Operation select. S2 is the most significant bit: 000 ADD, 001 SUB, 010 AND, 011 OR, 100 XOR, 101 NOT A, 110 A+1, 111 A−1. Reads 0 when unconnected.',
-      "F#|F": 'Result, 4 bits (F0 least significant).',
-      Co: 'Carry out for ADD and A+1 (result went over 15); borrow out for SUB and A−1 (result went below 0). 0 for the logic operations.',
-      Z: 'Zero flag: 1 when the result F is 0.',
-    },
     title: () => 'ALU',
     live: true,
     layout: () =>
@@ -256,11 +194,6 @@ export const arithmetic: ComponentDef[] = [
     category: 'arithmetic',
     description: 'Multiplies A by B (bit 0 = least significant). 2×2 gives a 4-bit product, 4×4 an 8-bit one.',
     params: [sizeParam('Size', [2, 4], 4, (v) => `${v}×${v} bits`)],
-    pins: {
-      "A#": 'First factor (A0 least significant bit).',
-      "B#": 'Second factor (B0 least significant bit).',
-      "P#": 'Product A × B (P0 least significant bit). Twice as many bits as one factor, so it never overflows.',
-    },
     title: (p) => `×\n${p.n}×${p.n}`,
     layout: (p) => {
       const n = Number(p.n)
@@ -278,13 +211,6 @@ export const arithmetic: ComponentDef[] = [
     description:
       'Adds two BCD digits A and B plus carry-in, giving a BCD digit S and a carry-out Co (adds 6 when the sum ' +
       'goes past 9). Inputs above 9 are not valid BCD.',
-    pins: {
-      "A#|A": 'First BCD digit, 4 bits (A0 least significant). Should be 0–9.',
-      "B#|B": 'Second BCD digit, 4 bits. Should be 0–9.',
-      Ci: 'Carry in from the digit below. Reads 0 when unconnected.',
-      "S#|S": 'Sum digit, 4 bits, as BCD (0–9).',
-      Co: 'Carry out: 1 when the sum went past 9. Wire it to the Ci of the next digit.',
-    },
     title: () => 'BCD\nΣ',
     layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
     evaluate: comb((ins) => {
@@ -315,11 +241,6 @@ export const routing: ComponentDef[] = [
     category: 'routing',
     description: 'Selects one of the inputs I0..In and passes it to Y. Select lines S pick which one.',
     params: [sizeParam('Inputs', [2, 4, 8], 4)],
-    pins: {
-      "I#": 'Data input number n. The one picked by the select lines is passed to Y.',
-      "S#|S": 'Select lines, as a binary number (S0 least significant): the value says which input I goes to Y. The number of lines depends on the Inputs setting.',
-      Y: 'Output: a copy of the selected input. Unknown if the select lines are unknown.',
-    },
     title: (p) => `MUX\n${p.n}:1`,
     layout: (p) => {
       const n = Number(p.n)
@@ -337,11 +258,6 @@ export const routing: ComponentDef[] = [
     category: 'routing',
     description: 'Sends input I to the output chosen by the select lines; the other outputs are 0.',
     params: [sizeParam('Outputs', [2, 4, 8], 4)],
-    pins: {
-      I: 'The signal to send on.',
-      "S#|S": 'Select lines, as a binary number (S0 least significant): the value says which output Y receives I.',
-      "Y#": 'Output number n: follows I when selected, 0 otherwise.',
-    },
     title: (p) => `DEMUX\n1:${p.n}`,
     layout: (p) => {
       const n = Number(p.n)
@@ -373,11 +289,6 @@ export const coding: ComponentDef[] = [
     category: 'coding',
     description: 'Binary decoder: raises the one output Yn whose number is on inputs A (A0 = LSB), while EN=1.',
     params: [sizeParam('Input bits', [2, 3, 4], 2)],
-    pins: {
-      "A#": 'Binary number to decode (A0 least significant bit).',
-      EN: 'Enable. While 0 every output is 0. Reads 1 when unconnected.',
-      "Y#": 'Output number n: 1 only when the number on A is n (and EN is 1); all others are 0.',
-    },
     title: (p) => `DEC\n${p.n}:${1 << Number(p.n)}`,
     layout: (p) => {
       const k = Number(p.n)
@@ -395,11 +306,6 @@ export const coding: ComponentDef[] = [
     category: 'coding',
     description: 'Outputs the number of the highest input that is 1. V=1 when any input is active.',
     params: [sizeParam('Inputs', [4, 8], 4)],
-    pins: {
-      "I#": 'Request inputs. If several are 1, the highest-numbered one wins.',
-      "A#": 'Number of the highest input that is 1, in binary (A0 least significant). 0 when no input is 1.',
-      V: 'Valid: 1 when at least one input is 1. Tells “input 0” from “no input”.',
-    },
     title: (p) => `ENC\n${p.n}:${log2(Number(p.n))}`,
     layout: (p) => {
       const n = Number(p.n)
@@ -430,19 +336,6 @@ export const coding: ComponentDef[] = [
         ],
       },
     ],
-    pins: {
-      A: 'Digit bit 0 (least significant).',
-      B: 'Digit bit 1.',
-      C: 'Digit bit 2.',
-      D: 'Digit bit 3 (most significant).',
-      a: 'Segment a (top), lit for digits that use it.',
-      b: 'Segment b (top right).',
-      c: 'Segment c (bottom right).',
-      d: 'Segment d (bottom).',
-      e: 'Segment e (bottom left).',
-      f: 'Segment f (top left).',
-      g: 'Segment g (middle).',
-    },
     title: (p) => (p.mode === 'hex' ? 'HEX\nto\n7seg' : 'BCD\nto\n7seg'),
     layout: () => box({ left: ['A', 'B', 'C', 'D'], right: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }),
     evaluate: comb((ins, p) => {
@@ -455,13 +348,6 @@ export const coding: ComponentDef[] = [
     name: 'BCD → decimal',
     category: 'coding',
     description: 'Raises the output 0–9 matching the BCD input (A = LSB). Invalid codes raise nothing.',
-    pins: {
-      A: 'Digit bit 0 (least significant).',
-      B: 'Digit bit 1.',
-      C: 'Digit bit 2.',
-      D: 'Digit bit 3 (most significant).',
-      "Y#": 'Output n is 1 when the input digit is n. Inputs above 9 raise none.',
-    },
     title: () => 'BCD\nto\nDEC',
     layout: () => box({ left: ['A', 'B', 'C', 'D'], right: names('Y', 10) }),
     evaluate: comb((ins) => {
@@ -474,11 +360,6 @@ export const coding: ComponentDef[] = [
     name: 'Binary → BCD',
     category: 'coding',
     description: 'Converts a 4-bit binary number (0–15) into two BCD digits: ones O0–O3 and tens T0.',
-    pins: {
-      "B#|B": 'Binary number 0–15 (B0 least significant).',
-      "O#|O": 'Ones digit as BCD, 4 bits (O0 least significant).',
-      T0: 'Tens digit: 1 when the input is 10 or more (the tens digit is 0 or 1).',
-    },
     title: () => 'BIN\nto\nBCD',
     layout: () => box({ left: names('B', 4), right: [...names('O', 4), 'T0'] }),
     evaluate: comb((ins) => {
@@ -504,10 +385,6 @@ export const coding: ComponentDef[] = [
         ],
       },
     ],
-    pins: {
-      "B#": 'Binary number, 4 bits (B0 least significant). Input when converting to Gray, output when converting back.',
-      "G#": 'Gray code, 4 bits (G0 least significant): neighbouring numbers differ in one bit. Output when converting to Gray, input when converting back.',
-    },
     title: (p) => (p.dir === 'g2b' ? 'GRAY\nto\nBIN' : 'BIN\nto\nGRAY'),
     layout: (p) =>
       p.dir === 'g2b'
@@ -528,11 +405,6 @@ export const coding: ComponentDef[] = [
     category: 'coding',
     description: 'Parity generator/checker. ODD=1 when an odd number of inputs are 1, EVEN is its inverse.',
     params: [sizeParam('Inputs', [4, 8], 4)],
-    pins: {
-      "I#": 'Bits to check.',
-      ODD: '1 when an odd number of the inputs are 1.',
-      EVEN: '1 when an even number (including none) of the inputs are 1. Always the opposite of ODD.',
-    },
     title: () => 'PAR',
     layout: (p) => box({ left: names('I', Number(p.n)), right: ['ODD', 'EVEN'] }),
     evaluate: comb((ins) => {
@@ -626,12 +498,6 @@ export const memoryRom: ComponentDef[] = [
       { key: 'signals', label: 'Signals', kind: 'text', default: '', maxLength: 1600 },
       { key: 'rows', label: 'Row names', kind: 'text', default: '', maxLength: 1200 },
     ],
-    pins: {
-      "A#|A": 'Address: which word to read (A0 least significant bit).',
-      "D#|D": 'Data: the word stored at the address, shown right away (D0 least significant bit). Unknown while the address is.',
-      "TA#|TA": 'Table address (8 bits): which byte of the table to read.',
-      "TD#|TD": 'Table data: the byte stored at the table address (8 bits).',
-    },
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
     live: true,
     layout: (p) => {
