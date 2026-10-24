@@ -140,6 +140,9 @@ function MenuItem({
   )
 }
 
+/** The "…" that says an entry opens a window. Shown in the drop-down menus; left out of the phone menu's buttons, where it only adds clutter. */
+const Dots = () => <span className="dots">…</span>
+
 /** A heading inside a menu, for a group of entries. */
 const MenuLabel = ({ children }: { children: ReactNode }) => (
   <div className="menu-label" role="presentation">
@@ -271,19 +274,24 @@ export function Toolbar() {
   const toolItems = (
     <>
       <MenuItem onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
-        Logic…
+        Logic
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
-        State machines…
+        State machines
+        <Dots />
       </MenuItem>
       <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
-        SKASM…
+        SKASM
+        <Dots />
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
-        Make IC…
+        Make IC
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openTestbench} title="Steps that set switches, pulse a clock and check LEDs, saved with the circuit: run them to see what passes">
-        Tests…
+        Tests
+        <Dots />
       </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges
@@ -328,7 +336,8 @@ export function Toolbar() {
         Clear wires
       </MenuItem>
       <MenuItem onClick={openPicture} title="Save the circuit as an SVG or PNG picture: all of it, or what is on screen">
-        Save picture…
+        Save picture
+        <Dots />
       </MenuItem>
     </>
   )

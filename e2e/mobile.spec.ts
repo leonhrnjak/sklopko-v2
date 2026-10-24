@@ -36,7 +36,7 @@ test('the overflow menu holds the secondary actions, and the example gallery fit
   await fresh(page)
   await expect(page.locator('.toolbar > .wide-only').first()).toBeHidden()
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Logic…' })).toBeVisible()
+  await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Logic', exact: true })).toBeVisible()
   await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save file' })).toBeVisible()
   await page.locator('.toolbar-menu').getByRole('button', { name: 'Examples', exact: true }).tap()
   await expect(page.locator('.toolbar-menu')).toHaveCount(0)
@@ -80,7 +80,7 @@ test('the waveform panel can be closed with its X, and the picture export is one
 
   await page.getByRole('button', { name: 'More actions' }).tap()
   await expect(page.locator('.toolbar-menu').getByRole('menuitem', { name: /^(SVG|PNG)/ })).toHaveCount(0)
-  await page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save picture…' }).tap()
+  await page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Save picture', exact: true }).tap()
   const dialog = page.getByRole('dialog', { name: 'Save a picture' })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('PNG').check()
@@ -133,7 +133,7 @@ test('tapping a control operates it; a long-press selects it for editing', async
 test('state machines: edit in the table on a phone, join states by tapping, and generate', async ({ page }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('menuitem', { name: 'State machines…', exact: true }).tap()
+  await page.getByRole('menuitem', { name: 'State machines', exact: true }).tap()
   const panel = page.getByRole('dialog', { name: 'State machines' })
   await expect(panel).toBeVisible()
   // The diagram comes first on a narrow screen, and nothing sticks out sideways.

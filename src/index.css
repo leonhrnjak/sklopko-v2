@@ -1190,6 +1190,9 @@ button.danger {
 .menu-section > * {
   flex: 1 1 auto;
 }
+.toolbar-menu .dots {
+  display: none;
+}
 .menu-section > select {
   flex: 0 0 auto; /* the speed list is a short choice, not a full-width bar */
 }
