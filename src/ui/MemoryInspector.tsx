@@ -9,7 +9,7 @@ import { HEX_WORDS, parseWords } from '../engine/components/memory'
 import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
-import { SIGNAL_PRESETS } from '../engine/signal-presets'
+import { SIGNAL_PRESETS, presetParams } from '../engine/signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalValue, signalsToText, valueName, withSignal, type RowNames, type Signal, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
@@ -244,7 +244,6 @@ function RowEditor({ layout, bits, word, name, onChange, onClose }: { layout: Si
 function SignalsEditor({ comp, layout, errors }: { comp: Comp; layout: SignalLayout; errors: { signals: TextError[]; rows: TextError[] } }) {
   const p = comp.params
   const bits = Number(p.dbits)
-  const presets = SIGNAL_PRESETS.filter((x) => x.abits === Number(p.abits) && x.dbits === bits)
   const named = String(p.signals).trim() !== ''
   const field = (key: 'signals' | 'rows', label: string, rows: number, errs: TextError[]) => (
     <label className="field">
@@ -273,28 +272,27 @@ function SignalsEditor({ comp, layout, errors }: { comp: Comp; layout: SignalLay
   return (
     <details className="signals-editor" open={errors.signals.length + errors.rows.length > 0 || undefined}>
       <summary>{named ? 'Names of the bits and rows' : 'Name the bits (for a control ROM)'}</summary>
-      {presets.length > 0 && (
-        <label className="field">
-          <span>Start from</span>
-          <select
-            aria-label="Names to start from"
-            value=""
-            onChange={(e) => {
-              const x = SIGNAL_PRESETS.find((q) => q.id === e.target.value)
-              if (x) setParams(comp.id, { signals: x.signals, rows: x.rows })
-              else if (e.target.value === 'none') setParams(comp.id, { signals: '', rows: '' })
-            }}
-          >
-            <option value="">Choose…</option>
-            {presets.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.name}
-              </option>
-            ))}
-            {named && <option value="none">No names</option>}
-          </select>
-        </label>
-      )}
+      <label className="field">
+        <span>Make it a ready-made control ROM</span>
+        <select
+          aria-label="Ready-made control ROM"
+          value=""
+          onChange={(e) => {
+            const x = SIGNAL_PRESETS.find((q) => q.id === e.target.value)
+            // The size, the names and the words of the SKASM or Beginner computer's ROM. Bus ports are turned off: one pin per signal, each showing its name.
+            if (x) setParams(comp.id, { ...presetParams(x), isa: 'none', bus: false })
+            else if (e.target.value === 'none') setParams(comp.id, { signals: '', rows: '' })
+          }}
+        >
+          <option value="">Choose…</option>
+          {SIGNAL_PRESETS.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+          {named && <option value="none">Take the names off</option>}
+        </select>
+      </label>
       {field('signals', 'Signals', Math.min(18, Math.max(5, String(p.signals).split('\n').length + 1)), errors.signals)}
       {layout.bits > bits && (
         <small className="field-error">

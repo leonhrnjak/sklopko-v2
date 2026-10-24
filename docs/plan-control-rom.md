@@ -10,7 +10,8 @@
 > - [x] C1 A decoded listing: named signals and named rows, on the four computer ROMs, v0.0.1-79
 > - [x] C2 Edit a row by signal: toggles and lists instead of hex, v0.0.1-80
 > - [x] C3 The text form: `LDI: LOAD_ACC SRC=CONST`, and the computers' control ROMs generated from it, v0.0.1-81
-> - [ ] C4 Polish: the reference page, the example notes, e2e, README
+> - [x] C4 Ready-made control ROMs with the pins named after the signals, v0.0.1-82
+- [ ] C5 Polish: the reference page, the example notes, e2e, README
 
 ## Why
 The program ROM is easy to read and write because it has a language (SKASM) and a listing that shows each word as an
@@ -82,7 +83,15 @@ addressed by opcode + 16 × sub-opcode) and the Beginner computer's `Control ROM
   resulting words to today's.
 - Tests: assemble/describe round trip over all four ROMs, error messages, the generated text.
 
-## C4. Polish
+## C4. Ready-made control ROMs, pins named after the signals
+Added after C3, when asked how to map control signals to the output pins more easily. Instead of a break-out splitter, the ROM names
+its own pins: with valid `signals`, the data pins show the signal names (`WRITE_RAM`, `SRC0`…) while keeping their ids `D4`… in wires and
+saved files, so nothing existing changes. The ROM body widens to fit the names. A ROM in bus mode shows one bus pin, so this is for
+single-pin ROMs (the Beginner computer's, and any custom one). The inspector's *Make it a ready-made control ROM* list sets the size,
+the names, the words (assembled from the text form) and turns bus ports off, so a plain ROM becomes the SKASM or Beginner control ROM
+in one step.
+
+## C5. Polish
 - The SKASM reference page gets a *Control signals* tab: each signal of the three ROMs and what it does, and a table
   of which signals each instruction switches on (generated from the same layouts and tables).
 - The Beginner computer's notes and the gallery blurb of the SKASM computers point at the decoded listing.
@@ -133,4 +142,14 @@ addressed by opcode + 16 × sub-opcode) and the Beginner computer's `Control ROM
   `beginner.ts`. A golden test pins the words to what the numeric table produced, and `controlWords` refuses an instruction that no
   text lists (`NOP:` is listed, with nothing on).
 - Tests: parser/assembler/round trip in `signals.test.ts`, the golden words and the round trip of the three SKASM ROMs, an e2e for the text view.
+
+### C4 (v0.0.1-82)
+- `pinLabels` in `engine/signals.ts` and the ROM's `layout` (labels only when the signal list has no errors; width from the longest name).
+  `SIGNAL_PRESETS` now carry the control text, and `presetParams` assembles a preset into the ROM's size, names and words (tested against
+  the words the computers are built with). The inspector's list replaces *Start from* and works for a ROM of any size.
+- The Beginner example's columns after the ROM moved right by 100 px: its output pins are wider now, and the net labels next to them
+  need the room (two tests caught labels that had no room and became plain wires).
+- **Not done:** the 8-bit computer still uses bus ports and a splitter after each control ROM, so its ROMs do not show signal names on
+  the canvas; the splitter outputs and net labels name the signals. Changing the computer to single-pin ROMs would remove three splitters
+  but change a large, routed layout, so it is left for a decision.
 

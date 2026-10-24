@@ -98,18 +98,20 @@ test('control ROM: written as text, one row per line, with errors shown and noth
   await expect(page.getByLabel('Contents (hex words)')).toHaveValue(/^01 00 00 00 85 00 00 00/)
 })
 
-test('a ROM without names can be given the names of a built-in control ROM', async ({ page }) => {
+test('a plain ROM can be made a ready-made control ROM: its size, words, names, and pins named after the signals', async ({ page }) => {
   await freshEmpty(page)
-  await place(page, 'rom', 300, 200)
-  await page.getByLabel('Address bits').selectOption('4')
-  await page.getByLabel('Data bits').selectOption('8')
-  await page.getByLabel('Contents (hex words)').fill('01 05 08 20 83 93 00 40')
-  await page.getByLabel('Label').click()
-  await expect(page.getByLabel('Listing').getByRole('row').nth(4)).not.toContainText('ADD')
+  const rom = await place(page, 'rom', 300, 200)
   await page.getByText('Name the bits (for a control ROM)').click()
-  await page.getByLabel('Names to start from').selectOption({ label: 'Beginner computer, Control ROM' })
+  await page.getByLabel('Ready-made control ROM').selectOption({ label: 'Beginner computer control ROM (8 bits, 16 rows)' })
+  await expect(page.getByLabel('Address bits')).toHaveValue('4')
+  await expect(page.getByLabel('Data bits')).toHaveValue('8')
+  await expect(page.getByLabel('Contents are')).toHaveValue('signals')
   await expect(page.getByLabel('Listing').getByRole('row').nth(4)).toContainText('ADD')
   await expect(page.getByLabel('Listing').getByRole('row').nth(4)).toContainText('LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY')
+  // The output pins on the canvas carry the names of the signals.
+  const pins = page.locator(`.comp[data-id="${rom}"]`)
+  await expect(pins).toContainText('WRITE_RAM')
+  await expect(pins).toContainText('SAVE_CARRY')
   // Names that do not parse are reported, with the line.
   await page.getByLabel('Signals', { exact: true }).fill('LOAD\n1BAD\n')
   await page.getByLabel('Row names').click()

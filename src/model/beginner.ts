@@ -63,11 +63,11 @@ export function beginnerBuilder(source = BEGINNER_SOURCE, hz = 1) {
   const FETCH = 0
   const ROM = 400
   const DECODE = 860
-  const RAM = 1260
-  const XOR = 1600
-  const ADDER = 1800
-  const MUX = 2080
-  const ACC = 2380
+  const RAM = 1360
+  const XOR = 1700
+  const ADDER = 1900
+  const MUX = 2180
+  const ACC = 2480
 
   // 1. Fetch
   const clk = part(FETCH, 'clk', 'clock', { params: { hz }, label: 'Clock' })
@@ -180,7 +180,7 @@ export function beginnerComputer(): Circuit {
   )
   note(
     b,
-    1260,
+    1360,
     -260,
     '3. EXECUTE. The RAM holds data: 16 places, one number each. The ACC (accumulator) is the number the computer is working on. ADD: the adder adds a RAM word to the ACC. SUB: the XOR gates flip the bits of the RAM word and the adder adds 1 as well, which is subtraction. The multiplexers choose what the ACC takes next: the number in the instruction (LDI), the adder’s answer (ADD, SUB) or a RAM word (LDA). The yellow Carry flag remembers an ADD over 15 or a SUB below 0.',
     60,

@@ -5,7 +5,7 @@ import { Simulator } from '../engine/simulator'
 import { simComps } from './circuit'
 import { BEGINNER_CONTROL, BEGINNER_SOURCE, beginnerBuilder, beginnerComputer, beginnerWords } from './beginner'
 import { EXAMPLES } from './examples'
-import { BEGINNER_ROWS, BEGINNER_SIGNALS } from '../engine/signal-presets'
+import { BEGINNER_ROWS, BEGINNER_SIGNALS, SIGNAL_PRESETS, presetParams } from '../engine/signal-presets'
 import { describeWord, parseRows, parseSignals } from '../engine/signals'
 
 /** The circuit, without routing the wires (the simulator does not need them), running a program. */
@@ -115,6 +115,10 @@ describe('beginner computer', () => {
       'LOAD_ACC, ACC_SRC=ADDER, SUBTRACT, SAVE_CARRY',
       'HALT',
     ])
+  })
+
+  it('the ready-made Beginner control ROM is the one the computer builds with', () => {
+    expect(presetParams(SIGNAL_PRESETS.find((x) => x.id === 'beginner')!).data).toBe(BEGINNER_CONTROL)
   })
 
   it('the names are on the bits the circuit wires up: each signal leaves the control ROM from its pin', () => {
