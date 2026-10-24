@@ -396,3 +396,11 @@ export function ConsoleSection({ comp }: { comp: Comp }) {
     </div>
   )
 }
+
+/** The contents editor for a ROM, RAM, LUT or console. */
+export function MemorySection({ comp }: { comp: Comp }) {
+  if (comp.type === 'rom') return <RomSection comp={comp} />
+  if (comp.type === 'ram') return <RamSection comp={comp} />
+  if (comp.type === 'lut') return <LutSection comp={comp} />
+  return <ConsoleSection comp={comp} />
+}

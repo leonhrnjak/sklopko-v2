@@ -1,4 +1,6 @@
 import { CircuitBuilder } from './builder'
+import { counterDisplay } from './example-counter'
+import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
@@ -7,35 +9,8 @@ import { generateFsm } from './fsm'
 import { SEQUENCE_DETECTOR, TRAFFIC_LIGHT, UP_DOWN_COUNTER, VENDING_MACHINE } from './fsm-examples'
 import type { Circuit, Rot } from './circuit'
 
-export interface Example {
-  /** Also the URL slug: sklopko.example/<id> opens this example. */
-  id: string
-  name: string
-  group: ExampleGroup
+export interface Example extends ExampleInfo {
   build(): Circuit
-}
-
-function counterDisplay(): Circuit {
-  const b = new CircuitBuilder()
-  const clk = b.add('clock', 0, 60, { params: { hz: 2 } })
-  const cnt = b.add('counter', 120, 40)
-  const dec = b.add('bcd7', 280, 10)
-  const seg = b.add('seg7', 440, 10)
-  const rst = b.add('button', 60, 210, { label: 'Reset' })
-  const co = b.add('led', 300, 230, { label: 'Carry', params: { color: 'yellow' } })
-  b.wire(`${clk}.Q`, `${cnt}.CLK`)
-  for (const p of ['A', 'B', 'C', 'D']) b.wire(`${cnt}.${p}`, `${dec}.${p}`)
-  for (const p of 'abcdefg') b.wire(`${dec}.${p}`, `${seg}.${p}`)
-  b.wire(`${rst}.Q`, `${cnt}.R`)
-  b.wire(`${cnt}.CO`, `${co}.A`)
-  note(
-    b,
-    120,
-    300,
-    'The clock ticks twice a second and the counter counts 0 to 9. The decoder turns the count into segments for the display, and the carry output lights the yellow LED each time it wraps around. Hold Reset to stop it at 0.',
-    36,
-  )
-  return b.build()
 }
 
 function basicGates(): Circuit {
@@ -1134,73 +1109,43 @@ function uart(): Circuit {
   return b.build()
 }
 
-/** Menu order: the groups appear in this order, and the first example is what the app opens with. */
-export const EXAMPLE_GROUPS = [
-  'Start here',
-  'Logic basics',
-  'Memory and sequential',
-  'Arithmetic',
-  'Buses and tri-state',
-  'Timing and glitches',
-  'State machines',
-  'Displays and gadgets',
-  'Computers',
-] as const
-export type ExampleGroup = (typeof EXAMPLE_GROUPS)[number]
-
-const g = (group: ExampleGroup, id: string, name: string, build: () => Circuit): Example => ({ id, name, group, build })
-
-const ALL: Example[] = [
-  g('Start here', 'counter', 'Counter → 7-segment display', counterDisplay),
-  g('Start here', 'beginner', 'Beginner: a tiny computer (ROM, RAM, adder)', beginnerComputer),
-  g('Start here', 'gates', 'Basic gates', basicGates),
-
-  g('Logic basics', 'mux', '4:1 multiplexer', muxDemo),
-  g('Logic basics', 'encoder', 'Priority encoder and decoder', encoderDecoder),
-  g('Logic basics', 'labels', 'Net labels (wireless connections)', netLabels),
-
-  g('Memory and sequential', 'sr-latch', 'SR latch from NOR gates', srLatch),
-  g('Memory and sequential', 'd-latch', 'D latch from NAND gates', nandDLatch),
-  g('Memory and sequential', 'master-slave', 'Master-slave flip-flop from two latches', masterSlave),
-  g('Memory and sequential', 'debounce', 'Button debouncer: why a naive counter miscounts', debouncer),
-  g('Memory and sequential', 'shift-register', 'Shift register (D flip-flops)', shiftRegister),
-  g('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)', rippleCounter),
-
-  g('Arithmetic', 'adder', '4-bit adder', adder),
-  g('Arithmetic', 'alu-flags', 'ALU with zero, carry and negative flags', aluFlags),
-  g('Arithmetic', 'calculator', 'Calculator: ALU, multiplier, ROM, BCD', calculator),
-
-  g('Buses and tri-state', 'tristate', 'Tri-state buffers on a shared line', sharedLine),
-  g('Buses and tri-state', 'buses', 'Buses: a running total on 4-bit wires', busDemo),
-  g('Buses and tri-state', 'arbiter', 'Bus arbitration: who gets the bus', arbiter),
-  g('Buses and tri-state', 'databus', 'Shared data bus: tri-state buffers on 8 bits', dataBus),
-
-  g('Timing and glitches', 'hazard', 'Glitch: a hazard, and its fix', hazard),
-  g('Timing and glitches', 'ripple', 'Ripple-carry adder: the carry chain and flicker', ripple),
-  g('Timing and glitches', 'oscillator', 'Ring oscillator (unstable)', ringOscillator),
-
-  g('State machines', 'uart', 'UART: a byte over one wire', uart),
-  g('State machines', 'fsm-traffic', 'Traffic light (generated)', () => generateFsm(TRAFFIC_LIGHT).circuit),
-  g('State machines', 'fsm-detector', '1011 sequence detector (generated)', () => generateFsm(SEQUENCE_DETECTOR).circuit),
-  g('State machines', 'fsm-vending', 'Vending machine, nickels and dimes (generated)', () => generateFsm(VENDING_MACHINE).circuit),
-  g('State machines', 'fsm-updown', 'Up/down counter (generated)', () => generateFsm(UP_DOWN_COUNTER).circuit),
-
-  g('Displays and gadgets', 'intersection', 'Traffic lights with pedestrian crossing', trafficLights),
-  g('Displays and gadgets', 'dice', 'Electronic dice', dice),
-  g('Displays and gadgets', 'stopwatch', 'Stopwatch with start/stop and lap', stopwatch),
-  g('Displays and gadgets', 'clock', 'Digital clock (HH:MM:SS)', digitalClock),
-  g('Displays and gadgets', 'pwm', 'PWM: a counter and comparator dim a lamp', pwm),
-  g('Displays and gadgets', 'lfsr', 'Pseudo-random generator (LFSR)', lfsr),
-  g('Displays and gadgets', 'matrix', 'Dot matrix smiley (scanned)', matrixSmiley),
-
-  ...PROGRAMS.map((p) => g('Computers', p.id, p.name, () => computer2(p))),
-]
-
-/** Sorted by group so the flat list and the menu agree. */
-export const EXAMPLES: Example[] = EXAMPLE_GROUPS.flatMap((grp) => ALL.filter((e) => e.group === grp))
-
-/** The example named by a URL path like "/intersection", if any. */
-export function exampleFromPath(pathname: string): Example | undefined {
-  const slug = decodeURIComponent(pathname.replace(/^\/+|\/+$/g, '')).toLowerCase()
-  return EXAMPLES.find((e) => e.id === slug)
+/** Each example's builder, by id. `EXAMPLES` pairs them with the names and groups of `examples-index.ts`. */
+const BUILDERS: Record<string, () => Circuit> = {
+  counter: counterDisplay,
+  beginner: beginnerComputer,
+  gates: basicGates,
+  mux: muxDemo,
+  encoder: encoderDecoder,
+  labels: netLabels,
+  'sr-latch': srLatch,
+  'd-latch': nandDLatch,
+  'master-slave': masterSlave,
+  debounce: debouncer,
+  'shift-register': shiftRegister,
+  'ripple-counter': rippleCounter,
+  adder,
+  'alu-flags': aluFlags,
+  calculator,
+  tristate: sharedLine,
+  buses: busDemo,
+  arbiter,
+  databus: dataBus,
+  hazard,
+  ripple,
+  oscillator: ringOscillator,
+  uart,
+  'fsm-traffic': () => generateFsm(TRAFFIC_LIGHT).circuit,
+  'fsm-detector': () => generateFsm(SEQUENCE_DETECTOR).circuit,
+  'fsm-vending': () => generateFsm(VENDING_MACHINE).circuit,
+  'fsm-updown': () => generateFsm(UP_DOWN_COUNTER).circuit,
+  intersection: trafficLights,
+  dice,
+  stopwatch,
+  clock: digitalClock,
+  pwm,
+  lfsr,
+  matrix: matrixSmiley,
+  ...Object.fromEntries(PROGRAMS.map((p) => [p.id, () => computer2(p)])),
 }
+
+export const EXAMPLES: Example[] = EXAMPLE_LIST.map((info) => ({ ...info, build: BUILDERS[info.id] }))

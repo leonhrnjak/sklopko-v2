@@ -5,7 +5,9 @@ import { flatten } from './buses'
 import { buildRows } from '../app/waveform'
 import { SKASM, assemble, disassemble } from '../engine/isa'
 import { FIBONACCI_SOURCE, programWords } from './computer2'
+import { counterDisplay } from './example-counter'
 import { EXAMPLES, SMILEY } from './examples'
+import { EXAMPLE_LIST, WELCOME_ID, exampleFromPath } from './examples-index'
 
 /** Routing the big examples takes close to a second, so build each one once for all tests. */
 const built = new Map<string, ReturnType<(typeof EXAMPLES)[number]['build']>>()
@@ -590,5 +592,28 @@ describe('shared data bus example', () => {
     enable('Enable Input B', false)
     enable('Enable Register', true)
     expect(bus()).toBe(0x27) // the register drives the bus with what it holds
+  })
+})
+
+describe('the examples index', () => {
+  it('lists the same examples, in the same order, as the builders', () => {
+    expect(EXAMPLES.map(({ id, name, group }) => ({ id, name, group }))).toEqual(EXAMPLE_LIST)
+  })
+
+  it('has a builder for every entry and no duplicate id', () => {
+    const ids = EXAMPLE_LIST.map((e) => e.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const e of EXAMPLES) expect(typeof e.build).toBe('function')
+  })
+
+  it('opens with the counter, which the main chunk can build without the other examples', () => {
+    expect(WELCOME_ID).toBe('counter')
+    expect(counterDisplay()).toEqual(EXAMPLES[0].build())
+  })
+
+  it('finds an example from its short link', () => {
+    expect(exampleFromPath('/Intersection/')?.id).toBe('intersection')
+    expect(exampleFromPath('/')).toBeUndefined()
+    expect(exampleFromPath('/nope')).toBeUndefined()
   })
 })

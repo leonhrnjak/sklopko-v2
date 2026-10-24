@@ -1487,6 +1487,7 @@ async function clickLabelled(page: Page, label: string) {
 test('glitches: the hazard example dips for a moment, it is marked on the circuit, and the fixed copy holds', async ({ page }) => {
   await page.goto('/hazard', { waitUntil: 'networkidle' })
   await page.getByTestId('timing-toggle').click()
+  await expect(page.getByTestId('timing')).toBeVisible() // the panel loads on demand, and records only once it is there
   await expect(page.getByTestId('tick-info')).toHaveCount(0) // nothing has changed yet
 
   await clickLabelled(page, 'A') // A falls

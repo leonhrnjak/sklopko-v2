@@ -1,21 +1,36 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
+import { useChallenges } from './app/challenges'
 import { isEmbed } from './app/embed'
-import { ChallengeList } from './ui/challenges/ChallengeList'
-import { ChallengePanel } from './ui/challenges/ChallengePanel'
+import { useFsm } from './app/fsm'
+import { useLogic } from './app/logic'
+import { useReference } from './app/reference'
+import { useOpenOnFirstProbe, useWave } from './app/waveform'
 import { Canvas } from './ui/canvas/Canvas'
 import { EmbedBar } from './ui/EmbedBar'
-import { FsmPanel } from './ui/fsm/FsmPanel'
 import { LibraryDialog } from './ui/library/LibraryDialog'
-import { LogicPanel } from './ui/logic/LogicPanel'
-import { SkasmReference } from './ui/SkasmReference'
 import { fitView } from './ui/canvas/viewport'
 import { Inspector } from './ui/Inspector'
+import { OnDemand } from './ui/OnDemand'
 import { Palette } from './ui/Palette'
 import { SelectionBar } from './ui/SelectionBar'
 import { StatusBar, Toolbar } from './ui/Toolbar'
-import { WaveformPanel } from './ui/WaveformPanel'
+
+// The panels, each its own chunk, fetched the first time it is opened.
+const LogicPanel = lazy(() => import('./ui/logic/LogicPanel').then((m) => ({ default: m.LogicPanel })))
+const FsmPanel = lazy(() => import('./ui/fsm/FsmPanel').then((m) => ({ default: m.FsmPanel })))
+const SkasmReference = lazy(() => import('./ui/SkasmReference').then((m) => ({ default: m.SkasmReference })))
+const ChallengeList = lazy(() => import('./ui/challenges/ChallengeList').then((m) => ({ default: m.ChallengeList })))
+const ChallengePanel = lazy(() => import('./ui/challenges/ChallengePanel').then((m) => ({ default: m.ChallengePanel })))
+const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ default: m.WaveformPanel })))
 
 export default function App() {
+  const logicOpen = useLogic((s) => s.open)
+  const fsmOpen = useFsm((s) => s.open)
+  const referenceOpen = useReference((s) => s.open)
+  const challengeListOpen = useChallenges((s) => s.listOpen)
+  const challengeOpen = useChallenges((s) => s.current !== null)
+  const waveOpen = useWave((s) => s.open)
+  useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
     requestAnimationFrame(fitView)
   }, [])
@@ -40,15 +55,27 @@ export default function App() {
             <StatusBar />
             <SelectionBar />
           </div>
-          <WaveformPanel />
-          <ChallengePanel />
+          <OnDemand open={waveOpen}>
+            <WaveformPanel />
+          </OnDemand>
+          <OnDemand open={challengeOpen}>
+            <ChallengePanel />
+          </OnDemand>
         </div>
         <Inspector />
       </main>
-      <LogicPanel />
-      <FsmPanel />
-      <SkasmReference />
-      <ChallengeList />
+      <OnDemand open={logicOpen}>
+        <LogicPanel />
+      </OnDemand>
+      <OnDemand open={fsmOpen}>
+        <FsmPanel />
+      </OnDemand>
+      <OnDemand open={referenceOpen}>
+        <SkasmReference />
+      </OnDemand>
+      <OnDemand open={challengeListOpen}>
+        <ChallengeList />
+      </OnDemand>
       <LibraryDialog />
     </div>
   )

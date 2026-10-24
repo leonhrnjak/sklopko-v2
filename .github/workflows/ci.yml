@@ -26,6 +26,8 @@ jobs:
         run: npm run lint
       - name: Type-check and build
         run: npm run build
+      - name: Bundle budget
+        run: npm run check:bundle
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: E2E (desktop + emulated phone)

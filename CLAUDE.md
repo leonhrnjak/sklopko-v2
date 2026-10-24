@@ -52,7 +52,7 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,
 custom ICs, small wins; milestone 15, challenges for classrooms, is dropped for now), in order, one PR per sub-milestone; tick each
-box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 is next.
+box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed) is in progress: 12a (code splitting) is done, 12b is next.
 
 **Milestones 0–10 are all done** (`docs/plan-next-features.md`). Milestone 10 (buses and tri-state) is recorded in
 `docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine

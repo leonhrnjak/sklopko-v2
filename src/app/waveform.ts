@@ -1,7 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
 import { probeBits, type Trace } from '../engine/components/io'
 import { groupTrace, type NumberFormat } from '../engine/groups'
-import { toVcd, type VcdSignal } from '../engine/vcd'
+import type { VcdSignal } from '../engine/vcd'
 import type { Comp } from '../model/circuit'
 import { downloadText } from './files'
 import { sim } from './sim'
@@ -92,9 +93,20 @@ export function recordedSignals(rows: Row[]): VcdSignal[] {
   })
 }
 
+/** The first probe in a circuit opens the panel. This lives outside the panel, which loads only once it is open. */
+export function useOpenOnFirstProbe(enabled: boolean) {
+  const probed = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'probe'))
+  const was = useRef(false)
+  useEffect(() => {
+    if (enabled && probed && !was.current) useWave.setState({ open: true, view: 'waves' })
+    was.current = probed
+  }, [enabled, probed])
+}
+
 /** Download everything the probes have recorded (the last minute of simulated time) as a VCD file. */
-export function exportVcd() {
+export async function exportVcd() {
   const signals = recordedSignals(buildRows(useStore.getState().circuit.comps))
   if (!signals.some((s) => s.t.length)) return showToast('Nothing has been recorded yet.')
+  const { toVcd } = await import('../engine/vcd')
   downloadText('waveforms.vcd', toVcd(signals, sim.time), 'text/plain')
 }
