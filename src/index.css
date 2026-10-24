@@ -1528,6 +1528,7 @@ button.danger {
   z-index: 60;
   display: flex;
   align-items: center;
+  align-items: safe center; /* a dialog taller than the screen starts at the top instead of losing its top */
   justify-content: center;
   background: rgba(0, 0, 0, 0.42);
   padding: 12px;
@@ -1537,6 +1538,7 @@ button.danger {
   flex-direction: column;
   width: min(1040px, 100%);
   max-height: 92vh;
+  max-height: 92dvh; /* the visible height: on a phone 100vh is the height with the browser bar hidden, which pushed the top out of view */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
@@ -2401,6 +2403,7 @@ button.linklike:hover {
   width: 100%;
   height: auto;
   max-height: 62vh;
+  max-height: 62dvh;
   min-height: 260px;
   background: var(--bg);
   border: 1px solid var(--panel-border);
