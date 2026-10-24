@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship finished work for Sklopko. Use when a feature or fix the user asked for is implemented and ready to push: branch, bump the version, run the scoped tests, push, open a PR, wait for CI, then ask before merging. Do not use for plans, questions, exploration or investigation, or when the user said not to push.
+description: Ship finished work for Sklopko. Use when a feature or fix the user asked for is implemented and ready to push: branch, run the scoped tests, push, open a PR, wait for CI, then ask before merging. Do not use for plans, questions, exploration or investigation, or when the user said not to push.
 argument-hint: "[branch-slug]"
 ---
 
@@ -11,9 +11,7 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
 
 1. **Branch.** Never commit to `main`. If on `main`, create a feature branch named after the work (`$ARGUMENTS`, or e.g.
    `m10a-tristate`). If already on a feature branch, stay on it. If the working tree has nothing to ship, stop and say so.
-2. **Version.** Bump once per PR, not once per push: if `package.json` already differs from `origin/main`'s version, skip this.
-   Otherwise run `npm version prerelease --no-git-tag-version` (smallest bump, `0.0.1-N` → `0.0.1-N+1`). If `main` already
-   reached that version, bump again past it. Change other parts of the version only when explicitly asked.
+2. **Version.** Nothing to do: the shown version is built from the commit count (see `CLAUDE.md`), so a PR does not bump it.
 3. **Test, scoped as in `CLAUDE.md`** (quiet reporters; don't run the whole e2e suite locally):
    - `npm test -- --reporter=dot` (all unit tests)
    - `npx oxlint <changed files>`
@@ -39,13 +37,13 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
      ```
      and show each one in the description as
      `![what it shows](https://github.com/<owner>/<repo>/blob/pr-assets/<branch>/shot.png?raw=true)`.
-   - **Open the PR** (`gh pr create`, or the GitHub tool when `gh` is not available). Title ends with the version, e.g. `(0.0.1-33)`.
+   - **Open the PR** (`gh pr create`, or the GitHub tool when `gh` is not available). The title has no version.
      The body follows `.github/pull_request_template.md`, all five sections: *What this adds* (two or three sentences for someone who has
      not read the code), *How it works* (short, technical), *How to test* (numbered steps a person can follow), *Screenshots* (or "No
      visible change." with a line why), *Checks* (what was run). Then the PR attribution line from the system reminder.
 6. **Wait for CI:** `gh pr checks --watch`.
    - **Red:** read the log (`gh run view --log-failed`), fix the cause, re-run only the failed tests locally (`-g`), push, and
-     wait again. Repeat until green. Don't bump the version again for these pushes.
+     wait again. Repeat until green.
    - **Green:** tell the user the result and the PR URL, and **ask whether to merge**. Merge only on their yes, with
      `gh pr merge --squash --delete-branch`, then `git checkout main && git pull`. Merging deploys to Cloudflare Pages.
 
