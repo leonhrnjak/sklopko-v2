@@ -42,6 +42,7 @@ test('a switch key that is also a shortcut (R) wins over rotating', async ({ pag
 test('the keyboard presses the keys of a keypad', async ({ page }) => {
   await freshEmpty(page)
   const pad = await place(page, 'keypad', 160, 200)
+  await page.getByLabel('Bus ports').uncheck() // wire its key code bit by bit
   const k0 = await place(page, 'led', 520, 160)
   const p = await place(page, 'led', 520, 260)
   await wire(page, [pad, 'K0'], [k0, 'A'])

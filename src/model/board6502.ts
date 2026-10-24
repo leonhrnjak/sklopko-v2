@@ -212,24 +212,23 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(`${clk}.Q`, `${fb}.CLK`)
   }
   // What the CPU reads from the devices: the keypad (A2 = 0, $4003) or the gamepad (A2 = 1, $4004), eight bits each.
-  let zero = ''
-  const zeroPin = () => (zero ||= dev(INPUT, 'zero', 'const', { params: { value: 0 }, label: 'always 0' }))
+  const zeros = (key: string, bits: number) => `${dev(INPUT, key, 'busconst', { params: { bits, value: '0' }, label: 'zeros' })}.Q`
   let keyBus = ''
   let padBus = ''
   if (has.has('keypad')) {
-    const kp = dev(INPUT, 'keypad', 'keypad', { params: { sticky: true }, label: 'Keypad $4003 (write: it was read)' })
+    const kp = dev(INPUT, 'keypad', 'keypad', { params: { bus: true, sticky: true }, label: 'Keypad $4003 (write: it was read)' })
     wire(strobe(3), `${kp}.RST`)
-    const m = dev(INPUT, 'keyBus', 'merger', { params: { bits: 8, split: '1,1,1,1,1,1,1,1' }, label: 'KEY: code in 0–3, press waiting in 4' })
-    for (let i = 0; i < 4; i++) wire(`${kp}.K${i}`, `${m}.A${i}`)
-    wire(`${kp}.P`, `${m}.A4`)
-    for (let i = 5; i < 8; i++) wire(`${zeroPin()}.Q`, `${m}.A${i}`)
+    const m = dev(INPUT, 'keyBus', 'merger', { params: { bits: 8, split: '4,1,3' }, label: 'KEY: code in 0–3, press waiting in 4' })
+    wire(`${kp}.K`, `${m}.A0`)
+    wire(`${kp}.P`, `${m}.A1`)
+    wire(zeros('keyZeros', 3), `${m}.A2`)
     keyBus = `${m}.Y`
   }
   if (has.has('gamepad')) {
-    const pad = dev(INPUT, 'gamepad', 'gamepad', { label: 'Gamepad: read $4004' })
-    const m = dev(INPUT, 'padBus', 'merger', { params: { bits: 8, split: '1,1,1,1,1,1,1,1' }, label: 'PAD: U D L R A B in bits 0–5' })
-    ;['U', 'D', 'L', 'R', 'A', 'B'].forEach((pin, i) => wire(`${pad}.${pin}`, `${m}.A${i}`))
-    for (let i = 6; i < 8; i++) wire(`${zeroPin()}.Q`, `${m}.A${i}`)
+    const pad = dev(INPUT, 'gamepad', 'gamepad', { params: { bus: true }, label: 'Gamepad: read $4004' })
+    const m = dev(INPUT, 'padBus', 'merger', { params: { bits: 8, split: '6,2' }, label: 'PAD: U D L R A B in bits 0–5' })
+    wire(`${pad}.BTN`, `${m}.A0`)
+    wire(zeros('padZeros', 2), `${m}.A1`)
     padBus = `${m}.Y`
   }
   if (readable) {
