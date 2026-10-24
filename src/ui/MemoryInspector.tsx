@@ -13,6 +13,7 @@ import { SIGNAL_PRESETS, presetParams } from '../engine/signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalValue, signalsToText, valueName, withSignal, type RowNames, type Signal, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
+import { CpuSection } from './CpuInspector'
 import { TextParam } from './TextParam'
 
 const hexOf = (n: number, digits: number) => n.toString(16).toUpperCase().padStart(digits, '0')
@@ -791,8 +792,9 @@ export function ConsoleSection({ comp }: { comp: Comp }) {
   )
 }
 
-/** The contents editor for a ROM, RAM, LUT or console. */
+/** The contents editor for a ROM, RAM, LUT or console, and the registers of a CPU. */
 export function MemorySection({ comp }: { comp: Comp }) {
+  if (comp.type === 'cpu6502') return <CpuSection comp={comp} />
   if (comp.type === 'rom') return <RomSection comp={comp} />
   if (comp.type === 'ram') return <RamSection comp={comp} />
   if (comp.type === 'lut') return <LutSection comp={comp} />

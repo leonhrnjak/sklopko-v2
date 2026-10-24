@@ -19,7 +19,7 @@ type Vector = [string, State, State, [number, number, 'read' | 'write'][]]
 function setup(state: State) {
   const c = newCpu()
   Object.assign(c, { pc: state.pc, sp: state.s, a: state.a, x: state.x, y: state.y, p: state.p })
-  c.prog = null
+  c.prog = -1
   c.sync = true
   c.read = true
   c.addr = c.pc
@@ -211,7 +211,7 @@ describe('programs', () => {
 
   it('an undocumented opcode is a two-cycle, one-byte NOP', () => {
     const { c, mem } = machine([0x02, 0xea])
-    c.prog = null
+    c.prog = -1
     c.sync = true
     c.addr = c.pc = 0x200
     expect(runInstruction(c as Cpu6502, mem)).toBe(2)
@@ -222,7 +222,7 @@ describe('programs', () => {
     const cycles = (code: number[], at: number, flags: number) => {
       const { c, mem } = machine([])
       mem.set(code, at)
-      Object.assign(c, { prog: null, sync: true, pc: at, addr: at, p: flags | FLAG.U })
+      Object.assign(c, { prog: -1, sync: true, pc: at, addr: at, p: flags | FLAG.U })
       return runInstruction(c, mem)
     }
     expect(cycles([0xd0, 0x05], 0x300, FLAG.Z)).toBe(2) // BNE, not taken

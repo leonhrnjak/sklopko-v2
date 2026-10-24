@@ -49,8 +49,12 @@ export interface Cpu6502 {
   nmiPin: boolean
   // Inside.
   op: number
-  /** The steps of the instruction in progress (null in an opcode fetch) and the one that is now on the pins. */
-  prog: Step[] | null
+  /**
+   * Which steps are being run: an opcode (0–255), `PROG_INTERRUPT` or `PROG_RESET`, or -1 in an opcode fetch. A number and not
+   * the steps themselves, so that the state of the CPU is plain numbers (it is copied at every clock edge, for stepping back).
+   */
+  prog: number
+  /** The step of that program that is now on the pins. */
   t: number
   /** What the opcode fetch about to happen will turn into, if an interrupt is waiting. */
   intr: 'irq' | 'nmi' | null
@@ -73,7 +77,7 @@ export function newCpu(): Cpu6502 {
     a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, p: U | I,
     addr: 0, read: true, out: 0, sync: false,
     irq: false, nmiPending: false, nmiPin: false,
-    op: 0, prog: null, t: 0, intr: null, vec: 0xfffe, ea: 0, lo: 0, ptr: 0, val: 0, base: 0, cross: false, off: 0, newpc: 0, cycles: 0,
+    op: 0, prog: -1, t: 0, intr: null, vec: 0xfffe, ea: 0, lo: 0, ptr: 0, val: 0, base: 0, cross: false, off: 0, newpc: 0, cycles: 0,
   }
 }
 
@@ -397,10 +401,13 @@ function program(o: Opcode6502): Step[] {
 }
 
 /** Opcodes that are not documented act as a one-byte, two-cycle NOP. */
-const PROGRAMS: Step[][] = Array.from({ length: 256 }, (_, op) => {
+const OPCODE_PROGRAMS: Step[][] = Array.from({ length: 256 }, (_, op) => {
   const o = BY_OPCODE_6502[op]
   return o ? program(o) : [dummyPc]
 })
+
+export const PROG_INTERRUPT = 256
+export const PROG_RESET = 257
 
 /** Seven cycles that push the return address and the flags, then jump through a vector. `B` is 0 for an interrupt. */
 const INTERRUPT: Step[] = [
@@ -423,11 +430,13 @@ const RESET: Step[] = [
   step((c) => rd(c, 0xfffd), (c, d) => (c.pc = c.lo | (d << 8))),
 ]
 
+const PROGRAMS: Step[][] = [...OPCODE_PROGRAMS, INTERRUPT, RESET]
+
 // ---- Running -------------------------------------------------------------------------------------
 
 /** Set up an opcode fetch at `pc`, or, if an interrupt is waiting, one that turns into the interrupt sequence. */
 function startFetch(c: Cpu6502) {
-  c.prog = null
+  c.prog = -1
   if (c.nmiPending) {
     c.intr = 'nmi'
     c.nmiPending = false
@@ -442,7 +451,7 @@ function startFetch(c: Cpu6502) {
 
 /** Start the reset sequence (what happens when RES goes high after being low). The registers keep their values, as on the chip. */
 export function reset(c: Cpu6502) {
-  c.prog = RESET
+  c.prog = PROG_RESET
   c.t = 0
   c.intr = null
   c.nmiPending = false
@@ -453,24 +462,25 @@ export function reset(c: Cpu6502) {
 /** Finish the cycle on the pins (`d` is the byte read, ignored for a write) and set up the next one. */
 export function cycle(c: Cpu6502, d: number) {
   c.cycles++
-  if (c.prog === null) {
+  if (c.prog < 0) {
     // The opcode fetch ends: an interrupt takes the place of the instruction (the opcode is dropped and PC is not moved on).
     c.sync = false
     if (c.intr) {
       c.intr = null
-      c.prog = INTERRUPT
+      c.prog = PROG_INTERRUPT
     } else {
       c.op = d & 255
       incPc(c)
-      c.prog = PROGRAMS[c.op]
+      c.prog = c.op
     }
     c.t = 0
-    c.prog[0].a(c)
+    PROGRAMS[c.prog][0].a(c)
     return
   }
-  c.prog[c.t].e?.(c, d & 255)
+  const steps = PROGRAMS[c.prog]
+  steps[c.t].e?.(c, d & 255)
   c.t++
-  if (c.t < c.prog.length) c.prog[c.t].a(c)
+  if (c.t < steps.length) steps[c.t].a(c)
   else startFetch(c)
 }
 

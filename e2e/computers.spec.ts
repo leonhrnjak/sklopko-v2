@@ -448,6 +448,27 @@ test('the beginner computer runs its program: the listing follows the PC, and it
   await expect(halted).toHaveCount(1)
 })
 
+test('the 6502 board: the CPU shows its registers, steps one instruction at a time, and the LEDs follow the program', async ({ page }) => {
+  await page.goto('/6502', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'CPU')
+  const regs = page.getByRole('group', { name: 'CPU registers' })
+  await expect(regs).toBeVisible()
+  await expect(regs).toContainText('PC')
+  const doing = page.getByTestId('cpu-doing')
+  await expect(doing).toContainText('Reset sequence')
+
+  // The reset sequence takes 7 cycles; the first instruction (LDA #$01) is fetched from $F000.
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Step one instruction' }).click()
+  // Three steps: the reset sequence, LDA #$01, STA $4000. The accumulator holds 1 and the PC is on the ASL at $F005.
+  await expect(regs.locator('.ram-word', { hasText: 'A' }).first().locator('.cpu-val')).toHaveText('01')
+  await expect(regs.locator('.ram-word', { hasText: 'PC' }).locator('.cpu-val')).toHaveText('F005')
+  await expect(doing).toContainText('Fetching the next instruction from $F005')
+  await page.getByRole('button', { name: 'Step one cycle' }).click()
+  await expect(doing).toContainText('ASL A')
+})
+
 test('gamepad: the arrow keys press its buttons, and the paddle moves', async ({ page }) => {
   await page.goto('/computer-pong', { waitUntil: 'networkidle' })
   const down = page.locator('g.key.down')

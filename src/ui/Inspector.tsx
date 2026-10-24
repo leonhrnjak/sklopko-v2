@@ -27,7 +27,7 @@ import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
 
-const MEMORY_TYPES = new Set(['rom', 'ram', 'lut', 'console'])
+const MEMORY_TYPES = new Set(['rom', 'ram', 'lut', 'console', 'cpu6502'])
 
 // The editors for ROM, RAM, LUT and console contents load when such a part is first selected.
 const MemorySection = lazy(() => import('./MemoryInspector').then((m) => ({ default: m.MemorySection })))

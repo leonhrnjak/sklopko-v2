@@ -6,7 +6,7 @@
 >
 > - [x] R1 The 6502 core: an opcode table and a cycle-exact model, no UI
 > - [x] R2 Memory that is big enough, and cheap to snapshot
-> - [ ] R3 The part: a 40-pin 6502 on the canvas, and a first board
+> - [x] R3 The part: a 40-pin 6502 on the canvas, and a first board
 > - [ ] R4 6502 assembly: assembler, disassembler, reference page
 > - [ ] R5 The board with devices, and 6502 example programs
 > - [ ] R6 Polish: 65C02, interrupts, timing-view presets
@@ -102,6 +102,19 @@ hex image still stores what it is given.
   as hex, with notes (what the address bus is doing, what `SYNC` means).
 - **Tests**: the part in a circuit against the core, cycle for cycle; `RDY` stall; reset sequence; tri-state read/write with a bus
   junction; a program that fills RAM. Measure clock edges per second.
+
+**What R3 did, and where it differs from the plan.** The `cpu6502` part (`src/engine/components/cpu.ts`, category *Processors*) with the
+pins `Φ2`, `RES`, `IRQ`, `NMI`, `RDY`, `DI0–7` in and `A0–15`, `D0–7`, `R/W`, `SYNC` out, a bus mode (`A`, `D`, `DI`), and the two
+parameters *Resets itself at power-up* and *Tri-state data bus*. It moves on at the falling edge of Φ2; the release of RES counts as
+the first of the 7 reset cycles; a read of unknown data (X) waits instead of running on a guess. The state is plain numbers (the core's
+`prog` is now a program number, not a list of closures), so the per-edge copy is cheap. The inspector shows A, X, Y, SP, PC, the
+cycle count, the flags, what the CPU is doing, and *Step one cycle* / *Step one instruction*. The example `/6502` is a board with a
+clock, a reset button, the CPU, an address decoder, a 4 KB ROM, a 2 KB RAM and an LED register at `$4000` running a hand-assembled
+program. Tested: the part against the core on the board for 300 cycles (address, R/W, SYNC and registers every cycle), RDY, reset,
+tri-state, unknown data, IRQ and NMI; one e2e test. Differences: the symbol is the usual box with the pin names (a 40-pin DIP
+drawing is left for R6, with the pin numbers); the stop at a PC value is the existing *Breakpoint* part on the address bus, not a
+setting of the CPU (a part with a `sample` cannot be stepped back). The ROM and ISA *choices* moved into `engine/isalist.ts`, so the
+SKASM assembler no longer loads at startup, which paid for the new part in the startup budget and is where R4's 6502 choice goes.
 
 ### R4. 6502 assembly
 - `src/engine/asm6502.ts`, sharing the number, label, constant and error handling of the SKASM assembler (pull the lexer out of

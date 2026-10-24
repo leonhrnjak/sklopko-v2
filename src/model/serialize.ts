@@ -1,5 +1,5 @@
 import LZString from 'lz-string'
-import { currentIsaId } from '../engine/isa'
+import { currentIsaId } from '../engine/isalist'
 import { getDef, hasDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
 import { legacyDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
