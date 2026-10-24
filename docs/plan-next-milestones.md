@@ -26,7 +26,7 @@
 > - [x] 14d Edit an IC, v0.0.1-70
 > - [x] 14e Collapse a selection into an IC; examples, v0.0.1-71
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
-> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72), 16b lookup table from an expression (v0.0.1-73), 16c testbench (v0.0.1-74)
+> - [x] 16 Small wins: 16a keyboard control (v0.0.1-72), 16b lookup table from an expression (v0.0.1-73), 16c testbench (v0.0.1-74), 16d works offline (v0.0.1-75)
 
 ## Context
 Milestones 0–10 are done (v0.0.1-57): 70 part types, buses and tri-state, the timing view, the state machine editor,
@@ -538,6 +538,18 @@ lacks is reported and the other steps still run; a mistake in the text is report
   to paste, and quicker to write than a structured editor. It is the document's, so the window says to leave an IC before editing it.
 - `model/testbench.ts` has the parser and the step runner (`runSteps`), which the challenges with memory now use too (their steps are a `set` and
   an `expect` each, checked exactly as before); that is where `pulse` was added, as planned. Tests: `model/testbench.test.ts`, `e2e/testbench.spec.ts`.
+
+*16d. Works offline: what it did.* A web app manifest (`public/manifest.webmanifest`, icons made from the favicon) and a service worker. The worker is made by
+`scripts/sw-plugin.ts` when the site is built: it lists everything the build made (page, scripts, styles, the 47 examples' files and
+thumbnails) and the files of `public/`, caches all of it when it installs, and is named for a hash of their contents, so a deploy that
+changes anything makes a new worker, a new cache and removes the old ones. Pages go to the network first (a new deploy shows at once) and
+fall back to the cached app, which is how short links like `/dice` open offline; everything else comes from the cache. It is registered
+(`app/offline.ts`) only in the built app and not in an embed. `_headers` revalidates `/examples/*`, `/sw.js` and the manifest.
+It costs a first visit about 2 MB of downloads in the background, since every example is cached. Tests: `e2e/offline.spec.ts` runs against
+`vite preview` of `dist/` (CI builds before it runs the e2e tests; locally run `npm run build` first, or the spec skips): after one visit it
+goes offline, reloads, opens `/dice` and an example from the gallery, and opens a panel that loads on demand.
+
+**Milestone 16 is done.** With it the roadmap of this file (11 to 16, without the dropped 15) is built; what is left is the list below.
 
 ## Considered and not planned
 - **Croatian UI**: not needed.
