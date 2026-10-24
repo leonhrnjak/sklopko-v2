@@ -5,7 +5,7 @@
 > its PR merges and add a short *What it did, and where it differs from the plan* note under it.
 >
 > - [x] R1 The 6502 core: an opcode table and a cycle-exact model, no UI
-> - [ ] R2 Memory that is big enough, and cheap to snapshot
+> - [x] R2 Memory that is big enough, and cheap to snapshot
 > - [ ] R3 The part: a 40-pin 6502 on the canvas, and a first board
 > - [ ] R4 6502 assembly: assembler, disassembler, reference page
 > - [ ] R5 The board with devices, and 6502 example programs
@@ -87,6 +87,14 @@ are looked at when the next fetch is set up, not in the last cycle of an instruc
   array would be copied a hundred thousand times a second. RAM state becomes a `Uint8Array` (a `slice()` is a memory copy) and
   `cloneState` learns typed arrays. Measure before and after with `bench.test.ts`.
 - Saved files and share links grow with the ROM, so `data` is stored without trailing zero bytes.
+
+**What R2 did, and where it differs from the plan.** RAM goes up to 2048 words (address bits 4–11), ROM up to 4096 (2–12), the ROM's hex
+text may be 14,000 characters. A RAM's words are a `Uint8Array`, and `cloneState` copies a typed array with one `slice()`; the
+benchmark is not slower (raycaster 239 → 218 ms, sieve 164 → 158 ms, shift register 1,090 → 689 ms; the last one is noise from a
+quieter machine, not a speed-up to claim). The memory inspector shows a RAM or a ROM listing 256 words at a time, with a *Page* drop-down
+that follows the address being read until you pick one. Tests that read `state.mem` as a plain array now use `Array.from`. Not done here
+(moved to R4, where the assembler produces the bytes): storing a ROM's `data` without its trailing zero bytes; a hand-typed or loaded
+hex image still stores what it is given.
 
 ### R3. The part, and a first board
 - Layout with a 40-pin symbol, bus-mode groups, the parameter above, the register panel and stepping.

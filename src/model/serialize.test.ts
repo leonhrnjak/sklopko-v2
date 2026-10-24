@@ -46,7 +46,7 @@ describe('serialization', () => {
         { id: 'r', type: 'rom', x: 0, y: 0, params: { abits: 99, dbits: 8, data: 'xyz' } },
         { id: 'g', type: 'and', x: 100, y: 0, params: { inputs: 500 } },
         { id: 'r2', type: 'rom', x: 200, y: 0, params: { data: 'FF 0A' } },
-        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(1401) } },
+        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(14001) } },
       ],
       wires: [],
     })

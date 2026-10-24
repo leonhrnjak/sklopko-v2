@@ -452,7 +452,7 @@ describe('8-bit computer example', () => {
     const flags = byLabel('Flags')
     /** The three decimal digits of the output display, as a number. */
     const decimal = () => ['Hundreds', 'Tens', 'Ones'].reduce((n, label) => n * 10 + reg(byLabel(label), ['S0', 'S1', 'S2', 'S3']), 0)
-    const mem = (label: string) => sim.state(byLabel(label)).mem as number[]
+    const mem = (label: string) => Array.from(sim.state(byLabel(label)).mem as ArrayLike<number>)
     /** One full clock cycle: rising edge, then falling edge. */
     const cycle = () => {
       sim.stepClock()
