@@ -38,12 +38,8 @@ export const cpus: ComponentDef[] = [
     name: 'MOS 6502',
     category: 'cpu',
     description:
-      'The MOS Technology 6502, the 8-bit processor of the Apple II, the Commodore 64 and the NES (the NMOS version, documented ' +
-      'instructions). It reads and writes memory one byte at a time: in every clock cycle it puts an address on A0–A15 and R/W ' +
-      '(1 = read, 0 = write), and either reads a byte from DI0–DI7 or puts one on D0–D7. SYNC is high in the cycle that fetches an ' +
-      'instruction. The clock is PHI2: the CPU moves on at its falling edge, so a RAM that is written on the rising edge of the ' +
-      'same clock sees a steady address and data. RES low (then high) starts it: it takes 7 cycles, then runs the program at the ' +
-      'address stored at $FFFC–$FFFD. IRQ is a level and NMI an edge, both active low. RDY low stops it in a read cycle. ' +
+      'The MOS 6502, the 8-bit processor of the Apple II, the Commodore 64 and the NES (documented instructions). In every clock ' +
+      'cycle it puts an address on A and R/W on the pins and reads or writes one byte; it moves on at the falling edge of Φ2. ' +
       'Select it to see its registers and the instruction it is running.',
     params: [
       {

@@ -8,8 +8,11 @@ export interface IsaChoice {
   name: string
 }
 
-/** The choices of a ROM's *Contents are*, after *Hex words*. Each has an assembler with the same id (see `isa.ts`). */
-export const ISA_CHOICES: IsaChoice[] = [{ id: 'skasm', name: 'SKASM' }]
+/** The choices of a ROM's *Contents are*, after *Hex words*. Each has an assembler with the same id (see `isa.ts`; the 6502's is `asm6502.ts`). */
+export const ISA_CHOICES: IsaChoice[] = [
+  { id: 'skasm', name: 'SKASM' },
+  { id: '6502', name: '6502 assembly' },
+]
 
 /** Ids that circuits saved before SKASM used for a ROM's instruction set; they all mean SKASM now. */
 const LEGACY_IDS: Record<string, string> = { sk8: 'skasm', sk82: 'skasm' }

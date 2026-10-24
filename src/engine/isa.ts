@@ -24,6 +24,7 @@
  *            .byte 1, 2, 3  bytes for the table (up to 256), read with LDT; a label in front of it is the table address of the first
  */
 
+import { IDENT, matchConstant, matchLabel, parseNumber, stripComment, type AsmError } from './asmlex'
 import { currentIsaId } from './isalist'
 
 const WORD = '.WORD'
@@ -217,15 +218,10 @@ export const SKASM: Isa = {
 
 export const ISAS: Isa[] = [SKASM]
 
-export { currentIsaId }
+export { currentIsaId, parseNumber }
+export type { AsmError }
 
 export const getIsa = (id: string): Isa | undefined => ISAS.find((i) => i.id === currentIsaId(id))
-
-export interface AsmError {
-  /** 1-based source line. */
-  line: number
-  message: string
-}
 
 export interface AsmResult {
   /** The program as machine words, padded with zeros to the ROM's size. */
@@ -237,17 +233,6 @@ export interface AsmResult {
   table: number[]
   /** Label addresses and named constants (not the built-in port names). */
   symbols: Record<string, number>
-}
-
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
-
-/** A number written in decimal, 0x… / $… hex or 0b… binary (with an optional minus sign), or null. */
-export function parseNumber(token: string): number | null {
-  const m = /^(-?)(?:0x([0-9a-f]+)|\$([0-9a-f]+)|0b([01]+)|([0-9]+))$/i.exec(token)
-  if (!m) return null
-  const [, sign, hex1, hex2, bin, dec] = m
-  const n = hex1 !== undefined ? parseInt(hex1, 16) : hex2 !== undefined ? parseInt(hex2, 16) : bin !== undefined ? parseInt(bin, 2) : parseInt(dec, 10)
-  return sign ? -n : n
 }
 
 interface Parsed {
@@ -283,20 +268,19 @@ export function assemble(isa: Isa, source: string, capacity: number): AsmResult 
   // Pass 1: strip comments, collect labels, constants and instructions.
   source.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1
-    let text = raw.replace(/(?:;|\/\/).*$/, '').trim()
+    let text = stripComment(raw)
     if (!text) return
-    const constant = /^([^\s=:]+)\s*=\s*(.*)$/.exec(text)
+    const constant = matchConstant(text)
     if (constant) {
-      const [, name, rest] = constant
-      const n = valueOf(rest.trim())
-      if (n === null) return err(line, `“${rest.trim()}” is not a number or a defined name.`)
-      return define(name, n, line, 'constant')
+      const n = valueOf(constant.value)
+      if (n === null) return err(line, `“${constant.value}” is not a number or a defined name.`)
+      return define(constant.name, n, line, 'constant')
     }
-    const label = /^([^\s:]+)\s*:\s*(.*)$/.exec(text)
+    const label = matchLabel(text)
     if (label) {
       // A label in front of .byte names a place in the table, in front of anything else a place in the program.
-      define(label[1], label[2].toUpperCase().startsWith(BYTE) ? bytes.length : program.length, line, 'label')
-      text = label[2]
+      define(label.name, label.rest.toUpperCase().startsWith(BYTE) ? bytes.length : program.length, line, 'label')
+      text = label.rest
       if (!text) return
     }
     if (text.toUpperCase().startsWith(BYTE) && /^\.byte(\s|$)/i.test(text)) {

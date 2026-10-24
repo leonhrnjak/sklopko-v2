@@ -23,6 +23,7 @@ import { StatusBar, Toolbar } from './ui/Toolbar'
 const LogicPanel = lazy(() => import('./ui/logic/LogicPanel').then((m) => ({ default: m.LogicPanel })))
 const FsmPanel = lazy(() => import('./ui/fsm/FsmPanel').then((m) => ({ default: m.FsmPanel })))
 const SkasmReference = lazy(() => import('./ui/SkasmReference').then((m) => ({ default: m.SkasmReference })))
+const Reference6502 = lazy(() => import('./ui/Reference6502').then((m) => ({ default: m.Reference6502 })))
 const ChallengeList = lazy(() => import('./ui/challenges/ChallengeList').then((m) => ({ default: m.ChallengeList })))
 const ChallengePanel = lazy(() => import('./ui/challenges/ChallengePanel').then((m) => ({ default: m.ChallengePanel })))
 const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ default: m.ExampleGallery })))
@@ -34,7 +35,8 @@ const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ def
 export default function App() {
   const logicOpen = useLogic((s) => s.open)
   const fsmOpen = useFsm((s) => s.open)
-  const referenceOpen = useReference((s) => s.open)
+  const referenceOpen = useReference((s) => s.open && s.language === 'skasm')
+  const reference6502Open = useReference((s) => s.open && s.language === '6502')
   const challengeListOpen = useChallenges((s) => s.listOpen)
   const challengeOpen = useChallenges((s) => s.current !== null)
   const waveOpen = useWave((s) => s.open)
@@ -84,6 +86,9 @@ export default function App() {
       </OnDemand>
       <OnDemand open={referenceOpen}>
         <SkasmReference />
+      </OnDemand>
+      <OnDemand open={reference6502Open}>
+        <Reference6502 />
       </OnDemand>
       <OnDemand open={challengeListOpen}>
         <ChallengeList />

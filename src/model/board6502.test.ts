@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
-import { BLINK_BYTES, board6502, board6502Builder, romImage } from './board6502'
+import { assemble6502 } from '../engine/asm6502'
+import { BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE } from './board6502'
 import { flatten } from './buses'
 
 function start() {
@@ -28,6 +29,16 @@ describe('the 6502 board', () => {
     expect(bytes).toHaveLength(4096)
     expect(bytes.slice(0, 3)).toEqual(['A9', '01', '8D'])
     expect(bytes.slice(4092, 4094)).toEqual(['00', 'F0'])
+  })
+
+  it('has its program in 6502 assembly in the ROM, and the bytes are what that assembles to', () => {
+    const r = assemble6502(BLINK_SOURCE, 0x1000)
+    expect(r.errors).toEqual([])
+    expect(r.base).toBe(ROM_BASE)
+    expect(r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')).toBe(romImage(BLINK_BYTES))
+    const rom = Object.values(board6502().comps).find((c) => c.type === 'rom')!
+    expect(rom.params.isa).toBe('6502')
+    expect(rom.params.source).toBe(BLINK_SOURCE)
   })
 
   it('does what the core does, cycle for cycle: address, R/W and SYNC on the pins, registers inside', () => {

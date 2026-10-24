@@ -256,6 +256,18 @@ export const PINS: Record<string, PinDocs> = {
     'A#|A': 'Address: which word is read on Q and written by WE (bit 0 first).',
     'Q#|Q': 'Data out: the addressed word, always shown, not only on a clock edge.',
   },
+  cpu6502: {
+    PHI2: 'The clock. The CPU does one cycle on each falling edge (1 to 0): it puts the address of the next byte on A and says on R/W whether it reads or writes.',
+    RESB: 'Reset, active low: while it is 0 the CPU is held. When it goes to 1 the CPU runs 7 reset cycles, then starts at the address stored in $FFFC and $FFFD.',
+    IRQB: 'Interrupt request, active low: while it is 0 and the I flag is clear, the CPU finishes its instruction and runs the routine at the address stored in $FFFE.',
+    NMIB: 'Non-maskable interrupt, active low: a falling edge makes the CPU run the routine at the address stored in $FFFA, whatever the I flag says.',
+    RDY: 'Ready: while it is 0 the CPU waits at the end of a read cycle, so a slow memory can catch up. Writes are not held.',
+    'DI#|DI': 'Data in: the byte the CPU reads, taken at the falling edge of Φ2 (DI0 least significant bit). Join it to D and the memory with a bus junction.',
+    'A#|A': 'Address: the 16-bit address of the byte used in this cycle (A0 least significant bit), valid after Φ2 falls.',
+    'D#|D': 'Data out: the byte the CPU writes (D0 least significant bit). It is high impedance (Z) while the CPU reads if Tri-state data bus is on.',
+    RWB: 'Read/write: 1 while the CPU reads the byte at the address, 0 while it writes one.',
+    SYNC: '1 during the cycle that fetches an instruction (its first byte), 0 in all others.',
+  },
   mux: {
     'I#': 'Data input number n. The one picked by the select lines is passed to Y.',
     'S#|S': 'Select lines, as a binary number (S0 least significant): the value says which input I goes to Y. The number of lines depends on the Inputs setting.',

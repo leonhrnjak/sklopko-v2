@@ -10,7 +10,7 @@ import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
-import { openReference } from '../app/reference'
+import { open6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
@@ -283,6 +283,10 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
         SKASM
+        <Dots />
+      </MenuItem>
+      <MenuItem onClick={() => open6502Reference()} title="The 6502 assembly language">
+        6502
         <Dots />
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
