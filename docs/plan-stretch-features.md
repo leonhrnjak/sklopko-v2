@@ -1,5 +1,8 @@
 # Sklopko v2: stretch features plan
 
+> **Done.** Milestones 1–4 shipped early on; milestone 5 (custom ICs) was postponed and is built as milestone 14 of
+> `plan-next-milestones.md`. Challenges mode (the last section) shipped as milestone 6 of `plan-next-features.md`.
+
 > **How to execute this plan**
 > - Read `CLAUDE.md` first. Its rules apply: run the full checklist before every push, and bump the version
 >   (smallest number) with every push.

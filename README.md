@@ -50,29 +50,30 @@ security headers.
 - **Trace a signal:** select a wire to light up the whole signal it belongs to: every wire from the same output,
   also through net labels, with rings on every pin it reaches. *Also show what feeds it* adds the logic behind its
   source (through gates and other purely combinational parts, back to the nearest registers, memories and inputs).
-- **Programs and memory:** a ROM's contents are hex words, or, for the 8-bit computer, a program in assembly:
-  pick *A program for the Sklopko 8-bit computer* in the inspector and write `LDI 5`, `loop: ADD 3`, `JNC loop`
-  (labels, `NAME = 15` constants, `;` comments, decimal / `0x` hex / `0b` binary numbers). Mistakes are listed by
+- **Programs and memory:** a ROM's contents are hex words, or a program in assembly: pick *A program in SKASM* in the
+  inspector and write `LDI 5`, `loop: ADD 3`, `JNC loop` (labels, `NAME = 15` constants, `;` comments, decimal / `0x` /
+  `$` hex / `0b` binary numbers; *Tools ▾ → SKASM* is the reference). Mistakes are listed by
   line as you type; the program is applied when you click away from the box (the circuit keeps running the last good
   one meanwhile). The listing under it shows every word with its instruction and marks the one being read now, so it
   follows the program counter. *Open…* and *Save…* read and write `.asm` (or `.hex`) files. Select a RAM to see all
-  its words live; while paused, click a word to change it (hex). Reset clears it.
+  its words live; while paused, click a word to change it (hex). Reset clears it. A control ROM (the computers' decoders)
+  lists its rows by name and signals, and can be edited that way, or as text, instead of in hex.
 - **Net labels:** a *Send label* publishes the signal wired into it under a name, and every *Receive label* with
   the same name carries that signal, with no wire in between. Like a wire, a label adds no delay. Select one to see
   the other labels of its name outlined, and *Select all* to find them. The *Net labels* example (`/labels`) shows it.
 - **Waveforms:** wire a *Probe* to any signal and give it a label. The first probe opens the waveform panel
-  under the canvas (or use *Waveforms* in the toolbar), with one trace per probe in the wire colours. Pick a
+  under the canvas (or use *Tools ▾ → Waveforms*), with one trace per probe in the wire colours. Pick a
   2/5/10/30 s window; while paused, drag sideways to look back in time (double-click or *Live* returns). Traces
   are kept for the last minute of simulated time and cleared by Reset. Select several probes to **group** them: the
   group is drawn as one trace showing the number the bits form (hex, decimal or binary; the label order sets the bit
   order, so ACC0 is bit 0), as in the `/computer` example's PC and ACC. *PNG* saves the window as an image, and *VCD*
   saves everything recorded in the format that GTKWave and other waveform viewers open.
-- **Logic panel:** *Logic…* in the toolbar. *Analyze circuit* sweeps the switches you choose and shows the truth
+- **Logic panel:** *Tools ▾ → Logic*. *Analyze circuit* sweeps the switches you choose and shows the truth
   table, a minimal Boolean expression and (up to 4 inputs) a Karnaugh map with its groups. *Build circuit* turns an
   expression such as `Sum = A ⊕ B ⊕ Cin` or a truth table (with don't-cares) into wired, laid-out gates on the
   canvas. *Compare* checks the circuit against an expression or a circuit file over all inputs and lists the rows
   that differ.
-- **Challenges:** *Challenges* in the toolbar has 17 short lessons, each ending in something to build: from wiring a
+- **Challenges:** *Tools ▾ → Challenges* has 17 short lessons, each ending in something to build: from wiring a
   switch to an LED, through gates, adders and multiplexers, to an SR latch and a gated D latch. Picking one puts
   labelled switches and LEDs on the canvas; *Check my circuit* tries every combination of the switches (or, for a
   latch, a sequence of steps) and shows which answers are wrong. Some limit the gates you may use. *Hint* and *Show a
@@ -98,13 +99,13 @@ security headers.
   versions is brought in on the first visit). Nothing replaces your work: an example or *New* opens without a document of
   its own and becomes one, "<example> (copy)" or "Untitled N", the moment you edit it; a share link or an opened file is a
   new document at once. What was open stays in the library. Save/Open as `.json`; Share copies a link containing the circuit.
-- **My circuits:** the toolbar's *My circuits* lists every circuit and state machine you have (newest first): open, rename,
+- **My circuits:** *File ▾ → My circuits* lists every circuit and state machine you have (newest first): open, rename,
   duplicate or delete them (a toast brings a deleted one back), or start a new circuit. The name of the open circuit is
   over the canvas; click it to rename. *Download all* saves everything in one file and *Import…* adds a file like that
   (nothing is overwritten), so you can back up or move to another computer: the library lives in this browser only. State
   machines are kept there too.
-- **Examples:** the *Examples* button opens a gallery of every example with a picture, a line about it and a search box;
-  each card has a *Copy link* button. Every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Opening an
+- **Examples:** the *Examples* button opens a gallery of every example with a picture, a line about it and a search box,
+  one group at a time (or *All*); each card has a *Copy link* button. Every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Opening an
   example shows its link in the address bar, and Share copies it while the example is unedited.
 - **Toolbar:** *Tools ▾* (Logic, State machines, SKASM, Make IC, Tests, Challenges, Waveforms, Timing) and *File ▾* (New, My
   circuits, Open and Save file, Embed code, Clear wires, pictures). The *How to* panel on the right can be hidden (**Hide**);
@@ -120,7 +121,7 @@ security headers.
 - **Offline:** after one visit the built app (page, scripts and all examples) is kept by the browser, so it opens without a
   network, and it can be installed from the browser's menu.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
-  H fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom. A switch with a **Key** (1–9 or a letter,
+  H (or 0) fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom. A switch with a **Key** (1–9 or a letter,
   in its inspector) flips when you press it; a keypad reads digits and A–F (or the calculator keys) from the keyboard, and
   a gamepad the arrow keys, W A S D, Z and X.
 
@@ -128,32 +129,30 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–1024 Hz), constant 0/1, 4-bit input, keypad (hex digits or calculator keys), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
-| Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
+| Input / output | switch, push button, clock (0.25–4096 Hz), constant 0/1, 4-bit input, keypad (hex digits or calculator keys), gamepad (arrow-key buttons), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
+| Logic gates | AND, OR, NAND, NOR, XOR, XNOR (2–8 inputs), NOT, buffer |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
-| Memory | ROM (2–8 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM (4–8 address bits, 4 or 8 data bits), lookup table (2–8 inputs, 1–8 outputs, edited as a truth table or filled from boolean expressions) |
-| Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
+| Memory | ROM (2–8 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM (4–8 address bits, 4 or 8 data bits), lookup table (2–8 inputs, 1, 2, 4 or 8 outputs, edited as a truth table or filled from boolean expressions) |
+| Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8, tri-state buffer (1–16 bits), bus junction (2–8 drivers sharing a line or bus, with pull-up/down and contention detection) |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar, text console (ASCII, 28 columns), 16×16 pixel screen (1 bit or 4 colours) |
-| Buses & tri-state | splitter and merger (pure wiring), bus send / receive labels, bus constant and input (hex), bus display (hex / decimal / binary), n-bit (2–16) register, counter with load, adder, subtractor, adder/subtractor, comparator, bitwise gate and multiplexer, tri-state buffer, bus junction (a shared line or bus, with pull-up/down and contention detection). Many 4-bit and memory parts also have a *Bus ports* option that turns their pin runs into one thick bus pin |
+| Buses | splitter and merger (pure wiring), bus send / receive labels, bus constant and input (hex), bus display (hex / decimal / binary), n-bit (2–16) register, counter with load, adder, subtractor, adder/subtractor, comparator, bitwise gate and multiplexer. Many 4-bit and memory parts also have a *Bus ports* option that turns their pin runs into one thick bus pin |
 | Notes & frames | note, frame (annotations: no pins, no effect on the simulation) |
 
-The *Examples* menu includes two showpieces built only from these parts: an **8-bit computer** (`/computer`: an 8-bit
-program counter, the program ROM, two control ROMs, an 8-bit adder/subtractor and logic unit, RAM and an accumulator, all
-joined by 8-bit buses, and a carry and zero flag, running a Fibonacci program that you can edit in assembly; it shows
-each number (up to 233) in decimal on an output port via ROM tables and BCD adders) and a **calculator** (`/calculator`:
-ALU, multiplier, ROM lookup table, BCD adder, comparator and a memory register). `/databus` shows the other way to move
-data: several sources sharing one 8-bit bus through tri-state buffers, and `/buses` and `/tristate` are the small
-introductions.
-
-A second computer adds a four-bit opcode, jump if zero, immediate arithmetic (`ADDI`, `SUBI`, `CMPI`), shifts and a
-256-instruction program ROM. It comes in three examples, each with only the devices it uses on the top RAM
-addresses: **LCD** (`/computer-lcd`: a ball bouncing round a 16×16 screen; `STA 14` lights the pixel at the
-accumulator's (low nibble, high nibble), `STA 13` darkens it), **speaker** (`/computer-sound`: a siren; `STA 14`
-flips the speaker) and **keypad** (`/computer-calc`: a calculator for whole numbers up to 255 with + − × ÷, typed on a calculator
-keypad and shown on a text display; `LDA 15` reads the keypad, `STA 14` says the key has been read, `STA 15` prints a
-character). Write your own in the Program ROM's inspector (pick *A program for the Sklopko 8-bit computer 2*).
+The *Examples* menu includes showpieces built only from these parts. The **8-bit computer** (`/computer`) runs SKASM: an
+8-bit program counter, a 256-instruction program ROM, three control ROMs that turn each instruction into control signals,
+an 8-bit ALU, 256 bytes of RAM, an accumulator, an index register, a carry and a zero flag, a return stack for `CALL`
+and `RET`, all joined by 8-bit buses. It runs a Fibonacci program you can edit in assembly, and shows each number (up to
+233) in decimal on an output port via ROM tables and BCD adders. Devices are reached with `OUT` and `IN` through named
+ports, and each example has only the ones it uses: an LCD (`/computer-lcd`, a bouncing ball; also `/computer-sine`,
+`/computer-ant`), a speaker (`/computer-sound`, a siren), a keypad and text console (`/computer-calc`, a calculator for
+whole numbers up to 255), a gamepad (`/computer-pong`, `/computer-snake`, `/computer-raycaster`, a 3D raycaster), a
+keypad and LCD (`/computer-tictactoe`) and a console (`/computer-sieve`, primes). `/beginner` is a much smaller computer
+(seven instructions, 4-bit numbers) meant to be read, and `/computer-blocks` shows the 8-bit computer as custom ICs. The
+**calculator** (`/calculator`) has an ALU, multiplier, ROM lookup table, BCD adder, comparator and a memory register.
+`/databus` shows the other way to move data: several sources sharing one 8-bit bus through tri-state buffers, and `/buses` and
+`/tristate` are the small introductions. To write your own program, pick *A program in SKASM* in a Program ROM's inspector.
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.
@@ -164,7 +163,8 @@ work too. The *Examples* menu has ready-made ones.
 src/
   engine/     pure TypeScript simulator, no DOM: logic values, part definitions, Simulator
   routing/    orthogonal wire router (A*) and path editing helpers
-  model/      circuit data, editing operations, save/load, examples
+  logic/      Boolean expressions, truth tables and minimisation (the Logic panel)
+  model/      circuit data, editing operations, save/load, examples, state machines, custom ICs
   app/        zustand store (undo/redo), simulator singleton, runtime loop
   ui/         React + SVG: canvas, palette, inspector, toolbar, part symbols
 e2e/          Playwright tests that drive the real UI

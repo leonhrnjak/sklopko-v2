@@ -8,7 +8,7 @@
 > - Work milestone by milestone, in order. Each milestone ends in a working, tested state; tick its box here when it
 >   ships.
 > - After each milestone, run the checklist and stop to report. Push (to `main`) only when asked.
-> - Reusable parts / custom ICs (milestone 5 of `plan-stretch-features.md`) stay postponed. Nothing here depends on them.
+> - Reusable parts / custom ICs (milestone 5 of `plan-stretch-features.md`) were postponed while this plan ran; they are built now (milestone 14 of `plan-next-milestones.md`).
 
 ## Context
 v0.0.1-9: ~60 parts, router, waveform panel, ROM/RAM, an 8-bit computer example that prints Fibonacci in decimal. Building
