@@ -151,6 +151,7 @@ export const devices: ComponentDef[] = [
     title: () => 'Console',
     live: true,
     init: (): ConsoleState => ({ lines: [''], pc: X, rev: 0 }),
+    revision: (inst) => (inst.state as ConsoleState).rev,
     layout: () => box({ w: 280, minRows: 10, left: [...names('D', 8), { name: 'WE', def: 0 }, { name: 'CLK', clock: true }] }),
     evaluate(inst) {
       const st = inst.state as ConsoleState
@@ -203,6 +204,7 @@ export const devices: ComponentDef[] = [
     title: () => '',
     live: true,
     init: (): FramebufferState => ({ px: new Array<number>(FB_SIZE * FB_SIZE).fill(0), pc: X, rev: 0 }),
+    revision: (inst) => (inst.state as FramebufferState).rev,
     layout: (p) => {
       const nd = Number(p.colors) === 4 ? 2 : 1
       return box({
@@ -271,6 +273,7 @@ export const devices: ComponentDef[] = [
     interactive: 'toggle',
     live: true,
     init: (): SpeakerState => ({ last: X, edges: [], rev: 0 }),
+    revision: (inst) => (inst.state as SpeakerState).rev,
     layout: () => ({ w: 40, h: 40, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 20 }] }),
     evaluate() {},
     sample(inst, time) {

@@ -1,4 +1,4 @@
-import { layoutOf } from '../engine/simulator'
+import { layoutOf } from '../engine/layoutcache'
 import type { Expr, Program } from '../logic/expr'
 import { minimizeExpr } from '../logic/minimize'
 import { tableOfProgram, type Cell, type TruthTable } from '../logic/table'

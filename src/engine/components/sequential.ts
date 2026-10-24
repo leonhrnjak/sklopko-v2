@@ -326,6 +326,13 @@ export const memoryRam: ComponentDef[] = [
     title: (p) => `RAM ${2 ** ramBits(p)}×${p.dbits}`,
     live: true,
     init: (p) => ({ mem: new Array<number>(2 ** ramBits(p)).fill(0), pc: X as V }),
+    memory: {
+      size: (inst) => (inst.state as { mem: number[] }).mem.length,
+      read: (inst, i) => (inst.state as { mem: number[] }).mem[i],
+      write: (inst, i, value) => {
+        ;(inst.state as { mem: number[] }).mem[i] = value & (2 ** Number(inst.params.dbits) - 1)
+      },
+    },
     layout: (p) => {
       const n = Number(p.dbits)
       const a = ramBits(p)

@@ -1,5 +1,5 @@
 import { groupsOf, isBusLabel, pinWidth, splitOffsets, splitWidths } from '../engine/bus'
-import { RECV, SEND } from '../engine/netlabels'
+import { RECV, SEND, resolveLabels } from '../engine/netlabels'
 import { getDef, hasDef } from '../engine/registry'
 import type { SimCircuit, SimComp, SimWire } from '../engine/simulator'
 import { isWiringPart } from '../engine/viewlayout'
@@ -155,5 +155,6 @@ function build(c: Circuit): BusModel {
     return out
   }
 
-  return { sim: { comps, wires: simWires }, bits, netBits, upstream }
+  const sim = { comps, wires: simWires }
+  return { sim: { ...sim, aliases: resolveLabels(sim) }, bits, netBits, upstream }
 }

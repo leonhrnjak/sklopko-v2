@@ -1,3 +1,4 @@
+import { registerFit } from '../../app/view'
 import { setView, useStore } from '../../app/store'
 import { boundsRect } from '../../model/circuit'
 
@@ -49,4 +50,6 @@ export function fitView() {
   const zoom = Math.min(1.6, Math.max(MIN_ZOOM, Math.min((width - 2 * pad) / (x2 - x1), (height - 2 * pad) / (y2 - y1))))
   setView({ zoom, x: (width - (x2 - x1) * zoom) / 2 - x1 * zoom, y: (height - (y2 - y1) * zoom) / 2 - y1 * zoom })
 }
+
+registerFit(fitView)
 
