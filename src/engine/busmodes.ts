@@ -45,6 +45,8 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
   },
   cpu6502: { groups: () => [numbered('DI', 'in', 'DI', 8), numbered('A', 'out', 'A', 16), numbered('D', 'out', 'D', 8)] },
   console: { groups: () => [numbered('D', 'in', 'D', 8)], keepsHeight: () => true },
+  keypad: { groups: () => [numbered('K', 'out', 'K', 4)], keepsHeight: () => true },
+  gamepad: { groups: () => [{ name: 'BTN', dir: 'out', pins: ['U', 'D', 'L', 'R', 'A', 'B'] }], keepsHeight: () => true },
   framebuffer: {
     groups: (p) => [
       numbered('X', 'in', 'X', 4),
