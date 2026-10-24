@@ -468,6 +468,7 @@ export const PINS: Record<string, PinDocs> = {
     P: '1 while a key is held down; with Sticky on, 1 from a new press until RST is 1.',
   },
   gamepad: {
+    BTN: 'The six buttons as one bus: up, down, left, right, A and B, in that order (U is the least significant bit).',
     U: '1 while the up arrow is held down.',
     D: '1 while the down arrow is held down.',
     L: '1 while the left arrow is held down.',

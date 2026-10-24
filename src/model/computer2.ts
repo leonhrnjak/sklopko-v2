@@ -655,12 +655,12 @@ export function computer2Builder(o: Computer2Options) {
   const RESULT_OUT = `${rm}.Y`
 
   // ---- The keypad is the one device with an input: IN KEY ------------------------------------------------
-  const keypad = has('keypad') ? part(DEVICES, 'keypad', 'keypad', { label: 'Keypad', params: { sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
+  const keypad = has('keypad') ? part(DEVICES, 'keypad', 'keypad', { label: 'Keypad', params: { ...BUS, sticky: true, layout: o.keypad ?? 'hex' } }) : undefined
   const zero8 = busconst(INMUX, 'zero8', 8, 0)
   /** What IN puts on the bus: the keypad (its key in bits 0–3, bit 4 set while a press is waiting) when port KEY is addressed, otherwise 0. */
   let portIn = zero8
   if (keypad) {
-    const keyWord = merger(INMUX, 'keyWord', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the keypad word', [0, 1, 2, 3].map((i) => `${keypad}.K${i}`).concat(`${keypad}.P`, `${zero}.Q`, `${zero}.Q`, `${zero}.Q`))
+    const keyWord = merger(INMUX, 'keyWord', 8, [4, 1, 3], 'the keypad word', [`${keypad}.K`, `${keypad}.P`, busconst(INMUX, 'zero3', 3, 0)])
     const inKey = part(INMUX, 'inKey', 'busmux', { params: { bits: 8, n: 2 }, label: 'IN KEY' }, 60)
     wire(zero8, `${inKey}.I0`)
     wire(keyWord, `${inKey}.I1`)
@@ -679,8 +679,8 @@ export function computer2Builder(o: Computer2Options) {
   }
   // The gamepad: IN PAD gives the six buttons held right now (up, down, left, right, A, B in bits 0–5).
   if (has('gamepad')) {
-    const pad = part(DEVICES, 'gamepad', 'gamepad', { label: 'Gamepad' })
-    const padWord = merger(INMUX, 'padWord', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the gamepad word', ['U', 'D', 'L', 'R', 'A', 'B'].map((p) => `${pad}.${p}`).concat(`${zero}.Q`, `${zero}.Q`))
+    const pad = part(DEVICES, 'gamepad', 'gamepad', { label: 'Gamepad', params: BUS })
+    const padWord = merger(INMUX, 'padWord', 8, [6, 2], 'the gamepad word', [`${pad}.BTN`, busconst(INMUX, 'zero2', 2, 0)])
     const inPad = part(INMUX, 'inPad', 'busmux', { params: { bits: 8, n: 2 }, label: 'IN PAD' }, 60)
     wire(portIn, `${inPad}.I0`)
     wire(padWord, `${inPad}.I1`)
