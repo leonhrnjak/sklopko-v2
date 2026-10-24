@@ -1,11 +1,11 @@
 import { getDef, hasDef } from '../engine/registry'
-import { Simulator } from '../engine/simulator'
 import { compareTables, type Comparison } from '../logic/compare'
 import type { Cell } from '../logic/table'
 import { analyzeCircuit, circuitPorts } from './analyze'
 import { goalTable, type Challenge, type Rules } from './challenges'
-import { busModel, flatten } from './buses'
+import { busModel } from './buses'
 import type { Circuit } from './circuit'
+import { runSteps, type TestStep } from './testbench'
 
 /** A step of a memory challenge that did not come out as expected. */
 export interface StepFailure {
@@ -52,28 +52,24 @@ export function ruleProblems(c: Circuit, rules: Rules | undefined): string[] {
   return problems
 }
 
-/** Run the steps of a memory challenge in a simulator of its own. */
-function runSteps(c: Circuit, ch: Challenge & { kind: 'seq' }, inputIds: Record<string, string>, outputIds: Record<string, string>) {
-  const sim = new Simulator()
-  sim.load(flatten(c))
+/** Run the steps of a memory challenge in a simulator of its own (the shared step runner of `testbench.ts`). */
+function runChallengeSteps(c: Circuit, ch: Challenge & { kind: 'seq' }, inputIds: Record<string, string>, outputIds: Record<string, string>) {
+  const steps: TestStep[] = ch.steps.map((step, i) => ({
+    line: i + 1,
+    text: '',
+    actions: [
+      { kind: 'set', values: step.set },
+      { kind: 'expect', values: step.expect },
+    ],
+  }))
+  const run = runSteps(c, steps, inputIds, outputIds)
   const state: Record<string, 0 | 1> = Object.fromEntries(ch.inputs.map((n) => [n, 0 as 0 | 1]))
-  const apply = () => {
-    for (const n of ch.inputs) sim.setParams(inputIds[n], { ...c.comps[inputIds[n]].params, on: state[n] === 1 })
-    sim.settle()
-  }
-  apply() // everything off first, so the circuit starts from a known state
   const failures: StepFailure[] = []
-  let unstable = false
-  ch.steps.forEach((step, i) => {
-    Object.assign(state, step.set)
-    apply()
-    unstable ||= sim.unstable
-    for (const [name, want] of Object.entries(step.expect)) {
-      const got = sim.pinValue(outputIds[name], 'A') as Cell
-      if (got !== want) failures.push({ step: i + 1, switches: { ...state }, output: name, expected: want, got })
-    }
+  run.outcomes.forEach((o, i) => {
+    Object.assign(state, ch.steps[i].set)
+    for (const f of o.failures) failures.push({ step: i + 1, switches: { ...state }, output: f.output, expected: f.expected, got: f.got })
   })
-  return { failures, unstable }
+  return { failures, unstable: run.unstable }
 }
 
 /** Does the circuit solve the challenge? Switches and LEDs are found by their labels. */
@@ -101,7 +97,7 @@ export function checkChallenge(ch: Challenge, c: Circuit): CheckResult {
     result.comparison = compareTables(goalTable(ch), a.table)
     result.passed = result.comparison.equal
   } else {
-    const { failures, unstable } = runSteps(c, ch, inputIds, outputIds)
+    const { failures, unstable } = runChallengeSteps(c, ch, inputIds, outputIds)
     result.stepCount = ch.steps.length
     result.failures = failures.slice(0, 12)
     if (unstable) result.warnings.push('The circuit keeps changing by itself and never settles in some step (a feedback loop that does not hold a value).')
