@@ -20,7 +20,7 @@
 > - [x] 12c Rendering, measured and skipped, v0.0.1-64
 > - [x] 13a Toolbar menus, collapsible help, e2e split, v0.0.1-65
 > - [x] 13b Example gallery, v0.0.1-66
-> - [ ] 14a Engine groundwork
+> - [x] 14a Engine groundwork, v0.0.1-67
 > - [ ] 14b ICs in the model and the simulation
 > - [ ] 14c Make and place ICs
 > - [ ] 14d Edit an IC
@@ -311,6 +311,27 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
   (`simulator.ts:594`) and `revision()` for `signature` (`simulator.ts:572`).
 - `layoutOf` moves from `simulator.ts` to `engine/layouts.ts`. `src/app/challenges.ts` stops importing `ui/canvas/viewport`:
   fitting the view becomes a callback the UI registers.
+
+*What it did, and where it differs from the plan.*
+- **Net labels in the flatten stage.** `flatten` (the `BusModel.sim`) now carries `SimCircuit.aliases`, the output pin that drives
+  each Receive label (`resolveLabels`, unchanged). `Simulator.load` uses it, and still works it out itself for a `SimCircuit`
+  that has none (the simulator tests build their own). 14b's `expandICs` runs before `flatten`, so labels are resolved on the
+  expanded circuit.
+- **Worklist in `tick()`.** A part flagged stale goes into a queue (a typed array, once per part); a tick evaluates the queued parts
+  and the slow ones (delay pipelines), writes every output as a (net, value) pair into a preallocated array, and then commits
+  the pairs, flagging the readers of each net that changed. The per-tick copy of all nets (`next.set(values)`) and the scan of all
+  nets are gone, and so is the second buffer. Timings (`VITE_BENCH=1 npx vitest run src/engine/bench --reporter=verbose`, before
+  → after): raycaster 349 → 248 ms for one simulated second, prime sieve 225 → 178 ms, a 1,600-part shift register (every part
+  busy) 907 → 865 ms. A first version with plain arrays was slower than before on that last case; the typed arrays fixed it.
+- **Pinned by a test.** `src/model/sim-golden.test.ts` fingerprints every net after each of the first 40 ticks, after settling,
+  after four stretches of 25 ms and after a reset, for all 45 examples (`sim-golden.json`, made with the old simulator). It passes
+  unchanged. `npx vitest run src/model/sim-golden -u` rebuilds it after a change that is meant to change behaviour.
+- **Typed hooks.** `ComponentDef.memory` (`size`, `read`, `write`; RAM has it) replaces the `state.mem` and `dbits` guess in
+  `writeWord`, and `ComponentDef.revision()` (console, pixel screen, speaker) replaces the `state.rev` guess in `signature`.
+- **`layoutOf`** moved out of `simulator.ts` into `engine/layoutcache.ts`, not `layouts.ts` as planned: the part definitions import
+  `layouts.ts` (for `box`) and the registry imports them, so a registry import there is a cycle that breaks at load time.
+- **`app/challenges.ts` and `app/gallery.ts`** no longer import `ui/canvas/viewport`: `app/view.ts` has `fitToScreen()`, and the
+  viewport module registers `fitView` with it. No `app/` file imports from `ui/` now.
 
 **14b. ICs in the model and the simulation (medium)** — no UI.
 - `ICDef` (`name`, `circuit`, derived pins), `expandICs`, serialize v2 and `migrate`, the recursion check, and

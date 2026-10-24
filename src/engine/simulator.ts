@@ -1,6 +1,7 @@
 import { resolveLabels } from './netlabels'
+import { layoutOf } from './layoutcache'
 import { getDef, hasDef } from './registry'
-import { X, Z, type ComponentDef, type Instance, type Layout, type Params, type V } from './types'
+import { X, Z, type ComponentDef, type Instance, type Params, type V } from './types'
 
 export interface SimComp {
   id: string
@@ -20,24 +21,15 @@ export interface SimWire {
 export interface SimCircuit {
   comps: SimComp[]
   wires: SimWire[]
+  /**
+   * Parts that share the net of another part's output instead of having one (a Receive label carries what its Send label
+   * got): the output pin that drives it, by part id. Worked out by `flatten`; the simulator works it out itself if it is left out.
+   */
+  aliases?: Map<string, PinRef>
 }
 
 /** The largest propagation delay a part can be given, in gate delays. */
 export const MAX_DELAY = 16
-
-const layoutCache = new Map<string, Layout>()
-
-/** Layout of a component type with given params (cached; layouts are pure). */
-export function layoutOf(type: string, params: Params): Layout {
-  const key = type + JSON.stringify(params)
-  let l = layoutCache.get(key)
-  if (!l) {
-    if (layoutCache.size > 500) layoutCache.clear()
-    l = getDef(type).layout(params)
-    layoutCache.set(key, l)
-  }
-  return l
-}
 
 interface CComp {
   id: string
@@ -119,7 +111,6 @@ export class Simulator {
   private slow: CComp[] = []
   private netByOut = new Map<string, number>()
   private values = new Uint8Array(0)
-  private next = new Uint8Array(0)
   private listeners = new Set<() => void>()
   private dirty = true
 
@@ -142,6 +133,14 @@ export class Simulator {
    * which moves on every tick): evaluating it with the same inputs and the same state would give the same outputs.
    */
   private stale = new Uint8Array(0)
+  /** The parts flagged in `stale`, in the order they were flagged: the next tick evaluates these (and the slow parts). */
+  private queue = new Int32Array(0)
+  private queued = 0
+  /** The queue of the tick being run; the two swap each tick (a part is in a queue once, so each is as long as `comps`). */
+  private running = new Int32Array(0)
+  /** What this tick's evaluations wrote: net, then value, for each output of each part evaluated. Applied after all have run. */
+  private writes = new Int32Array(0)
+  private written = 0
   private readers: number[][] = []
   /** A snapshot after each clock edge (and one before the first), for stepping back. */
   private history: Snapshot[] = []
@@ -167,7 +166,7 @@ export class Simulator {
     let nets = 0
 
     // Receive labels that share the net of the signal they carry are set up after the other parts.
-    const aliases = resolveLabels(c)
+    const aliases = c.aliases ?? resolveLabels(c)
     const deferred: { sc: SimComp; src: PinRef }[] = []
 
     const build = (sc: SimComp): CComp => {
@@ -232,14 +231,17 @@ export class Simulator {
     // Which parts read each net: when a net changes, only these need evaluating again.
     this.readers = Array.from({ length: nets }, () => [] as number[])
     for (const cc of this.comps) for (const n of new Set(cc.inNets)) if (n >= 0) this.readers[n].push(cc.index)
-    this.stale = new Uint8Array(this.comps.length).fill(1)
+    this.stale = new Uint8Array(this.comps.length)
+    this.queue = new Int32Array(this.comps.length)
+    this.running = new Int32Array(this.comps.length)
+    this.writes = new Int32Array(2 * nets)
+    this.markAll()
 
     this.values = new Uint8Array(nets).fill(X)
     for (const [key, net] of this.netByOut) {
       const v = oldValues.get(key)
       if (v !== undefined) this.values[net] = v
     }
-    this.next = new Uint8Array(nets)
     // A slow part starts out showing what its outputs show now, so loading a circuit does not make anything move.
     this.slow = this.comps.filter((cc) => cc.pipe)
     for (const cc of this.slow) this.fillPipe(cc)
@@ -250,7 +252,22 @@ export class Simulator {
 
   /** Evaluate a part again at the next tick (it was operated, edited or changed from outside). */
   private touch(cc: CComp) {
-    if (cc.index >= 0) this.stale[cc.index] = 1
+    if (cc.index >= 0) this.mark(cc.index)
+  }
+
+  /** Flag a part for evaluation at the next tick (once, however often it is flagged). */
+  private mark(i: number) {
+    if (this.stale[i] === 0) {
+      this.stale[i] = 1
+      this.queue[this.queued++] = i
+    }
+  }
+
+  /** Flag every part: after loading, resetting or going back, nothing is known to be up to date. */
+  private markAll() {
+    for (let i = 0; i < this.comps.length; i++) this.queue[i] = i
+    this.queued = this.comps.length
+    this.stale.fill(1)
   }
 
   /** Forget all values and internal state, as if the circuit was just switched on. */
@@ -258,7 +275,7 @@ export class Simulator {
     this.dropCapture()
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
-    this.stale.fill(1)
+    this.markAll()
     for (const cc of this.slow) this.fillPipe(cc)
     this.ticks = 0
     this.time = 0
@@ -276,44 +293,73 @@ export class Simulator {
     for (let k = 0; k < pipe.length; k++) pipe[k] = this.values[cc.outNets[k % n]]
   }
 
+  /** Run one part on the nets as they are, and queue its outputs (net, value) in `writes`. */
+  private evaluate(cc: CComp) {
+    const values = this.values
+    const { ins, outs } = cc.inst
+    const zOk = cc.def.acceptsZ
+    for (let i = 0; i < ins.length; i++) {
+      const n = cc.inNets[i]
+      const v = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
+      ins[i] = v === Z && !zOk ? X : v
+    }
+    cc.def.evaluate(cc.inst)
+    const pipe = cc.pipe
+    const writes = this.writes
+    let w = this.written
+    if (pipe === undefined) {
+      for (let o = 0; o < outs.length; o++) {
+        writes[w++] = cc.outNets[o]
+        writes[w++] = outs[o]
+      }
+    } else {
+      // Commit what was computed `delay - 1` ticks ago, and queue what was computed now.
+      const n = outs.length
+      for (let o = 0; o < n; o++) {
+        writes[w++] = cc.outNets[o]
+        writes[w++] = pipe[o]
+      }
+      pipe.copyWithin(0, n)
+      for (let o = 0; o < n; o++) pipe[pipe.length - n + o] = outs[o]
+    }
+    this.written = w
+  }
+
   /**
    * Advance one gate delay. Returns true if the circuit is still moving: a net changed, or a slow part has an output
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
-    const { values, next, stale, readers } = this
-    next.set(values) // the parts that are not evaluated keep what they show
-    for (const cc of this.comps) {
-      if (stale[cc.index] === 0 && cc.pipe === undefined) continue
+    const { values, stale, readers, writes, comps } = this
+    // Parts flagged by the last tick's changes are evaluated now; flags raised while this tick commits belong to the next.
+    const run = this.queue
+    const count = this.queued
+    this.queue = this.running
+    this.running = run
+    this.queued = 0
+    this.written = 0
+    for (let k = 0; k < count; k++) {
+      const i = run[k]
+      const cc = comps[i]
+      stale[i] = 0
+      if (cc.pipe === undefined) this.evaluate(cc)
+    }
+    // A slow part moves on every tick, flagged or not.
+    for (const cc of this.slow) {
       stale[cc.index] = 0
-      const { ins, outs } = cc.inst
-      const zOk = cc.def.acceptsZ
-      for (let i = 0; i < ins.length; i++) {
-        const n = cc.inNets[i]
-        const v = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
-        ins[i] = v === Z && !zOk ? X : v
-      }
-      cc.def.evaluate(cc.inst)
-      const pipe = cc.pipe
-      if (pipe === undefined) {
-        for (let o = 0; o < outs.length; o++) next[cc.outNets[o]] = outs[o]
-      } else {
-        // Commit what was computed `delay - 1` ticks ago, and queue what was computed now.
-        const n = outs.length
-        for (let o = 0; o < n; o++) next[cc.outNets[o]] = pipe[o]
-        pipe.copyWithin(0, n)
-        for (let o = 0; o < n; o++) pipe[pipe.length - n + o] = outs[o]
-      }
+      this.evaluate(cc)
     }
+    // Commit every output at once, flagging the readers of each net that changed.
     let changed = false
-    for (let i = 0; i < next.length; i++) {
-      if (next[i] !== values[i]) {
+    for (let k = 0; k < this.written; k += 2) {
+      const net = writes[k]
+      const v = writes[k + 1]
+      if (values[net] !== v) {
+        values[net] = v
         changed = true
-        for (const r of readers[i]) stale[r] = 1
+        for (const r of readers[net]) this.mark(r)
       }
     }
-    this.values = next
-    this.next = values
     this.ticks++
     if (changed) {
       this.dirty = true
@@ -326,7 +372,7 @@ export class Simulator {
       if (pending) break
       const n = cc.outNets.length
       for (let k = 0; k < pipe.length; k++) {
-        if (pipe[k] !== next[cc.outNets[k % n]]) {
+        if (pipe[k] !== values[cc.outNets[k % n]]) {
           pending = true
           break
         }
@@ -443,7 +489,7 @@ export class Simulator {
         if (st.elapsed >= c.def.clockHalfPeriod!(c.inst.params) - 1e-9) {
           st.elapsed = 0
           st.phase = st.phase === 1 ? 0 : 1
-          this.stale[c.index] = 1
+          this.mark(c.index)
         }
       }
       this.nextCause = 'clock'
@@ -498,7 +544,7 @@ export class Simulator {
     })
     this.time = snap.time
     this.unstable = snap.unstable
-    this.stale.fill(1)
+    this.markAll()
     this.cursor = target
     this.dirty = true
     // Settle again, in case a switch was flipped since (parameters are not part of the snapshot), and let the
@@ -569,7 +615,7 @@ export class Simulator {
     }
     for (let o = 0; o < cc.outNets.length; o++) s += this.values[cc.outNets[o]]
     // Parts with a screen of their own (console, pixel screen) count their changes, so a write redraws them.
-    const rev = (cc.inst.state as { rev?: number } | undefined)?.rev
+    const rev = cc.def.revision?.(cc.inst)
     return rev === undefined ? s : `${s}#${rev}`
   }
 
@@ -589,9 +635,9 @@ export class Simulator {
    */
   writeWord(compId: string, index: number, value: number): boolean {
     const cc = this.byId.get(compId)
-    const mem = (cc?.inst.state as { mem?: number[] } | undefined)?.mem
-    if (!cc || !mem || !(index >= 0 && index < mem.length)) return false
-    mem[index] = value & (2 ** Number(cc.inst.params.dbits ?? 4) - 1)
+    const mem = cc?.def.memory
+    if (!cc || !mem || !(index >= 0 && index < mem.size(cc.inst))) return false
+    mem.write(cc.inst, index, value)
     this.touch(cc)
     this.dirty = true
     this.moved = true

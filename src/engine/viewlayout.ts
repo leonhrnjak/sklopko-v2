@@ -1,6 +1,6 @@
 import { groupsOf, isBusLabel } from './bus'
 import { getDef, hasDef } from './registry'
-import { layoutOf } from './simulator'
+import { layoutOf } from './layoutcache'
 import type { Layout, Params, PinDef, PinGroup, Side } from './types'
 
 /** Is this part never simulated: a splitter, a merger, or a label that carries a bus? */

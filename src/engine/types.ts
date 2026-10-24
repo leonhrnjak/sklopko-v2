@@ -124,6 +124,20 @@ export interface ComponentDef {
   keepsHeight?(p: Params): boolean
   /** An `interactive: 'cycle'` part with a value of its own: the params after a click (or an Alt-click, `back`). */
   cycle?(p: Params, back: boolean): Params
+  /**
+   * Words of memory that can be changed from outside while the circuit exists (the memory editor): how many there are, what is
+   * in one, and writing one (the value is cut to the word size). Only parts with a RAM-like state have it.
+   */
+  memory?: {
+    size(inst: Instance): number
+    read(inst: Instance, index: number): number
+    write(inst: Instance, index: number, value: number): void
+  }
+  /**
+   * A number that changes whenever the part changes in a way its pins do not show (a console that was written to, a screen that
+   * was drawn on), so that its symbol is drawn again. Parts with a screen of their own have it.
+   */
+  revision?(inst: Instance): number
   /** Pure wiring (splitter, merger): never simulated, `flatten` follows it back to the parts that drive its outputs. */
   wiring?: boolean
 }

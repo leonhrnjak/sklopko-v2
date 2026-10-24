@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getDef } from './registry'
-import { layoutOf } from './simulator'
+import { layoutOf } from './layoutcache'
 import { X, Z, paramDefaults, type Params, type V } from './types'
 
 /** A single part with its own state; call `step` with the input values to evaluate it once. */

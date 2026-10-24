@@ -3,14 +3,14 @@ import { CHALLENGES, getChallenge, type Challenge } from '../model/challenges'
 import { checkChallenge, type CheckResult } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
 import { deserialize } from '../model/serialize'
-import { fitView } from '../ui/canvas/viewport'
+import { fitToScreen } from './view'
 import { openCircuit } from './documents'
 import { getDoc, listDocs, metaOf } from './library'
 import { loadCircuit, showToast, useStore } from './store'
 import { setExampleUrl } from './runtime'
 
 /** Fit the circuit to the canvas once the panel below it has taken its space. */
-const fitSoon = () => requestAnimationFrame(() => requestAnimationFrame(fitView))
+const fitSoon = () => requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
 
 const KEY = 'sklopko.challenges.v1'
 

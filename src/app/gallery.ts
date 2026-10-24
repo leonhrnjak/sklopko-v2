@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ExampleInfo } from '../model/examples-index'
 import { openExample } from './runtime'
 import { showToast } from './store'
-import { fitView } from '../ui/canvas/viewport'
+import { fitToScreen } from './view'
 
 /** The example gallery: a window with a card for every example. */
 export const useGallery = create<{ open: boolean; query: string }>(() => ({ open: false, query: '' }))
@@ -14,7 +14,7 @@ export const setGalleryQuery = (query: string) => useGallery.setState({ query })
 /** Open an example and close the gallery. What was open stays in the library (see `openExample`). */
 export function openFromGallery(ex: ExampleInfo) {
   closeGallery()
-  void openExample(ex).then(() => requestAnimationFrame(fitView))
+  void openExample(ex).then(() => requestAnimationFrame(fitToScreen))
 }
 
 /** Copy the short link of an example. */
