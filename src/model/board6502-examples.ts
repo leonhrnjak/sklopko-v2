@@ -1,6 +1,6 @@
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -59,3 +59,15 @@ export const sweep65c02 = (): Circuit =>
         'The same board with a WDC 65C02, the chip that is still made and that breadboard builders use. Its program (select the ROM to read it) uses what the 6502 does not have: STZ clears the pattern, SMB and RMB set and clear one bit of a byte in the zero page so that one LED sweeps along the eight, PHX and PLX keep X on the stack while it waits, and BRA branches back. The part has three more pins than the 6502: BE, VP and ML. Open the 6502 reference (Tools → 6502) and switch to the 65C02 to see every new instruction.',
     },
   )
+
+/** A timer interrupts a 65C02 that is asleep (WAI). */
+export const timer65c02 = (): Circuit =>
+  boardExample(
+    { hz: 512, chip: 'cmos', source: TIMER_NMI_SOURCE, devices: ['leds', 'console'], timer: 2, probes: true },
+    {
+      intro:
+        'An interrupt. The 65C02 runs WAI and goes to sleep: its address bus stops on the next instruction. Twice a second a timer drops the NMI line; the CPU wakes, pushes its place and its flags on the stack, reads the NMI vector from $FFFA, and runs the interrupt routine, which counts on the LEDs and prints a star. RTI returns to where it was, and it sleeps again. The probes record Φ2, the address bus, the data, R/W and SYNC: open Tools → Waveforms to see an interrupt cycle by cycle (the vector is read with VP low).',
+      devices: 'The timer is a clock whose output is inverted, so the NMI line rests high and falls at each tick: NMI reacts to the falling edge, whatever the I flag says.',
+    },
+  )
+

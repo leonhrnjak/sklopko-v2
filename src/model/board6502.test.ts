@@ -4,7 +4,7 @@ import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
 import { BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { sweep65c02 } from './board6502-examples'
 import { flatten } from './buses'
 
@@ -187,5 +187,25 @@ start: LDA $4003
     const rom = Object.values(sweep65c02().comps).find((c) => c.type === 'rom')!
     const cpu = Object.values(sweep65c02().comps).find((c) => c.type === 'cpu6502')!
     expect([rom.params.isa, cpu.params.chip]).toEqual(['65c02', 'cmos'])
+  })
+
+  it('the timer interrupts a 65C02 in WAI: the LEDs count and the console prints stars, once for each tick', () => {
+    const { sim, keys } = start({ source: TIMER_NMI_SOURCE, chip: 'cmos', devices: ['leds', 'console'], timer: 4, hz: 128 })
+    let maxLeds = 0
+    for (let i = 0; i < 400; i++) {
+      oneCycle(sim)
+      maxLeds = Math.max(maxLeds, bits(sim, keys.leds, 'Q', 8))
+    }
+    // 400 cycles at 128 Hz are 3.1 s: 12 ticks of a 4 Hz timer (and each is handled once: the count and the stars agree).
+    const stars = sim.state(keys.console).lines.join('').length
+    expect(stars).toBeGreaterThanOrEqual(11)
+    expect(stars).toBeLessThanOrEqual(13)
+    expect(bits(sim, keys.leds, 'Q', 8)).toBe(stars)
+    expect(maxLeds).toBe(stars)
+  })
+
+  it('the probes are on the clock, the address bus, the data, R/W and SYNC', () => {
+    const labels = Object.values(board6502().comps).filter((c) => c.type === 'probe').map((c) => c.label)
+    expect(labels).toEqual(['Φ2', 'A', 'D (read)', 'R/W', 'SYNC'])
   })
 })
