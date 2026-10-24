@@ -1,6 +1,7 @@
 import { annotation } from './components/annotation'
 import { withBusModes } from './busmodes'
 import { buses } from './components/buses'
+import { cpus } from './components/cpu'
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
 import { devices } from './components/devices'
 import { gates } from './components/gates'
@@ -17,6 +18,7 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'sequential', name: 'Flip-flops & counters' },
   { id: 'arithmetic', name: 'Arithmetic' },
   { id: 'memory', name: 'Memory' },
+  { id: 'cpu', name: 'Processors' },
   { id: 'routing', name: 'Multiplexers' },
   { id: 'buses', name: 'Buses' },
   { id: 'coding', name: 'Encoders & decoders' },
@@ -40,6 +42,7 @@ export const DEFS: ComponentDef[] = withBusModes([
   ...coding,
   ...display,
   ...ic,
+  ...cpus,
   ...devices,
   ...annotation,
 ])

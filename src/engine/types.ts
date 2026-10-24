@@ -82,7 +82,7 @@ export interface Instance {
 }
 
 /** `ic` is not in the palette's list: custom ICs are placed from their own section. */
-export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'routing' | 'buses' | 'coding' | 'display' | 'annotation' | 'ic'
+export type Category = 'io' | 'gates' | 'sequential' | 'arithmetic' | 'memory' | 'cpu' | 'routing' | 'buses' | 'coding' | 'display' | 'annotation' | 'ic'
 
 export interface ComponentDef {
   type: string

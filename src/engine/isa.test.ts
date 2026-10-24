@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexBytes, toHexWords, wordFields } from './isa'
+import { ISAS, PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, currentIsaId, disassemble, getIsa, parseNumber, toHexBytes, toHexWords, wordFields } from './isa'
+import { ISA_CHOICES } from './isalist'
 
 const asm = (source: string, capacity = 16) => assemble(SKASM, source, capacity)
 const hex = (source: string, capacity = 16) => toHexWords(asm(source, capacity).words, SKASM.bits)
@@ -437,5 +438,11 @@ describe('.byte and the table', () => {
   it('the table as hex text stops at the last byte that is not 0', () => {
     expect(toHexBytes([1, 2, 0, 255, 0, 0])).toBe('01 02 00 FF')
     expect(toHexBytes([0, 0])).toBe('')
+  })
+})
+
+describe('the list of instruction sets a ROM offers', () => {
+  it('matches the assemblers: the same ids and names, in the same order', () => {
+    expect(ISA_CHOICES).toEqual(ISAS.map((i) => ({ id: i.id, name: i.name })))
   })
 })

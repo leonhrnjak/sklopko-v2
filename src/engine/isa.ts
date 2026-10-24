@@ -24,6 +24,8 @@
  *            .byte 1, 2, 3  bytes for the table (up to 256), read with LDT; a label in front of it is the table address of the first
  */
 
+import { currentIsaId } from './isalist'
+
 const WORD = '.WORD'
 const BYTE = '.BYTE'
 /** The size of the table that `.byte` fills. */
@@ -215,11 +217,7 @@ export const SKASM: Isa = {
 
 export const ISAS: Isa[] = [SKASM]
 
-/** Ids that circuits saved before SKASM used for a ROM's instruction set; they all mean SKASM now. */
-const LEGACY_IDS: Record<string, string> = { sk8: SKASM.id, sk82: SKASM.id }
-
-/** The id a saved ROM should have today (an old instruction set's id becomes `skasm`; anything else stays as it is). */
-export const currentIsaId = (id: string): string => LEGACY_IDS[id] ?? id
+export { currentIsaId }
 
 export const getIsa = (id: string): Isa | undefined => ISAS.find((i) => i.id === currentIsaId(id))
 

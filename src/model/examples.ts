@@ -4,6 +4,7 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
+import { board6502 } from './board6502'
 import { computerBlocks, icAdder } from './ic-examples'
 import { hazard, ripple } from './timing-examples'
 import { generateFsm } from './fsm'
@@ -1114,6 +1115,7 @@ function uart(): Circuit {
 const BUILDERS: Record<string, () => Circuit> = {
   counter: counterDisplay,
   beginner: beginnerComputer,
+  '6502': board6502,
   gates: basicGates,
   mux: muxDemo,
   encoder: encoderDecoder,

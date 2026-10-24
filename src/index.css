@@ -632,6 +632,36 @@ input:focus-visible {
   outline: 1px solid var(--select);
   border-radius: 3px;
 }
+.cpu-regs {
+  max-height: none;
+  grid-template-columns: repeat(3, 1fr);
+}
+.cpu-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+.cpu-flags {
+  display: flex;
+  gap: 4px;
+}
+.cpu-flag {
+  flex: 1;
+  text-align: center;
+  padding: 2px 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+}
+.cpu-flag.on {
+  color: var(--text);
+  border-color: var(--select);
+  background: var(--select-soft);
+}
 .field-error {
   color: var(--danger);
 }

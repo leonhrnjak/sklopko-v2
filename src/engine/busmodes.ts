@@ -43,6 +43,7 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
     groups: (p) => [numbered('D', 'in', 'D', Number(p.dbits)), numbered('A', 'in', 'A', Number(p.abits) || 4), numbered('Q', 'out', 'Q', Number(p.dbits))],
     keepsHeight: (p) => showsTable(2 ** (Number(p.abits) || 4)),
   },
+  cpu6502: { groups: () => [numbered('DI', 'in', 'DI', 8), numbered('A', 'out', 'A', 16), numbered('D', 'out', 'D', 8)] },
   console: { groups: () => [numbered('D', 'in', 'D', 8)], keepsHeight: () => true },
   framebuffer: {
     groups: (p) => [

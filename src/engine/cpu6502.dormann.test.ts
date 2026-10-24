@@ -16,7 +16,7 @@ describe.skipIf(!file)('Dormann functional test', () => {
     const mem = new Uint8Array(65536)
     mem.set(fs.readFileSync(file!), 0)
     const c = newCpu()
-    Object.assign(c, { pc: 0x400, addr: 0x400, read: true, sync: true, prog: null })
+    Object.assign(c, { pc: 0x400, addr: 0x400, read: true, sync: true, prog: -1 })
     let last = -1
     for (;;) {
       const d = c.read ? mem[c.addr] : ((mem[c.addr] = c.out), 0)

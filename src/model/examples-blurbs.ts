@@ -3,6 +3,7 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 /** One line for the gallery about each example: what it shows. Kept apart from the index, which is in the main chunk; only the gallery needs these. */
 export const BLURBS: Record<string, string> = {
   counter: 'A clock drives a decade counter, a decoder and a seven-segment display. The place to start.',
+  '6502': 'A real MOS 6502 on a board: it fetches a program from a ROM, and you watch its address and data bus, clock cycle by clock cycle.',
   beginner: 'A tiny computer you can follow by hand: a ROM of instructions, a RAM, an adder and three steps.',
   gates: 'AND, OR, NOT, NAND, NOR, XOR and XNOR side by side, with a switch for every input.',
   mux: 'Four inputs and two select switches: choose which input reaches the output.',
