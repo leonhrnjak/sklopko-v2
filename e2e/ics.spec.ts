@@ -218,3 +218,63 @@ test('rename and delete ICs from the parts list: a used one is kept', async ({ p
   await page.locator('.toast').getByRole('button', { name: 'Undo' }).click()
   await expect(page.getByTestId('ic-section').locator('.palette-name')).toHaveText('Not gate')
 })
+
+test('collapse selected parts into an IC: they become one block, wired as they were, in one undo step', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 120, 150)
+  await page.getByLabel('Label', { exact: true }).fill('A')
+  await page.keyboard.press('Enter')
+  const n1 = await place(page, 'not', 300, 150)
+  const n2 = await place(page, 'not', 460, 150)
+  const led = await place(page, 'led', 640, 150)
+  await wire(page, [sw, 'Q'], [n1, 'A'])
+  await wire(page, [n1, 'Y'], [n2, 'A'])
+  await wire(page, [n2, 'Y'], [led, 'A'])
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  // Select the two gates.
+  await page.keyboard.press('Escape')
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  await page.mouse.move(canvas.x + 250, canvas.y + 90)
+  await page.mouse.down()
+  await page.mouse.move(canvas.x + 560, canvas.y + 230, { steps: 6 })
+  await page.mouse.up()
+  await expect(page.locator('.comp.selected')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Collapse into IC…' }).click()
+  await expect(dialog(page)).toBeVisible()
+  await expect(dialog(page).getByLabel(/Replace the selected parts/)).toBeChecked()
+  await expect(dialog(page).getByTestId('ic-inputs')).toHaveText('A')
+  await expect(dialog(page).getByTestId('ic-outputs')).toHaveText('out1')
+  await dialog(page).getByLabel('IC name').fill('Buffer')
+  await dialog(page).getByRole('button', { name: 'Make IC' }).click()
+  await expect(page.locator(`.comp[data-id="${n1}"]`)).toHaveCount(0)
+  await expect(page.locator('.comp')).toHaveCount(3) // the switch, the block and the LED
+  await expect(page.locator('.comp.selected')).toHaveCount(1)
+  await expect(page.getByTestId('ic-section').locator('.palette-name')).toHaveText('Buffer')
+  // It still works: the LED follows the switch.
+  await clickComp(page, sw)
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+  await clickComp(page, sw)
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  // One undo brings the gates back.
+  await page.keyboard.press('Control+z')
+  await expect(page.locator(`.comp[data-id="${n1}"]`)).toBeVisible()
+  await expect(page.locator('.comp')).toHaveCount(4)
+})
+
+test('the examples with custom ICs open: a 4-bit adder of nested ICs, and the computer as blocks', async ({ page }) => {
+  await page.goto('/ic-adder', { waitUntil: 'networkidle' })
+  const section = page.getByTestId('ic-section')
+  await expect(section.locator('.palette-name')).toHaveText(['Half adder', 'Full adder', '4-bit adder'])
+  // Inside the 4-bit adder are four full adders, each an IC.
+  await page.getByTestId('ic-edit-4-bit-adder').click()
+  await expect(page.getByTestId('crumbs').locator('[aria-current]')).toHaveText('4-bit adder')
+  await expect(page.locator('.comp[data-id^="ic"]')).toHaveCount(4)
+  await page.getByRole('button', { name: '← Back' }).click()
+
+  await page.goto('/computer-blocks', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp[data-id^="c-b"]')).toHaveCount(7)
+  await expect(page.getByTestId('ic-section').locator('.palette-name')).toHaveText(['Fetch', 'Program ROM', 'Instruction fields', 'Control', 'Data memory', 'ALU', 'Accumulator'])
+  // It runs: the decimal display shows a number after a few seconds.
+  const seg = page.locator('.comp polygon.seg.on')
+  await expect.poll(async () => seg.count(), { timeout: 15000 }).toBeGreaterThan(0)
+})

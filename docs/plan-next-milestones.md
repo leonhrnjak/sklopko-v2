@@ -24,7 +24,7 @@
 > - [x] 14b ICs in the model and the simulation, v0.0.1-68
 > - [x] 14c Make and place ICs, v0.0.1-69
 > - [x] 14d Edit an IC, v0.0.1-70
-> - [ ] 14e Collapse a selection into an IC; examples
+> - [x] 14e Collapse a selection into an IC; examples, v0.0.1-71
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
 > - [ ] 16 Small wins
 
@@ -448,6 +448,31 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
 - Expand ∘ make is the identity on wiring.
 - Collapse keeps behaviour (the computer's programs give the same output before and after).
 - e2e: make, place, wire, run; edit, back, instances updated; collapse; expand; undo across levels.
+
+*What it did, and where it differs from the plan.*
+- **Collapse into IC** is *Collapse into IC…* in the inspector of a multiple selection (and *Make IC* in the phone's selection bar), which opens
+  the *Make IC* window with "Replace the selected parts with the IC" ticked (it can also be ticked from *Make IC…* in the Tools menu when
+  parts are selected). The window previews the pins the collapse would make. `collapseSelection` (`model/ic.ts`) does the work as one
+  undo step: the nets that cross the selection's edge become pins (one input for each driving pin, one output for each pin that
+  wires lead out of; buses keep their width; the name is the label of the part that drives or has the pin, else `in1`… / `out1`…),
+  and the instance is wired in place of the parts.
+- **Net labels that cross the edge are pins as well**, which the plan did not say and the computer needs (it sends most control bits by label):
+  a Receive label inside whose Send label is outside becomes an input named by the label and the instance gets a Receive label of that
+  name outside; the same the other way round. A Send label that something inside reads too stays, and an output of the same name is fed
+  like it.
+- **Examples** (a new group, *Custom ICs*): `ic-adder` (half adder → full adder → 4-bit adder, nested, one block on the canvas) and
+  `computer-blocks`, **added as a new example** and not as a rebuild of `computer`: the computer is built by `computer2Builder` and
+  collapsed by column into seven blocks (fetch, program ROM, instruction fields, control, data memory, ALU, accumulator), with a
+  helper (`joinLabels`, in `ic-examples.ts`) that turns the label pairs that now join two blocks into wires. The clock, probes, LEDs
+  and the decimal display stay outside. A test runs it next to `computer` and compares the output register, the three LEDs and the
+  decimal display after every 100 ms for 16 s.
+- Gallery: 47 examples in 10 groups. The blurbs moved out of `examples-index.ts` (main chunk) into `examples-blurbs.ts` (gallery chunk).
+- Other: the IC's box is wider for a long name; the parts-list entries of the ICs are full rows (with *Edit*, *Rename*, *Delete* under them).
+  Tests that were written for examples without ICs skip or adapt for these (`flatten` equals the circuit's parts, the timing path's wires,
+  "realistic delays take more ticks"). `sim-golden.json` was rebuilt for the new examples.
+- Tests: `ic.test.ts` (collapse: equivalence, expand ∘ collapse, buses, labels that cross, labels read both sides), `ic-examples.test.ts`
+  (all 512 sums of the adder, the blocks against the computer), `app/ics.test.ts`, and two e2e tests (collapse; both examples).
+- **Milestone 14 is done.**
 
 ## Milestone 15: Challenges for classrooms (medium) — dropped for now
 > Not scheduled: nothing in 11–14 or 16 depends on it, except that the testbench in 16 now brings its own `pulse` step. The design

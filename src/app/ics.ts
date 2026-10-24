@@ -1,24 +1,29 @@
 import { create } from 'zustand'
-import { deleteDefinition, enterDefinition, enterIC, inlineInstance, isUsed, leaveIC, levelsOf, newICId, renameDefinition, subCircuit } from '../model/ic'
-import { newId } from '../model/circuit'
+import { collapseSelection, deleteDefinition, enterDefinition, enterIC, inlineInstance, isUsed, leaveIC, levelsOf, newICId, renameDefinition, subCircuit } from '../model/ic'
+import { isAnnotation, newId } from '../model/circuit'
 import { checkpoint, edit, loadCircuit, select, showToast, undo as undoNow, useStore } from './store'
 import { fitToScreen } from './view'
 
-/** The "Make IC" window: open, and what it makes the IC from (the ids of some parts, or the whole circuit when null). */
-export const useMakeIc = create<{ open: boolean; from: string[] | null }>(() => ({ open: false, from: null }))
+/**
+ * The "Make IC" window: open, what it makes the IC from (the ids of some parts, or the whole circuit when null), and whether the
+ * parts are replaced by the IC (collapsing them) or stay as they are.
+ */
+export const useMakeIc = create<{ open: boolean; from: string[] | null; replace: boolean }>(() => ({ open: false, from: null, replace: false }))
 
-/** Open the window: from the selected parts if some parts are selected, else from the whole circuit. */
-export function openMakeIc() {
+/** Open the window: from the selected parts if some parts are selected, else from the whole circuit. `replace` starts with "replace the parts" ticked. */
+export function openMakeIc(replace = false) {
   const { selection, circuit } = useStore.getState()
   const parts = selection.filter((id) => id in circuit.comps)
-  useMakeIc.setState({ open: true, from: parts.length ? parts : null })
+  useMakeIc.setState({ open: true, from: parts.length ? parts : null, replace: replace && parts.length > 0 })
 }
+export const setMakeIcReplace = (replace: boolean) => useMakeIc.setState({ replace })
 export const closeMakeIc = () => useMakeIc.setState({ open: false })
 
 /** Make a custom IC from the parts (or the whole circuit) and keep it in the circuit's list of ICs; nothing on the canvas changes. Returns its id. */
-export function makeIC(name: string, from: string[] | null): string {
+export function makeIC(name: string, from: string[] | null, replace = false): string {
   const clean = name.trim().slice(0, 40) || 'IC'
   let id = ''
+  if (replace && from) return collapseInto(clean, from)
   checkpoint()
   edit((c) => {
     id = newICId(c.ics, clean)
@@ -26,6 +31,22 @@ export function makeIC(name: string, from: string[] | null): string {
   }, false)
   showToast(`IC “${clean}” made. It is in the parts list, under “ICs in this circuit”.`)
   return id
+}
+
+/** Collapse parts into one IC: they are replaced by an instance, wired in their place, as one undo step. */
+function collapseInto(name: string, from: string[]): string {
+  const { circuit } = useStore.getState()
+  if (!from.some((id) => circuit.comps[id] && !isAnnotation(circuit.comps[id]))) return ''
+  checkpoint()
+  let made: ReturnType<typeof collapseSelection> = null
+  edit((c) => {
+    made = collapseSelection(c, from, name, newId)
+  })
+  const result = made as ReturnType<typeof collapseSelection>
+  if (!result) return ''
+  select(result.ids)
+  showToast(`${from.length} part${from.length === 1 ? '' : 's'} collapsed into the IC “${name}”.`)
+  return result.defId
 }
 
 /** Replace an instance on the canvas with the parts it is made of (one undo step). */

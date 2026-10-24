@@ -40,8 +40,9 @@ describe('realistic delays change when things happen, not what happens', () => {
         if (plain.unstable || slow.unstable) return
         expect(snapshot(slow, c), `edge ${edge}`).toBe(snapshot(plain, c))
       }
-      // The delays were really in use: the slow circuit needed more ticks to settle.
-      expect(slow.ticks).toBeGreaterThan(plain.ticks)
+      // The delays were really in use: the slow circuit needed more ticks to settle. (Parts inside a custom IC keep their own delays,
+      // and the blocks hold most of the circuit.)
+      if (!c.ics) expect(slow.ticks).toBeGreaterThan(plain.ticks)
     })
   }
 })

@@ -7,8 +7,8 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await fresh(page)
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
   await expect(gallery(page)).toBeVisible()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(45)
-  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(9)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(47)
+  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(10)
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
   await expect(gallery(page).getByTestId('example-gates')).toContainText('AND, OR, NOT')
 
@@ -20,7 +20,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await expect(search).toBeFocused()
   await search.fill('latch')
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(4) // the two latches, the flip-flop made of latches, the debouncer
-  await expect(gallery(page)).toContainText('4 of 45')
+  await expect(gallery(page)).toContainText('4 of 47')
   await search.fill('gamepad computers')
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(3) // pong, snake and the raycaster
   await search.fill('zzzz')

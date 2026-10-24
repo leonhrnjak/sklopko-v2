@@ -277,7 +277,7 @@ export function Toolbar() {
       <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
         SKASM…
       </MenuItem>
-      <MenuItem onClick={openMakeIc} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
+      <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
         Make IC…
       </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">

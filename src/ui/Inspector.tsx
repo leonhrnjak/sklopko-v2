@@ -22,7 +22,7 @@ import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
-import { enterInstance, expandInstance } from '../app/ics'
+import { enterInstance, expandInstance, openMakeIc } from '../app/ics'
 import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
@@ -437,6 +437,11 @@ export function Inspector() {
         <h2>{selection.length} selected</h2>
         {selection.every((id) => circuit.comps[id]?.type === 'probe') && <GroupProbes key={selection.join(',')} ids={selection} />}
         <DelayTools ids={selection} scope="the selected parts" />
+        <div className="row">
+          <button onClick={() => openMakeIc(true)} title="Replace the selected parts with one IC made of them, wired as they were">
+            Collapse into IC…
+          </button>
+        </div>
         <div className="row">
           <button onClick={rotateSelection}>⟳ Rotate</button>
           <button className="danger" onClick={deleteAndClose}>

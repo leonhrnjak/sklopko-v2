@@ -7,7 +7,7 @@ import { type Circuit } from './circuit'
 import { analyzeCircuit, dependsOnState } from './analyze'
 import { ruleProblems } from './challengecheck'
 import { produce } from 'immer'
-import { IC, deleteDefinition, deriveInterface, documentOf, enterDefinition, enterIC, expandICs, findCycle, icParams, icProblems, inlineInstance, isUsed, leaveIC, levelsOf, newICId, operableInside, placementOf, placingIC, renameDefinition, subCircuit, usageOf, wouldLoop } from './ic'
+import { IC, collapseSelection, deleteDefinition, deriveInterface, documentOf, enterDefinition, enterIC, expandICs, findCycle, icParams, icProblems, inlineInstance, isUsed, leaveIC, levelsOf, newICId, operableInside, placementOf, placingIC, renameDefinition, subCircuit, usageOf, wouldLoop } from './ic'
 import { deserialize, migrate, serialize } from './serialize'
 import { analyzeTiming } from './timing'
 
@@ -686,5 +686,165 @@ describe('editing the inside of an IC', () => {
     nested.add('led', 0, 0)
     nested.defineIC('Uses it', nested.c, 'uses-it')
     expect(usageOf({ comps: {}, wires: {}, ics: nested.c.ics }, 'half-adder').inICs).toEqual(['Uses it'])
+  })
+})
+
+describe('collapsing parts into an IC', () => {
+  let n = 0
+  const makeId = (p: string) => `${p}x${++n}`
+
+  /** Three switches, (A and B) or C through a NOT, and two LEDs: the middle row is what gets collapsed. */
+  function mixed() {
+    const b = new CircuitBuilder()
+    const a = b.add('switch', 0, 0, { label: 'A' })
+    const bb = b.add('switch', 0, 60, { label: 'B' })
+    const cc = b.add('switch', 0, 120, { label: 'C' })
+    const and = b.add('and', 150, 0)
+    const or = b.add('or', 300, 40)
+    const not = b.add('not', 450, 40)
+    const y = b.add('led', 600, 40, { label: 'Y' })
+    const z = b.add('led', 600, 120, { label: 'Z' })
+    b.wire(`${a}.Q`, `${and}.A`)
+    b.wire(`${bb}.Q`, `${and}.B`)
+    b.wire(`${and}.Y`, `${or}.A`)
+    b.wire(`${cc}.Q`, `${or}.B`)
+    b.wire(`${or}.Y`, `${not}.A`)
+    b.wire(`${not}.Y`, `${y}.A`)
+    b.wire(`${or}.Y`, `${z}.A`) // the OR also feeds a second LED: one output pin, two wires out
+    return { circuit: b.build(), a, bb, cc, and, or, not, y, z }
+  }
+
+  const rows = (circ: Circuit, inputs: string[], outputs: string[]) => {
+    const sim = run(circ)
+    const table: V[][] = []
+    for (let row = 0; row < 2 ** inputs.length; row++) {
+      inputs.forEach((id, i) => set(sim, circ, id, !!((row >> i) & 1)))
+      table.push(outputs.map((id) => sim.pinValue(id, 'A')))
+    }
+    return table
+  }
+
+  it('replaces the parts with one instance, wires it as they were, and the circuit behaves the same', () => {
+    const { circuit, a, bb, cc, and, or, not, y, z } = mixed()
+    const want = rows(circuit, [a, bb, cc], [y, z])
+    const after = produce(circuit, (d) => {
+      const out = collapseSelection(d, [and, or, not], 'Logic', makeId)!
+      expect(out.defId).toBe('logic')
+    })
+    expect(after.comps[and]).toBeUndefined()
+    expect(after.comps[not]).toBeUndefined()
+    const inst = Object.values(after.comps).find((k) => k.type === IC)!
+    // Inputs: A and B (the AND's inputs) and C; outputs: the NOT and the OR (which has two wires out).
+    expect(inst.params.ins).toBe('A:1,B:1,C:1')
+    expect(inst.params.outs).toBe('out1:1,out2:1')
+    expect(Object.values(after.wires).every((w) => after.comps[w.from.comp] && after.comps[w.to.comp])).toBe(true)
+    expect(Object.values(after.wires).every((w) => w.path.length >= 2)).toBe(true)
+    expect(Object.values(after.wires)).toHaveLength(3 + 2) // A, B and C in; the NOT's output to Y and the OR's to Z out
+    expect(rows(after, [a, bb, cc], [y, z])).toEqual(want)
+  })
+
+  it('expanding what was collapsed gives the original wiring back (the same parts, joined the same way)', () => {
+    const { circuit, a, bb, cc, and, or, not, y, z } = mixed()
+    const collapsed = produce(circuit, (d) => {
+      collapseSelection(d, [and, or, not], 'Logic', makeId)
+    })
+    const inst = Object.values(collapsed.comps).find((k) => k.type === IC)!
+    const open = produce(collapsed, (d) => {
+      inlineInstance(d, inst.id, makeId)
+    })
+    expect(Object.values(open.comps).map((k) => k.type).sort()).toEqual(Object.values(circuit.comps).map((k) => k.type).sort())
+    const edges = (circ: Circuit) => {
+      // Each wire as "type.pin → type.pin" (ids differ), with the labelled switches told apart.
+      const name = (id: string) => `${circ.comps[id].type}${circ.comps[id].label ?? ''}`
+      return Object.values(circ.wires).map((w) => `${name(w.from.comp)}.${w.from.pin}>${name(w.to.comp)}.${w.to.pin}`).sort()
+    }
+    expect(edges(open)).toEqual(edges(circuit))
+    expect(rows(open, [a, bb, cc], [y, z])).toEqual(rows(circuit, [a, bb, cc], [y, z]))
+  })
+
+  it('a bus that crosses the edge becomes a bus pin of the same width', () => {
+    const b = new CircuitBuilder()
+    const d = b.add('busin', 0, 0, { label: 'Data', params: { bits: 8, value: '3C' } })
+    const add = b.add('busadd', 150, 0, { params: { bits: 8 } })
+    const k = b.add('busconst', 0, 120, { params: { bits: 8, value: '01' } })
+    const out = b.add('busdisp', 350, 0, { params: { bits: 8 } })
+    b.wire(`${d}.Q`, `${add}.A`)
+    b.wire(`${k}.Q`, `${add}.B`)
+    b.wire(`${add}.S`, `${out}.A`)
+    const circuit = b.build()
+    const after = produce(circuit, (x) => {
+      collapseSelection(x, [add], 'Plus', makeId)
+    })
+    const inst = Object.values(after.comps).find((c) => c.type === IC)!
+    expect(inst.params.ins).toBe('Data:8,in1:8')
+    expect(inst.params.outs).toBe('out1:8')
+    const sim = run(after)
+    expect(Array.from({ length: 8 }, (_, i) => sim.pinValue(out, `A${i}`)).join('')).toBe('10111100') // 0x3C + 1 = 0x3D, least significant bit first
+  })
+
+  it('net labels that cross the edge become pins named by the label, with a label of the same name outside', () => {
+    const b = new CircuitBuilder()
+    const s = b.add('switch', 0, 0)
+    const send = b.add('netsend', 100, 0, { params: { name: 'go', bits: 1 } })
+    b.wire(`${s}.Q`, `${send}.A`)
+    const recv = b.add('netrecv', 300, 0, { params: { name: 'go', bits: 1 } })
+    const inv = b.add('not', 400, 0)
+    const send2 = b.add('netsend', 500, 0, { params: { name: 'back', bits: 1 } })
+    b.wire(`${recv}.Y`, `${inv}.A`)
+    b.wire(`${inv}.Y`, `${send2}.A`)
+    const recv2 = b.add('netrecv', 600, 100, { params: { name: 'back', bits: 1 } })
+    const led = b.add('led', 700, 100)
+    b.wire(`${recv2}.Y`, `${led}.A`)
+    const circuit = b.build()
+    const want = rows(circuit, [s], [led])
+    expect(want).toEqual([[1], [0]])
+    const after = produce(circuit, (x) => {
+      collapseSelection(x, [recv, inv, send2], 'Inv', makeId)
+    })
+    const inst = Object.values(after.comps).find((c) => c.type === IC)!
+    expect(inst.params).toMatchObject({ ins: 'go:1', outs: 'back:1' })
+    const labels = Object.values(after.comps).filter((c) => c.type === 'netrecv' || c.type === 'netsend').map((c) => `${c.type}:${c.params.name}`).sort()
+    expect(labels).toEqual(['netrecv:back', 'netrecv:go', 'netsend:back', 'netsend:go'])
+    expect(rows(after, [s], [led])).toEqual(want)
+  })
+
+  it('a label that is read inside and outside both stays inside and also leaves as a pin', () => {
+    const b = new CircuitBuilder()
+    const s = b.add('switch', 0, 0, { label: 'S' })
+    const inv = b.add('not', 100, 0)
+    const send = b.add('netsend', 200, 0, { params: { name: 'n', bits: 1 } })
+    const recvIn = b.add('netrecv', 300, 0, { params: { name: 'n', bits: 1 } })
+    const insideLed = b.add('led', 400, 0)
+    b.wire(`${s}.Q`, `${inv}.A`)
+    b.wire(`${inv}.Y`, `${send}.A`)
+    b.wire(`${recvIn}.Y`, `${insideLed}.A`)
+    const recvOut = b.add('netrecv', 300, 200, { params: { name: 'n', bits: 1 } })
+    const outsideLed = b.add('led', 400, 200)
+    b.wire(`${recvOut}.Y`, `${outsideLed}.A`)
+    const circuit = b.build()
+    const want = rows(circuit, [s], [insideLed, outsideLed])
+    expect(want).toEqual([[1, 1], [0, 0]])
+    const after = produce(circuit, (x) => {
+      collapseSelection(x, [s, inv, send, recvIn, insideLed], 'Pair', makeId)
+    })
+    const inst = Object.values(after.comps).find((k) => k.type === IC)!
+    // The switch and the LED inside are pins too, and so is the label: the outside LED reads that pin through a label of the same name.
+    expect(inst.params).toMatchObject({ ins: 'S:1', outs: 'out1:1,n:1' })
+    expect(Object.values(after.comps).filter((k) => k.type === 'netsend' && k.params.name === 'n')).toHaveLength(1)
+    expect(expandICs(after).circuit.comps[outsideLed]).toBeDefined()
+    // Wired to a switch of its own, the instance does what the circuit did.
+    const wired = produce(after, (d) => {
+      d.comps.s2 = { id: 's2', type: 'switch', x: 0, y: 0, rot: 0, flip: false, params: {}, label: 'S2' }
+      d.wires.ws = { id: 'ws', from: { comp: 's2', pin: 'Q' }, to: { comp: inst.id, pin: 'S' }, path: [] }
+    })
+    expect(rows(wired, ['s2'], [outsideLed])).toEqual([[1], [0]])
+  })
+
+  it('returns null for a selection of notes only, or of nothing', () => {
+    const b = new CircuitBuilder()
+    const note = b.add('note', 0, 0)
+    const c = b.build()
+    expect(collapseSelection(c, [note], 'x', makeId)).toBeNull()
+    expect(collapseSelection(c, [], 'x', makeId)).toBeNull()
   })
 })
