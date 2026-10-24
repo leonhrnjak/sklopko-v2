@@ -51,6 +51,8 @@ interface State {
   /** Part chosen in the palette and waiting to be dropped on the canvas. */
   placing: string | null
   toast: string | null
+  /** A button in the toast (Undo for something deleted). */
+  toastAction: { label: string; run: () => void } | null
   /** On small screens the inspector is a bottom sheet that the user opens explicitly. */
   sheetOpen: boolean
 }
@@ -66,6 +68,7 @@ export const useStore = create<State>(() => ({
   view: { x: 40, y: 40, zoom: 1 },
   placing: null,
   toast: null,
+  toastAction: null,
   sheetOpen: false,
 }))
 
@@ -121,11 +124,11 @@ export function redo() {
   })
 }
 
-export function showToast(msg: string) {
-  set({ toast: msg })
+export function showToast(msg: string, action?: { label: string; run: () => void }) {
+  set({ toast: msg, toastAction: action ?? null })
   window.setTimeout(() => {
-    if (get().toast === msg) set({ toast: null })
-  }, 2600)
+    if (get().toast === msg) set({ toast: null, toastAction: null })
+  }, action ? 7000 : 2600)
 }
 
 // ---- Selection ---------------------------------------------------------------------------------

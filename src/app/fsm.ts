@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import { encodeStates, generateFsm, type EncodingKind, type Fsm, type Generated } from '../model/fsm'
 import { FSM_EXAMPLES } from '../model/fsm-examples'
 import { blankFsm, fsmDocumentJson, layoutFsm, parseFsmDocument, type FsmDocument } from '../model/fsm-edit'
+import { isEmbed } from './embed'
 import { downloadText, openTextFile } from './files'
+import { getDoc, metaOf, nextUntitled, openLastDoc, saveActive, setActive, type DocMeta, type NewDoc } from './library'
 import { insertCircuit, showToast } from './store'
 
 export type FsmView = 'diagram' | 'table'
@@ -21,21 +23,11 @@ interface FsmEditor {
   future: Fsm[]
 }
 
-const KEY = 'sklopko.fsm.v1'
+/** Where the one saved machine lived before the library; read once, to bring it in. */
+const LEGACY_KEY = 'sklopko.fsm.v1'
 const HISTORY = 100
 
-function stored(): FsmDocument | null {
-  try {
-    const text = localStorage.getItem(KEY)
-    return text ? parseFsmDocument(text) : null
-  } catch {
-    return null
-  }
-}
-
 function initial(): Pick<FsmEditor, 'fsm' | 'encoding' | 'custom'> {
-  const doc = stored()
-  if (doc) return doc
   return { fsm: layoutFsm(FSM_EXAMPLES[1]), encoding: 'binary', custom: {} }
 }
 
@@ -43,17 +35,87 @@ export const useFsm = create<FsmEditor>(() => ({ open: false, view: 'diagram', .
 
 const documentOf = (s: FsmEditor): FsmDocument => ({ fsm: s.fsm, encoding: s.encoding, custom: s.custom })
 
+type Machine = Pick<FsmEditor, 'fsm' | 'encoding' | 'custom'>
+
+const sameMachine = (a: Machine, b: Machine) => a.fsm === b.fsm && a.encoding === b.encoding && a.custom === b.custom
+
+// ---- Keeping the machine in the library -------------------------------------------------------------
+
+let timer: ReturnType<typeof setTimeout> | null = null
+/** What is in the editor has no document yet (a starting point nobody has changed): it gets one at its first edit. */
+let unsaved: (NewDoc & { base: Machine }) | null = { name: async () => useFsm.getState().fsm.name || 'State machine', base: useFsm.getState() }
+
+const dataOf = () => JSON.parse(fsmDocumentJson(documentOf(useFsm.getState()))) as unknown
+
 function save() {
-  try {
-    localStorage.setItem(KEY, fsmDocumentJson(documentOf(useFsm.getState())))
-  } catch {
-    // Private windows and full storage: the machine is still there for this visit.
-  }
+  timer = null
+  const create = unsaved ?? undefined
+  unsaved = null
+  // A failed save is already reported by the circuit's autosave: the library is the same one.
+  saveActive('fsm', dataOf(), create && { name: create.name, origin: create.origin }).catch(() => {})
+}
+
+/** Save at once what was changed in the last moments (before another machine takes the editor). */
+export function flushFsm() {
+  if (!timer) return
+  clearTimeout(timer)
+  save()
 }
 
 useFsm.subscribe((s, prev) => {
-  if (s.fsm !== prev.fsm || s.encoding !== prev.encoding || s.custom !== prev.custom) save()
+  if (isEmbed() || sameMachine(s, prev)) return
+  if (unsaved && sameMachine(s, unsaved.base)) return
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(save, 400)
 })
+
+/**
+ * Put a machine in the editor as another document, with no undo history from the one before (that one stays in the library).
+ * `stored`: it is the document the library has; otherwise it has none until it is edited (`on-edit`) or gets one now (`now`).
+ */
+function showMachine(doc: Partial<FsmDocument> & { fsm: Fsm }, how: { mode: 'stored'; meta: DocMeta } | ({ mode: 'now' | 'on-edit' } & NewDoc)) {
+  flushFsm()
+  useFsm.setState({ fsm: layoutFsm(doc.fsm), encoding: doc.encoding ?? 'binary', custom: doc.custom ?? {}, selected: null, past: [], future: [] })
+  // Putting it there looked like a change to the autosave: it is not one.
+  if (timer) clearTimeout(timer)
+  timer = null
+  unsaved = null
+  if (how.mode === 'stored') {
+    setActive(how.meta)
+    return
+  }
+  setActive(null, 'fsm')
+  const create = { name: how.name, origin: how.origin }
+  if (how.mode === 'now') saveActive('fsm', dataOf(), create).catch(() => {})
+  else unsaved = { ...create, base: useFsm.getState() }
+}
+
+/** Start the editor with the machine of the library (the one this tab had, else the last one used), or the one of an earlier version. */
+export async function restoreFsm() {
+  try {
+    const rec = await openLastDoc('fsm')
+    if (rec) {
+      showMachine(parseFsmDocument(JSON.stringify(rec.data)), { mode: 'stored', meta: metaOf(rec) })
+      return
+    }
+  } catch {
+    // A record that no longer reads: carry on with what follows.
+  }
+  try {
+    const old = localStorage.getItem(LEGACY_KEY)
+    if (old) showMachine(parseFsmDocument(old), { mode: 'now', name: async () => useFsm.getState().fsm.name || 'State machine' })
+  } catch {
+    // Nothing usable stored: the starting example stays, unsaved until it is edited.
+  }
+}
+
+/** Open a state machine of the library in the editor. Throws when it is gone or can no longer be read. */
+export async function openStoredFsm(id: string) {
+  const rec = await getDoc(id)
+  if (!rec || rec.kind !== 'fsm') throw new Error('That state machine is no longer in your library.')
+  showMachine(parseFsmDocument(JSON.stringify(rec.data)), { mode: 'stored', meta: metaOf(rec) })
+  openFsm()
+}
 
 export const openFsm = () => useFsm.setState({ open: true })
 export const closeFsm = () => useFsm.setState({ open: false })
@@ -98,13 +160,14 @@ export function redoFsm() {
 export const setEncoding = (encoding: EncodingKind) => useFsm.setState({ encoding })
 export const setCustomCode = (stateId: string, code: number) => useFsm.setState((s) => ({ custom: { ...s.custom, [stateId]: code } }))
 
-/** Replace the machine with another (a starting point or a file): one undo step. */
-export function loadFsm(doc: Partial<FsmDocument> & { fsm: Fsm }) {
-  const { fsm, past } = useFsm.getState()
-  useFsm.setState({ fsm: layoutFsm(doc.fsm), encoding: doc.encoding ?? 'binary', custom: doc.custom ?? {}, selected: null, past: [...past, fsm].slice(-HISTORY), future: [] })
+/** Replace the machine with another (a starting point or a file). It is a document of its own once it is edited (or at once, for a file). */
+export function loadFsm(doc: Partial<FsmDocument> & { fsm: Fsm }, how: 'on-edit' | 'now' = 'on-edit') {
+  showMachine(doc, { mode: how, name: async () => useFsm.getState().fsm.name || 'State machine' })
 }
 
-export const startFromBlank = () => loadFsm({ fsm: blankFsm() })
+export function startFromBlank() {
+  showMachine({ fsm: blankFsm() }, { mode: 'on-edit', name: () => nextUntitled('fsm') })
+}
 export const startFromExample = (index: number) => loadFsm({ fsm: structuredClone(FSM_EXAMPLES[index]) })
 
 export function saveFsmFile() {
@@ -118,7 +181,7 @@ export async function loadFsmFile(): Promise<string | null> {
   const file = await openTextFile('.json,application/json')
   if (!file) return null
   try {
-    loadFsm(parseFsmDocument(file.text))
+    loadFsm(parseFsmDocument(file.text), 'now')
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)

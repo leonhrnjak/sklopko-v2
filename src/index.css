@@ -1134,6 +1134,24 @@ button.danger {
   pointer-events: none;
 }
 
+.toast.has-action {
+  pointer-events: auto;
+  /* Over a dialog too: Undo for something deleted in My circuits. */
+  position: fixed;
+  z-index: 80;
+}
+
+.toast button {
+  margin-left: 12px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
 /* ---- Toolbar overflow menu & selection bar (shown on small screens) ---- */
 
 .narrow-only,
@@ -2476,4 +2494,87 @@ button.linklike:hover {
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   overflow-x: auto;
+}
+
+/* The open circuit's name, over the canvas */
+.status .doc-name,
+.status .doc-name-input {
+  pointer-events: auto;
+  max-width: min(260px, 50vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+}
+.status .doc-name:hover {
+  border-color: var(--accent);
+}
+.status .doc-name.unsaved {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--muted);
+}
+.status .doc-name-input {
+  border-color: var(--accent);
+  border-radius: 7px;
+  font-family: inherit;
+}
+
+/* My circuits */
+.modal.library {
+  width: min(720px, 100%);
+}
+.library-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.library-bar .spacer {
+  flex: 1;
+}
+.library-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.library-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.library-row.current .library-open {
+  border-color: var(--accent);
+}
+.library-open {
+  flex: 1;
+  min-width: 160px;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+}
+.library-open small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.library-rename {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.library-actions {
+  display: flex;
+  gap: 4px;
 }

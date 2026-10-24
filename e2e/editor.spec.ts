@@ -731,19 +731,19 @@ test('Back while running pauses the simulation', async ({ page }) => {
   await page.getByRole('button', { name: 'Reset' }).click()
   await expect(page.getByRole('button', { name: '◀ Back' })).toBeEnabled({ timeout: 5000 })
   await page.getByRole('button', { name: '◀ Back' }).click()
-  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible() // it is paused now
+  await expect(page.getByTestId('run')).toContainText('Run') // it is paused now
 })
 
 test('breakpoint: the computer pauses by itself when it reaches HALT', async ({ page }) => {
   await page.goto('/computer', { waitUntil: 'networkidle' })
   await page.selectOption('select[aria-label="Simulation speed"]', '4')
-  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible({ timeout: 30000 }) // the label of the button while paused
+  await expect(page.getByTestId('run')).toContainText('Run', { timeout: 30000 }) // the label of the button while paused
   await expect(page.locator('.toast')).toContainText('Paused at breakpoint “Pause at HALT”.')
   const halted = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Halted$/ }) }).locator('.led-fill.on')
   await expect(halted).toHaveCount(1)
   // The stop sign shows that its condition holds, and Run carries on without stopping again.
   await expect(page.locator('.break-body.met')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Run' }).click()
+  await page.getByTestId('run').click()
   await page.waitForTimeout(1200)
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
 })
@@ -758,7 +758,7 @@ test('breakpoint: place one, wire it to a counter, and Run stops where it says',
   await expect(page.locator('.wire-group')).toHaveCount(2)
   await page.selectOption('select[aria-label="Simulation speed"]', '4')
   await expect(page.locator('.toast')).toContainText('Paused at breakpoint “Breakpoint”.', { timeout: 15000 })
-  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible()
+  await expect(page.getByTestId('run')).toContainText('Run')
 })
 
 test('grouping probes: two probes become one trace showing a number', async ({ page }) => {
@@ -1683,6 +1683,7 @@ test('state machines: the machine is kept, and can be saved to a file and opened
   let panel = fsmPanel(page)
   await panel.getByLabel('Machine name').fill('My detector')
   await panel.getByLabel('Encoding').selectOption('gray')
+  await page.waitForTimeout(700) // the autosave delay
   await page.reload({ waitUntil: 'networkidle' })
   await openFsm(page)
   panel = fsmPanel(page)

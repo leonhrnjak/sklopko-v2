@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
-import { newCircuit } from '../app/documents'
+import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
+import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
+import { openLibraryDialog } from '../app/libraryUi'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openExample, openJSON, shareLink } from '../app/runtime'
@@ -193,6 +195,9 @@ export function Toolbar() {
 
   const fileControls = (
     <>
+      <button onClick={openLibraryDialog} title="Every circuit and state machine you have made, kept in this browser: open, rename, copy, delete, back up">
+        My circuits
+      </button>
       <select
         value=""
         onChange={(e) => {
@@ -324,14 +329,60 @@ export function Toolbar() {
   )
 }
 
+/** The name of the open circuit, over the canvas: click to change it. Italic until it has been changed (and so is kept). */
+function DocName() {
+  const { name, saved } = useDoc()
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  if (isEmbed()) return null
+  if (editing)
+    return (
+      <input
+        className="doc-name-input"
+        aria-label="Circuit name"
+        value={text}
+        maxLength={100}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          setEditing(false)
+          renameOpenDoc(text)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') {
+            setText(name)
+            e.currentTarget.blur()
+          }
+        }}
+      />
+    )
+  return (
+    <button
+      className={`doc-name${saved ? '' : ' unsaved'}`}
+      onClick={() => {
+        setText(name)
+        setEditing(true)
+      }}
+      title={saved ? 'The name of this circuit in your library. Click to change it.' : 'Not kept yet: it is saved as soon as you change something. Click to name it.'}
+      aria-label={`Circuit name: ${name}`}
+    >
+      {name || 'Untitled'}
+    </button>
+  )
+}
+
 export function StatusBar() {
   const status = useSimStatus()
   const running = useStore((s) => s.running)
   const toast = useStore((s) => s.toast)
+  const toastAction = useStore((s) => s.toastAction)
   const empty = useStore((s) => Object.keys(s.circuit.comps).length === 0)
   return (
     <>
       <div className="status">
+        <DocName />
         {!running && <span className="badge paused">Paused</span>}
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
@@ -346,7 +397,21 @@ export function StatusBar() {
           Or pick one of the <b>Examples</b> above.
         </div>
       )}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className={`toast${toastAction ? ' has-action' : ''}`}>
+          {toast}
+          {toastAction && (
+            <button
+              onClick={() => {
+                toastAction.run()
+                useStore.setState({ toast: null, toastAction: null })
+              }}
+            >
+              {toastAction.label}
+            </button>
+          )}
+        </div>
+      )}
       <div className="version" title={__APP_COMMIT__ ? `Build ${__APP_COMMIT__}` : undefined}>
         v{__APP_VERSION__}
       </div>

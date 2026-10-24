@@ -152,3 +152,26 @@ test('a bus wire can be drawn by touch between two bus pins', async ({ page, con
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await expect(page.locator('.wire.bus')).toHaveCount(1)
 })
+
+test('My circuits fits a phone, with the circuit name over the canvas', async ({ page }) => {
+  await fresh(page)
+  await expect(page.locator('.status .doc-name')).toBeVisible()
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByRole('button', { name: 'New', exact: true }).tap()
+  await page.locator('.palette-item[data-type="and"]').tap()
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
+  await expect(page.getByRole('button', { name: 'Circuit name: Untitled 1' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByRole('button', { name: 'My circuits' }).tap()
+  const dialog = page.getByRole('dialog', { name: 'My circuits' })
+  await expect(dialog.locator('.library-row')).toHaveCount(1)
+  const width = page.viewportSize()!.width
+  for (const el of [dialog, dialog.locator('.library-row'), dialog.getByRole('button', { name: 'Delete Untitled 1' })]) {
+    const box = (await el.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5)
+  }
+  await expect(dialog.getByRole('button', { name: 'New circuit' })).toBeVisible()
+})
