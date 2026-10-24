@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { clearStorage } from './storage'
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
 async function fresh(page: Page) {
   await page.goto('/', { waitUntil: 'networkidle' })
-  await page.evaluate(() => localStorage.clear())
+  await clearStorage(page)
   await page.reload({ waitUntil: 'networkidle' })
 }
 
@@ -906,7 +907,7 @@ test('notes: the text wraps at the width you choose', async ({ page }) => {
 
 test('the welcome example explains itself with a note', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' })
-  await page.evaluate(() => localStorage.clear())
+  await clearStorage(page)
   await page.goto('/counter', { waitUntil: 'networkidle' })
   await expect(page.getByTestId('canvas').locator('.note-text').first()).toBeVisible()
 })

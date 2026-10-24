@@ -92,7 +92,8 @@ security headers.
   any page.
 - **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
   signals that cross show a small bridge. Stored in the browser.
-- **Files:** autosaves to the browser; Save/Open as `.json`; Share copies a link containing the circuit.
+- **Files:** autosaves to the browser (in IndexedDB, as a document in your library; the single saved circuit of earlier
+  versions is brought in on the first visit); Save/Open as `.json`; Share copies a link containing the circuit.
 - **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
   shows its link in the address bar, and Share copies it while the example is unedited.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,

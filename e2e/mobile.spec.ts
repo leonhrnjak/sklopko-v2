@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from '@playwright/test'
+import { clearStorage } from './storage'
 
 // Phone emulation in Chromium (the device's default WebKit isn't needed for layout and touch checks).
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -7,7 +8,7 @@ test.use(iphone)
 
 async function fresh(page: Page) {
   await page.goto('/', { waitUntil: 'networkidle' })
-  await page.evaluate(() => localStorage.clear())
+  await clearStorage(page)
   await page.reload({ waitUntil: 'networkidle' })
 }
 
