@@ -29,11 +29,14 @@ const MODES: Record<Mode6502, { written: string; example: string; meaning: strin
   ind: { written: '(nn)', example: 'JMP ($FFFC)', meaning: 'The address stored at nn and nn + 1. Only JMP has it. On the NMOS 6502, JMP ($12FF) reads its high byte from $1200, not $1300.' },
   izx: { written: '(n,X)', example: 'LDA ($20,X)', meaning: 'The address stored in the zero page at n + X: a table of pointers, indexed by X.' },
   izy: { written: '(n),Y', example: 'LDA ($20),Y', meaning: 'The address stored in the zero page at n, plus Y: a pointer to a buffer, indexed by Y.' },
+  izp: { written: '(n)', example: 'LDA ($20)', meaning: 'The address stored in the zero page at n (65C02 only).' },
+  iax: { written: '(nn,X)', example: 'JMP ($1234,X)', meaning: 'The address stored at nn + X (65C02 only; only JMP has it).' },
+  zpr: { written: 'n,label', example: 'BBR0 $10,loop', meaning: 'A zero-page address to test, then a branch (65C02 only: BBR and BBS).' },
   rel: { written: 'label', example: 'BNE loop', meaning: 'A branch: the target must be within 128 bytes back or 127 ahead. The program holds the distance from the next instruction.' },
 }
 
 /** An instruction's operand as the table writes it, for one addressing mode. */
-const FORM: Record<Mode6502, string> = { imp: '', acc: ' A', imm: ' #n', zp: ' n', zpx: ' n,X', zpy: ' n,Y', abs: ' nn', abx: ' nn,X', aby: ' nn,Y', ind: ' (nn)', izx: ' (n,X)', izy: ' (n),Y', rel: ' label' }
+const FORM: Record<Mode6502, string> = { imp: '', acc: ' A', imm: ' #n', zp: ' n', zpx: ' n,X', zpy: ' n,Y', abs: ' nn', abx: ' nn,X', aby: ' nn,Y', ind: ' (nn)', izx: ' (n,X)', izy: ' (n),Y', rel: ' label', izp: ' (n)', iax: ' (nn,X)', zpr: ' n,label' }
 
 /** The cycles of an instruction as written in the tables: 4+ means one more when an indexed read crosses a page; a branch is 2+. */
 const cyclesText = (o: Opcode6502) => `${o.cycles}${o.pageCross || o.mode === 'rel' ? '+' : ''}`
@@ -220,7 +223,7 @@ function Modes() {
             </tr>
           </thead>
           <tbody>
-            {(Object.keys(MODES) as Mode6502[]).map((mode) => (
+            {(Object.keys(MODES) as Mode6502[]).filter((mode) => used(mode) > 0).map((mode) => (
               <tr key={mode}>
                 <td>
                   <b>{mode}</b>

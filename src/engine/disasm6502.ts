@@ -31,6 +31,9 @@ export function disassemble6502(bytes: number[], pc = 0): { text: string; length
     izx: `($${hex(b1, 2)},X)`,
     izy: `($${hex(b1, 2)}),Y`,
     rel: `$${hex((pc + 2 + (b1 < 128 ? b1 : b1 - 256)) & 0xffff, 4)}`,
+    izp: `($${hex(b1, 2)})`,
+    iax: `($${hex(w, 4)},X)`,
+    zpr: `$${hex(b1, 2)},$${hex((pc + 3 + ((bytes[2] ?? 0) < 128 ? (bytes[2] ?? 0) : (bytes[2] ?? 0) - 256)) & 0xffff, 4)}`,
   }
   return { text: operand[o.mode] ? `${m} ${operand[o.mode]}` : m, length: o.bytes }
 }
