@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
@@ -56,6 +56,25 @@ function SettingsFields() {
   )
 }
 
+/** Shows the help panel again after it was hidden (it is open on the first visit). */
+function HelpToggle() {
+  const helpOpen = useSettings((s) => s.helpOpen)
+  return (
+    <button
+      onClick={() => {
+        select([])
+        updateSettings({ helpOpen: !helpOpen })
+      }}
+      aria-pressed={helpOpen}
+      aria-label="Help"
+      title={helpOpen ? 'Hide the help panel' : 'Show the help panel'}
+      data-testid="help-toggle"
+    >
+      ?
+    </button>
+  )
+}
+
 function SettingsPopover() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -80,6 +99,89 @@ function SettingsPopover() {
       {open && (
         <div className="settings-pop" role="dialog" aria-label="Settings">
           <SettingsFields />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** One entry of a menu: a button, or a checkbox when `checked` is given. */
+function MenuItem({
+  onClick,
+  title,
+  checked,
+  disabled,
+  testid,
+  children,
+}: {
+  onClick: () => void
+  title?: string
+  checked?: boolean
+  disabled?: boolean
+  testid?: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+      aria-checked={checked}
+      className={checked ? 'active' : ''}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      data-testid={testid}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** A heading inside a menu, for a group of entries. */
+const MenuLabel = ({ children }: { children: ReactNode }) => (
+  <div className="menu-label" role="presentation">
+    {children}
+  </div>
+)
+
+/** A toolbar button that opens a list of entries; choosing one, clicking elsewhere or Escape closes it. */
+function DropMenu({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const down = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('pointerdown', down)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('pointerdown', down)
+      window.removeEventListener('keydown', key)
+    }
+  }, [open])
+  return (
+    <div className="drop-wrap" ref={ref}>
+      <button onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}>
+        {label} ▾
+      </button>
+      {open && (
+        <div
+          className="drop-menu"
+          role="menu"
+          aria-label={label}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('[role^="menuitem"]')) setOpen(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+            const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]:not(:disabled)')]
+            const at = items.indexOf(document.activeElement as HTMLElement)
+            items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+            e.preventDefault()
+          }}
+        >
+          {children}
         </div>
       )}
     </div>
@@ -147,36 +249,6 @@ export function Toolbar() {
       <button onClick={reset} title="Power-cycle: all signals and memories return to their initial state">
         Reset
       </button>
-      <button onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
-        Logic…
-      </button>
-      <button onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
-        State machines…
-      </button>
-      <button onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
-        SKASM…
-      </button>
-      <button onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
-        Challenges
-      </button>
-      <button
-        className={waveOpen ? 'active' : ''}
-        onClick={() => (waveOpen ? setWaveOpen(false) : useWave.setState({ open: true, view: 'waves' }))}
-        aria-pressed={waveOpen}
-        title="Show or hide the waveform panel (traces of Probe parts over time)"
-        data-testid="waves-toggle"
-      >
-        Waveforms
-      </button>
-      <button
-        className={timingOpen ? 'active' : ''}
-        onClick={toggleTiming}
-        aria-pressed={timingOpen}
-        title="How long the signals take to get through the circuit: the slowest path, how fast a clock can run, feedback loops"
-        data-testid="timing-toggle"
-      >
-        Timing
-      </button>
       <select
         value={speed}
         onChange={(e) => setSpeed(Number(e.target.value))}
@@ -192,71 +264,101 @@ export function Toolbar() {
     </>
   )
 
-  const fileControls = (
+  const toolItems = (
     <>
-      <button onClick={openLibraryDialog} title="Every circuit and state machine you have made, kept in this browser: open, rename, copy, delete, back up">
-        My circuits
-      </button>
-      <select
-        value=""
-        onChange={(e) => {
-          const ex = EXAMPLE_LIST.find((x) => x.id === e.target.value)
-          if (ex) {
-            void openExample(ex).then(() => requestAnimationFrame(fitView))
-            setMenuOpen(false)
-          }
-        }}
-        aria-label="Load an example"
+      <MenuItem onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
+        Logic…
+      </MenuItem>
+      <MenuItem onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
+        State machines…
+      </MenuItem>
+      <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
+        SKASM…
+      </MenuItem>
+      <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
+        Challenges
+      </MenuItem>
+      <MenuItem
+        checked={waveOpen}
+        onClick={() => (waveOpen ? setWaveOpen(false) : useWave.setState({ open: true, view: 'waves' }))}
+        title="Show or hide the waveform panel (traces of Probe parts over time)"
+        testid="waves-toggle"
       >
-        <option value="" disabled>
-          Examples…
-        </option>
-        {EXAMPLE_GROUPS.map((group) => (
-          <optgroup key={group} label={group}>
-            {EXAMPLE_LIST.filter((x) => x.group === group).map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-      <button onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
-        New
-      </button>
-      <button onClick={clearWires} title="Remove all wires, keep the parts (undoable)">
-        Clear wires
-      </button>
-      <button onClick={openJSON} title="Open a saved circuit file">
-        Open
-      </button>
-      <button onClick={downloadJSON} title="Download the circuit as a file">
-        Save
-      </button>
-      <button onClick={shareLink} title="Copy a link containing this circuit">
-        Share
-      </button>
-      <button onClick={copyEmbedCode} title="Copy HTML that shows this circuit, running, in a web page (an iframe)">
-        Embed
-      </button>
-      <select
-        value=""
-        onChange={(e) => {
-          const [format, area] = e.target.value.split('-') as ['svg' | 'png', 'all' | 'view']
-          void import('./canvas/exportImage').then((m) => m.exportImage(format, area))
-        }}
-        aria-label="Export a picture"
-        title="Save a picture of the circuit"
+        Waveforms
+      </MenuItem>
+      <MenuItem
+        checked={timingOpen}
+        onClick={toggleTiming}
+        title="How long the signals take to get through the circuit: the slowest path, how fast a clock can run, feedback loops"
+        testid="timing-toggle"
       >
-        <option value="" disabled>
-          Picture…
-        </option>
-        <option value="svg-all">SVG, whole circuit</option>
-        <option value="svg-view">SVG, what is on screen</option>
-        <option value="png-all">PNG, whole circuit</option>
-        <option value="png-view">PNG, what is on screen</option>
-      </select>
+        Timing
+      </MenuItem>
     </>
+  )
+
+  const savePicture = (format: 'svg' | 'png', area: 'all' | 'view') => void import('./canvas/exportImage').then((m) => m.exportImage(format, area))
+
+  const fileItems = (
+    <>
+      <MenuItem onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
+        New
+      </MenuItem>
+      <MenuItem onClick={openLibraryDialog} title="Every circuit and state machine you have made, kept in this browser: open, rename, copy, delete, back up">
+        My circuits
+      </MenuItem>
+      <MenuItem onClick={openJSON} title="Open a saved circuit file">
+        Open file
+      </MenuItem>
+      <MenuItem onClick={downloadJSON} title="Download the circuit as a file">
+        Save file
+      </MenuItem>
+      <MenuItem onClick={copyEmbedCode} title="Copy HTML that shows this circuit, running, in a web page (an iframe)">
+        Embed code
+      </MenuItem>
+      <MenuItem onClick={clearWires} title="Remove all wires, keep the parts (undoable)">
+        Clear wires
+      </MenuItem>
+      <MenuLabel>Save a picture</MenuLabel>
+      <MenuItem onClick={() => savePicture('svg', 'all')}>SVG, whole circuit</MenuItem>
+      <MenuItem onClick={() => savePicture('svg', 'view')}>SVG, what is on screen</MenuItem>
+      <MenuItem onClick={() => savePicture('png', 'all')}>PNG, whole circuit</MenuItem>
+      <MenuItem onClick={() => savePicture('png', 'view')}>PNG, what is on screen</MenuItem>
+    </>
+  )
+
+  const examplesSelect = (
+    <select
+      value=""
+      onChange={(e) => {
+        const ex = EXAMPLE_LIST.find((x) => x.id === e.target.value)
+        if (ex) {
+          void openExample(ex).then(() => requestAnimationFrame(fitView))
+          setMenuOpen(false)
+        }
+      }}
+      aria-label="Load an example"
+      className="examples-select"
+    >
+      <option value="" disabled>
+        Examples…
+      </option>
+      {EXAMPLE_GROUPS.map((group) => (
+        <optgroup key={group} label={group}>
+          {EXAMPLE_LIST.filter((x) => x.group === group).map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  )
+
+  const shareButton = (
+    <button onClick={shareLink} title="Copy a link containing this circuit">
+      Share
+    </button>
   )
 
   return (
@@ -283,11 +385,17 @@ export function Toolbar() {
         <button onClick={fitView} title="Fit circuit to screen (H)">
           Fit
         </button>
-        <span className="wide-only">
+        <span className="wide-only toolbar-icons">
+          <HelpToggle />
           <SettingsPopover />
         </span>
       </div>
-      <div className="group wide-only">{fileControls}</div>
+      <div className="group wide-only">
+        {examplesSelect}
+        <DropMenu label="Tools">{toolItems}</DropMenu>
+        <DropMenu label="File">{fileItems}</DropMenu>
+        {shareButton}
+      </div>
       <div className="menu-wrap narrow-only" ref={menuRef}>
         <button
           className="menu-btn"
@@ -306,7 +414,18 @@ export function Toolbar() {
             }}
           >
             <div className="menu-section">{simControls}</div>
-            <div className="menu-section">{fileControls}</div>
+            <div className="menu-section">
+              {examplesSelect}
+              {shareButton}
+            </div>
+            <div className="menu-section" role="menu" aria-label="Tools">
+              <MenuLabel>Tools</MenuLabel>
+              {toolItems}
+            </div>
+            <div className="menu-section" role="menu" aria-label="File">
+              <MenuLabel>File</MenuLabel>
+              {fileItems}
+            </div>
             <div className="menu-section settings-section">
               <SettingsFields />
             </div>

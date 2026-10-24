@@ -18,7 +18,7 @@
 > - [x] 12a Code splitting, v0.0.1-62
 > - [x] 12b Prebuilt examples and thumbnails, v0.0.1-63
 > - [x] 12c Rendering, measured and skipped, v0.0.1-64
-> - [ ] 13a Toolbar menus, collapsible help, e2e split
+> - [x] 13a Toolbar menus, collapsible help, e2e split, v0.0.1-65
 > - [ ] 13b Example gallery
 > - [ ] 14a Engine groundwork
 > - [ ] 14b ICs in the model and the simulation
@@ -240,6 +240,22 @@ So the part the optimization could save is 0.3 ms, well under the 2 ms bar. Revi
   remembered (a per-viewer convenience in `localStorage`).
 - Keep the `data-testid`s and button titles that e2e uses where possible. Split `e2e/editor.spec.ts` (71 tests) into specs by
   area (editing, simulation, logic, fsm, challenges, buses, computers, files) in this PR, since it touches most of them anyway.
+
+*What it did, and where it differs from the plan.*
+- The desktop toolbar is one row from about 1200 px: Run/Pause, the simulation controls, Undo, Redo, Fit, `?`, ⚙, then Examples (the
+  dropdown stays until 13b), **Tools ▾**, **File ▾** and Share. The menus are `DropMenu` in `Toolbar.tsx`: `role="menu"` with
+  `menuitem` entries (Waveforms and Timing are `menuitemcheckbox`), closed by a choice, Escape or a click elsewhere, Up and Down
+  move between entries. File also has the four picture exports (the Picture dropdown is gone); *Open* and *Save* are *Open file* and
+  *Save file*, *Embed* is *Embed code*. The phone ☰ menu lists the same entries flat under *Tools* and *File*, next to Examples and
+  Share. Between 760 and 1200 px the row wraps onto a second line, as before.
+- **Not moved:** the document name stays over the canvas (it works on phones too, and one row fits without it).
+- The help panel (*How to*, the right panel while nothing is selected) has a Hide button; the new `?` toolbar button shows it again
+  (and deselects). `helpOpen` is in `app/settings.ts`, so it is remembered in `localStorage` with the other display settings. With
+  the help hidden and nothing selected, the right column is gone; selecting a part brings the panel back for its settings. On
+  phones the help is still opened from ☰ Help.
+- `e2e/editor.spec.ts` (71 tests) is split into `editing`, `simulation`, `buses`, `computers`, `logic`, `fsm`, `challenges` and
+  `files` specs, with the shared helpers in `e2e/helpers.ts`; `chooseTool(page, name)` and `chooseFile(page, name)` open a menu
+  and pick an entry. Two new tests (the menus, the help panel). Test ids are kept.
 
 **13b. Example gallery (small–medium)**
 - *Examples* opens a dialog: the groups as sections, a card per example with its thumbnail (12b), name and a one-line
