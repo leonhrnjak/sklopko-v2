@@ -1,5 +1,7 @@
 # Sklopko v2: next features plan
 
+> **Done.** Milestones 0–10 below have all shipped. What comes next is in `plan-next-milestones.md` (milestones 11–16).
+
 > **How to execute this plan**
 > - Read `CLAUDE.md` first. Its rules apply: run the full checklist before every push, and bump the version
 >   (smallest number) with every push.
