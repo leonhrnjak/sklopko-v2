@@ -10,7 +10,7 @@ import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
 import { SIGNAL_PRESETS } from '../engine/signal-presets'
-import { describeWord, parseRows, parseSignals, signalValue, valueName, withSignal, type Signal, type SignalLayout, type TextError } from '../engine/signals'
+import { assembleSignals, describeWord, parseRows, parseSignals, signalValue, signalsToText, valueName, withSignal, type RowNames, type Signal, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
 import { TextParam } from './TextParam'
@@ -328,6 +328,58 @@ function TableDump({ text }: { text: string }) {
   )
 }
 
+/** A control ROM as text, one row per line (see `assembleSignals`), checked as you type and applied when you click away (one undo step). */
+function ControlTextEditor({ comp, layout, rows, words, bits }: { comp: Comp; layout: SignalLayout; rows: RowNames; words: number; bits: number }) {
+  const saved = useMemo(() => signalsToText(layout, rows, parseWords(String(comp.params.data), words, bits)), [layout, rows, comp.params.data, words, bits])
+  const [draft, setDraft] = useState(saved)
+  const latest = useRef({ draft, saved })
+  useEffect(() => {
+    latest.current = { draft, saved }
+  })
+  const result = useMemo(() => assembleSignals(layout, rows, draft, words, bits), [layout, rows, draft, words, bits])
+  const commit = () => {
+    const { draft: d, saved: s } = latest.current
+    if (d === s) return
+    latest.current.saved = d // the remount that follows must not apply it a second time
+    const r = assembleSignals(layout, rows, d, words, bits)
+    if (!r.errors.length) setParams(comp.id, { data: toHexWords(r.words, bits) })
+  }
+  // Apply a pending edit when the inspector goes away (another part gets selected).
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => commit, [])
+  const listed = draft.split('\n').filter((l) => l.replace(/(?:;|\/\/).*$/, '').trim()).length
+  return (
+    <div className="field">
+      <span>Control signals</span>
+      <textarea
+        className={`mono asm${result.errors.length ? ' invalid' : ''}`}
+        aria-label="Control signals"
+        rows={Math.min(24, Math.max(10, draft.split('\n').length + 1))}
+        spellCheck={false}
+        wrap="off"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter' && (e.target as HTMLTextAreaElement).blur()}
+      />
+      {result.errors.length > 0 ? (
+        <ul className="asm-errors" aria-label="Errors">
+          {result.errors.map((e, i) => (
+            <li key={i}>
+              <b>Line {e.line}:</b> {e.message}
+            </li>
+          ))}
+          <li className="note">The ROM keeps its words until the text is right.</li>
+        </ul>
+      ) : (
+        <small>
+          {listed} row{listed === 1 ? '' : 's'} listed; the rest are 0.{draft !== saved ? ' Applies when you click outside the box (or press Ctrl+Enter).' : ' Comments are not kept: the text is written from the words.'}
+        </small>
+      )}
+    </div>
+  )
+}
+
 /** The name and the signals of each row of a control ROM. */
 function decodeRows(layout: SignalLayout, names: Record<number, string>, values: number[]): ControlRow[] {
   return values.map((w, i) => ({ name: names[i] ?? '', signals: describeWord(layout, w) }))
@@ -345,6 +397,10 @@ export function RomSection({ comp }: { comp: Comp }) {
   const rowsText = String(p.rows)
   const parsedNames = useMemo(() => ({ signals: parseSignals(signalsText), rows: parseRows(rowsText) }), [signalsText, rowsText])
   const control = !isa && signalsText.trim() !== ''
+  // The text form needs names that parse. Whether to show it or the hex words is a choice for as long as the part is selected.
+  const named = signalsText.trim() !== '' && parsedNames.signals.errors.length === 0 && parsedNames.rows.errors.length === 0
+  const [view, setView] = useState<'text' | 'hex'>('text')
+  const showText = !isa && named && view === 'text'
   const dataText = String(p.data)
   const controlRows = useMemo(
     () => (control ? decodeRows(parsedNames.signals.layout, parsedNames.rows.rows.names, parseWords(dataText, words, bits)) : undefined),
@@ -363,12 +419,20 @@ export function RomSection({ comp }: { comp: Comp }) {
   const save = () => {
     const now = currentParams(comp.id)
     if (isa) downloadText('program.asm', String(now.source))
+    else if (showText) downloadText('control.txt', `${signalsToText(parsedNames.signals.layout, parsedNames.rows.rows, parseWords(String(now.data), words, bits))}\n`)
     else downloadText('program.hex', `${String(now.data).trim()}\n`)
   }
   const load = async () => {
     const file = await openTextFile('.asm,.txt,.hex,text/plain')
     if (!file) return
-    if (isa) {
+    if (showText) {
+      const r = assembleSignals(parsedNames.signals.layout, parsedNames.rows.rows, file.text, words, bits)
+      if (r.errors.length) showToast(`${file.name} does not assemble: line ${r.errors[0].line}: ${r.errors[0].message}`)
+      else {
+        setParams(comp.id, { data: toHexWords(r.words, bits) })
+        showToast(`Opened ${file.name}.`)
+      }
+    } else if (isa) {
       const r = assemble(isa, file.text, words)
       setParams(comp.id, r.errors.length ? { source: file.text } : assembled(isa, file.text, r, currentComp(comp.id) ?? comp))
       showToast(r.errors.length ? `Opened ${file.name}, with ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}.` : `Opened ${file.name}.`)
@@ -382,7 +446,16 @@ export function RomSection({ comp }: { comp: Comp }) {
     <>
       <label className="field">
         <span>Contents are</span>
-        <select value={String(p.isa)} onChange={(e) => chooseIsa(comp, e.target.value)}>
+        <select
+          value={showText ? 'signals' : String(p.isa)}
+          onChange={(e) => {
+            // The text form is a way of writing the words, not a setting of the part: nothing is saved for it.
+            const next = e.target.value === 'signals' ? 'none' : e.target.value
+            setView(e.target.value === 'signals' ? 'text' : 'hex')
+            if (next !== String(p.isa)) chooseIsa(comp, next)
+          }}
+        >
+          {named && <option value="signals">Control signals (text)</option>}
           <option value="none">Hex words</option>
           {ISAS.map((i) => (
             <option key={i.id} value={i.id}>
@@ -400,6 +473,8 @@ export function RomSection({ comp }: { comp: Comp }) {
         </div>
       ) : isa ? (
         <ProgramEditor key={`${comp.id}|${String(p.source)}`} comp={comp} isa={isa} words={words} />
+      ) : showText ? (
+        <ControlTextEditor key={`${comp.id}|${String(p.data)}|${signalsText}|${rowsText}`} comp={comp} layout={parsedNames.signals.layout} rows={parsedNames.rows.rows} words={words} bits={bits} />
       ) : (
         <TextParam key={`data|${String(p.data)}`} comp={comp} p={dataDef} />
       )}

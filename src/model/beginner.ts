@@ -1,5 +1,6 @@
 import { SKASM, assemble, toHexWords } from '../engine/isa'
-import { BEGINNER_ROWS, BEGINNER_SIGNALS } from '../engine/signal-presets'
+import { BEGINNER_CONTROL_TEXT, BEGINNER_ROWS, BEGINNER_SIGNALS } from '../engine/signal-presets'
+import { assembleSignals, parseRows, parseSignals } from '../engine/signals'
 import { frameAround, note } from './annotate'
 import { CircuitBuilder } from './builder'
 import { boundsRect, type Circuit } from './circuit'
@@ -20,11 +21,17 @@ export const BEGINNER_SOURCE = `; Add 3 and 4, and keep the answer in RAM.
 `
 
 /**
- * The control ROM: one row per opcode (the 4 bits at the top of an instruction's low byte). Bits: 0 load the accumulator,
- * 1–2 what it loads (0 the number in the instruction, 1 the adder, 2 RAM), 3 write RAM, 4 subtract, 5 jump, 6 halt,
- * 7 remember the carry.
+ * The control ROM: one row per opcode (the 4 bits at the top of an instruction's low byte). What the 8 bits are, and what each
+ * instruction switches on, is written in words in `engine/signal-presets.ts` (`BEGINNER_SIGNALS`, `BEGINNER_CONTROL_TEXT`); the
+ * words are assembled from that here.
  */
-export const BEGINNER_CONTROL = [0x01, 0x05, 0x08, 0x20, 0x83, 0x93, 0x00, 0x40, 0, 0, 0, 0, 0, 0, 0, 0].map((w) => w.toString(16).toUpperCase().padStart(2, '0')).join(' ')
+const beginnerControl = (): string => {
+  const { layout } = parseSignals(BEGINNER_SIGNALS)
+  const r = assembleSignals(layout, parseRows(BEGINNER_ROWS).rows, BEGINNER_CONTROL_TEXT, 16, 8)
+  if (r.errors.length) throw new Error(`The control ROM does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
+  return toHexWords(r.words, 8)
+}
+export const BEGINNER_CONTROL = beginnerControl()
 
 /** The program as the ROM's 16 words. */
 export const beginnerWords = (source: string): string => {

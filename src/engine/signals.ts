@@ -16,6 +16,8 @@
  * The names of the rows are text too, one per line: a hex address and a name (`1E ORI`).
  */
 
+import { parseNumber } from './isa'
+
 export interface Signal {
   name: string
   /** The lowest bit it occupies (0 is the ROM's `D0`). */
@@ -198,3 +200,117 @@ export function signalParts(layout: SignalLayout, word: number): SignalPart[] {
 
 /** A word as text: `LOAD_ACC, SRC=ALU, SAVE_FLAGS`; empty when it switches nothing on. */
 export const describeWord = (layout: SignalLayout, word: number): string => signalParts(layout, word).map((p) => p.text).join(', ')
+
+// ---- The text form ---------------------------------------------------------------------------------
+
+/**
+ * A control ROM as text, one row per line:
+ *
+ *     LDI:   LOAD_ACC SRC=CONST          the row named LDI switches on LOAD_ACC and sets the field SRC to CONST
+ *     NOP:                               a row with nothing switched on
+ *     0x1E:  LOAD_ACC bit13              a row by its address (hex, with 0x or $), and a bit that no signal names
+ *
+ * A one-bit signal is named to switch it on (`LOAD_ACC`, or `LOAD_ACC=0` / `=1`); a field takes `NAME=VALUE`, where the value is
+ * one of its names or a number. Rows that are not listed are 0. `;` starts a comment.
+ */
+export interface SignalsAsm {
+  /** The words of the ROM, padded with zeros to its size. */
+  words: number[]
+  errors: TextError[]
+}
+
+const ADDRESS = /^(?:0x|\$)([0-9a-f]+)$/i
+const sameName = (a: string, b: string) => a.toUpperCase() === b.toUpperCase()
+
+/** Turn the text form into the words of a ROM of `size` words of `bits` bits. Collects every error instead of stopping at the first. */
+export function assembleSignals(layout: SignalLayout, rows: RowNames, text: string, size: number, bits: number): SignalsAsm {
+  const errors: TextError[] = []
+  const words = new Array<number>(size).fill(0)
+  const seen = new Set<number>()
+  const names = layout.signals.map((s) => s.name)
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = i + 1
+    const err = (message: string) => errors.push({ line, message })
+    const src = stripComment(raw)
+    if (!src) return
+    const colon = src.indexOf(':')
+    if (colon < 0) return err('Expected a row and its signals, like “LDI: LOAD_ACC SRC=CONST”.')
+    const head = src.slice(0, colon).trim()
+    let at: number | undefined
+    const hex = ADDRESS.exec(head)
+    if (hex) at = parseInt(hex[1], 16)
+    else {
+      const found = Object.keys(rows.addresses).find((n) => sameName(n, head))
+      if (found !== undefined) at = rows.addresses[found]
+    }
+    if (at === undefined) return err(`Unknown row “${head}”. Name it in the row names, or write its address, like 0x1E.`)
+    if (at >= size) return err(`Row ${head} is at address ${at}, but the ROM has only ${size} words.`)
+    if (seen.has(at)) return err(`Row ${head} is listed twice.`)
+    seen.add(at)
+    let word = 0
+    const used = new Set<string>()
+    for (const item of src.slice(colon + 1).split(/[\s,]+/).filter(Boolean)) {
+      const stray = /^bit(\d+)$/i.exec(item)
+      if (stray) {
+        if (Number(stray[1]) >= bits) err(`${item}: the ROM has only ${bits} data bits.`)
+        else word |= 2 ** Number(stray[1])
+        continue
+      }
+      const [name, ...valueParts] = item.split('=')
+      const s = layout.signals.find((o) => sameName(o.name, name))
+      if (!s) {
+        err(`Unknown signal “${name}”.${names.length ? ` The signals are ${names.join(', ')}.` : ''}`)
+        continue
+      }
+      if (used.has(s.name)) {
+        err(`${s.name} is written twice in this row.`)
+        continue
+      }
+      used.add(s.name)
+      if (valueParts.length > 1) {
+        err(`“${item}”: more than one “=”.`)
+        continue
+      }
+      const given = valueParts[0]
+      const plain = s.width === 1 && s.values.length === 0
+      if (given === undefined) {
+        if (!plain) err(`${s.name} is a field and needs a value, like ${s.name}=${s.values[0] ?? 0}.`)
+        else word = withSignal(s, word, 1)
+        continue
+      }
+      let value = s.values.findIndex((v) => sameName(v, given))
+      if (value < 0) {
+        const n = parseNumber(given)
+        if (n === null || !Number.isInteger(n)) {
+          err(`“${given}” is not a value of ${s.name}${s.values.length ? ` (${s.values.join(', ')})` : ''}.`)
+          continue
+        }
+        value = n
+      }
+      if (value < 0 || value > maskOf(s.width)) {
+        err(`${s.name}=${given}: the value does not fit in ${s.width} bit${s.width === 1 ? '' : 's'} (0 to ${maskOf(s.width)}).`)
+        continue
+      }
+      word = withSignal(s, word, value)
+    }
+    words[at] = word
+  })
+  errors.sort((a, b) => a.line - b.line)
+  return { words, errors }
+}
+
+/**
+ * The text form of a ROM's words: a line for every row that has a name or is not 0, in address order. Assembling it gives
+ * the same words back.
+ */
+export function signalsToText(layout: SignalLayout, rows: RowNames, words: number[]): string {
+  const lines: { head: string; body: string }[] = []
+  words.forEach((w, at) => {
+    const name = rows.names[at]
+    if (name === undefined && !w) return
+    const head = `${name ?? `0x${at.toString(16).toUpperCase().padStart(2, '0')}`}:`
+    lines.push({ head, body: signalParts(layout, w).map((p) => p.text.replace(/^bit (\d+)$/, 'bit$1')).join(' ') })
+  })
+  const width = Math.max(0, ...lines.map((l) => l.head.length)) + 1
+  return lines.map((l) => (l.body ? `${l.head.padEnd(width)}${l.body}` : l.head)).join('\n')
+}
