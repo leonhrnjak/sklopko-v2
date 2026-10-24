@@ -392,6 +392,9 @@ function Help() {
           long-press it, right-click it, or drag it.
         </li>
         <li>
+          <b>Pins:</b> select a part to see what each of its pins does, inputs first, then outputs.
+        </li>
+        <li>
           <b>Net labels:</b> a Send label and a Receive label with the same name act as one wire, however far apart.
         </li>
         <li>
