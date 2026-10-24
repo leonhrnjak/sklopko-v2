@@ -15,7 +15,7 @@ After Ben Eater's 6502 computer: a CPU, RAM, ROM and one serial chip on a breadb
 `10 PRINT "HELLO"` and `RUN` on a computer you wired yourself. It fits what Sklopko is for (every wire and every address decode is
 visible) and it reuses the 6502 work: the part, the assembler, the board builder. It is the small answer to "can we have a C64?":
 a C64 is mostly four custom chips (VIC-II, SID, two CIAs) that would be black boxes here, and its ROMs cannot be shipped.
-This board has one black box, the terminal, and BASIC itself is free to ship (see *Licences*).
+This board has one black box, the terminal, and Microsoft's 6502 BASIC is MIT licensed (see *Licences*).
 
 ## What was measured
 `src/engine/bench.test.ts` has two new cases (run with `VITE_BENCH=1 npx vitest run src/engine/bench --reporter=verbose --disable-console-intercept`),
@@ -102,7 +102,7 @@ Reading the numbers:
   the board running the echo program on the bare core and on the board, one e2e test that types into the terminal.
 
 ### B3. BASIC in the ROM
-- **The BASIC image** is Microsoft BASIC for the 6502, built **offline** (it is written for ca65, not for our assembler) for our map with a small
+- **The BASIC image** is Microsoft BASIC for the 6502, built **offline** (it is written for ca65, not for our assembler; *Licences* says which source and why) for our map with a small
   target configuration: the input and output routines poll the terminal's status and data registers, the memory size is fixed so the start-up
   skips the memory test, the start-up code sets the stack and the vectors. The binary is committed under `src/model/` with the recipe (source
   version, configuration and the `ca65` and `ld65` commands) in a README next to it, so anyone can rebuild and compare it byte for byte.
@@ -124,14 +124,33 @@ Reading the numbers:
   hidden input that opens the on-screen keyboard).
 
 ## Licences
-To be **checked before B3 commits an image**; none of this was verified by reading the licence files.
-- Microsoft published its 6502 BASIC (version 1.1) on GitHub under the MIT licence in 2025 (reports: [Linuxiac](https://linuxiac.com/microsofts-6502-basic-goes-open-source-under-mit-license/),
-  [Hackaday](https://hackaday.com/tag/ms-basic)). That source is for Microsoft's own assembler, so it would have to be ported to ca65 to be built.
-- [mist64/msbasic](https://github.com/mist64/msbasic) is a ca65 port that builds several historical versions of Microsoft BASIC, and is what the
-  Ben Eater community builds on. Its own licence is not confirmed here (a fork lists BSD 2-clause); read its `LICENSE` and the original copyright
-  notices, and keep them next to the binary.
-- **EhBASIC** (Lee Davison) is the alternative if a licence is a problem; its terms are not confirmed either.
-- The decision, once read: ship the MIT or BSD licensed build with its notices, and a "where it comes from" line in the reference page.
+Checked on 2026-10-24 by reading the repositories' pages (not a legal opinion, and the repositories' contents may change). What there is:
+
+| Source | Licence | What it is |
+|---|---|---|
+| [microsoft/BASIC-M6502](https://github.com/microsoft/BASIC-M6502) | **MIT**, "Copyright (c) Microsoft Corporation" (a `LICENSE` file is in the repo) | Microsoft's own source, *Microsoft BASIC for 6502 Microprocessor, Version 1.1*, copyright Microsoft 1976–1978: one file, `m6502.asm` (6,955 lines), with `REALIO` conditionals for the Apple II, Commodore PET, Ohio Scientific, KIM-1 and a PDP-10 simulation. No build instructions and no assembler named ("compatible with period assemblers"). Archived (read-only) since September 2025. |
+| [mist64/msbasic](https://github.com/mist64/msbasic) | README says **2-clause BSD**; "main work by Michael Steil"; **no `LICENSE` file** in the root listing, the README statement is the only grant | A reconstruction in `ca65` source that builds byte-exact copies of ten historical versions (Commodore 1 and 2, OSI, KIM, AIM-65, SYM-1, KBD, MicroTAN, AppleSoft I, W65C816SXB). Built with the cc65 suite and `./make.sh`, which compares each build with the original binary in `orig/`. |
+| [beneater/msbasic](https://github.com/beneater/msbasic) | README says **2-clause BSD** (same wording as above), no `LICENSE` file shown | A fork of mist64's with an **`eater` target** (`eater.cfg`, `defines_eater.s`, `eater_iscntc.s`, `wozmon.s`, `lcd.s`): the one this plan imitates. Its README does not describe the target's memory map or I/O; read the files. |
+| EhBASIC (Lee Davison), [mirror of its readme](https://git.applefritter.com/6502/6502_EhBASIC_V2.22/src/branch/master/readme.txt) | "free but not copyright free": any distributed binary must contain the string "Derived from EhBASIC"; **commercial use needs the author's permission** | A different BASIC, not Microsoft's. The terms come from a mirror, not the author. |
+
+What it means for us:
+- **Shipping Microsoft BASIC is allowed.** Microsoft's own repository is MIT, so the Microsoft code may be used, copied, modified and distributed if its copyright and
+  licence notice stay with it. The licence notice goes in the repo next to the image, and in the reference page ("where it comes from").
+- **The easy route (the `ca65` build, as Ben Eater's) has a weaker paper trail.** mist64's version is a 2-clause BSD reconstruction of code that was sold as binaries by
+  Microsoft, OSI, Commodore and Apple *before* Microsoft's MIT release, and its README is the only grant (no `LICENSE` file). BSD covers the work of its authors, not
+  anyone else's code in it. Microsoft's MIT release covers the Microsoft BASIC source it published (version 1.1), which is the common core of these builds, but I did not
+  check which base the `eater` target comes from or how far it differs from Microsoft's 1.1, so I cannot say the MIT release covers all of it. For a free, educational
+  project this is a low risk that people take every day, but it is a risk.
+- **EhBASIC is not the way out:** it asks permission for commercial use and the terms come from a mirror.
+
+**Decision, in order of preference (revisit before B3 commits an image):**
+1. **Build from the `ca65` source, `eater`-style, and keep every notice**: Microsoft's MIT notice and copyright line, Michael Steil's 2-clause BSD statement, Ben
+   Eater's changes if his files are used, with a short `LICENSE-BASIC` next to the image and a line in the reference page. Before committing it, **diff the Eater
+   base against Microsoft's `m6502.asm` version 1.1** (does the part that matters match?), and note the result here.
+2. **If that diff or a reviewer says no**, port Microsoft's `m6502.asm` (MIT, clean provenance) to our own `eater`-style target instead. It is one file with
+   conditional assembly, but written for another assembler; our `asm6502.ts` has no macros, so this is a port to `ca65` (offline, as above), probably a milestone of its own.
+3. **Last resort:** write a small BASIC of our own in 6502 assembly (no licence question, much more work, and not "Microsoft BASIC").
+- A note in the PR that adds the image says which of these was chosen and why.
 
 ## Not doing
 The C64 (see *Why*); a tape or disk, a file system, `LOAD` and `SAVE` (programs are typed or pasted; saving is the circuit's own file save, with
@@ -149,7 +168,7 @@ milestone: another behavioural part and a BASIC `POKE` example); other BASICs (A
 - **Speed** was the one that could sink it. Measured: with the history off the board already does 114,000–198,000 cycles/s, so the target is
   reachable if the snapshots are made cheap (B1). If sharing and a cheap clone fall short, BASIC still runs, only slowly, and the plan says so.
 - **Snapshots of a big RAM** (B1) and **share-link size** (B1) both touch every circuit; benchmark and test the old files first.
-- **Licence** of the BASIC source (above): not a reason to start, a reason to read before B3.
+- **Licence** of the BASIC build (above): Microsoft's own source is MIT, the `ca65` build's paper trail is weaker; B3 starts with the diff and the notices.
 - **Typing on a phone** (B4) needs a real input element; plan the e2e on the emulated phone early.
 
 ## Verification
