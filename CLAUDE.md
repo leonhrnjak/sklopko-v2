@@ -11,6 +11,12 @@
 
 ## Workflow: feature branch → PR → CI → merge
 
+**Every milestone, sub-milestone and feature gets its own branch and its own PR, opened as soon as it is finished.** Never pile
+several milestones onto one branch, and never leave finished work without a PR. When a plan has milestones (`R1`, `R2`…, `C1`, `C2`…),
+each is one PR, stacked: its branch starts from the previous milestone's branch and the PR targets that branch (retarget to `main`
+when the one below merges), so each diff shows only its own work. A session's default branch, if it names one, does not change this:
+make the milestone branches from it. Without a PR (description, screenshots, CI) the work is not done.
+
 1. Work on a feature branch (never commit to `main` directly), push it, and open a PR with `gh pr create`.
    **Every PR description has five parts** (the template is `.github/pull_request_template.md`): what it adds (short, for a
    reader who has not seen the code), how it works (short, technical), how to test it (numbered steps), screenshots, and the
