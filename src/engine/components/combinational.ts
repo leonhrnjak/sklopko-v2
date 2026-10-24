@@ -2,6 +2,7 @@ import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
 import { ISAS } from '../isa'
+import { pinLabels } from '../pinlabels'
 import { HEX_WORDS, parseWords, tableBox } from './memory'
 
 /**
@@ -502,11 +503,16 @@ export const memoryRom: ComponentDef[] = [
     layout: (p) => {
       const { w, minRows } = tableBox(2 ** Number(p.abits), Number(p.dbits) / 4)
       const table = p.table === 'on'
+      // A control ROM shows what each output switches on (the pins keep their names, D0…, in wires and saved files).
+      const labels = typeof p.signals === 'string' && p.signals.trim() ? pinLabels(p.signals, Number(p.dbits)) : []
+      const outputs = names('D', Number(p.dbits)).map((name, i) => (labels[i] ? { name, label: labels[i] } : name))
+      const longest = Math.max(0, ...outputs.map((o) => (typeof o === 'string' ? o : o.label!).length))
       return box({
-        w,
+        // Room for the longest output name, the address names and the title between.
+        w: Math.max(w, Math.ceil((longest * 6 + 5 + 40 + 36) / 20) * 20),
         minRows,
         left: [...names('A', Number(p.abits)), ...(table ? names('TA', 8) : [])],
-        right: [...names('D', Number(p.dbits)), ...(table ? names('TD', 8) : [])],
+        right: [...outputs, ...(table ? names('TD', 8) : [])],
       })
     },
     evaluate(inst) {

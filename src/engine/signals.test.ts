@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { getDef } from './registry'
+import { pinLabels } from './pinlabels'
+import { SIGNAL_PRESETS, presetParams } from './signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalParts, signalValue, signalsToText, splitPlan, valueName, withSignal } from './signals'
 
 const LAYOUT = `LOAD
@@ -153,6 +156,68 @@ describe('the text form', () => {
       const back = asm(signalsToText(layout, rows, words))
       expect(back.errors, `word ${w}`).toEqual([])
       expect(back.words, `word ${w}`).toEqual(words)
+    }
+  })
+})
+
+describe('pin labels', () => {
+  it('a one-bit signal names its pin, a field its pins SRC0, SRC1…, and a bit no signal covers keeps its own', () => {
+    expect(pinLabels(LAYOUT, 12)).toEqual(['LOAD', 'SRC0', 'SRC1', 'WRITE', undefined, undefined, 'COUNT0', 'COUNT1', 'COUNT2', undefined, undefined, undefined])
+  })
+
+  it('reads exactly the lists that parseSignals accepts, and gives no names for the others', () => {
+    const lists = [
+      ...SIGNAL_PRESETS.map((x) => x.signals),
+      LAYOUT,
+      '',
+      '1BAD',
+      'A\nA',
+      'X 0',
+      'X 17',
+      'X 2 3',
+      'Y 2 = P Q R S T',
+      'Z 2 = P P',
+      'W 1 = A B if NOPE',
+      'T 2\nV 2 = K if T',
+      'V 1 = K if T\nT',
+      'V 1 = K if T\nT 1',
+      '_ 2 = A',
+      '_ 2\nA',
+      'A = B = C',
+      'A 2 = B if X if Y',
+      'SRC 2 = 1B',
+      'A ; comment\n// another\nB 2',
+    ]
+    for (const text of lists) {
+      const { layout, errors } = parseSignals(text)
+      const want = errors.length ? [] : Array.from({ length: 24 }, (_, i) => layout.signals.find((s) => i >= s.from && i < s.from + s.width)).map((s, i) => (s ? (s.width === 1 ? s.name : `${s.name}${i - s.from}`) : undefined))
+      expect(pinLabels(text, 24), JSON.stringify(text)).toEqual(want)
+    }
+  })
+
+  it('a ROM with signals shows them on its output pins, which keep their names in wires', () => {
+    const rom = getDef('rom')
+    const params = { abits: 4, dbits: 8, signals: 'LOAD\nSRC 2 = A B C\nSTORE', rows: '', table: 'off' }
+    const pins = rom.layout!(params as never).pins.filter((q) => q.dir === 'out')
+    expect(pins.map((q) => q.name)).toEqual(['D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'])
+    expect(pins.map((q) => q.label)).toEqual(['LOAD', 'SRC0', 'SRC1', 'STORE', 'D4', 'D5', 'D6', 'D7'])
+    // Names that do not parse, or none, leave the pins as they were.
+    for (const signals of ['', 'LOAD\n1BAD']) expect(rom.layout!({ ...params, signals } as never).pins.filter((q) => q.dir === 'out').map((q) => q.label)).toEqual(['D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'])
+  })
+
+  it('a long signal name makes the body wide enough for it', () => {
+    const wide = getDef('rom').layout!({ abits: 8, dbits: 16, signals: SIGNAL_PRESETS[0].signals, rows: '', table: 'off' } as never).w
+    const plain = getDef('rom').layout!({ abits: 8, dbits: 16, signals: '', rows: '', table: 'off' } as never).w
+    expect(wide).toBeGreaterThan(plain)
+  })
+})
+
+describe('ready-made control ROMs', () => {
+  it('every preset assembles, and fits its ROM', () => {
+    for (const x of SIGNAL_PRESETS) {
+      const params = presetParams(x)
+      expect(params.data.split(' '), x.name).toHaveLength(2 ** x.abits)
+      expect(parseSignals(x.signals).layout.bits, x.name).toBeLessThanOrEqual(x.dbits)
     }
   })
 })

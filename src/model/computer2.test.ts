@@ -3,6 +3,7 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
+import { SIGNAL_PRESETS, presetParams } from '../engine/signal-presets'
 import { SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalsToText, splitPlan } from '../engine/signals'
 import { bars, picture, RAYCASTER_SOURCE } from './raycaster'
@@ -1055,5 +1056,10 @@ describe('control ROMs: the names of their bits and rows', () => {
       expect(back.errors).toEqual([])
       expect(back.words).toEqual(words)
     }
+  })
+
+  it('the ready-made control ROMs are the words the computer builds with', () => {
+    const data = (id: string) => presetParams(SIGNAL_PRESETS.find((x) => x.id === id)!).data
+    expect([data('skasm-1'), data('skasm-2'), data('skasm-3')]).toEqual([CONTROL_1, CONTROL_2, CONTROL_3])
   })
 })

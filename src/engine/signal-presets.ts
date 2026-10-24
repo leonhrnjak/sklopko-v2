@@ -1,4 +1,5 @@
-import { SKASM_OPS } from './isa'
+import { SKASM_OPS, toHexWords } from './isa'
+import { assembleSignals, parseRows, parseSignals } from './signals'
 
 /**
  * The names of the control bits of the computers that ship with the app (see `engine/signals.ts` for the syntax). The
@@ -14,6 +15,8 @@ export interface SignalPreset {
   dbits: number
   signals: string
   rows: string
+  /** What each row switches on, in the text form: the ROM's words. */
+  control: string
 }
 
 /** Control ROM 1 of the SKASM computers: the accumulator, RAM, the flags, the adder and the jumps. */
@@ -140,8 +143,15 @@ HALT: HALT
 `
 
 export const SIGNAL_PRESETS: SignalPreset[] = [
-  { id: 'skasm-1', name: 'SKASM computer, Control', abits: 8, dbits: 16, signals: SKASM_SIGNALS_1, rows: SKASM_ROWS },
-  { id: 'skasm-2', name: 'SKASM computer, Control 2', abits: 8, dbits: 8, signals: SKASM_SIGNALS_2, rows: SKASM_ROWS },
-  { id: 'skasm-3', name: 'SKASM computer, Control 3', abits: 8, dbits: 8, signals: SKASM_SIGNALS_3, rows: SKASM_ROWS },
-  { id: 'beginner', name: 'Beginner computer, Control ROM', abits: 4, dbits: 8, signals: BEGINNER_SIGNALS, rows: BEGINNER_ROWS },
+  { id: 'skasm-1', name: 'SKASM control ROM 1 (16 bits)', abits: 8, dbits: 16, signals: SKASM_SIGNALS_1, rows: SKASM_ROWS, control: SKASM_CONTROL_1 },
+  { id: 'skasm-2', name: 'SKASM control ROM 2 (8 bits)', abits: 8, dbits: 8, signals: SKASM_SIGNALS_2, rows: SKASM_ROWS, control: SKASM_CONTROL_2 },
+  { id: 'skasm-3', name: 'SKASM control ROM 3 (8 bits)', abits: 8, dbits: 8, signals: SKASM_SIGNALS_3, rows: SKASM_ROWS, control: SKASM_CONTROL_3 },
+  { id: 'beginner', name: 'Beginner computer control ROM (8 bits, 16 rows)', abits: 4, dbits: 8, signals: BEGINNER_SIGNALS, rows: BEGINNER_ROWS, control: BEGINNER_CONTROL_TEXT },
 ]
+
+/** The ROM params of a ready-made control ROM: its size, its names and its words (an error if the text does not assemble). */
+export function presetParams(x: SignalPreset): { abits: number; dbits: number; signals: string; rows: string; data: string } {
+  const r = assembleSignals(parseSignals(x.signals).layout, parseRows(x.rows).rows, x.control, 2 ** x.abits, x.dbits)
+  if (r.errors.length) throw new Error(`${x.name} does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
+  return { abits: x.abits, dbits: x.dbits, signals: x.signals, rows: x.rows, data: toHexWords(r.words, x.dbits) }
+}
