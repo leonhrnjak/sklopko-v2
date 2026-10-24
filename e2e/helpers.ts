@@ -40,7 +40,16 @@ export async function wire(page: Page, from: [string, string], to: [string, stri
 }
 
 export async function clickComp(page: Page, id: string) {
-  const b = (await page.locator(`.comp[data-id="${id}"] > g`).boundingBox())!
+  const part = page.locator(`.comp[data-id="${id}"] > g`)
+  // The view may still be moving (fitting after a load, or a part just changed its size): click once it has stopped.
+  let b = (await part.boundingBox())!
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(50)
+    const next = (await part.boundingBox())!
+    const still = next.x === b.x && next.y === b.y && next.width === b.width && next.height === b.height
+    b = next
+    if (still) break
+  }
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 }
 
