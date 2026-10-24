@@ -91,8 +91,8 @@ export function board6502Builder(o: Board6502Options = {}) {
   const DECODE = 760
   const MEMORY = 1300
   const OUTPUT = 1800
-  const INPUT = 2300
-  const DISPLAY = 2800
+  const INPUT = 2800
+  const DISPLAY = 2300
 
   // The clock and the reset button. RES is active low, so the button goes through an inverter: idle = 1, pressed = 0.
   const clk = part(POWER, 'clk', 'clock', { params: { hz: o.hz ?? 4 }, label: 'Clock (Φ2)' })
