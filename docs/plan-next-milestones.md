@@ -15,7 +15,7 @@
 > - [x] 11a Library storage, v0.0.1-59
 > - [x] 11b Nothing replaces your work, v0.0.1-60
 > - [x] 11c My circuits panel, state machines, backup, v0.0.1-61
-> - [ ] 12a Code splitting
+> - [x] 12a Code splitting, v0.0.1-62
 > - [ ] 12b Prebuilt examples and thumbnails
 > - [ ] 12c Rendering, only if measurement says so
 > - [ ] 13a Toolbar menus, collapsible help, e2e split
@@ -167,6 +167,21 @@ something else; delete and undo; embed mode never touches the library.
   chunk, so the menu and short links resolve without loading builders. The welcome example stays in the main chunk.
 - A budget check: `scripts/check-bundle.mjs`, run in CI after `npm run build`, fails when the main chunk is over 350 KB
   (from 655 KB).
+
+*What it did, and where it differs from the plan.*
+- The panels (Logic, State machines, SKASM reference, challenge list and panel, waveforms with the timing view and tick
+  diagram) are `React.lazy` chunks, mounted by `ui/OnDemand.tsx` from the first time their open flag is set. The ROM/RAM/LUT/console
+  editors of the inspector and the picture and VCD exporters are chunks too. The "first probe opens the waveform panel" rule moved
+  out of the panel into `useOpenOnFirstProbe` (`app/waveform.ts`), since the panel no longer exists until it is open.
+- `src/model/examples-index.ts` has the ids, names, groups and `exampleFromPath` (no blurbs yet: 13b adds them with the gallery).
+  `examples.ts` holds only the builders and loads on first use; the welcome example (`example-counter.ts`) stays in the main
+  chunk. `openExample` is now async (of two quick clicks the later wins). A unit test keeps the index and the builders in step.
+- **Result: 483 kB of JavaScript at startup (was 669 kB; gzip 156 kB, was 213 kB), not 350 kB.** React DOM alone is about 203 kB of
+  it, and the state machine and challenge modules are wired into the toolbar and startup (`app/fsm.ts` restores the machine,
+  `app/challenges.ts` reads the challenge list), so they could not leave without a redesign. `scripts/check-bundle.mjs`
+  (`npm run check:bundle`, a CI step after the build) sums what `dist/index.html` loads at startup, entry plus preloads, and
+  fails over 500 kB. The 350 kB target could still be met by moving the state machine and challenge stores behind `import()`.
+- Not preloaded: the first open of a panel waits for its chunk (10–25 kB each). e2e waits for the panel where it matters.
 
 **12b. Prebuilt examples and thumbnails (medium)**
 - A Vite plugin (`scripts/examples-plugin.ts`, used in `vite.config.ts`) runs the builders at build time (they are DOM-free:

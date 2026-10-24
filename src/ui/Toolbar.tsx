@@ -21,8 +21,7 @@ import {
   undo,
   useStore,
 } from '../app/store'
-import { EXAMPLES, EXAMPLE_GROUPS } from '../model/examples'
-import { exportImage } from './canvas/exportImage'
+import { EXAMPLE_GROUPS, EXAMPLE_LIST } from '../model/examples-index'
 import { fitView } from './canvas/viewport'
 
 /** Labelled display options; used in the settings popover and in the phone menu. */
@@ -201,11 +200,10 @@ export function Toolbar() {
       <select
         value=""
         onChange={(e) => {
-          const ex = EXAMPLES.find((x) => x.id === e.target.value)
+          const ex = EXAMPLE_LIST.find((x) => x.id === e.target.value)
           if (ex) {
-            openExample(ex)
+            void openExample(ex).then(() => requestAnimationFrame(fitView))
             setMenuOpen(false)
-            requestAnimationFrame(fitView)
           }
         }}
         aria-label="Load an example"
@@ -215,7 +213,7 @@ export function Toolbar() {
         </option>
         {EXAMPLE_GROUPS.map((group) => (
           <optgroup key={group} label={group}>
-            {EXAMPLES.filter((x) => x.group === group).map((x) => (
+            {EXAMPLE_LIST.filter((x) => x.group === group).map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name}
               </option>
@@ -245,7 +243,7 @@ export function Toolbar() {
         value=""
         onChange={(e) => {
           const [format, area] = e.target.value.split('-') as ['svg' | 'png', 'all' | 'view']
-          void exportImage(format, area)
+          void import('./canvas/exportImage').then((m) => m.exportImage(format, area))
         }}
         aria-label="Export a picture"
         title="Save a picture of the circuit"

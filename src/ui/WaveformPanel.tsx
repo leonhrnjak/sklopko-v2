@@ -185,16 +185,6 @@ export function WaveformPanel() {
   const format = useWave((s) => s.format)
   const rows = useMemo(() => buildRows(comps), [comps])
 
-  // The first probe in a circuit opens the panel.
-  const seen = useRef(0)
-  useEffect(() => {
-    if (rows.length > 0 && seen.current === 0) {
-      setWaveOpen(true)
-      setWaveView('waves')
-    }
-    seen.current = rows.length
-  }, [rows.length])
-
   // Redraw whenever time moves or a trace changes.
   const rowsRef = useRef(rows)
   useEffect(() => {

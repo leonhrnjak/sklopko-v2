@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import {
   deleteSelection,
   select,
@@ -22,8 +22,12 @@ import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
 import { openReference } from '../app/reference'
-import { ConsoleSection, LutSection, RamSection, RomSection } from './MemoryInspector'
 import { TextParam } from './TextParam'
+
+const MEMORY_TYPES = new Set(['rom', 'ram', 'lut', 'console'])
+
+// The editors for ROM, RAM, LUT and console contents load when such a part is first selected.
+const MemorySection = lazy(() => import('./MemoryInspector').then((m) => ({ default: m.MemorySection })))
 
 function deleteAndClose() {
   deleteSelection()
@@ -240,10 +244,11 @@ function CompInspector({ comp }: { comp: Comp }) {
         )
       })}
       {hasDelay(comp) && <DelayField comp={comp} />}
-      {comp.type === 'rom' && <RomSection comp={comp} />}
-      {comp.type === 'ram' && <RamSection comp={comp} />}
-      {comp.type === 'lut' && <LutSection comp={comp} />}
-      {comp.type === 'console' && <ConsoleSection comp={comp} />}
+      {MEMORY_TYPES.has(comp.type) && (
+        <Suspense fallback={null}>
+          <MemorySection comp={comp} />
+        </Suspense>
+      )}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}
       {comp.type === 'probe' && !(Number(comp.params.bits) > 1) && <ProbeGroupInfo comp={comp} />}
       <div className="row">

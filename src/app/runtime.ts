@@ -1,4 +1,5 @@
-import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
+import { counterDisplay } from '../model/example-counter'
+import { WELCOME_ID, exampleFromPath, type ExampleInfo } from '../model/examples-index'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
@@ -17,24 +18,36 @@ const LEGACY_KEY = 'sklopko.circuit.v1'
  * Show an example's short link in the address bar while it is open and unedited
  * (see `trackExampleUrl`), or the plain root otherwise.
  */
-export function setExampleUrl(ex: Example | null) {
+export function setExampleUrl(ex: ExampleInfo | null) {
   const path = ex ? `/${ex.id}` : '/'
   if (location.pathname !== path || location.hash) history.replaceState(null, '', path + location.search)
 }
 
 /** An example opens without a document of its own; editing it makes one, "<name> (copy)". */
-const exampleOpening = (ex: Example): Opening => ({ mode: 'on-edit', name: `${ex.name} (copy)`, origin: { example: ex.id } })
+const exampleOpening = (ex: ExampleInfo): Opening => ({ mode: 'on-edit', name: `${ex.name} (copy)`, origin: { example: ex.id } })
 
-/** Open an example and point the address bar at its short link. */
-export function openExample(ex: Example) {
-  openCircuit(ex.build(), exampleOpening(ex))
+/** An example's circuit. The builders load on demand, except the welcome example's, which is in the main chunk. */
+async function buildExample(ex: ExampleInfo): Promise<Circuit> {
+  if (ex.id === WELCOME_ID) return counterDisplay()
+  const { EXAMPLES } = await import('../model/examples')
+  return EXAMPLES.find((x) => x.id === ex.id)!.build()
+}
+
+let opening = 0
+
+/** Open an example and point the address bar at its short link. Of two quick clicks the later one wins. */
+export async function openExample(ex: ExampleInfo) {
+  const mine = ++opening
+  const circuit = await buildExample(ex)
+  if (mine !== opening) return
+  openCircuit(circuit, exampleOpening(ex))
   setExampleUrl(ex)
 }
 
 /** What the app opens with, and how that relates to the library. */
 async function initialCircuit(): Promise<{ circuit: Circuit; how: Opening }> {
   const ex = exampleFromPath(location.pathname)
-  if (ex) return { circuit: ex.build(), how: exampleOpening(ex) }
+  if (ex) return { circuit: await buildExample(ex), how: exampleOpening(ex) }
   if (location.pathname !== '/') setExampleUrl(null)
   try {
     const fromHash = fromShareHash(location.hash)
@@ -45,7 +58,7 @@ async function initialCircuit(): Promise<{ circuit: Circuit; how: Opening }> {
   } catch {
     showToast('That share link could not be opened.')
   }
-  const welcome = { circuit: EXAMPLES[0].build(), how: { mode: 'on-edit', name: 'My circuit', origin: { example: EXAMPLES[0].id } } as Opening }
+  const welcome = { circuit: counterDisplay(), how: { mode: 'on-edit', name: 'My circuit', origin: { example: WELCOME_ID } } as Opening }
   // An embedded circuit is the one in the link, never the visitor's own saved work.
   if (isEmbed()) return welcome
   try {
