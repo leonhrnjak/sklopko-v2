@@ -70,10 +70,24 @@ Reading the numbers:
   its state should not be copied at all: check how its parsed words are held and share them.
 - **ROM images.** The ROM's hex text is capped at 14,000 characters. A 16 KB image is 49,000 characters as hex, and it travels in saved files
   and share links. Choose a denser stored form (base64 of the bytes, perhaps compressed), keep reading the old hex, and check the share-link size.
-- **Speed.** Profile one edge of the board (where do the 11 µs go: the decoder's gates, the memory parts, the CPU part, snapshotting?) and take the
-  cheap wins; measure again. **Decision gate:** if the board still runs under about 50,000 cycles/s, either raise the per-frame work cap with a
-  *Speed* setting (B4 has the control for it), or fold the address decoder into one behavioural part; the CPU, RAM and ROM stay separate parts
-  either way, so the wiring lesson stays. Write the numbers in this note.
+- **Speed: the history is the cost, not the simulation.** Profiled (a CPU profile of the board, plus the same run with `record()` switched off):
+
+  | Board | with history (today) | history off |
+  |---|---|---|
+  | LEDs only | 38,000 cycles/s | **198,000 cycles/s** |
+  | five devices | 29,000 cycles/s | **114,000 cycles/s** |
+
+  `record()` (the snapshot taken at every clock edge so you can step back) costs about 9 µs of the 10 µs an edge takes. Inside it: the generic
+  recursive `cloneState` (2.3 µs for the CPU's six numbers, 2.2 µs to copy the 2 KB RAM), and fresh arrays for `values`, `states` and `pipes`
+  at every edge, which also keep the garbage collector busy. Settling the 18 parts is about 1.5 µs. So the work, in order of payoff:
+  1. **Share what did not change.** A part whose state did not change since the last snapshot reuses the previous copy (the RAM changes on a few
+     cycles in a hundred; a version counter on the RAM tells). With the paged RAM above a write copies one page, so this is also what makes 32 KB fine.
+  2. **A cheap clone for the CPU.** Its state is plain numbers: give a part an optional `clone` (or keep the state in a small typed array) instead of
+     the generic `for…in` walk.
+  3. **No per-edge allocation.** Keep the history as preallocated slots (a ring buffer with its arrays reused), not new arrays and `shift()`.
+  4. **Only if still short:** a *Speed* setting that raises the 10 ms work cap per frame, and snapshotting every edge only while paused or slow.
+  Target: 100,000 cycles/s on a board with devices, which is what BASIC needs. Measure after each step and write the numbers in this note.
+  The decoder does not need to become one part: it is not where the time goes.
 - **Tests.** RAM paging (a write after a snapshot, step back over it, a page shared by many snapshots), the old hex still loads, a 32 KB RAM and
   16 KB ROM on a board running a program that fills and checks all of it. Bump the minor version in `package.json` (`0.2.0`).
 
@@ -132,8 +146,8 @@ milestone: another behavioural part and a BASIC `POKE` example); other BASICs (A
 4. **32 KB of RAM, not 64 KB.** BASIC needs about 8 KB at least; 32 KB is the size the real board has, and half the snapshot cost.
 
 ## Risks
-- **Speed** is the one that can sink it: the whole design assumes the board can reach about 100,000 cycles/s. B1 measures first and has a decision
-  gate; if neither the cheap wins nor the work cap get there, BASIC still runs, only slowly, and the plan says so.
+- **Speed** was the one that could sink it. Measured: with the history off the board already does 114,000–198,000 cycles/s, so the target is
+  reachable if the snapshots are made cheap (B1). If sharing and a cheap clone fall short, BASIC still runs, only slowly, and the plan says so.
 - **Snapshots of a big RAM** (B1) and **share-link size** (B1) both touch every circuit; benchmark and test the old files first.
 - **Licence** of the BASIC source (above): not a reason to start, a reason to read before B3.
 - **Typing on a phone** (B4) needs a real input element; plan the e2e on the emulated phone early.
