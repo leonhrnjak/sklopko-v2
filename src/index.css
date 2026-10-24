@@ -2791,3 +2791,42 @@ button.linklike:hover {
   fill: var(--muted);
   pointer-events: none;
 }
+
+/* ---- Tests (testbench) ---- */
+
+.modal.testbench {
+  width: min(720px, 100%);
+}
+.test-text {
+  width: 100%;
+  box-sizing: border-box;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+.test-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.test-results .bad {
+  border-left: 3px solid var(--wire-0);
+  padding: 4px 10px;
+  background: var(--bg);
+  border-radius: 0 6px 6px 0;
+}
+.test-results code {
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.challenge-count.ok {
+  color: var(--accent-strong);
+  font-weight: 600;
+}

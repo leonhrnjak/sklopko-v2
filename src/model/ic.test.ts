@@ -375,7 +375,7 @@ describe('saving ICs', () => {
   it('round-trips a circuit with nested ICs, and writes version 2', () => {
     const c = fullAdder()
     const saved = serialize(c)
-    expect(saved.version).toBe(2)
+    expect(saved.version).toBe(3)
     expect(saved.ics).toHaveLength(1)
     const back = deserialize(JSON.parse(JSON.stringify(saved)))
     expect(back).toEqual(JSON.parse(JSON.stringify(c)))
@@ -387,7 +387,7 @@ describe('saving ICs', () => {
 
   it('opens a version 1 file as it was, with no ICs', () => {
     const v1 = { app: 'sklopko', version: 1, comps: [{ id: 'a', type: 'switch', x: 0, y: 0 }], wires: [] }
-    expect(migrate(v1)).toMatchObject({ version: 2, ics: [] })
+    expect(migrate(v1)).toMatchObject({ version: 3, ics: [] })
     const c = deserialize(v1)
     expect(Object.keys(c.comps)).toEqual(['a'])
     expect(c.ics).toBeUndefined()

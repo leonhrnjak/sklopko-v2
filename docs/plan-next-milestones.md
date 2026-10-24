@@ -26,7 +26,7 @@
 > - [x] 14d Edit an IC, v0.0.1-70
 > - [x] 14e Collapse a selection into an IC; examples, v0.0.1-71
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
-> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72), 16b lookup table from an expression (v0.0.1-73)
+> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72), 16b lookup table from an expression (v0.0.1-73), 16c testbench (v0.0.1-74)
 
 ## Context
 Milestones 0–10 are done (v0.0.1-57): 70 part types, buses and tri-state, the timing view, the state machine editor,
@@ -527,6 +527,17 @@ selected, and to a gamepad's keys when there is one. Tests: `app/keypad.test.ts`
 table with several outputs), more are `Y1 = …` lines or bare lines that fill Y0, Y1… in order; other names are defined by their own lines;
 an output the text leaves out keeps its values. A syntax error says where it is, an input the table lacks and a line for no output are
 named. One undo step. Tests: `logic/lut.test.ts`, and an e2e test in `computers.spec.ts` (with the "devices" tests).
+
+*16c. Testbench: what it did, and where it differs from the plan.* **Tools → Tests…** opens a window with a text box: one step on each line, parts
+separated by `;` and run in the order written: `A=1 B=0` sets switches, `pulse CLK` raises a switch and lowers it again (settling after each
+edge; a switch that was on is on again afterwards), `expect Q=1` reads LEDs. Names are the labels (`Switch1`, `LED1` for parts without one,
+as in the Logic window); `#` and `//` start comments. *Run tests* runs them in a simulator of its own, from the circuit switched on with
+every switch off, and lists the failing steps with the line, the text and what each LED showed. A step that names a switch or LED the circuit
+lacks is reported and the other steps still run; a mistake in the text is reported with its line.
+- **Text, not a list editor**, saved as `Circuit.tests` (file version 3, `migrate` 2 → 3, at most 4000 characters): diff-friendly, easy
+  to paste, and quicker to write than a structured editor. It is the document's, so the window says to leave an IC before editing it.
+- `model/testbench.ts` has the parser and the step runner (`runSteps`), which the challenges with memory now use too (their steps are a `set` and
+  an `expect` each, checked exactly as before); that is where `pulse` was added, as planned. Tests: `model/testbench.test.ts`, `e2e/testbench.spec.ts`.
 
 ## Considered and not planned
 - **Croatian UI**: not needed.

@@ -3,6 +3,7 @@ import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
 import { leaveLevels, leaveToDepth, openMakeIc } from '../app/ics'
+import { openTestbench } from '../app/testbench'
 import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
@@ -279,6 +280,9 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
         Make IC…
+      </MenuItem>
+      <MenuItem onClick={openTestbench} title="Steps that set switches, pulse a clock and check LEDs, saved with the circuit: run them to see what passes">
+        Tests…
       </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges

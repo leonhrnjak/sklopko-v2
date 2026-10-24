@@ -56,6 +56,8 @@ export interface Circuit {
    * circuit inside an IC refers to the ICs of the document by id.
    */
   ics?: Record<string, ICDef>
+  /** The testbench of the document: steps written as text, run with *Run tests* (see `model/testbench.ts`). Only the top-level circuit has it. */
+  tests?: string
   /**
    * Set while the body of a custom IC is being edited: this circuit is that body, `def` is the IC and `outer` the circuit it is
    * placed in (which has its own `up` when that is an IC body too). `ics` is the document's table, shared by every level. See
