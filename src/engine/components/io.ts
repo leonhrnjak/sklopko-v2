@@ -31,7 +31,7 @@ export const io: ComponentDef[] = [
     type: 'switch',
     name: 'Switch',
     category: 'io',
-    description: 'Toggle switch. Click it to flip between 0 and 1.',
+    description: 'Toggle switch: outputs 0 or 1. Click it to flip it, or give it a key and press that key.',
     params: [
       { key: 'on', label: 'On', kind: 'bool', default: false },
       {
@@ -67,7 +67,7 @@ export const io: ComponentDef[] = [
     type: 'clock',
     name: 'Clock',
     category: 'io',
-    description: 'Square wave source. Ticks in real time while the simulation runs.',
+    description: 'Square wave source from 0.25 to 4096 Hz. It flips every half period in real time while the simulation runs; Clock step flips it by hand.',
     params: [
       {
         key: 'hz',
@@ -150,7 +150,7 @@ export const io: ComponentDef[] = [
     type: 'led',
     name: 'LED',
     category: 'io',
-    description: 'Lights up when its input is 1.',
+    description: 'Lights up while its input is 1. Dark for 0 and for unknown (X).',
     params: [
       {
         key: 'color',
@@ -320,7 +320,7 @@ export const display: ComponentDef[] = [
     type: 'seg7',
     name: '7-segment display',
     category: 'display',
-    description: 'Seven-segment display. Each input a–g (and dp) drives one segment.',
+    description: 'Seven-segment display. Each input lights one segment (a–g) or the decimal point (dp) while it is 1. Use a BCD → 7-segment decoder to show digits.',
     layout: () => box({ w: 80, left: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] }),
     evaluate() {},
   },

@@ -416,6 +416,31 @@ input:focus-visible {
   color: var(--muted);
   margin: 0 0 14px;
 }
+.inspector table.pins {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+.inspector table.pins th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 6px 0 3px;
+}
+.inspector table.pins td {
+  padding: 3px 0;
+  vertical-align: top;
+  border-top: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+}
+.inspector table.pins td.pins-name {
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 10px;
+}
 .field {
   display: flex;
   flex-direction: column;

@@ -92,8 +92,7 @@ export const arithmetic: ComponentDef[] = [
     type: 'addsub4',
     name: 'Adder/subtractor',
     category: 'arithmetic',
-    description:
-      'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out, V signals signed overflow.',
+    description: 'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out; V is 1 when the signed result does not fit in 4 bits.',
     title: () => '±\n4-bit',
     layout: () => box({ left: [...AB, { name: 'M', def: 0 }], right: [...names('S', 4), 'Co', 'V'] }),
     evaluate: comb((ins) => {
@@ -110,7 +109,7 @@ export const arithmetic: ComponentDef[] = [
     type: 'cmp4',
     name: 'Comparator',
     category: 'arithmetic',
-    description: 'Compares two 4-bit numbers A and B.',
+    description: 'Compares two 4-bit numbers A and B. Exactly one of the outputs A>B, A=B, A<B is 1.',
     title: () => 'COMP',
     layout: () => box({ left: AB, right: [{ name: 'GT', label: 'A>B' }, { name: 'EQ', label: 'A=B' }, { name: 'LT', label: 'A<B' }] }),
     evaluate: comb((ins) => {

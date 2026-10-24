@@ -119,6 +119,7 @@ security headers.
   with the circuit; *Run tests* lists the steps that fail and why.
 - **Offline:** after one visit the built app (page, scripts and all examples) is kept by the browser, so it opens without a
   network, and it can be installed from the browser's menu.
+- **Pins:** select a part to see a table of what each of its pins does, inputs first, then outputs.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
   H fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom. A switch with a **Key** (1–9 or a letter,
   in its inspector) flips when you press it; a keypad reads digits and A–F (or the calculator keys) from the keyboard, and
@@ -188,8 +189,8 @@ Wires of the same signal may share a trunk, and junction dots mark where it bran
 re-routes wires that cross others to untangle bundles. Only affected wires re-route when you move parts.
 Wires you shaped by hand keep their shape and stretch at the ends.
 
-**Adding a part** is one entry in `src/engine/components/*`: its pins (`layout`), its behaviour (`evaluate`)
-and optional params. The palette, inspector, saving and routing pick it up automatically. Box-shaped parts
+**Adding a part** is one entry in `src/engine/components/*`: its pins (`layout`), what each pin does (its text in `src/engine/pindata.ts`, shown in the inspector), its behaviour
+(`evaluate`) and optional params. The palette, inspector, saving and routing pick it up automatically. Box-shaped parts
 need no drawing code; gates and displays have custom symbols in `src/ui/symbols.tsx`.
 
 ## Tests
