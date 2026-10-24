@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, clickLabelled, chooseExample } from './helpers'
 
 test('examples load and the welcome counter ticks', async ({ page }) => {
