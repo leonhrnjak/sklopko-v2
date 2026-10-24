@@ -4,6 +4,7 @@ import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
 import { openCircuit, startAutosave, type Opening } from './documents'
 import { isEmbed } from './embed'
+import { flushFsm, restoreFsm } from './fsm'
 import { installGamepadKeys } from './gamepad'
 import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
 import { loadIntoSim, sim } from './sim'
@@ -76,6 +77,8 @@ export async function startRuntime() {
     if (!(await openLibrary())) {
       window.setTimeout(() => showToast('This browser will not keep your circuits after you close the page (private window?).'), 600)
     }
+    await restoreFsm()
+    window.addEventListener('pagehide', flushFsm)
     let told = false
     watchLibrary(() => {
       if (told) return

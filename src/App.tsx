@@ -5,6 +5,7 @@ import { ChallengePanel } from './ui/challenges/ChallengePanel'
 import { Canvas } from './ui/canvas/Canvas'
 import { EmbedBar } from './ui/EmbedBar'
 import { FsmPanel } from './ui/fsm/FsmPanel'
+import { LibraryDialog } from './ui/library/LibraryDialog'
 import { LogicPanel } from './ui/logic/LogicPanel'
 import { SkasmReference } from './ui/SkasmReference'
 import { fitView } from './ui/canvas/viewport'
@@ -48,6 +49,7 @@ export default function App() {
       <FsmPanel />
       <SkasmReference />
       <ChallengeList />
+      <LibraryDialog />
     </div>
   )
 }

@@ -125,9 +125,12 @@ let backend: LibraryBackend = memoryBackend()
 /** Use this backend (tests). */
 export function setBackend(b: LibraryBackend) {
   backend = b
-  active = null
+  active.circuit = active.fsm = null
   saving = Promise.resolve()
 }
+
+/** Does the library survive closing the browser? False when it is only in memory. */
+export const isPersistent = () => backend.persistent
 
 /** Open the browser's database. Returns false when the library is only in memory, so nothing will be kept. */
 export async function openLibrary(): Promise<boolean> {
@@ -145,6 +148,21 @@ export async function openLibrary(): Promise<boolean> {
 
 // ---- Documents ----------------------------------------------------------------------------------
 
+/**
+ * Changes to the library are made one after the other, so a save, a rename and a delete never overtake each other (a delete
+ * must not be followed by an older save putting the document back).
+ */
+let saving: Promise<void> = Promise.resolve()
+
+function queued<T>(work: () => Promise<T>): Promise<T> {
+  const job = saving.then(work)
+  saving = job.then(
+    () => {},
+    () => {}, // the next change goes ahead whatever became of this one
+  )
+  return job
+}
+
 /** The records of a kind (or all), newest first. */
 export async function listDocs(kind?: DocKind): Promise<DocMeta[]> {
   const all = await backend.list()
@@ -153,15 +171,48 @@ export async function listDocs(kind?: DocKind): Promise<DocMeta[]> {
 
 export const getDoc = (id: string) => backend.get(id)
 
+/** Write a record as it is, and tell other tabs. Part of a queued change: use `saveActive` and the like from elsewhere. */
 export async function putDoc(rec: DocRecord) {
   await backend.put(rec)
   announce(rec.id)
 }
 
-export async function deleteDoc(id: string) {
-  await backend.remove(id)
-  if (active?.id === id) setActive(null)
-  announce(id)
+/** Put a record in the library (a deleted one coming back). */
+export const restoreDoc = (rec: DocRecord) => queued(() => putDoc(rec))
+
+export function deleteDoc(id: string): Promise<void> {
+  return queued(async () => {
+    await backend.remove(id)
+    for (const kind of KINDS) if (active[kind]?.id === id) setActive(null, kind)
+    announce(id)
+  })
+}
+
+export function renameDoc(id: string, name: string): Promise<void> {
+  for (const kind of KINDS) {
+    const a = active[kind]
+    if (a?.id === id) {
+      active[kind] = { ...a, name }
+      notify(kind)
+    }
+  }
+  return queued(async () => {
+    const rec = await backend.get(id)
+    if (rec) await putDoc({ ...rec, name })
+  })
+}
+
+/** A copy under a new name; resolves to its id, or undefined when there is no such document. */
+export function duplicateDoc(id: string, name: string): Promise<string | undefined> {
+  return queued(async () => {
+    const rec = await backend.get(id)
+    if (!rec) return undefined
+    const now = Date.now()
+    const copy: DocRecord = { ...rec, id: newDocId(), name, created: now, updated: now }
+    delete copy.origin
+    await putDoc(copy)
+    return copy.id
+  })
 }
 
 export function newDocId(): string {
@@ -169,42 +220,58 @@ export function newDocId(): string {
   return `d${Date.now().toString(36)}${random}`
 }
 
-// ---- The active document ------------------------------------------------------------------------
+// ---- The active documents -----------------------------------------------------------------------
 
-const TAB_KEY = 'sklopko.library.active'
-const LAST_KEY = 'sklopko.library.last'
+const KINDS: DocKind[] = ['circuit', 'fsm']
+const TAB_KEY = (kind: DocKind) => `sklopko.library.active.${kind}`
+const LAST_KEY = (kind: DocKind) => `sklopko.library.last.${kind}`
 
-/** What the canvas shows. Null until something is opened or saved. */
-let active: DocMeta | null = null
+/** What the canvas shows, and what the state machine editor shows. Null until something is opened or saved. */
+const active: Record<DocKind, DocMeta | null> = { circuit: null, fsm: null }
 
-export const activeDoc = () => active
+export const activeDoc = (kind: DocKind = 'circuit') => active[kind]
+
+const listeners = new Set<(kind: DocKind, meta: DocMeta | null) => void>()
+
+/** Call `fn` when the active document of a kind changes (is opened, saved for the first time, renamed). */
+export function onActiveChange(fn: (kind: DocKind, meta: DocMeta | null) => void) {
+  listeners.add(fn)
+  return () => {
+    listeners.delete(fn)
+  }
+}
+
+function notify(kind: DocKind) {
+  for (const fn of listeners) fn(kind, active[kind])
+}
 
 /** Remember it for a reload of this tab (sessionStorage) and for a new tab (localStorage). */
-export function setActive(meta: DocMeta | null) {
-  active = meta
+export function setActive(meta: DocMeta | null, kind: DocKind = meta?.kind ?? 'circuit') {
+  active[kind] = meta
+  notify(kind)
   if (!meta) return
   try {
-    sessionStorage.setItem(TAB_KEY, meta.id)
-    localStorage.setItem(LAST_KEY, meta.id)
+    sessionStorage.setItem(TAB_KEY(kind), meta.id)
+    localStorage.setItem(LAST_KEY(kind), meta.id)
   } catch {
     // Storage blocked: the next visit opens the most recent document instead.
   }
 }
 
-function pointer(): string | null {
+function pointer(kind: DocKind): string | null {
   try {
-    return sessionStorage.getItem(TAB_KEY) ?? localStorage.getItem(LAST_KEY)
+    return sessionStorage.getItem(TAB_KEY(kind)) ?? localStorage.getItem(LAST_KEY(kind))
   } catch {
     return null
   }
 }
 
 /**
- * Open the document this tab had, else the last one used, else the most recently saved of the kind, and make it the active
+ * Open the document this tab had (of the kind), else the last one used, else the most recently saved, and make it the active
  * one. Undefined when there is none.
  */
 export async function openLastDoc(kind: DocKind): Promise<DocRecord | undefined> {
-  const id = pointer()
+  const id = pointer(kind)
   let rec = id ? await backend.get(id) : undefined
   if (rec?.kind !== kind) {
     const [latest] = await listDocs(kind)
@@ -214,8 +281,6 @@ export async function openLastDoc(kind: DocKind): Promise<DocRecord | undefined>
   return rec
 }
 
-let saving: Promise<void> = Promise.resolve()
-
 /** What a new document is called, and where it came from. The name may be worked out when it is saved. */
 export interface NewDoc {
   name: string | (() => Promise<string>)
@@ -223,27 +288,29 @@ export interface NewDoc {
 }
 
 /**
- * Save the data as the active document. When nothing is active, a new document is made from `create` (called "My circuit" when
- * that is left out); otherwise the document keeps its name and origin. Saves are done one after the other, so two quick ones
- * never make two documents.
+ * Save the data as the active document of its kind. When nothing is active, a new document is made from `create` (called "My
+ * circuit" when that is left out); otherwise the document keeps its name and origin.
  */
 export function saveActive(kind: DocKind, data: unknown, create: NewDoc = { name: 'My circuit' }): Promise<void> {
   const now = Date.now()
-  const prev = active?.kind === kind ? active : null
+  const prev = active[kind]
   const name = prev ? null : create.name
   const meta: DocMeta = prev
     ? { ...prev, updated: now }
     : { id: newDocId(), kind, name: typeof create.name === 'string' ? create.name : '', created: now, updated: now, ...(create.origin ? { origin: create.origin } : {}) }
   setActive(meta)
-  const job = saving.then(async () => {
+  return queued(async () => {
     if (name && typeof name !== 'string') {
       meta.name = await name()
-      if (active?.id === meta.id) active = { ...active, name: meta.name }
+      if (active[kind]?.id === meta.id) {
+        active[kind] = { ...meta }
+        notify(kind)
+      }
     }
-    await putDoc({ ...meta, data })
+    // A document that was renamed since keeps its new name.
+    const current = active[kind]?.id === meta.id ? active[kind]! : meta
+    await putDoc({ ...meta, name: current.name, data })
   })
-  saving = job.catch(() => {}) // the next save goes ahead whatever became of this one
-  return job
 }
 
 /** "Untitled 1", "Untitled 2", …: the first number no document of the kind has used. */
@@ -252,6 +319,67 @@ export async function nextUntitled(kind: DocKind = 'circuit'): Promise<string> {
   let n = 1
   while (used.has(String(n))) n++
   return `Untitled ${n}`
+}
+
+// ---- Backup -------------------------------------------------------------------------------------
+
+export interface Backup {
+  app: 'sklopko-library'
+  version: 1
+  docs: DocRecord[]
+}
+
+/** Every document with its data, for a file the visitor keeps. */
+export async function exportAll(): Promise<Backup> {
+  const docs: DocRecord[] = []
+  for (const meta of await listDocs()) {
+    const rec = await backend.get(meta.id)
+    if (rec) docs.push(rec)
+  }
+  return { app: 'sklopko-library', version: 1, docs }
+}
+
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/**
+ * Add the documents of a backup file. Nothing is overwritten: a document whose id is already in the library (or twice in the
+ * file) comes in as a new one. A document `valid` turns down is skipped. Throws when it is not a backup at all.
+ */
+export function importDocs(data: unknown, valid: (rec: DocRecord) => boolean): Promise<{ added: number; skipped: number }> {
+  const file = data as Partial<Backup> | null
+  if (!file || file.app !== 'sklopko-library' || !Array.isArray(file.docs)) throw new Error('This is not a Sklopko library file.')
+  const docs = file.docs
+  return queued(async () => {
+    const taken = new Set((await backend.list()).map((d) => d.id))
+    let added = 0
+    let skipped = 0
+    for (const raw of docs as Partial<DocRecord>[]) {
+      const ok = raw && typeof raw === 'object' && (raw.kind === 'circuit' || raw.kind === 'fsm') && typeof raw.name === 'string' && raw.data !== undefined
+      if (!ok) {
+        skipped++
+        continue
+      }
+      const now = Date.now()
+      const origin = raw.origin && typeof raw.origin === 'object' ? raw.origin : undefined
+      const rec: DocRecord = {
+        id: typeof raw.id === 'string' && raw.id && !taken.has(raw.id) ? raw.id : newDocId(),
+        kind: raw.kind!,
+        name: raw.name!.slice(0, 100) || 'Imported',
+        created: isNum(raw.created) ? raw.created : now,
+        updated: isNum(raw.updated) ? raw.updated : now,
+        data: raw.data,
+        ...(origin ? { origin: { ...(typeof origin.example === 'string' ? { example: origin.example } : {}), ...(typeof origin.challenge === 'string' ? { challenge: origin.challenge } : {}) } } : {}),
+      }
+      if (!valid(rec)) {
+        skipped++
+        continue
+      }
+      taken.add(rec.id)
+      await putDoc(rec)
+      added++
+    }
+    return { added, skipped }
+  })
 }
 
 // ---- Other tabs ---------------------------------------------------------------------------------
@@ -266,11 +394,11 @@ function announce(id: string) {
   }
 }
 
-/** Call `onChange` when another tab saves or deletes the active document. */
+/** Call `onChange` when another tab saves or deletes a document this tab has open. */
 export function watchLibrary(onChange: () => void) {
   if (typeof BroadcastChannel === 'undefined') return
   channel ??= new BroadcastChannel('sklopko-library')
   channel.onmessage = (e: MessageEvent<{ id?: string }>) => {
-    if (active && e.data?.id === active.id) onChange()
+    if (KINDS.some((k) => active[k] && e.data?.id === active[k]!.id)) onChange()
   }
 }

@@ -111,7 +111,7 @@ export function SidePanel() {
         </button>
       </div>
       {fileError && <small className="field-error">{fileError}</small>}
-      <small>The machine is also kept in this browser, so it is here next time.</small>
+      <small>The machine is also kept in this browser (see My circuits), so it is here next time.</small>
 
       <label className="field">
         <span>Name</span>

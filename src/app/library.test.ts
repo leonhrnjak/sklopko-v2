@@ -3,13 +3,19 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import {
   activeDoc,
   deleteDoc,
+  duplicateDoc,
+  exportAll,
   getDoc,
+  importDocs,
   idbBackend,
   listDocs,
   memoryBackend,
   nextUntitled,
+  onActiveChange,
   openLastDoc,
   putDoc,
+  renameDoc,
+  restoreDoc,
   saveActive,
   setActive,
   setBackend,
@@ -135,8 +141,10 @@ describe('the library', () => {
     // Nothing remembered (this runs in Node: no session or local storage): the most recent circuit.
     expect((await openLastDoc('circuit'))?.id).toBe('b')
     expect(activeDoc()?.id).toBe('b')
+    // A state machine is active beside the circuit, not instead of it.
     expect((await openLastDoc('fsm'))?.id).toBe('f')
-    expect(activeDoc()?.id).toBe('f')
+    expect(activeDoc('fsm')?.id).toBe('f')
+    expect(activeDoc()?.id).toBe('b')
   })
 
   test('deleting the active document leaves nothing active; the next save starts a new one', async () => {
@@ -179,5 +187,87 @@ describe('the library', () => {
     await saveActive('circuit', 1)
     setActive(null)
     expect(activeDoc()).toBeNull()
+  })
+
+  test('rename: the document and the active one, and later saves keep the new name', async () => {
+    await saveActive('circuit', 1)
+    const id = activeDoc()!.id
+    await renameDoc(id, 'Adder')
+    expect(activeDoc()!.name).toBe('Adder')
+    expect((await getDoc(id))?.name).toBe('Adder')
+    await saveActive('circuit', 2)
+    expect(await getDoc(id)).toMatchObject({ name: 'Adder', data: 2 })
+    // A rename racing a save: whichever way round, the name is kept and the data is the newest.
+    await Promise.all([saveActive('circuit', 3), renameDoc(id, 'Adder 2')])
+    expect(await getDoc(id)).toMatchObject({ name: 'Adder 2', data: 3 })
+  })
+
+  test('duplicate: a new document with the same data, not active, without an origin', async () => {
+    await putDoc(rec('a', 5, { origin: { example: 'gates' } }))
+    const copy = (await duplicateDoc('a', 'A copy'))!
+    expect(copy).not.toBe('a')
+    expect(await getDoc(copy)).toMatchObject({ name: 'A copy', data: { comps: ['a'] }, kind: 'circuit' })
+    expect((await getDoc(copy))!.origin).toBeUndefined()
+    expect(await duplicateDoc('missing', 'x')).toBeUndefined()
+    expect(activeDoc()).toBeNull()
+  })
+
+  test('a delete is not undone by a save that was waiting: saves, renames and deletes go in order', async () => {
+    await saveActive('circuit', 1)
+    const id = activeDoc()!.id
+    const saves = saveActive('circuit', 2)
+    const gone = deleteDoc(id)
+    await Promise.all([saves, gone])
+    expect(await getDoc(id)).toBeUndefined()
+    expect(await listDocs()).toEqual([])
+  })
+
+  test('a deleted document can be put back', async () => {
+    const r = rec('a', 5)
+    await putDoc(r)
+    await deleteDoc('a')
+    await restoreDoc(r)
+    expect(await getDoc('a')).toEqual(r)
+  })
+
+  test('listeners hear when the active document changes, per kind', async () => {
+    const seen: string[] = []
+    const off = onActiveChange((kind, meta) => seen.push(`${kind}:${meta?.name ?? '-'}`))
+    await saveActive('circuit', 1, { name: 'One' })
+    await renameDoc(activeDoc()!.id, 'Uno')
+    await saveActive('fsm', 1, { name: 'Machine' })
+    setActive(null)
+    off()
+    setActive(null)
+    expect(seen).toEqual(['circuit:One', 'circuit:Uno', 'fsm:Machine', 'circuit:-'])
+  })
+
+  test('a backup holds every document, and importing adds them without overwriting', async () => {
+    await putDoc(rec('a', 1))
+    await putDoc(rec('f', 2, { kind: 'fsm', data: { fsm: {} } }))
+    const backup = await exportAll()
+    expect(backup).toMatchObject({ app: 'sklopko-library', version: 1 })
+    expect(backup.docs.map((d) => d.id).sort()).toEqual(['a', 'f'])
+
+    // Into an empty library: as they were.
+    setBackend(memoryBackend())
+    expect(await importDocs(JSON.parse(JSON.stringify(backup)), () => true)).toEqual({ added: 2, skipped: 0 })
+    expect(await getDoc('a')).toMatchObject({ name: 'a', updated: 1 })
+
+    // Into the library that has them: both come again under new ids, and the originals are untouched.
+    await putDoc({ ...rec('a', 9), name: 'changed since' })
+    expect(await importDocs(backup, () => true)).toEqual({ added: 2, skipped: 0 })
+    expect(await listDocs()).toHaveLength(4)
+    expect((await getDoc('a'))?.name).toBe('changed since')
+  })
+
+  test('importing skips what is broken or what the check turns down, and refuses what is not a backup', async () => {
+    const good = rec('a', 1)
+    const file = { app: 'sklopko-library', version: 1, docs: [good, { id: 'x' }, null, { ...rec('b', 1), kind: 'other' }, { ...rec('c', 1), data: undefined }, rec('d', 1)] }
+    expect(await importDocs(file, (r) => r.id !== 'd')).toEqual({ added: 1, skipped: 5 })
+    expect((await listDocs()).map((d) => d.id)).toEqual(['a'])
+    expect(() => importDocs({ app: 'something else', docs: [] }, () => true)).toThrow('not a Sklopko library file')
+    expect(() => importDocs('text', () => true)).toThrow('not a Sklopko library file')
+    expect(() => importDocs({ app: 'sklopko-library', docs: 'no' }, () => true)).toThrow()
   })
 })

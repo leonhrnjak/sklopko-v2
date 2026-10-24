@@ -98,6 +98,11 @@ security headers.
   versions is brought in on the first visit). Nothing replaces your work: an example or *New* opens without a document of
   its own and becomes one, "<example> (copy)" or "Untitled N", the moment you edit it; a share link or an opened file is a
   new document at once. What was open stays in the library. Save/Open as `.json`; Share copies a link containing the circuit.
+- **My circuits:** the toolbar's *My circuits* lists every circuit and state machine you have (newest first): open, rename,
+  duplicate or delete them (a toast brings a deleted one back), or start a new circuit. The name of the open circuit is
+  over the canvas; click it to rename. *Download all* saves everything in one file and *Import…* adds a file like that
+  (nothing is overwritten), so you can back up or move to another computer: the library lives in this browser only. State
+  machines are kept there too.
 - **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
   shows its link in the address bar, and Share copies it while the example is unedited.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,

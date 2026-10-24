@@ -29,8 +29,9 @@ beforeEach(async () => {
   await flush()
 })
 
-afterEach(() => {
+afterEach(async () => {
   setEmbed(false)
+  await flush() // a save still waiting goes to this test's library, not the next one's
   vi.useRealTimers()
 })
 

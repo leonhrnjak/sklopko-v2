@@ -14,7 +14,7 @@
 >
 > - [x] 11a Library storage, v0.0.1-59
 > - [x] 11b Nothing replaces your work, v0.0.1-60
-> - [ ] 11c My circuits panel, state machines, backup
+> - [x] 11c My circuits panel, state machines, backup, v0.0.1-61
 > - [ ] 12a Code splitting
 > - [ ] 12b Prebuilt examples and thumbnails
 > - [ ] 12c Rendering, only if measurement says so
@@ -130,6 +130,29 @@ old one stays in the library.
 - Backup: *Download all* (one JSON file, `{ app: 'sklopko-library', docs: [...] }`) and *Import* (adds; never overwrites;
   a clashing id gets a new one). Browser storage can be cleared, so this matters.
 - `navigator.storage.persist()` is requested after the first save.
+
+- *What 11c did, and where it differs from the plan:*
+  - **The library keeps one active document per kind** (`activeDoc('circuit')`, `activeDoc('fsm')`), so a circuit and a state machine
+    are open side by side. Changes (save, rename, duplicate, delete, import) go through one queue, so a delete is never undone by a
+    save that was waiting. `exportAll` / `importDocs` do the backup (no data format knowledge: the app passes the check).
+  - **The open circuit's name is over the canvas** (next to the Paused badge), not in the toolbar: the toolbar was already two
+    rows, and the file row grew a third with the name. Click it to rename; an unsaved circuit (an example, a blank one) is shown
+    in italics and takes the name it will be saved under ("Untitled" until the first edit makes it "Untitled N").
+  - **State machines work like circuits** (`src/app/fsm.ts`): a starting point, a blank machine or a file replaces the machine in
+    the editor as another document, with no undo history from the one before (the old `loadFsm` was one undo step); it is
+    kept at its first edit (a file at once). `restoreFsm()` runs at startup before the first render and imports
+    `sklopko.fsm.v1` once.
+  - **My circuits** (`src/ui/library/LibraryDialog.tsx`, state in `src/app/libraryUi.ts`): a filter (All / Circuits / State
+    machines), Open (the whole row), Rename (inline), Duplicate ("<name> copy"), Delete with an Undo toast (which, for the open
+    document, first puts a blank one on the canvas and, on Undo, opens it again), New circuit, Download all, Import…. A warning
+    shows when the library is only in memory. No thumbnails yet: 12b adds them.
+  - The toast takes an action button; with one it is fixed to the window and above dialogs, so Undo can be clicked over My circuits.
+  - `navigator.storage.persist()` is asked once, after the first save that worked.
+  - Existing e2e tests changed: the new name button is also found by a `name: 'Run'` locator when an example's name contains
+    "runs", so they use the run button's test id; the state machine test waits out the autosave delay before reloading (the
+    machine used to be saved synchronously).
+  - Tests: `src/app/library.test.ts` (rename, duplicate, ordering, restore, listeners, backup, import), `src/app/fsm.test.ts`
+    (the library parts), seven more tests in `e2e/library.spec.ts` and one in `e2e/mobile.spec.ts`.
 
 **Tests.** Unit, on the memory backend: create, list order, rename, duplicate, delete; v1 import (circuit and FSM);
 example copy-on-first-edit; one record per challenge, reused; backup round trip and import of clashing ids. e2e: edit,

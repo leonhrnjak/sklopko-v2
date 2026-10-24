@@ -1,7 +1,8 @@
+import { create } from 'zustand'
 import type { Circuit } from '../model/circuit'
-import { serialize } from '../model/serialize'
+import { deserialize, serialize } from '../model/serialize'
 import { isEmbed } from './embed'
-import { nextUntitled, saveActive, setActive, type DocMeta, type NewDoc } from './library'
+import { activeDoc, getDoc, metaOf, nextUntitled, onActiveChange, renameDoc, saveActive, setActive, type DocMeta, type NewDoc } from './library'
 import { replaceCircuit, showToast, useStore } from './store'
 
 /**
@@ -20,13 +21,45 @@ let marked: Circuit | null = null
 /** What is on the canvas has no document yet: it gets one at the first real edit (the first undo step). */
 let unsaved: (NewDoc & { past: unknown }) | null = null
 let failed = false
+let askedToKeep = false
+
+/** Ask the browser not to clear the library when it is short of room: once, after the first save that worked. */
+function askToKeep() {
+  if (askedToKeep) return
+  askedToKeep = true
+  try {
+    void navigator.storage?.persist?.()
+  } catch {
+    // Not offered: the library lives as long as the browser lets it.
+  }
+}
 
 function store(c: Circuit, create?: NewDoc) {
-  saveActive('circuit', serialize(c), create).catch(() => {
+  saveActive('circuit', serialize(c), create).then(askToKeep, () => {
     // Storage full or blocked; the circuit still works, it just won't survive a reload.
     if (!failed) showToast('Your circuit could not be saved in this browser.')
     failed = true
   })
+}
+
+/** The open document: what the toolbar shows. `saved` is false for an example or blank circuit nobody has changed yet. */
+export const useDoc = create<{ name: string; saved: boolean }>(() => ({ name: '', saved: false }))
+
+onActiveChange((kind, meta) => {
+  if (kind === 'circuit' && meta?.name) useDoc.setState({ name: meta.name, saved: true })
+})
+
+/** Give the open document another name (an unsaved one is saved under it when it is first edited). */
+export function renameOpenDoc(name: string) {
+  const clean = name.trim().slice(0, 100)
+  if (!clean) return
+  if (unsaved) {
+    unsaved.name = clean
+    useDoc.setState({ name: clean })
+    return
+  }
+  const doc = activeDoc()
+  if (doc) void renameDoc(doc.id, clean)
 }
 
 /** Save now what was changed in the last moments. */
@@ -75,6 +108,7 @@ export function openCircuit(c: Circuit, how: Opening) {
     return
   }
   setActive(null)
+  useDoc.setState({ name: typeof how.name === 'string' ? how.name : 'Untitled', saved: false })
   const create = { name: how.name, origin: how.origin }
   if (how.mode === 'now') store(c, create)
   else unsaved = { ...create, past: useStore.getState().past }
@@ -83,4 +117,11 @@ export function openCircuit(c: Circuit, how: Opening) {
 /** A blank circuit, "Untitled N" once it has something in it. */
 export function newCircuit() {
   openCircuit({ comps: {}, wires: {} }, { mode: 'on-edit', name: () => nextUntitled('circuit') })
+}
+
+/** Open a circuit of the library. Throws when it is gone or can no longer be read. */
+export async function openStoredCircuit(id: string) {
+  const rec = await getDoc(id)
+  if (!rec || rec.kind !== 'circuit') throw new Error('That circuit is no longer in your library.')
+  openCircuit(deserialize(rec.data), { mode: 'stored', meta: metaOf(rec) })
 }
