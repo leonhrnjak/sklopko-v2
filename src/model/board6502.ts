@@ -61,6 +61,10 @@ export interface Board6502Options {
   devices?: Device6502[]
   /** The chip: the NMOS 6502 (the default) or the WDC 65C02. The program is assembled for it. */
   chip?: 'nmos' | 'cmos'
+  /** A timer that interrupts the CPU (NMI) this many times a second. */
+  timer?: number
+  /** Probes on the clock, the address bus, the data it reads, R/W and SYNC, ready for the timing view and the waveform panel. */
+  probes?: boolean
 }
 
 /** The ROM's parameters for a program: its source, and the bytes that assembles to. */
@@ -107,6 +111,13 @@ export function board6502Builder(o: Board6502Options = {}) {
   const cpu = part(CPU, 'cpu', 'cpu6502', { params: { bus: true, ...(o.chip === 'cmos' ? { chip: 'cmos' } : {}) }, label: o.chip === 'cmos' ? 'CPU (65C02)' : 'CPU' })
   wire(`${clk}.Q`, `${cpu}.PHI2`)
   wire(`${nreset}.Y`, `${cpu}.RESB`)
+  // A timer for interrupts: NMI is active low and a falling edge counts, so the line rests high and drops when the timer rises.
+  if (o.timer) {
+    const timer = part(POWER, 'timer', 'clock', { params: { hz: o.timer }, label: 'Timer (interrupts the CPU)' })
+    const ntimer = part(POWER, 'ntimer', 'not', { label: 'NMI is low at a tick' })
+    wire(`${timer}.Q`, `${ntimer}.A`)
+    wire(`${ntimer}.Y`, `${cpu}.NMIB`)
+  }
 
   // Address decoding: the address bus is cut into the low 11 bits (inside a RAM) and A11–A15, one wire each.
   const split = part(DECODE, 'split', 'splitter', { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
@@ -251,6 +262,21 @@ export function board6502Builder(o: Board6502Options = {}) {
   const write = dev(OUTPUT, 'write', 'led', { params: { color: 'red' }, label: 'Writing (R/W = 0)' })
   wire(`${nrw}.Y`, `${write}.A`)
 
+  // Probes, under the clock: the signals of one cycle, for the timing view and the waveform panel.
+  const timing: string[] = []
+  if (o.probes) {
+    const probe = (key: string, label: string, from: string, bits = 1) => {
+      const id = part(POWER, key, 'probe', { label, ...(bits > 1 ? { params: { bits } } : {}) }, 20)
+      timing.push(key)
+      wire(from, `${id}.A`)
+    }
+    probe('pPhi2', 'Φ2', `${clk}.Q`)
+    probe('pAddr', 'A', `${cpu}.A`, 16)
+    probe('pData', 'D (read)', `${mux}.Y`, 8)
+    probe('pRw', 'R/W', `${cpu}.RWB`)
+    probe('pSync', 'SYNC', `${cpu}.SYNC`)
+  }
+
   const sent = new Map<string, boolean>()
   for (const l of links) {
     if (!l.name) {
@@ -261,7 +287,7 @@ export function board6502Builder(o: Board6502Options = {}) {
     if (sent.get(l.name) && b.tag(l.to, l.name)) continue
     b.wire(l.from, l.to)
   }
-  return { b, keys, shown }
+  return { b, keys, shown, timing }
 }
 
 /** What a board example says about itself: the text over the CPU's, the decoder's and the devices' frames. */
@@ -279,10 +305,10 @@ const MEMORY_NOTE = 'The ROM holds the program, with the start address at its ve
 
 /** A board as an example: the parts of `board6502Builder`, framed and explained. */
 export function boardExample(o: Board6502Options, t: BoardTexts): Circuit {
-  const { b, keys, shown } = board6502Builder(o)
+  const { b, keys, shown, timing } = board6502Builder(o)
   const ids = (...parts: string[]) => parts.filter((k) => keys[k]).map((k) => keys[k])
   const simple = (o.devices ?? ['leds']).length === 1 && (o.devices ?? ['leds'])[0] === 'leds'
-  frameAround(b, 'THE CPU: a real MOS 6502', ids('clk', 'reset', 'nreset', 'cpu'), 'blue')
+  frameAround(b, 'THE CPU: a real MOS 6502', ids('clk', 'reset', 'nreset', 'timer', 'ntimer', 'cpu', ...timing), 'blue')
   frameAround(b, 'ADDRESS DECODING: who is it talking to?', ids('split', 'nrw', 'ramSel', 'ramWe', 'nA15', 'ledWe', 'lowSplit', 'dec'), 'yellow')
   frameAround(b, 'MEMORY: ROM and RAM', ids('rom', 'romAddr', 'ram', 'mux', 'sel'), 'green')
   frameAround(b, simple ? 'OUTPUT' : 'DEVICES', ids(...shown), 'pink')
@@ -296,6 +322,6 @@ export function boardExample(o: Board6502Options, t: BoardTexts): Circuit {
 
 /** The board as an example: a 6502 blinking eight LEDs from the program in its ROM. */
 export const board6502 = (): Circuit =>
-  boardExample({}, {
+  boardExample({ probes: true }, {
     intro: 'A real processor, the MOS 6502 of the Apple II and the Commodore 64, on a board of its own. Unlike the computers built from gates, it is one part: you see only what its pins do. In every clock cycle it puts an address on the address bus, says whether it is reading or writing, and moves one byte. Press Clock step and watch the address bus, SYNC and the data it reads. The program in the ROM shows one lit LED moving left.',
   })

@@ -12,7 +12,7 @@
 > - [ ] R6 Polish: 65C02, interrupts, timing-view presets, in three steps:
 >   - [x] R6a The 65C02 in the core: opcode table, cycle-exact model, vectors, Dormann
 >   - [x] R6b The 65C02 in the part (a *Chip* setting, VPB, MLB and BE pins), the assembler and the reference
->   - [ ] R6c An interrupt example, timing-view presets, a challenge or two
+>   - [x] R6c An interrupt example and probes on the bus signals (the challenges are not done, see its note)
 
 ## Why
 Every computer so far is *invented*: SKASM is ours, and its 16-bit words exist in no chip. This adds a part you could buy: place
@@ -183,6 +183,15 @@ assembly* (its listing reads 65C02 opcodes; an opcode the chip only runs as a NO
 chips: the instruction table lists the 65C02's added instructions and forms (marked), changed cycle counts, the extra modes and its opcode map. One example:
 *65C02: a sweeping LED*, which uses SMB, RMB, STZ, PHX and BRA. Not modelled: the CPU stopping while BE is low (the pins float, the core carries
 on); the pin `SO` (still left out). The NMOS part's behaviour is unchanged (same simulator fingerprints for every earlier example).
+
+**What R6c did, and where it differs from the plan.** The board builder can have a *timer* (a clock through an inverter into NMI, so the line rests high and
+falls at each tick) and *probes* on Φ2, the address bus (16 bits), the data the CPU reads (8 bits), R/W and SYNC, in the CPU's frame. The first board
+has the probes now, and the new example *65C02 + timer* uses both: the 65C02 runs `WAI`, the timer's NMI wakes it, the interrupt routine (vector at
+`$FFFA`) counts on the LEDs and prints a star, `RTI` returns to the instruction after `WAI`, and it sleeps again. The signals show in the waveform panel
+(buses as numbers) and the single-bit ones in the Timing tab. Differences: the "timing-view presets" are probes in the examples, not a setting of the
+view, which already draws whatever probes there are. **Not done: the challenges.** The challenge system checks gate circuits against a truth table or a
+list of switch steps; a program challenge ("write a program that…") needs a new kind with an editor and a checker that runs the program on a board. It is
+better as its own milestone.
 
 ## Open choices (my pick in bold)
 1. **NMOS first, 65C02 in R6.** The table carries both, so the order can swap.

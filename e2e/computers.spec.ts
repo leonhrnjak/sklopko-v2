@@ -519,6 +519,12 @@ test('the 6502 ROM holds a program in assembly: a listing of its bytes, errors b
   await expect(dialog).toBeVisible()
 })
 
+test('a timer interrupt wakes the 65C02 from WAI: the console fills with stars, one for each tick', async ({ page }) => {
+  await page.goto('/65c02-timer', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Console \\$4001: prints what is written')
+  await expect(page.locator('.inspector')).toContainText('***', { timeout: 20000 })
+})
+
 test('the 65C02 example: its ROM holds a 65C02 program, and the reference opens on the 65C02', async ({ page }) => {
   await page.goto('/65c02', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Pause' }).click()

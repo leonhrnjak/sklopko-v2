@@ -206,3 +206,27 @@ wait:   DEX
 
 .org $FFFC
 .word reset`
+
+/** A 65C02 program that sleeps (WAI) until a timer interrupts it (NMI); the interrupt routine counts, and says so on the LEDs and the console. */
+export const TIMER_NMI_SOURCE = `.org $F000
+LEDS  = $4000
+CHAR  = $4001
+ticks = $00
+
+reset:  LDX #$FF
+        TXS
+        STZ ticks       ; no tick yet
+idle:   WAI             ; sleep until an interrupt
+        BRA idle        ; (an interrupt returns here: sleep again)
+
+nmi:    INC ticks       ; the timer ticked
+        LDA ticks
+        STA LEDS        ; show how many
+        LDA #'*'
+        STA CHAR        ; and print one more star
+        RTI             ; back to the instruction after WAI
+
+.org $FFFA
+.word nmi               ; NMI vector
+.word reset             ; reset vector`
+

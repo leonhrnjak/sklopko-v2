@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
-import { cycle, newCpu, reset } from '../engine/cpu6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
+import { cycle, newCpu, reset, setNmi } from '../engine/cpu6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** A machine for the programs that is nothing but the memory map: RAM, ROM, and a function called for each device write and read. */
 function run(source: string, cycles: number, dev: { write?: (reg: number, v: number) => void; read?: (reg: number) => number } = {}, cmos = false) {
@@ -113,5 +113,31 @@ describe('the programs of the 6502 examples', () => {
   it('the 65C02 sweep needs the 65C02: the NMOS assembler names the first instruction it does not have', () => {
     const r = assemble6502(SWEEP_65C02_SOURCE, 0x1000)
     expect(r.errors[0].message).toMatch(/instruction of the 65C02/)
+  })
+
+  it('the timer program sleeps in WAI, and each NMI counts once on the LEDs and prints one star', () => {
+    // run() has no NMI pin, so this one drives the core by hand: a tick every 300 cycles.
+    const r = assemble6502(TIMER_NMI_SOURCE, 0x1000, true)
+    expect(r.errors).toEqual([])
+    const ram = new Uint8Array(0x800)
+    const c = newCpu(true)
+    reset(c)
+    const leds: number[] = []
+    let text = ''
+    const waiting: boolean[] = []
+    for (let n = 1; n <= 1500; n++) {
+      if (n % 300 === 0) setNmi(c, true)
+      else if (n % 300 === 10) setNmi(c, false)
+      if (!c.read) {
+        if (c.addr < 0x4000) ram[c.addr & 0x7ff] = c.out
+        else if ((c.addr & 7) === 0) leds.push(c.out)
+        else if ((c.addr & 7) === 1) text += String.fromCharCode(c.out)
+      }
+      cycle(c, c.read ? (c.addr >= 0x8000 ? r.bytes[c.addr & 0xfff] : ram[c.addr & 0x7ff]) : 0)
+      waiting.push(c.wait === 1)
+    }
+    expect(leds).toEqual([1, 2, 3, 4])
+    expect(text).toBe('****')
+    expect(waiting.filter(Boolean).length).toBeGreaterThan(1000) // asleep nearly all the time
   })
 })
