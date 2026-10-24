@@ -50,12 +50,13 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 ## Current work
 
-The roadmap is in `docs/plan-next-features.md` (milestones 0–10, in order; tick each box when it ships).
+The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,
+custom ICs, challenges for classrooms, small wins), in order, one PR per sub-milestone; tick each box when it merges.
 
-**Milestones 0–10 are all done.** Milestone 10 (buses and tri-state) is recorded in `docs/plan-m10-buses.md` (decisions, five
-sub-milestones 10a to 10e, what each did). Ask the user what comes next. Milestone 9 (timing view and state machine editor) is
-done; `docs/plan-m9-timing-fsm.md` records its decisions.
+**Milestones 0–10 are all done** (`docs/plan-next-features.md`). Milestone 10 (buses and tri-state) is recorded in
+`docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine
+editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
 Finished plans, for background: `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
-(the earlier plan; its custom ICs milestone is postponed).
+(the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
