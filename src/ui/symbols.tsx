@@ -474,9 +474,23 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
             points={send ? `0,0 ${w - 8},0 ${w},10 ${w - 8},20 0,20` : `8,0 ${w},0 ${w},20 8,20 0,10`}
           />
           {bits === 1 && <circle cx={send ? 8 : w - 8} cy={10} r={2.6} className={`clock-led ${vClass(v)}`} />}
-          <Txt x={send ? w / 2 + 3 : w / 2 - 2} y={10.5} className={name ? 'net-name' : 'net-name empty'}>
-            {(name || 'name') + (bits > 1 ? `[${bits}]` : '')}
-          </Txt>
+          {comp.rot % 2 === 1 ? (
+            // Turned a quarter: the text turns with the flag so it runs along it, reading top to bottom.
+            <text
+              x={send ? w / 2 + 3 : w / 2 - 2}
+              y={10.5}
+              textAnchor="middle"
+              dominantBaseline="central"
+              transform={`translate(${send ? w / 2 + 3 : w / 2 - 2} 10.5) scale(${comp.flip ? -1 : 1} 1) rotate(${comp.rot === 3 ? 180 : 0}) translate(${-(send ? w / 2 + 3 : w / 2 - 2)} -10.5)`}
+              className={name ? 'net-name' : 'net-name empty'}
+            >
+              {(name || 'name') + (bits > 1 ? `[${bits}]` : '')}
+            </text>
+          ) : (
+            <Txt x={send ? w / 2 + 3 : w / 2 - 2} y={10.5} className={name ? 'net-name' : 'net-name empty'}>
+              {(name || 'name') + (bits > 1 ? `[${bits}]` : '')}
+            </Txt>
+          )}
         </>
       )
       break
