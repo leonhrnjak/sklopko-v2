@@ -492,6 +492,10 @@ export const memoryRom: ComponentDef[] = [
         maxLength: 800,
         hint: 'Only hexadecimal digits (0–9, A–F), spaces and commas.',
       },
+      // Names for a control ROM, for reading it (see `engine/signals.ts`): what each bit switches on, and what each address is.
+      // Nothing in the simulation looks at them.
+      { key: 'signals', label: 'Signals', kind: 'text', default: '', maxLength: 1600 },
+      { key: 'rows', label: 'Row names', kind: 'text', default: '', maxLength: 1200 },
     ],
     title: (p) => `ROM ${2 ** Number(p.abits)}×${p.dbits}`,
     live: true,

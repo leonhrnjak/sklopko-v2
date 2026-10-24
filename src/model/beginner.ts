@@ -1,4 +1,5 @@
 import { SKASM, assemble, toHexWords } from '../engine/isa'
+import { BEGINNER_ROWS, BEGINNER_SIGNALS } from '../engine/signal-presets'
 import { frameAround, note } from './annotate'
 import { CircuitBuilder } from './builder'
 import { boundsRect, type Circuit } from './circuit'
@@ -74,7 +75,7 @@ export function beginnerBuilder(source = BEGINNER_SOURCE, hz = 1) {
   wire(`${clk}.Q`, `${pc}.CLK`)
 
   // 2. Decode
-  const ctl = part(DECODE, 'ctl', 'rom', { params: { abits: 4, dbits: 8, data: BEGINNER_CONTROL }, label: 'Control ROM' })
+  const ctl = part(DECODE, 'ctl', 'rom', { params: { abits: 4, dbits: 8, data: BEGINNER_CONTROL, signals: BEGINNER_SIGNALS, rows: BEGINNER_ROWS }, label: 'Control ROM' })
   for (let i = 0; i < 4; i++) wire(`${prog}.D${4 + i}`, `${ctl}.A${i}`) // the opcode
   const nhalt = part(DECODE, 'nhalt', 'not', { label: 'not halted' })
   wire(`${ctl}.D6`, `${nhalt}.A`)
