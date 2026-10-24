@@ -198,17 +198,6 @@ export function signalParts(layout: SignalLayout, word: number): SignalPart[] {
   return parts
 }
 
-/**
- * What each data pin of a ROM can be called, from the signals: the signal's name for a one-bit signal, the name and the bit
- * (`SRC0`, `SRC1`) for a field, nothing (the pin keeps its own name, `D13`) for a bit no signal covers.
- */
-export function pinLabels(layout: SignalLayout, bits: number): (string | undefined)[] {
-  const labels: (string | undefined)[] = new Array(bits).fill(undefined)
-  for (const s of layout.signals)
-    for (let k = 0; k < s.width && s.from + k < bits; k++) labels[s.from + k] = s.width === 1 ? s.name : `${s.name}${k}`
-  return labels
-}
-
 /** A word as text: `LOAD_ACC, SRC=ALU, SAVE_FLAGS`; empty when it switches nothing on. */
 export const describeWord = (layout: SignalLayout, word: number): string => signalParts(layout, word).map((p) => p.text).join(', ')
 

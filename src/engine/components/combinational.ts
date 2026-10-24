@@ -2,7 +2,7 @@ import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
 import { SEG_HEX } from './io'
 import { ISAS } from '../isa'
-import { parseSignals, pinLabels } from '../signals'
+import { pinLabels } from '../pinlabels'
 import { HEX_WORDS, parseWords, tableBox } from './memory'
 
 /**
@@ -504,8 +504,7 @@ export const memoryRom: ComponentDef[] = [
       const { w, minRows } = tableBox(2 ** Number(p.abits), Number(p.dbits) / 4)
       const table = p.table === 'on'
       // A control ROM shows what each output switches on (the pins keep their names, D0…, in wires and saved files).
-      const parsed = typeof p.signals === 'string' && p.signals.trim() ? parseSignals(p.signals) : undefined
-      const labels = parsed && !parsed.errors.length ? pinLabels(parsed.layout, Number(p.dbits)) : []
+      const labels = typeof p.signals === 'string' && p.signals.trim() ? pinLabels(p.signals, Number(p.dbits)) : []
       const outputs = names('D', Number(p.dbits)).map((name, i) => (labels[i] ? { name, label: labels[i] } : name))
       const longest = Math.max(0, ...outputs.map((o) => (typeof o === 'string' ? o : o.label!).length))
       return box({

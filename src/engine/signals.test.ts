@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { getDef } from './registry'
+import { pinLabels } from './pinlabels'
 import { SIGNAL_PRESETS, presetParams } from './signal-presets'
-import { assembleSignals, describeWord, pinLabels, parseRows, parseSignals, signalParts, signalValue, signalsToText, splitPlan, valueName, withSignal } from './signals'
+import { assembleSignals, describeWord, parseRows, parseSignals, signalParts, signalValue, signalsToText, splitPlan, valueName, withSignal } from './signals'
 
 const LAYOUT = `LOAD
 SRC 2 = CONST ALU RAM if LOAD   ; where it loads from
@@ -161,7 +162,37 @@ describe('the text form', () => {
 
 describe('pin labels', () => {
   it('a one-bit signal names its pin, a field its pins SRC0, SRC1…, and a bit no signal covers keeps its own', () => {
-    expect(pinLabels(parseSignals(LAYOUT).layout, 12)).toEqual(['LOAD', 'SRC0', 'SRC1', 'WRITE', undefined, undefined, 'COUNT0', 'COUNT1', 'COUNT2', undefined, undefined, undefined])
+    expect(pinLabels(LAYOUT, 12)).toEqual(['LOAD', 'SRC0', 'SRC1', 'WRITE', undefined, undefined, 'COUNT0', 'COUNT1', 'COUNT2', undefined, undefined, undefined])
+  })
+
+  it('reads exactly the lists that parseSignals accepts, and gives no names for the others', () => {
+    const lists = [
+      ...SIGNAL_PRESETS.map((x) => x.signals),
+      LAYOUT,
+      '',
+      '1BAD',
+      'A\nA',
+      'X 0',
+      'X 17',
+      'X 2 3',
+      'Y 2 = P Q R S T',
+      'Z 2 = P P',
+      'W 1 = A B if NOPE',
+      'T 2\nV 2 = K if T',
+      'V 1 = K if T\nT',
+      'V 1 = K if T\nT 1',
+      '_ 2 = A',
+      '_ 2\nA',
+      'A = B = C',
+      'A 2 = B if X if Y',
+      'SRC 2 = 1B',
+      'A ; comment\n// another\nB 2',
+    ]
+    for (const text of lists) {
+      const { layout, errors } = parseSignals(text)
+      const want = errors.length ? [] : Array.from({ length: 24 }, (_, i) => layout.signals.find((s) => i >= s.from && i < s.from + s.width)).map((s, i) => (s ? (s.width === 1 ? s.name : `${s.name}${i - s.from}`) : undefined))
+      expect(pinLabels(text, 24), JSON.stringify(text)).toEqual(want)
+    }
   })
 
   it('a ROM with signals shows them on its output pins, which keep their names in wires', () => {
