@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { Circuit } from '../model/circuit'
 import { deserialize, serialize } from '../model/serialize'
+import { thumbnailSvg } from '../model/thumbnail'
 import { isEmbed } from './embed'
-import { activeDoc, getDoc, metaOf, nextUntitled, onActiveChange, renameDoc, saveActive, setActive, type DocMeta, type NewDoc } from './library'
+import { MAX_THUMB, activeDoc, getDoc, metaOf, nextUntitled, onActiveChange, renameDoc, saveActive, setActive, type DocMeta, type NewDoc } from './library'
 import { replaceCircuit, showToast, useStore } from './store'
 
 /**
@@ -34,8 +35,14 @@ function askToKeep() {
   }
 }
 
+/** Its thumbnail, made as it is saved. A huge circuit gets none: the old one stays. */
+function thumbnailOf(c: Circuit): string | undefined {
+  const svg = thumbnailSvg(c)
+  return svg.length <= MAX_THUMB ? svg : undefined
+}
+
 function store(c: Circuit, create?: NewDoc) {
-  saveActive('circuit', serialize(c), create).then(askToKeep, () => {
+  saveActive('circuit', serialize(c), create, thumbnailOf(c)).then(askToKeep, () => {
     // Storage full or blocked; the circuit still works, it just won't survive a reload.
     if (!failed) showToast('Your circuit could not be saved in this browser.')
     failed = true

@@ -350,3 +350,30 @@ test('without a usable database, My circuits says nothing will be kept', async (
   await openLibrary(page)
   await expect(dialog(page)).toContainText('not keeping your circuits')
 })
+
+test('My circuits shows a thumbnail of each circuit', async ({ page }) => {
+  await twoCircuits(page)
+  await openLibrary(page)
+  for (const name of ['Untitled 1', 'Electronic dice (copy)']) {
+    const thumb = row(page, name).locator('img.library-thumb')
+    await expect(thumb).toBeVisible()
+    // The picture decoded: an SVG that failed to parse would have no size.
+    expect(await thumb.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+  }
+})
+
+test('an example opens from a ready file, with its thumbnail beside it', async ({ page, request }) => {
+  const asked: string[] = []
+  page.on('request', (r) => asked.push(new URL(r.url()).pathname))
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  expect(asked).toContain('/examples/computer.json')
+  expect(await page.locator('.comp').count()).toBeGreaterThan(100)
+  expect((await request.get('/examples/computer.svg')).headers()['content-type']).toContain('image/svg+xml')
+  expect((await request.get('/examples/nonesuch.json')).headers()['content-type']).toContain('text/html') // the page, not a file
+
+  // Another example from the menu comes the same way.
+  await page.selectOption('select[aria-label="Load an example"]', 'dice')
+  await expect.poll(() => asked).toContain('/examples/dice.json')
+  await expect(page.getByRole('button', { name: 'Circuit name: Electronic dice (copy)' })).toHaveCount(0) // unedited: no copy yet
+  await expect(page).toHaveURL(/\/dice$/)
+})

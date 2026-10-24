@@ -15,6 +15,8 @@ export interface DocMeta {
   updated: number
   /** Where it came from, when that matters (an example it is a copy of, the challenge it is work on). */
   origin?: { example?: string; challenge?: string }
+  /** A small picture of a circuit, as SVG text (see `thumbnailSvg`); the list shows it without reading the data. */
+  thumb?: string
 }
 
 export interface DocRecord extends DocMeta {
@@ -31,13 +33,14 @@ export interface LibraryBackend {
   remove(id: string): Promise<void>
 }
 
-export const metaOf = ({ id, kind, name, created, updated, origin }: DocRecord): DocMeta => ({
+export const metaOf = ({ id, kind, name, created, updated, origin, thumb }: DocRecord): DocMeta => ({
   id,
   kind,
   name,
   created,
   updated,
   ...(origin ? { origin } : {}),
+  ...(thumb ? { thumb } : {}),
 })
 
 export function memoryBackend(): LibraryBackend {
@@ -291,13 +294,13 @@ export interface NewDoc {
  * Save the data as the active document of its kind. When nothing is active, a new document is made from `create` (called "My
  * circuit" when that is left out); otherwise the document keeps its name and origin.
  */
-export function saveActive(kind: DocKind, data: unknown, create: NewDoc = { name: 'My circuit' }): Promise<void> {
+export function saveActive(kind: DocKind, data: unknown, create: NewDoc = { name: 'My circuit' }, thumb?: string): Promise<void> {
   const now = Date.now()
   const prev = active[kind]
   const name = prev ? null : create.name
   const meta: DocMeta = prev
-    ? { ...prev, updated: now }
-    : { id: newDocId(), kind, name: typeof create.name === 'string' ? create.name : '', created: now, updated: now, ...(create.origin ? { origin: create.origin } : {}) }
+    ? { ...prev, updated: now, ...(thumb ? { thumb } : {}) }
+    : { id: newDocId(), kind, name: typeof create.name === 'string' ? create.name : '', created: now, updated: now, ...(create.origin ? { origin: create.origin } : {}), ...(thumb ? { thumb } : {}) }
   setActive(meta)
   return queued(async () => {
     if (name && typeof name !== 'string') {
@@ -339,6 +342,9 @@ export async function exportAll(): Promise<Backup> {
   return { app: 'sklopko-library', version: 1, docs }
 }
 
+/** The longest thumbnail a backup file may bring in. */
+export const MAX_THUMB = 60_000
+
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
 /**
@@ -360,6 +366,7 @@ export function importDocs(data: unknown, valid: (rec: DocRecord) => boolean): P
         continue
       }
       const now = Date.now()
+      const thumb = typeof raw.thumb === 'string' && raw.thumb.startsWith('<svg') && raw.thumb.length <= MAX_THUMB ? raw.thumb : undefined
       const origin = raw.origin && typeof raw.origin === 'object' ? raw.origin : undefined
       const rec: DocRecord = {
         id: typeof raw.id === 'string' && raw.id && !taken.has(raw.id) ? raw.id : newDocId(),
@@ -368,6 +375,7 @@ export function importDocs(data: unknown, valid: (rec: DocRecord) => boolean): P
         created: isNum(raw.created) ? raw.created : now,
         updated: isNum(raw.updated) ? raw.updated : now,
         data: raw.data,
+        ...(thumb ? { thumb } : {}),
         ...(origin ? { origin: { ...(typeof origin.example === 'string' ? { example: origin.example } : {}), ...(typeof origin.challenge === 'string' ? { challenge: origin.challenge } : {}) } } : {}),
       }
       if (!valid(rec)) {

@@ -9,6 +9,7 @@ import {
   importDocs,
   idbBackend,
   listDocs,
+  MAX_THUMB,
   memoryBackend,
   nextUntitled,
   onActiveChange,
@@ -269,5 +270,28 @@ describe('the library', () => {
     expect(() => importDocs({ app: 'something else', docs: [] }, () => true)).toThrow('not a Sklopko library file')
     expect(() => importDocs('text', () => true)).toThrow('not a Sklopko library file')
     expect(() => importDocs({ app: 'sklopko-library', docs: 'no' }, () => true)).toThrow()
+  })
+
+  test('a thumbnail is kept with the document, in the list too, through renames and later saves without one', async () => {
+    await saveActive('circuit', 1, { name: 'One' }, '<svg a/>')
+    const id = activeDoc()!.id
+    expect((await listDocs())[0].thumb).toBe('<svg a/>')
+    await renameDoc(id, 'Uno')
+    expect((await listDocs())[0]).toMatchObject({ name: 'Uno', thumb: '<svg a/>' })
+    await saveActive('circuit', 2) // a save that made none keeps the last
+    expect((await getDoc(id))?.thumb).toBe('<svg a/>')
+    await saveActive('circuit', 3, undefined, '<svg b/>')
+    expect((await listDocs())[0].thumb).toBe('<svg b/>')
+  })
+
+  test('a backup brings thumbnails along, and importing drops one that is not a small SVG', async () => {
+    const file = {
+      app: 'sklopko-library',
+      version: 1,
+      docs: [rec('a', 1, { thumb: '<svg ok/>' }), rec('b', 1, { thumb: '<script>x</script>' }), rec('c', 1, { thumb: `<svg>${'x'.repeat(MAX_THUMB)}</svg>` })],
+    }
+    expect(await importDocs(file, () => true)).toEqual({ added: 3, skipped: 0 })
+    const thumbs = Object.fromEntries((await listDocs()).map((d) => [d.name, d.thumb]))
+    expect(thumbs).toEqual({ a: '<svg ok/>', b: undefined, c: undefined })
   })
 })
