@@ -2701,6 +2701,7 @@ button.linklike:hover {
   gap: 4px;
   padding: 6px;
   text-align: left;
+  white-space: normal; /* buttons do not wrap by default: the name and the blurb would run on past the card */
 }
 .gallery-open:hover {
   border-color: var(--accent);
