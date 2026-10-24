@@ -84,12 +84,12 @@ security headers.
   effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it
   together with everything inside, and drag its corner handle to resize it; clicking inside it still selects
   what is under the pointer and starts a marquee as usual. The examples use them to explain themselves.
-- **Pictures:** *Picture…* in the toolbar saves the circuit as an SVG or a PNG, either the whole circuit or what is on
+- **Pictures:** *File ▾ → Save a picture* saves the circuit as an SVG or a PNG, either the whole circuit or what is on
   screen, as it looks right now (wires in their current colours, without selection marks or pins).
 - **Embed:** `?embed=1` on any link (an example's short link, or a share link) shows only the circuit with a few
   controls (Run/Pause, Back, Clock step, Reset, Fit, and *Open in Sklopko*). It runs, switches and buttons work,
   and you can pan and zoom, but nothing can be edited, and nothing is read from or written to the visitor's saved
-  circuit. *Embed* in the toolbar copies the iframe HTML for the current circuit, e.g.
+  circuit. *File ▾ → Embed code* copies the iframe HTML for the current circuit, e.g.
   `<iframe src="https://…/computer?embed=1" width="900" height="560"></iframe>`. The site allows being framed by
   any page.
 - **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
@@ -103,10 +103,26 @@ security headers.
   over the canvas; click it to rename. *Download all* saves everything in one file and *Import…* adds a file like that
   (nothing is overwritten), so you can back up or move to another computer: the library lives in this browser only. State
   machines are kept there too.
-- **Example links:** every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Picking an example
-  shows its link in the address bar, and Share copies it while the example is unedited.
+- **Examples:** the *Examples* button opens a gallery of every example with a picture, a line about it and a search box;
+  each card has a *Copy link* button. Every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Opening an
+  example shows its link in the address bar, and Share copies it while the example is unedited.
+- **Toolbar:** *Tools ▾* (Logic, State machines, SKASM, Make IC, Tests, Challenges, Waveforms, Timing) and *File ▾* (New, My
+  circuits, Open and Save file, Embed code, Clear wires, pictures). The *How to* panel on the right can be hidden (**Hide**);
+  the **?** button brings it back.
+- **Custom ICs:** *Tools ▾ → Make IC…* turns the circuit (or the selected parts) into a part of your own: its pins are the
+  labelled switches and bus inputs (inputs) and LEDs and bus displays (outputs) inside. It is kept in the circuit, under
+  *ICs in this circuit* in the parts list, and used like any part. *Edit IC* (the inspector, a double-click, or the parts
+  list) opens its inside, with a breadcrumb and *Back*: every copy changes with it. ICs can contain ICs. *Collapse into IC…*
+  (select several parts) replaces them by one IC wired as they were, and *Expand into parts* does the reverse. The *Custom
+  ICs* examples show a 4-bit adder of ICs inside ICs and the 8-bit computer as blocks.
+- **Tests:** *Tools ▾ → Tests…* is a testbench for any circuit: one step per line, e.g. `D=1; pulse CLK; expect Q=1`, saved
+  with the circuit; *Run tests* lists the steps that fail and why.
+- **Offline:** after one visit the built app (page, scripts and all examples) is kept by the browser, so it opens without a
+  network, and it can be installed from the browser's menu.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
-  H fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom.
+  H fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom. A switch with a **Key** (1–9 or a letter,
+  in its inspector) flips when you press it; a keypad reads digits and A–F (or the calculator keys) from the keyboard, and
+  a gamepad the arrow keys, W A S D, Z and X.
 
 ## Parts
 
@@ -116,7 +132,7 @@ security headers.
 | Gates | AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer (2–8 inputs) |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
-| Memory | ROM (2–8 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM (4–8 address bits, 4 or 8 data bits), lookup table (2–8 inputs, 1–8 outputs, edited as a truth table) |
+| Memory | ROM (2–8 address bits, 4, 8 or 16 data bits; contents as hex text, or a program in assembly), RAM (4–8 address bits, 4 or 8 data bits), lookup table (2–8 inputs, 1–8 outputs, edited as a truth table or filled from boolean expressions) |
 | Multiplexers | MUX 2:1 / 4:1 / 8:1, DEMUX 1:2 / 1:4 / 1:8 |
 | Encoders & decoders | binary decoder 2:4 / 3:8 / 4:16, priority encoder 4:2 / 8:3, BCD → 7-segment, BCD → decimal, binary → BCD, Gray code converter, parity |
 | Displays | 7-segment display, hex display, dice display, 8×8 dot matrix (with persistence), LED bar, text console (ASCII, 28 columns), 16×16 pixel screen (1 bit or 4 colours) |
@@ -180,7 +196,7 @@ need no drawing code; gates and displays have custom symbols in `src/ui/symbols.
 
 ```sh
 npm test           # unit tests: every part's truth table, latches, counters, router invariants, save/load
-npm run e2e        # browser tests: drag & drop, wiring, moving, reshaping, undo, examples
+npm run e2e        # browser tests: drag & drop, wiring, moving, reshaping, undo, examples, ICs, offline (build first)
 ```
 
 The first e2e run needs `npx playwright install chromium`.
