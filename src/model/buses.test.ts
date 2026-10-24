@@ -91,7 +91,7 @@ describe('bus pins of the parts', () => {
 describe('flatten', () => {
   it('leaves a circuit without buses exactly as it was: same parts, same wires, same order', () => {
     for (const e of EXAMPLES) {
-      if (e.id === 'buses' || e.id === 'databus' || e.id === 'arbiter' || e.id === '6502' || e.id.startsWith('computer') || e.id === 'calculator') continue
+      if (e.id === 'buses' || e.id === 'databus' || e.id === 'arbiter' || e.id.startsWith('6502') || e.id.startsWith('computer') || e.id === 'calculator') continue
       const c = e.build()
       if (c.ics) continue // custom ICs are expanded: see ic.test.ts
       const flat = flatten(c)
