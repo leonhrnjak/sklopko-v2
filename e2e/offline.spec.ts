@@ -55,6 +55,7 @@ test('after one visit the app opens and runs with no network: the page, a short 
   await page.goto(BASE + '/dice', { waitUntil: 'load' })
   expect(await page.locator('.comp').count()).toBeGreaterThan(5)
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
+  await page.getByLabel('Search examples').fill('adder')
   await page.getByTestId('example-adder').click()
   await expect(page).toHaveURL(/\/adder$/)
   expect(await page.locator('.comp').count()).toBe(5)
