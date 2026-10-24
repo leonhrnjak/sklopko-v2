@@ -26,11 +26,15 @@ export function setExampleUrl(ex: ExampleInfo | null) {
 /** An example opens without a document of its own; editing it makes one, "<name> (copy)". */
 const exampleOpening = (ex: ExampleInfo): Opening => ({ mode: 'on-edit', name: `${ex.name} (copy)`, origin: { example: ex.id } })
 
-/** An example's circuit. The builders load on demand, except the welcome example's, which is in the main chunk. */
+/**
+ * An example's circuit. The build writes each one, routed, to `examples/<id>.json` (see `scripts/examples-plugin.ts`); the
+ * welcome example is in the main chunk, so the first paint does not wait for the network.
+ */
 async function buildExample(ex: ExampleInfo): Promise<Circuit> {
   if (ex.id === WELCOME_ID) return counterDisplay()
-  const { EXAMPLES } = await import('../model/examples')
-  return EXAMPLES.find((x) => x.id === ex.id)!.build()
+  const res = await fetch(`${import.meta.env.BASE_URL}examples/${ex.id}.json`)
+  if (!res.ok) throw new Error(`Example ${ex.id}: ${res.status}`)
+  return deserialize(await res.json())
 }
 
 let opening = 0
@@ -38,7 +42,13 @@ let opening = 0
 /** Open an example and point the address bar at its short link. Of two quick clicks the later one wins. */
 export async function openExample(ex: ExampleInfo) {
   const mine = ++opening
-  const circuit = await buildExample(ex)
+  let circuit: Circuit
+  try {
+    circuit = await buildExample(ex)
+  } catch {
+    if (mine === opening) showToast('That example could not be loaded.')
+    return
+  }
   if (mine !== opening) return
   openCircuit(circuit, exampleOpening(ex))
   setExampleUrl(ex)
@@ -47,7 +57,13 @@ export async function openExample(ex: ExampleInfo) {
 /** What the app opens with, and how that relates to the library. */
 async function initialCircuit(): Promise<{ circuit: Circuit; how: Opening }> {
   const ex = exampleFromPath(location.pathname)
-  if (ex) return { circuit: await buildExample(ex), how: exampleOpening(ex) }
+  if (ex) {
+    try {
+      return { circuit: await buildExample(ex), how: exampleOpening(ex) }
+    } catch {
+      showToast('That example could not be loaded.')
+    }
+  }
   if (location.pathname !== '/') setExampleUrl(null)
   try {
     const fromHash = fromShareHash(location.hash)

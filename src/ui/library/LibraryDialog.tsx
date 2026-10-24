@@ -30,6 +30,7 @@ function Row({ meta, open }: { meta: DocMeta; open: boolean }) {
   }
   return (
     <li className={`library-row${open ? ' current' : ''}`} data-testid={`doc-${meta.id}`}>
+      {meta.thumb && <img className="library-thumb" alt="" src={`data:image/svg+xml,${encodeURIComponent(meta.thumb)}`} />}
       {editing ? (
         <input
           className="library-rename"

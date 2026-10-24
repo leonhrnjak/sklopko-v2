@@ -16,7 +16,7 @@
 > - [x] 11b Nothing replaces your work, v0.0.1-60
 > - [x] 11c My circuits panel, state machines, backup, v0.0.1-61
 > - [x] 12a Code splitting, v0.0.1-62
-> - [ ] 12b Prebuilt examples and thumbnails
+> - [x] 12b Prebuilt examples and thumbnails, v0.0.1-63
 > - [ ] 12c Rendering, only if measurement says so
 > - [ ] 13a Toolbar menus, collapsible help, e2e split
 > - [ ] 13b Example gallery
@@ -195,6 +195,21 @@ something else; delete and undo; embed mode never touches the library.
   with displays dark. The plugin emits `examples/<id>.svg`; My circuits stores one per record on save (small, debounced).
 - Unit tests keep building from code; one test checks the plugin's `exampleJson(id)` deserializes to the same circuit as
   `build()`.
+
+*What it did, and where it differs from the plan.*
+- `scripts/examples-plugin.ts` writes `examples/<id>.json` and `.svg` for all 45 examples (1.2 MB in `dist/examples`, 90 files).
+  It does not import the app's code into `vite.config.ts` (that needs file extensions and triggers a warning about Vite's
+  future config loader); it loads `src/model/example-files.ts` through Vite itself (`ssrLoadModule`, on the dev server or on a
+  throw-away server during the build). The build takes about 6 s longer. In dev the same files are made on request.
+- The builders no longer ship: the 90 kB `examples` chunk is gone, and the app has no fallback that builds an example in the
+  browser. A fetch that fails shows the toast "That example could not be loaded."
+- `/computer-raycaster` is on the canvas in about 0.3 s on the production build (headless Chromium, localhost), from about 1.8 s.
+- `thumbnailSvg` (`src/model/thumbnail.ts`) draws boxes, wires and dark displays on a fixed light background, no text; 17–23 kB for
+  the computers. `DocMeta.thumb` holds it, so the list needs no data read; autosave makes it with the save (a thumbnail over 60 kB
+  is not stored, the old one stays). A backup keeps it, and an import takes only an `<svg…` string up to that size. My circuits
+  shows it left of each circuit. State machines have none yet.
+- Tests: `thumbnail.test.ts`, `example-files.test.ts` (each file opens as the same circuit as `build()`, no example called
+  `examples`), two in `library.test.ts`, two in `e2e/library.spec.ts`.
 
 **12c. Rendering, only if measurement says so (small)**
 - Measure `sim.publish()` and React's commit on the raycaster at 4 kHz. Today every wire runs its own

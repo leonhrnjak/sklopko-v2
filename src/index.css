@@ -2553,6 +2553,15 @@ button.linklike:hover {
   gap: 8px;
   flex-wrap: wrap;
 }
+.library-thumb {
+  flex: none;
+  width: 96px;
+  height: 60px;
+  object-fit: contain;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #f6f6f3;
+}
 .library-row.current .library-open {
   border-color: var(--accent);
 }
