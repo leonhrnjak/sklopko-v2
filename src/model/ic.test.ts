@@ -6,7 +6,8 @@ import { busModel, flatten } from './buses'
 import { type Circuit } from './circuit'
 import { analyzeCircuit, dependsOnState } from './analyze'
 import { ruleProblems } from './challengecheck'
-import { IC, deriveInterface, expandICs, findCycle, icParams, icProblems, inlineInstance, newICId, operableInside, placementOf, placingIC, subCircuit, wouldLoop } from './ic'
+import { produce } from 'immer'
+import { IC, deleteDefinition, deriveInterface, documentOf, enterDefinition, enterIC, expandICs, findCycle, icParams, icProblems, inlineInstance, isUsed, leaveIC, levelsOf, newICId, operableInside, placementOf, placingIC, renameDefinition, subCircuit, usageOf, wouldLoop } from './ic'
 import { deserialize, migrate, serialize } from './serialize'
 import { analyzeTiming } from './timing'
 
@@ -557,5 +558,133 @@ describe('making, placing and unpacking', () => {
   it('unpacking returns null for something that is not an instance', () => {
     const c = halfAdder()
     expect(inlineInstance(c, Object.keys(c.comps)[0], (p) => p)).toBeNull()
+  })
+})
+
+describe('editing the inside of an IC', () => {
+  /** An inverter IC placed in a circuit: switch → IC → LED, with the instance's id. */
+  function placed() {
+    const inner = new CircuitBuilder()
+    const s = inner.add('switch', 0, 0, { label: 'In' })
+    const g = inner.add('not', 80, 0)
+    const o = inner.add('led', 160, 0, { label: 'Out' })
+    inner.wire(`${s}.Q`, `${g}.A`)
+    inner.wire(`${g}.Y`, `${o}.A`)
+    const b = new CircuitBuilder()
+    const id = b.defineIC('Inverter', inner.build())
+    const sw = b.add('switch', 0, 0)
+    const ic = b.ic(id, 100, 0)
+    const led = b.add('led', 260, 0)
+    b.wire(`${sw}.Q`, `${ic}.In`)
+    b.wire(`${ic}.Out`, `${led}.A`)
+    return { circuit: b.build(), id, sw, ic, led, inner: { s, g, o } }
+  }
+
+  it('shows the body with the document’s ICs, and remembers the way back', () => {
+    const { circuit, id, ic } = placed()
+    const inside = enterIC(circuit, ic)!
+    expect(inside.comps).toBe(circuit.ics![id].circuit.comps)
+    expect(inside.ics).toBe(circuit.ics)
+    expect(inside.up).toEqual({ def: id, outer: circuit })
+    expect(levelsOf(inside)).toEqual([id])
+    expect(levelsOf(circuit)).toEqual([])
+    expect(enterIC(circuit, circuit.comps[ic].id + 'x')).toBeNull()
+    expect(enterDefinition(circuit, 'nope')).toBeNull()
+    expect(enterDefinition(circuit, id)!.up!.def).toBe(id)
+  })
+
+  it('what is changed inside is in the IC when you come back, so every instance changes with it', () => {
+    const { circuit, sw, led, ic, inner } = placed()
+    const before = run(circuit)
+    set(before, circuit, sw, true)
+    expect(before.pinValue(led, 'A')).toBe(0) // inverted
+    // Inside, take the inverter out and wire the switch straight to the LED.
+    const inside = produce(enterIC(circuit, ic)!, (d) => {
+      delete d.comps[inner.g]
+      delete d.wires[Object.keys(d.wires)[0]]
+      delete d.wires[Object.keys(d.wires)[0]]
+      d.wires.direct = { id: 'direct', from: { comp: inner.s, pin: 'Q' }, to: { comp: inner.o, pin: 'A' }, path: [] }
+    })
+    const { circuit: back, dropped } = leaveIC(inside)
+    expect(dropped).toBe(0)
+    expect(back.up).toBeUndefined()
+    expect(back.comps[ic]).toBeDefined()
+    const after = run(back)
+    set(after, back, sw, true)
+    expect(after.pinValue(led, 'A')).toBe(1) // now a plain wire
+  })
+
+  it('the instances take the new pins, and wires to pins that are gone are dropped and counted', () => {
+    const { circuit, ic, inner } = placed()
+    expect(circuit.comps[ic].params.outs).toBe('Out:1')
+    const inside = produce(enterIC(circuit, ic)!, (d) => {
+      d.comps[inner.o].label = 'Renamed' // the output pin gets another name
+      d.comps.extra = { id: 'extra', type: 'switch', x: 0, y: 80, rot: 0, flip: false, params: {}, label: 'More' } // and there is a new input
+    })
+    const { circuit: back, dropped } = leaveIC(inside)
+    expect(back.comps[ic].params).toMatchObject({ ins: 'In:1,More:1', outs: 'Renamed:1' })
+    expect(dropped).toBe(1) // the wire from Out
+    expect(Object.values(back.wires).filter((w) => w.from.comp === ic)).toHaveLength(0)
+    expect(Object.values(back.wires).filter((w) => w.to.comp === ic)).toHaveLength(1) // In is still there
+  })
+
+  it('works two levels deep, and the document is the same from anywhere', () => {
+    const c = fullAdder()
+    const half = Object.values(c.comps).find((k) => k.type === IC)!
+    const level1 = enterIC(c, half.id)! // the half adder: a body of gates, no ICs
+    expect(levelsOf(level1)).toEqual(['half-adder'])
+    expect(documentOf(level1)).toEqual(c)
+    // Wrap: an IC whose body places the half adder, entered from the top, then its half adder.
+    const b = new CircuitBuilder()
+    b.defineIC('Half adder', halfAdder())
+    const inner = new CircuitBuilder()
+    inner.c.ics = b.c.ics
+    const x = inner.add('switch', 0, 0, { label: 'A' })
+    const y = inner.add('switch', 0, 40, { label: 'B' })
+    const h = inner.ic('half-adder', 100, 0)
+    const o = inner.add('led', 260, 0, { label: 'S' })
+    inner.wire(`${x}.Q`, `${h}.A`)
+    inner.wire(`${y}.Q`, `${h}.B`)
+    inner.wire(`${h}.S`, `${o}.A`)
+    b.defineIC('Wrapper', inner.build())
+    const top = new CircuitBuilder()
+    top.c.ics = b.c.ics
+    const w = top.ic('wrapper', 0, 0)
+    const doc = top.build()
+    const l1 = enterIC(doc, w)!
+    const hid = Object.values(l1.comps).find((k) => k.type === IC)!.id
+    const l2 = enterIC(l1, hid)!
+    expect(levelsOf(l2)).toEqual(['wrapper', 'half-adder'])
+    expect(documentOf(l2)).toEqual(doc)
+    expect(documentOf(l1)).toEqual(doc)
+    // Saving from inside saves the whole document.
+    expect(serialize(l2)).toEqual(serialize(doc))
+    const { circuit: up1 } = leaveIC(l2)
+    expect(levelsOf(up1)).toEqual(['wrapper'])
+    expect(up1.comps).toEqual(l1.comps)
+  })
+
+  it('knows where an IC is used, and renames or removes one', () => {
+    const c = fullAdder()
+    expect(usageOf(c, 'half-adder')).toEqual({ inICs: [], here: 2 })
+    expect(isUsed(c, 'half-adder')).toBe(true)
+    const renamed = produce(c, (d) => renameDefinition(d, 'half-adder', 'HA'))
+    expect(renamed.ics!['half-adder'].name).toBe('HA')
+    expect(Object.values(renamed.comps).filter((k) => k.type === IC).map((k) => k.params.name)).toEqual(['HA', 'HA'])
+    // Out of the circuit, it is unused and can go.
+    const empty = produce(c, (d) => {
+      for (const k of Object.values(d.comps)) if (k.type === IC) delete d.comps[k.id]
+      d.wires = {}
+    })
+    expect(isUsed(empty, 'half-adder')).toBe(false)
+    expect(produce(empty, (d) => deleteDefinition(d, 'half-adder')).ics).toBeUndefined()
+    // An IC another IC uses counts as used.
+    const nested = new CircuitBuilder()
+    nested.c.ics = fullAdder().ics
+    nested.add('switch', 0, 0)
+    nested.ic('half-adder', 0, 0)
+    nested.add('led', 0, 0)
+    nested.defineIC('Uses it', nested.c, 'uses-it')
+    expect(usageOf({ comps: {}, wires: {}, ics: nested.c.ics }, 'half-adder').inICs).toEqual(['Uses it'])
   })
 })

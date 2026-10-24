@@ -3,11 +3,8 @@ import { currentIsaId } from '../engine/isa'
 import { getDef, hasDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
 import { legacyDefaults, type ParamDef, type ParamValue, type Params } from '../engine/types'
-import { validPath } from '../routing/path'
-import { wireEndpoints } from '../routing/router'
 import { emptyCircuit, type Circuit, type ICDef, type Point, type Rot } from './circuit'
-import { IC, findCycle, icParams } from './ic'
-import { pruneWires, reroute } from './ops'
+import { documentOf, findCycle, settleCircuit } from './ic'
 
 interface SavedComp {
   id: string
@@ -86,7 +83,9 @@ function serializeBody(c: Circuit): SavedBody {
   }
 }
 
-export function serialize(c: Circuit): SavedCircuit {
+export function serialize(circuit: Circuit): SavedCircuit {
+  // While the body of an IC is being edited, what is saved is the whole document.
+  const c = documentOf(circuit)
   const ics = Object.values(c.ics ?? {})
   return {
     app: 'sklopko',
@@ -150,31 +149,6 @@ function readBody(d: Partial<SavedBody>): Circuit {
 }
 
 /**
- * Make a circuit read from a file consistent: an IC instance takes the pins its definition has now (or goes, with its wires,
- * when the definition is not in the file), wires to pins that are not there are dropped, and missing or broken routes are
- * worked out again.
- */
-function finish(c: Circuit, ics: Record<string, ICDef>) {
-  for (const k of Object.values(c.comps)) {
-    if (k.type !== IC) continue
-    const def = ics[String(k.params.ic)]
-    if (def) k.params = icParams(def)
-    else delete c.comps[k.id]
-  }
-  pruneWires(c)
-  const todo: string[] = []
-  for (const w of Object.values(c.wires)) {
-    const e = wireEndpoints(c, w)
-    if (!e || !validPath(w.path, e.from, e.fromDir, e.to, e.toDir)) {
-      w.path = []
-      delete w.manual
-      todo.push(w.id)
-    }
-  }
-  reroute(c, todo)
-}
-
-/**
  * Parse and validate saved data. Unknown parts and broken wires are dropped; missing routes are recomputed. Files of an older
  * version are brought up to date first (`migrate`). Throws when the data is not a circuit, or when a custom IC in it contains
  * itself.
@@ -192,7 +166,7 @@ export function deserialize(data: unknown): Circuit {
   }
   if (findCycle(ics)) throw new Error('A custom IC in this file contains itself.')
   if (Object.keys(ics).length) c.ics = ics
-  for (const circuit of [c, ...Object.values(ics).map((def) => def.circuit)]) finish(circuit, ics)
+  for (const circuit of [c, ...Object.values(ics).map((def) => def.circuit)]) settleCircuit(circuit, ics)
   return c
 }
 

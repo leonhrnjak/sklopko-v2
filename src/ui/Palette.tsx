@@ -1,4 +1,5 @@
 import { memo, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { deleteIC, enterDefinitionById, renameIC } from '../app/ics'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
 import { viewLayoutOf } from '../engine/viewlayout'
@@ -129,6 +130,7 @@ function IcSection({
   toggle: () => void
   lastPointer: { current: string }
 }) {
+  const [renaming, setRenaming] = useState<string | null>(null)
   const items = Object.values(ics ?? {}).filter((d) => !q || d.name.toLowerCase().includes(q))
   if (!items.length) return null
   return (
@@ -142,26 +144,64 @@ function IcSection({
           {items.map((d) => {
             const what = placingIC(d.id)
             return (
-              <button
-                key={d.id}
-                className={`palette-item${placing === what ? ' active' : ''}`}
-                title={`${d.name}: a custom IC of this circuit`}
-                data-type={what}
-                onPointerDown={(e) => {
-                  lastPointer.current = e.pointerType
-                  if (e.pointerType !== 'mouse' || e.button !== 0) return
-                  e.preventDefault()
-                  Object.assign(paletteDrag, { active: true, moved: false, x: e.clientX, y: e.clientY })
-                  setPlacing(placing === what ? null : what)
-                }}
-                onClick={(e) => {
-                  if (lastPointer.current === 'mouse' && e.detail !== 0) return
-                  setPlacing(placing === what ? null : what)
-                }}
-              >
-                <IcThumb def={d} />
-                <span className="palette-name">{d.name}</span>
-              </button>
+              <div key={d.id} className="ic-item">
+                {renaming === d.id ? (
+                  <div className="palette-item">
+                    <IcThumb def={d} />
+                    <input
+                      className="ic-rename"
+                      aria-label={`New name for ${d.name}`}
+                      defaultValue={d.name}
+                      maxLength={40}
+                      autoFocus
+                      onFocus={(e) => e.target.select()}
+                      onBlur={(e) => {
+                        if (e.target.dataset.cancel !== '1') renameIC(d.id, e.target.value)
+                        setRenaming(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur()
+                        if (e.key === 'Escape') {
+                          e.stopPropagation()
+                          e.currentTarget.dataset.cancel = '1'
+                          e.currentTarget.blur()
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    className={`palette-item${placing === what ? ' active' : ''}`}
+                    title={`${d.name}: a custom IC of this circuit`}
+                    data-type={what}
+                    onPointerDown={(e) => {
+                      lastPointer.current = e.pointerType
+                      if (e.pointerType !== 'mouse' || e.button !== 0) return
+                      e.preventDefault()
+                      Object.assign(paletteDrag, { active: true, moved: false, x: e.clientX, y: e.clientY })
+                      setPlacing(placing === what ? null : what)
+                    }}
+                    onClick={(e) => {
+                      if (lastPointer.current === 'mouse' && e.detail !== 0) return
+                      setPlacing(placing === what ? null : what)
+                    }}
+                  >
+                    <IcThumb def={d} />
+                    <span className="palette-name">{d.name}</span>
+                  </button>
+                )}
+                <div className="ic-actions">
+                  <button onClick={() => enterDefinitionById(d.id)} aria-label={`Edit ${d.name}`} title="Open the circuit inside it to change it" data-testid={`ic-edit-${d.id}`}>
+                    Edit
+                  </button>
+                  <button onClick={() => setRenaming(d.id)} aria-label={`Rename ${d.name}`} title="Rename it">
+                    Rename
+                  </button>
+                  <button onClick={() => deleteIC(d.id)} aria-label={`Delete ${d.name}`} title="Delete it (only when nothing uses it)" data-testid={`ic-delete-${d.id}`}>
+                    Delete
+                  </button>
+                </div>
+              </div>
             )
           })}
         </div>

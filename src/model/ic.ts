@@ -2,10 +2,13 @@ import { RECV, SEND } from '../engine/netlabels'
 import { getDef, hasDef } from '../engine/registry'
 import { encodePins, type IcPin } from '../engine/components/ic'
 import { paramDefaults, type Params } from '../engine/types'
+import { produce } from 'immer'
+import { validPath } from '../routing/path'
+import { wireEndpoints } from '../routing/router'
 import { circuitRect } from './bounds'
 import { emptyCircuit, snap, type Circuit, type Comp, type ICDef, type PinRef } from './circuit'
 import { isLabel } from './labels'
-import { reroute } from './ops'
+import { pruneWires, reroute } from './ops'
 
 /**
  * Custom ICs. A definition is a circuit; its interface is the labelled parts inside: switches and bus inputs are inputs, LEDs and
@@ -347,4 +350,109 @@ export function inlineInstance(c: Circuit, instId: string, makeId: (prefix: stri
   }
   reroute(c, newWires)
   return [...ids, ...newWires]
+}
+
+/**
+ * Make a circuit consistent with the ICs of the document (`c` is changed): an IC instance takes the pins its definition has now (or
+ * goes, with its wires, when the definition is not there), wires to pins that are not there any more are dropped, and routes that
+ * no longer fit their pins are worked out again. Returns how many wires were dropped.
+ */
+export function settleCircuit(c: Circuit, ics: Record<string, ICDef>): number {
+  const wires = Object.keys(c.wires).length
+  for (const k of Object.values(c.comps)) {
+    if (k.type !== IC) continue
+    const def = ics[String(k.params.ic)]
+    if (def) k.params = icParams(def)
+    else delete c.comps[k.id]
+  }
+  pruneWires(c)
+  const todo: string[] = []
+  for (const w of Object.values(c.wires)) {
+    const e = wireEndpoints(c, w)
+    if (!e || !validPath(w.path, e.from, e.fromDir, e.to, e.toDir)) {
+      w.path = []
+      delete w.manual
+      todo.push(w.id)
+    }
+  }
+  reroute(c, todo)
+  return wires - Object.keys(c.wires).length
+}
+
+/** `settleCircuit` for every circuit of a document: the top one, and the body of each IC. */
+function settleAll(doc: Circuit): number {
+  const ics = doc.ics ?? {}
+  let dropped = settleCircuit(doc, ics)
+  for (const def of Object.values(ics)) dropped += settleCircuit(def.circuit, ics)
+  return dropped
+}
+
+// ---- Editing the body of an IC ---------------------------------------------------------------------
+
+/** The circuit to show for editing an IC: its body, with the document's ICs, remembering where it came from. Null when there is no such IC. */
+export function enterDefinition(c: Circuit, defId: string): Circuit | null {
+  const def = c.ics?.[defId]
+  return def ? { comps: def.circuit.comps, wires: def.circuit.wires, ics: c.ics, up: { def: def.id, outer: c } } : null
+}
+
+/** The same for an instance of the IC. Null for something that is not an instance. */
+export function enterIC(c: Circuit, instId: string): Circuit | null {
+  const k = c.comps[instId]
+  return k?.type === IC ? enterDefinition(c, String(k.params.ic)) : null
+}
+
+/**
+ * Back from editing an IC's body to the circuit it is placed in, with the body as it is now in the document. Every instance (in this
+ * circuit and in other ICs) takes the pins the IC has now, and wires to pins that are gone are dropped: `dropped` says how many.
+ */
+export function leaveIC(c: Circuit): { circuit: Circuit; dropped: number } {
+  const up = c.up
+  if (!up) return { circuit: c, dropped: 0 }
+  let dropped = 0
+  const circuit = produce({ ...up.outer, ics: { ...c.ics, [up.def]: { ...c.ics![up.def], circuit: { comps: c.comps, wires: c.wires } } } }, (d) => {
+    dropped = settleAll(d)
+  })
+  return { circuit, dropped }
+}
+
+/** The whole document: a circuit being edited from inside an IC, taken back out to the top level (as it is, without any message). */
+export function documentOf(c: Circuit): Circuit {
+  let doc = c
+  while (doc.up) doc = leaveIC(doc).circuit
+  return doc
+}
+
+/** The ids of the ICs between the top level and this circuit, outermost first (empty at the top level). */
+export function levelsOf(c: Circuit): string[] {
+  const path: string[] = []
+  for (let x = c; x.up; x = x.up.outer) path.unshift(x.up.def)
+  return path
+}
+
+/** Where an IC is placed: the names of the other ICs that contain an instance of it, and how many instances the top-level circuit has. */
+export function usageOf(c: Circuit, id: string): { inICs: string[]; here: number } {
+  const doc = documentOf(c)
+  const inICs = Object.values(doc.ics ?? {}).filter((d) => d.id !== id && placedICs(d.circuit).includes(id)).map((d) => d.name)
+  const here = Object.values(doc.comps).filter((k) => k.type === IC && k.params.ic === id).length
+  return { inICs, here }
+}
+
+export const isUsed = (c: Circuit, id: string) => {
+  const u = usageOf(c, id)
+  return u.here > 0 || u.inICs.length > 0
+}
+
+/** Rename an IC (`c` is changed, the circuit being edited): its instances show the new name. */
+export function renameDefinition(c: Circuit, id: string, name: string) {
+  const def = c.ics?.[id]
+  if (!def) return
+  def.name = name
+  settleAll(c)
+}
+
+/** Remove an IC from the table (`c` is changed). The caller checks that nothing uses it (`isUsed`) and that it is not being edited (`levelsOf`). */
+export function deleteDefinition(c: Circuit, id: string) {
+  if (!c.ics) return
+  delete c.ics[id]
+  if (!Object.keys(c.ics).length) delete c.ics
 }

@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CircuitBuilder } from '../model/builder'
 import { type Circuit } from '../model/circuit'
 import { icParams } from '../model/ic'
-import { expandInstance, makeIC } from './ics'
-import { addComp, copySelection, loadCircuit, paste, select, undo, useStore } from './store'
+import { serialize } from '../model/serialize'
+import { deleteIC, enterDefinitionById, enterInstance, expandInstance, leaveLevels, makeIC, renameIC } from './ics'
+import { addComp, copySelection, deleteSelection, loadCircuit, paste, select, setLabel, undo, useStore } from './store'
 
 const circuit = () => useStore.getState().circuit
 
@@ -101,5 +102,98 @@ describe('making ICs in the store', () => {
     expect(useStore.getState().past.length).toBe(depth + 1)
     undo()
     expect(Object.keys(circuit().comps)).toEqual(before)
+  })
+})
+
+describe('editing the inside of an IC in the store', () => {
+  beforeEach(() => {
+    vi.stubGlobal('window', { setTimeout })
+    vi.stubGlobal('requestAnimationFrame', () => 0)
+    loadCircuit(new CircuitBuilder().c, false)
+  })
+
+  /** An inverter IC with an instance on the canvas; returns the instance's id. */
+  function withInverter() {
+    const b = new CircuitBuilder()
+    const s = b.add('switch', 0, 0, { label: 'In' })
+    const g = b.add('not', 80, 0)
+    const l = b.add('led', 160, 0, { label: 'Out' })
+    b.wire(`${s}.Q`, `${g}.A`)
+    b.wire(`${g}.Y`, `${l}.A`)
+    loadCircuit(b.build(), false)
+    const id = makeIC('Inverter', null)
+    loadCircuit({ comps: {}, wires: {}, ics: circuit().ics }, false)
+    return { id, inst: addComp(`ic:${id}`, 100, 100), gate: g }
+  }
+
+  it('enters an instance, edits the body, and comes back with the instance changed; undo works across the levels', () => {
+    const { id, inst, gate } = withInverter()
+    enterInstance(inst)
+    expect(circuit().up?.def).toBe(id)
+    expect(Object.keys(circuit().comps)).toContain(gate)
+    useStore.setState({ selection: [gate] })
+    deleteSelection()
+    expect(circuit().comps[gate]).toBeUndefined()
+    // Saving from inside is saving the document, with the edit in it.
+    expect(serialize(circuit()).ics![0].comps.some((k) => k.type === 'not')).toBe(false)
+    leaveLevels()
+    expect(circuit().up).toBeUndefined()
+    expect(circuit().comps[inst]).toBeDefined()
+    expect(circuit().ics![id].circuit.comps[gate]).toBeUndefined()
+    // Undo goes back inside (with the body as it was just before leaving), then through the edit, then out.
+    undo()
+    expect(circuit().up?.def).toBe(id)
+    undo()
+    expect(circuit().comps[gate]).toBeDefined()
+    expect(circuit().up?.def).toBe(id)
+    undo()
+    expect(circuit().up).toBeUndefined()
+    expect(circuit().ics![id].circuit.comps[gate]).toBeDefined()
+  })
+
+  it('goes back several levels at once, and says how many wires lost their pins', () => {
+    const { id, inst } = withInverter()
+    enterInstance(inst)
+    // Rename the output pin inside.
+    const out = Object.values(circuit().comps).find((k) => k.type === 'led')!.id
+    setLabel(out, 'Q')
+    // Wire the instance's output to something outside first, in the circuit that places it: use the outer circuit's table.
+    leaveLevels(5)
+    expect(circuit().ics![id].circuit.comps[out].label).toBe('Q')
+    expect(circuit().comps[inst].params.outs).toBe('Q:1')
+  })
+
+  it('does not let an IC be placed inside itself', () => {
+    const { id, inst } = withInverter()
+    enterInstance(inst)
+    expect(addComp(`ic:${id}`, 0, 300)).toBe('')
+    expect(useStore.getState().toast).toContain('cannot be placed inside itself')
+    // An IC that places this one cannot be placed inside it either.
+    leaveLevels()
+    const host = new CircuitBuilder()
+    host.c.ics = circuit().ics
+    host.add('switch', 0, 0, { label: 'A' })
+    host.add('led', 100, 0, { label: 'B' })
+    host.ic(id, 0, 100)
+    loadCircuit(host.c, false)
+    const outer = makeIC('Outer', null)
+    enterDefinitionById(id)
+    expect(addComp(`ic:${outer}`, 0, 300)).toBe('')
+  })
+
+  it('renames an IC (its instances show the new name), and deletes one only when nothing uses it', () => {
+    const { id, inst } = withInverter()
+    renameIC(id, ' Not gate ')
+    expect(circuit().ics![id].name).toBe('Not gate')
+    expect(circuit().comps[inst].params.name).toBe('Not gate')
+    expect(deleteIC(id)).toBe(false)
+    expect(useStore.getState().toast).toContain('is in use')
+    expect(circuit().ics![id]).toBeDefined()
+    useStore.setState({ selection: [inst] })
+    deleteSelection()
+    expect(deleteIC(id)).toBe(true)
+    expect(circuit().ics).toBeUndefined()
+    undo() // the toast's Undo
+    expect(circuit().ics![id]).toBeDefined()
   })
 })

@@ -116,3 +116,105 @@ test('an instance can be expanded back into its parts, in one undo step', async 
   await expect(page.locator(`.comp[data-id="${ic}"]`)).toBeVisible()
   await expect(page.locator('.comp')).toHaveCount(4)
 })
+
+/** The inverter IC, made from the circuit, and an instance of it between a new switch and a new LED. */
+async function inverterInUse(page: Page) {
+  const made = await inverterCircuit(page)
+  await chooseTool(page, 'Make IC…')
+  await dialog(page).getByLabel('IC name').fill('Inverter')
+  await dialog(page).getByRole('button', { name: 'Make IC' }).click()
+  const sw = await place(page, 'switch', 120, 330)
+  const ic = await place(page, 'ic:inverter', 300, 330)
+  const led = await place(page, 'led', 480, 330)
+  await wire(page, [sw, 'Q'], [ic, 'A'])
+  await wire(page, [ic, 'Y'], [led, 'A'])
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+  return { ...made, sw2: sw, ic, led2: led }
+}
+
+test('edit the inside of an IC: the instance changes with it, the way back is shown, and undo goes through the levels', async ({ page }) => {
+  const { sw2, ic, led2, inv } = await inverterInUse(page)
+  // Open it from the inspector (the instance is selected after wiring: select it by clicking).
+  await clickComp(page, ic)
+  await page.getByRole('button', { name: 'Edit IC' }).click()
+  const crumbs = page.getByTestId('crumbs')
+  await expect(crumbs).toContainText('Main')
+  await expect(crumbs.locator('[aria-current]')).toHaveText('Inverter')
+  // Inside is the circuit it was made from: a switch, the inverter and an LED, each live, with no instance around.
+  await expect(page.locator('.comp')).toHaveCount(3)
+  await expect(page.locator(`.comp[data-id="${ic}"]`)).toHaveCount(0)
+  // Take the inverter out and join the switch to the LED.
+  await page.locator(`.comp[data-id="${inv}"]`).click({ button: 'right' })
+  await page.keyboard.press('Delete')
+  await expect(page.locator('.comp')).toHaveCount(2)
+  const [a, b] = await page.locator('.comp').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')!))
+  const first = await page.locator(`.comp[data-id="${a}"] .comp-label`).textContent()
+  const [from, to] = first === 'A' ? [a, b] : [b, a]
+  await wire(page, [from, 'Q'], [to, 'A'])
+  await page.getByRole('button', { name: '← Back' }).click()
+  await expect(crumbs).toHaveCount(0)
+  await expect(page.locator(`.comp[data-id="${ic}"]`)).toBeVisible()
+  // The instance is a plain wire now: LED off with the switch off, on with it on.
+  await expect.poll(() => ledOn(page, led2)).toBe(false)
+  await clickComp(page, sw2)
+  await expect.poll(() => ledOn(page, led2)).toBe(true)
+
+  // Undo goes back through the levels: first into the IC again, as it was when it was left.
+  await page.keyboard.press('Control+z')
+  await expect(crumbs).toBeVisible()
+  await expect(page.locator('.wire-group')).toHaveCount(1)
+  await page.keyboard.press('Control+z') // the wire
+  await expect(page.locator('.wire-group')).toHaveCount(0)
+  await expect(page.locator('.comp')).toHaveCount(2)
+  await page.keyboard.press('Control+z') // the inverter comes back
+  await expect(page.locator('.comp')).toHaveCount(3)
+})
+
+test('a double-click opens an instance, and the way back can be taken from the breadcrumb', async ({ page }) => {
+  const { ic } = await inverterInUse(page)
+  const b = (await page.locator(`.comp[data-id="${ic}"] > g`).boundingBox())!
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2)
+  await expect(page.getByTestId('crumbs').locator('[aria-current]')).toHaveText('Inverter')
+  await page.getByTestId('crumbs').getByRole('button', { name: 'Main' }).click()
+  await expect(page.getByTestId('crumbs')).toHaveCount(0)
+  await expect(page.locator(`.comp[data-id="${ic}"]`)).toBeVisible()
+})
+
+test('an IC gone from the pins: changing a pin inside removes the wire to it, and says so', async ({ page }) => {
+  const { ic, led, sw } = await inverterInUse(page)
+  void led
+  void sw
+  await page.getByTestId('ic-section').getByTestId('ic-edit-inverter').click()
+  await expect(page.getByTestId('crumbs')).toBeVisible()
+  // Change the label of the output LED inside: the pin is not called Y any more.
+  const leds = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Y$/ }) })
+  await leds.first().click()
+  await page.getByLabel('Label', { exact: true }).fill('Z')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: '← Back' }).click()
+  await expect(page.locator('.toast')).toContainText('1 wire was removed')
+  await clickComp(page, ic)
+  await expect(page.locator('.inspector')).toContainText('Outputs: Z')
+})
+
+test('rename and delete ICs from the parts list: a used one is kept', async ({ page }) => {
+  const { ic } = await inverterInUse(page)
+  const item = page.getByTestId('ic-section')
+  await item.getByRole('button', { name: 'Rename Inverter' }).click()
+  await item.getByLabel('New name for Inverter').fill('Not gate')
+  await page.keyboard.press('Enter')
+  await expect(item.locator('.palette-name')).toHaveText('Not gate')
+  await clickComp(page, ic)
+  await expect(page.locator('.inspector h2')).toHaveText('Not gate')
+
+  await item.getByRole('button', { name: 'Delete Not gate' }).click()
+  await expect(page.locator('.toast')).toContainText('is in use')
+  await expect(item.locator('.palette-name')).toHaveText('Not gate')
+  // With the instance gone it can be deleted, and the toast brings it back.
+  await page.locator(`.comp[data-id="${ic}"]`).click({ button: 'right' })
+  await page.keyboard.press('Delete')
+  await item.getByRole('button', { name: 'Delete Not gate' }).click()
+  await expect(page.getByTestId('ic-section')).toHaveCount(0)
+  await page.locator('.toast').getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByTestId('ic-section').locator('.palette-name')).toHaveText('Not gate')
+})
