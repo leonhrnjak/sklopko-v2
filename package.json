@@ -1,7 +1,8 @@
 {
   "name": "sklopko",
   "private": true,
-  "version": "0.0.1-83",
+  "version": "0.0.1",
+  "buildOffset": -9,
   "type": "module",
   "scripts": {
     "dev": "vite",
