@@ -328,3 +328,39 @@ test('gamepad: the arrow keys press its buttons, and the paddle moves', async ({
   await page.keyboard.up('z')
   await expect(down).toHaveCount(0)
 })
+
+test('a lookup table is filled from an expression, with the error shown when the expression does not fit', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'lut', 300, 200)
+  const cell = (row: number, out = 'Y') => page.getByRole('button', { name: `Row ${row}, ${out}` })
+  const expr = page.getByLabel('Expression for the table')
+  await expr.fill('A·B')
+  await page.getByRole('button', { name: 'Fill the table' }).click()
+  // Three inputs, A the most significant: A and B are both 1 in rows 6 and 7.
+  for (const row of [0, 1, 2, 3, 4, 5]) await expect(cell(row)).toHaveText('0')
+  for (const row of [6, 7]) await expect(cell(row)).toHaveText('1')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+
+  await expr.fill('A·Q')
+  await page.getByRole('button', { name: 'Fill the table' }).click()
+  await expect(page.getByRole('alert')).toContainText('Q is not an input of this table, which has A, B, C.')
+  await expect(cell(6)).toHaveText('1') // untouched
+  await expr.fill('A ·')
+  await page.getByRole('button', { name: 'Fill the table' }).click()
+  await expect(page.getByRole('alert')).toContainText('line 1')
+
+  // Two outputs: one line each.
+  await page.getByLabel('Outputs').selectOption('2')
+  await page.getByLabel('Expression for the table').fill('Y0 = A ⊕ B\nY1 = ¬C')
+  await page.getByRole('button', { name: 'Fill the table' }).click()
+  await expect(cell(0, 'Y0')).toHaveText('0')
+  await expect(cell(2, 'Y0')).toHaveText('1')
+  await expect(cell(0, 'Y1')).toHaveText('1')
+  await expect(cell(1, 'Y1')).toHaveText('0')
+  // One undo step (it also deselects the part).
+  await page.keyboard.press('Control+z')
+  await page.locator('.comp > g').first().click()
+  await expect(cell(0, 'Y1')).toHaveText('0')
+  await expect(cell(0, 'Y0')).toHaveText('0')
+  await expect(cell(2, 'Y0')).toHaveText('0')
+})

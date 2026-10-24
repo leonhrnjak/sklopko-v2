@@ -6,6 +6,7 @@ import { sim } from '../app/sim'
 import { pokeWord, setParams, showToast, useStore } from '../app/store'
 import type { ConsoleState } from '../engine/components/devices'
 import { HEX_WORDS, parseWords } from '../engine/components/memory'
+import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
 import { toNum, type Params } from '../engine/types'
@@ -359,6 +360,53 @@ export function LutSection({ comp }: { comp: Comp }) {
       <div className="row">
         <button onClick={() => write(words.map(() => 0))}>All 0</button>
         <button onClick={() => write(words.map(() => 2 ** m - 1))}>All 1</button>
+      </div>
+      <LutFromExpression key={comp.id} comp={comp} words={words} write={write} />
+    </div>
+  )
+}
+
+/** A box for a boolean expression, and a button that fills the table from it (see `fillLut`). */
+function LutFromExpression({ comp, words, write }: { comp: Comp; words: number[]; write: (next: number[]) => void }) {
+  const n = Number(comp.params.inputs)
+  const m = Number(comp.params.outputs)
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const outs = lutOutputNames(m)
+  const apply = () => {
+    const r = fillLut(text, n, m, words)
+    if (r.ok) {
+      setError('')
+      write(r.words)
+    } else setError(r.error)
+  }
+  return (
+    <div className="lut-expr">
+      <label className="field">
+        <span>Fill from an expression</span>
+        <textarea
+          aria-label="Expression for the table"
+          rows={m > 1 ? 3 : 2}
+          spellCheck={false}
+          value={text}
+          placeholder={m > 1 ? `${outs[0]} = A·B + ¬C\n${outs[1]} = A ⊕ B` : 'A·B + ¬C'}
+          onChange={(e) => setText(e.target.value)}
+          aria-invalid={error !== ''}
+        />
+      </label>
+      <small>
+        Use {lutInputNames(n).join(', ')} as the inputs, written as in the Logic window (· + ¬ ⊕, or &amp; | ! ^).
+        {m > 1 ? ` One line for each output: ${outs.join(', ')}; a line you leave out keeps its values.` : ''}
+      </small>
+      {error && (
+        <p className="logic-warning" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="row">
+        <button onClick={apply} disabled={!text.trim()}>
+          Fill the table
+        </button>
       </div>
     </div>
   )

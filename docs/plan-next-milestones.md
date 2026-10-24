@@ -26,7 +26,7 @@
 > - [x] 14d Edit an IC, v0.0.1-70
 > - [x] 14e Collapse a selection into an IC; examples, v0.0.1-71
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
-> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72)
+> - [ ] 16 Small wins: 16a keyboard control (v0.0.1-72), 16b lookup table from an expression (v0.0.1-73)
 
 ## Context
 Milestones 0–10 are done (v0.0.1-57): 70 part types, buses and tri-state, the timing view, the state machine editor,
@@ -521,6 +521,12 @@ before the editor's own shortcuts, so a switch whose key is R, F or H gets the k
 A keypad reads the keyboard (`app/keypad.ts`, `keypadCodeOfKey`): digits and A–F on a hex keypad; digits, + - * / (or x), = (or Enter) and C
 on the calculator one; P is high while the key is held. Letters A–F are left to the editor (F flips a selected part) while something is
 selected, and to a gamepad's keys when there is one. Tests: `app/keypad.test.ts`, `e2e/keyboard.spec.ts`.
+
+*16b. Lookup table from an expression: what it did.* The lookup table's inspector has a box for a boolean expression and a *Fill the table* button
+(`fillLut`, `logic/lut.ts`), using the Logic window's parser: A, B, C… are the inputs (A the most significant); one expression is Y (Y0 on a
+table with several outputs), more are `Y1 = …` lines or bare lines that fill Y0, Y1… in order; other names are defined by their own lines;
+an output the text leaves out keeps its values. A syntax error says where it is, an input the table lacks and a line for no output are
+named. One undo step. Tests: `logic/lut.test.ts`, and an e2e test in `computers.spec.ts` (with the "devices" tests).
 
 ## Considered and not planned
 - **Croatian UI**: not needed.
