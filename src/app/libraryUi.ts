@@ -47,15 +47,18 @@ export const setLibraryFilter = (filter: LibraryFilter) => useLibraryUi.setState
 
 const reason = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** Open a document of the library (a circuit on the canvas, a state machine in its editor). Resolves to whether it was opened. */
-export async function openDoc(meta: DocMeta): Promise<boolean> {
+/**
+ * Open a document of the library (a circuit on the canvas, a state machine in its editor), and close the dialog unless told not
+ * to. Resolves to whether it was opened.
+ */
+export async function openDoc(meta: DocMeta, closeDialog = true): Promise<boolean> {
   try {
     if (meta.kind === 'fsm') await openStoredFsm(meta.id)
     else if (activeDoc('circuit')?.id !== meta.id) {
       await openStoredCircuit(meta.id)
       setExampleUrl(null)
     }
-    closeLibraryDialog()
+    if (closeDialog) closeLibraryDialog()
     return true
   } catch (e) {
     showToast(`Could not open “${meta.name}”: ${reason(e)}`)
@@ -104,7 +107,7 @@ export async function removeDoc(meta: DocMeta) {
       run: () => {
         void restoreDoc(rec)
           .then(refreshLibrary)
-          .then(() => wasOpen && openDoc(meta))
+          .then(() => wasOpen && openDoc(meta, false)) // the dialog stays: more may be deleted
       },
     },
   )
