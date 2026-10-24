@@ -135,15 +135,20 @@ export function beginnerBuilder(source = BEGINNER_SOURCE, hz = 1) {
   }
 
   const sent = new Map<string, boolean>()
+  const received = new Map<string, string>()
+  const unlabelled: typeof links = []
   for (const l of links) {
     if (!l.name) {
       b.wire(l.from, l.to)
       continue
     }
     if (!sent.has(l.name)) sent.set(l.name, b.tap(l.from, l.name) !== undefined)
-    if (sent.get(l.name) && b.tag(l.to, l.name)) continue
-    b.wire(l.from, l.to)
+    const label = sent.get(l.name) ? b.tag(l.to, l.name) : undefined
+    if (label) received.set(l.name, received.get(l.name) ?? label)
+    else unlabelled.push(l)
   }
+  // A pin with no room for its own Receive label branches off one that is already there, so a name is never also a wire from its source.
+  for (const l of unlabelled) b.wire(received.has(l.name!) ? `${received.get(l.name!)}.Y` : l.from, l.to)
   return { b, keys }
 }
 
