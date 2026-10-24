@@ -1,13 +1,15 @@
 import { EXAMPLES, exampleFromPath, type Example } from '../model/examples'
-import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
+import { deserialize, fromShareHash, serialize, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
 import { isEmbed } from './embed'
 import { installGamepadKeys } from './gamepad'
+import { openLastDoc, openLibrary, saveActive, watchLibrary } from './library'
 import { loadIntoSim, sim } from './sim'
 import { loadCircuit, setRunning, showToast, useStore } from './store'
 
-const STORAGE_KEY = 'sklopko.circuit.v1'
+/** Where the one saved circuit lived before the library; read once, to bring it in. */
+const LEGACY_KEY = 'sklopko.circuit.v1'
 
 /**
  * Show an example's short link in the address bar while it is open and unedited
@@ -24,7 +26,17 @@ export function openExample(ex: Example) {
   setExampleUrl(ex)
 }
 
-function initialCircuit(): Circuit {
+async function initialCircuit(): Promise<Circuit> {
+  // The document this tab had (or the last one used) stays the active one: what is opened below is saved into it.
+  let saved: Circuit | null = null
+  if (!isEmbed()) {
+    try {
+      const rec = await openLastDoc('circuit')
+      if (rec) saved = deserialize(rec.data)
+    } catch {
+      // A record that no longer reads: start from the welcome example below.
+    }
+  }
   const ex = exampleFromPath(location.pathname)
   if (ex) return ex.build()
   if (location.pathname !== '/') setExampleUrl(null)
@@ -39,9 +51,11 @@ function initialCircuit(): Circuit {
   }
   // An embedded circuit is the one in the link, never the visitor's own saved work.
   if (isEmbed()) return EXAMPLES[0].build()
+  if (saved) return saved
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return deserialize(JSON.parse(saved))
+    // The single saved circuit of earlier versions becomes the first document of the library.
+    const old = localStorage.getItem(LEGACY_KEY)
+    if (old) return deserialize(JSON.parse(old))
   } catch {
     // Corrupt or unavailable storage: fall through to the welcome example.
   }
@@ -50,10 +64,24 @@ function initialCircuit(): Circuit {
 
 let started = false
 
-/** Wire the store to the simulator, autosave, and start the animation loop. */
-export function startRuntime() {
+/** Open the library, wire the store to the simulator, autosave, and start the animation loop. */
+export async function startRuntime() {
   if (started) return
   started = true
+
+  // An embedded circuit never reads or writes the visitor's library.
+  if (!isEmbed()) {
+    if (!(await openLibrary())) {
+      window.setTimeout(() => showToast('This browser will not keep your circuits after you close the page (private window?).'), 600)
+    }
+    let told = false
+    watchLibrary(() => {
+      if (told) return
+      told = true
+      showToast('This circuit was changed in another tab. Reload to see the change.')
+    })
+  }
+  const first = await initialCircuit()
 
   let lastStruct = -1
   const sync = () => {
@@ -66,21 +94,22 @@ export function startRuntime() {
   useStore.subscribe(sync)
 
   let saveTimer = 0
+  let failed = false
   let lastSaved: Circuit | null = null
   useStore.subscribe((s) => {
     if (isEmbed() || s.circuit === lastSaved) return // an embedded circuit must not overwrite the visitor's saved one
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => {
       lastSaved = s.circuit
-      try {
-        localStorage.setItem(STORAGE_KEY, toJSON(useStore.getState().circuit))
-      } catch {
+      saveActive('circuit', serialize(lastSaved)).catch(() => {
         // Storage full or blocked; the circuit still works, it just won't survive a reload.
-      }
+        if (!failed) showToast('Your circuit could not be saved in this browser.')
+        failed = true
+      })
     }, 400)
   })
 
-  loadCircuit(initialCircuit(), false)
+  loadCircuit(first, false)
   sync()
 
   // The first real edit (anything that creates an undo step) leaves the example: drop its short link so a

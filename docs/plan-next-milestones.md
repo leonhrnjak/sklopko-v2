@@ -12,7 +12,7 @@
 >   merges, retarget the next to `main`. After each *milestone* (11, 12, …) stop, so the user can clear the conversation: this
 >   file is the memory, so keep the boxes ticked and the "What it did" notes current.
 >
-> - [ ] 11a Library storage
+> - [x] 11a Library storage, v0.0.1-59
 > - [ ] 11b Nothing replaces your work
 > - [ ] 11c My circuits panel, state machines, backup
 > - [ ] 12a Code splitting
@@ -76,6 +76,22 @@ old one stays in the library.
 - Embed mode never opens the library (as today with autosave).
 - Two tabs on one document: a `BroadcastChannel` tells the other tab, which shows "Changed in another tab: Reload". Last
   write wins otherwise.
+- *What 11a did, and where it differs from the plan:* `src/app/library.ts` is as planned (`LibraryBackend`, `idbBackend`,
+  `memoryBackend`, `openLibrary`, `listDocs` / `getDoc` / `putDoc` / `deleteDoc`, `openLastDoc`, `saveActive`, `watchLibrary`).
+  - The IndexedDB backend lets go of the database when another tab or a test deletes it (`versionchange`) and opens it again on
+    the next call.
+  - `saveActive` queues its saves, so two quick ones never make two documents. It keeps the name and origin a document has.
+  - A tab remembers its document in `sessionStorage` and the last one used in `localStorage` (as planned). When neither points
+    at a record, the most recently saved circuit opens.
+  - **Behaviour is deliberately unchanged:** opening an example, a link or a file still replaces what the active document holds
+    (11b is what stops that). The stored document is the same one the old single slot was.
+  - The "this browser won't keep your circuits" toast shows 0.6 s after startup, so it isn't gone before the page appears. A
+    save that fails shows one toast ("could not be saved") per visit.
+  - e2e files that cleared `localStorage` now call `clearStorage(page)` (`e2e/storage.ts`), which also clears the session
+    storage and deletes the database.
+  - New dev dependency: `fake-indexeddb`, so the IndexedDB backend is unit-tested like the memory one.
+  - Tests: `src/app/library.test.ts` (both backends alike; reopening; the library's list, save, queue, delete) and
+    `e2e/library.spec.ts` (kept and restored, v1 import, a new tab, embed, no database).
 
 **11b. Nothing replaces your work (medium)**
 - **Example**: opens as an unsaved document showing the example (short link in the address bar, as now). The first real
