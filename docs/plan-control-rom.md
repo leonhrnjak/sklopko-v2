@@ -8,7 +8,7 @@
 >   "one PR per sub-milestone" habit of `plan-next-milestones.md` becomes "one commit per sub-milestone".
 >
 > - [x] C1 A decoded listing: named signals and named rows, on the four computer ROMs, v0.0.1-79
-> - [ ] C2 Edit a row by signal: toggles and lists instead of hex
+> - [x] C2 Edit a row by signal: toggles and lists instead of hex
 > - [ ] C3 The text form: `LDI: LOAD SRC=CONST`, and the computers' control ROMs generated from it
 > - [ ] C4 Polish: the reference page, the example notes, e2e, README
 
@@ -109,3 +109,14 @@ addressed by opcode + 16 × sub-opcode) and the Beginner computer's `Control ROM
   is too noisy, C4 can name only the rows each ROM uses.
 - Tests: `signals.test.ts` (parser, words, `splitPlan`), the decoded rows of all three SKASM ROMs and the Beginner ROM against the
   `CONTROL` table in words, the splitters against the layouts, and the beginner's wires against its layout; two e2e tests.
+
+### C2 (same version, 0.0.1-79: one PR's worth on this branch)
+- Clicking a row of a control ROM's listing (or Enter on it) opens **Row NAME** under the listing: a checkbox for each one-bit
+  signal, a list for each field (`ALU (1)`, `RAM (2)`…; a number box above 5 bits), set bits that no signal names (they can be
+  cleared, not set), **Clear row** and **Done** (Escape inside it also closes). Each change writes the ROM's `data` (one undo step,
+  works while the simulation runs). Only one row is open at a time; an open row stays in the listing even if it is empty.
+- **Differs from the plan:** the editor is *below* the listing, not inside it (inside, it was cut off by the listing's own scroll
+  area). The open row does not follow the clock; the "current row" mark on the listing already shows what is being read. The editor
+  is off while the signal list has errors (the hex text still works).
+- Tests: one e2e (SUB's SUBTRACT unticked and its source list changed, hex words follow, Clear row, Done, Escape and keyboard).
+

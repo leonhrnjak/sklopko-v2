@@ -10,7 +10,7 @@ import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
 import { SIGNAL_PRESETS } from '../engine/signal-presets'
-import { describeWord, parseRows, parseSignals, type SignalLayout, type TextError } from '../engine/signals'
+import { describeWord, parseRows, parseSignals, signalValue, valueName, withSignal, type Signal, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
 import { TextParam } from './TextParam'
@@ -112,7 +112,7 @@ interface ControlRow {
 }
 
 /** All words of a ROM: address, value and (for a program) the instruction or (for a control ROM) the row's name and signals, with the one being read right now marked. */
-function Listing({ comp, isa, values, digits, control, hideEmpty }: { comp: Comp; isa?: Isa; values: number[]; digits: number; control?: ControlRow[]; hideEmpty?: boolean }) {
+function Listing({ comp, isa, values, digits, control, hideEmpty, editor }: { comp: Comp; isa?: Isa; values: number[]; digits: number; control?: ControlRow[]; hideEmpty?: boolean; editor?: RowEditing }) {
   useCompSignature(comp.id, true)
   const addr = toNum(sim.inputValues(comp.id), 0, Number(comp.params.abits))
   const addrDigits = Math.max(1, (values.length - 1).toString(16).length)
@@ -121,9 +121,32 @@ function Listing({ comp, isa, values, digits, control, hideEmpty }: { comp: Comp
       {values.map((w, i) => {
         const row = control?.[i]
         // A control ROM is mostly empty rows: leave them out when asked, except the one being read.
-        if (hideEmpty && row && !row.name && !row.signals && i !== addr) return null
+        if (hideEmpty && row && !row.name && !row.signals && i !== addr && i !== editor?.open) return null
+        const open = editor?.open === i
+        const rowName = row?.name || hexOf(i, addrDigits)
         return (
-          <div key={i} className={`row-listing${i === addr ? ' current' : ''}${control ? ' control' : ''}`} role="row" aria-current={i === addr ? 'true' : undefined}>
+          <div
+            key={i}
+            className={`row-listing${i === addr ? ' current' : ''}${control ? ' control' : ''}${editor ? ' editable' : ''}${open ? ' open' : ''}`}
+            role="row"
+            aria-current={i === addr ? 'true' : undefined}
+            {...(editor
+              ? {
+                  tabIndex: 0,
+                  'aria-expanded': open,
+                  'aria-label': `Row ${rowName}`,
+                  title: open ? 'Click to close the row' : 'Click to change what this row switches on',
+                  onClick: () => editor.setOpen(open ? null : i),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      editor.setOpen(open ? null : i)
+                    }
+                  },
+                }
+              : {})}
+          >
             <span className="addr">{hexOf(i, addrDigits)}</span>
             <span className="word">{hexOf(w, digits)}</span>
             {row ? (
@@ -137,6 +160,82 @@ function Listing({ comp, isa, values, digits, control, hideEmpty }: { comp: Comp
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/** What the listing of a control ROM needs to let a row be edited by its signals. */
+interface RowEditing {
+  layout: SignalLayout
+  /** The ROM's data bits. */
+  bits: number
+  /** The row that is open, if any. */
+  open: number | null
+  setOpen: (row: number | null) => void
+  /** Write a new word into a row. */
+  change: (row: number, word: number) => void
+}
+
+/** The values a field can take, as the options of a list (a number of its own for the ones without a name). */
+const fieldOptions = (s: Signal) => Array.from({ length: 2 ** s.width }, (_, v) => ({ value: v, label: s.values[v] ? `${s.values[v]} (${v})` : valueName(s, v) }))
+
+/** One row of a control ROM as a checkbox for each signal and a list for each field: changing one rewrites the word at once. */
+function RowEditor({ layout, bits, word, name, onChange, onClose }: { layout: SignalLayout; bits: number; word: number; name: string; onChange: (word: number) => void; onClose: () => void }) {
+  const covered = layout.signals.reduce((m, s) => m + (2 ** s.width - 1) * 2 ** s.from, 0)
+  // Set bits that no signal names can be cleared here (they can only be set in the hex text).
+  const stray = Array.from({ length: bits }, (_, b) => b).filter((b) => Math.floor(word / 2 ** b) % 2 === 1 && Math.floor(covered / 2 ** b) % 2 === 0)
+  return (
+    <div
+      className="row-editor"
+      role="group"
+      aria-label={`Signals of row ${name}`}
+      onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), onClose())}
+    >
+      <h4>Row {name}</h4>
+      <div className="signal-grid">
+        {layout.signals.map((s) =>
+          s.width === 1 && s.values.length === 0 ? (
+            <label key={s.name} className="check">
+              <input type="checkbox" checked={signalValue(s, word) === 1} onChange={(e) => onChange(withSignal(s, word, e.target.checked ? 1 : 0))} />
+              <span>{s.name}</span>
+            </label>
+          ) : (
+            <label key={s.name} className="pick">
+              <span>{s.name}</span>
+              {s.width <= 5 ? (
+                <select aria-label={s.name} value={signalValue(s, word)} onChange={(e) => onChange(withSignal(s, word, Number(e.target.value)))}>
+                  {fieldOptions(s).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  aria-label={s.name}
+                  min={0}
+                  max={2 ** s.width - 1}
+                  value={signalValue(s, word)}
+                  onChange={(e) => e.target.value !== '' && onChange(withSignal(s, word, Number(e.target.value)))}
+                />
+              )}
+            </label>
+          ),
+        )}
+        {stray.map((b) => (
+          <label key={`bit${b}`} className="check">
+            <input type="checkbox" checked aria-label={`bit ${b}`} onChange={() => onChange(word - 2 ** b)} />
+            <span>bit {b}</span>
+          </label>
+        ))}
+      </div>
+      <div className="row">
+        <button onClick={() => onChange(0)} disabled={word === 0}>
+          Clear row
+        </button>
+        <button onClick={onClose}>Done</button>
+      </div>
     </div>
   )
 }
@@ -252,6 +351,14 @@ export function RomSection({ comp }: { comp: Comp }) {
     [control, parsedNames, dataText, words, bits],
   )
   const [hideEmpty, setHideEmpty] = useState(true)
+  const [openRow, setOpenRow] = useState<number | null>(null)
+  /** Write one word of the ROM (the words as they are now, not as they were when this was rendered). */
+  const changeRow = (row: number, word: number) => {
+    const now = parseWords(String(currentParams(comp.id).data), words, bits)
+    now[row] = word
+    setParams(comp.id, { data: toHexWords(now, bits) })
+  }
+  const editor: RowEditing | undefined = control && parsedNames.signals.errors.length === 0 ? { layout: parsedNames.signals.layout, bits, open: openRow, setOpen: setOpenRow, change: changeRow } : undefined
 
   const save = () => {
     const now = currentParams(comp.id)
@@ -302,7 +409,17 @@ export function RomSection({ comp }: { comp: Comp }) {
           <span>Only rows with a name or signals</span>
         </label>
       )}
-      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} />
+      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} editor={editor} />
+      {editor && openRow !== null && openRow < words && (
+        <RowEditor
+          layout={editor.layout}
+          bits={bits}
+          word={values[openRow]}
+          name={`${controlRows?.[openRow]?.name || hexOf(openRow, Math.max(1, (words - 1).toString(16).length))}`}
+          onChange={(w) => changeRow(openRow, w)}
+          onClose={() => setOpenRow(null)}
+        />
+      )}
       {!isa && <SignalsEditor comp={comp} layout={parsedNames.signals.layout} errors={{ signals: parsedNames.signals.errors, rows: parsedNames.rows.errors }} />}
       {p.table === 'on' && <TableDump text={String(p.tdata)} />}
       <div className="row">
