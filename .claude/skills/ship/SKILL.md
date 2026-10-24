@@ -24,8 +24,25 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
 4. **Commit and push.** Stage the changed files by name (no `git add -A` of unrelated files), commit with a descriptive message
    that ends with the attribution line from the session's system reminder, then `git push -u origin <branch>`. Retry a failed
    push on network errors only (2 s, 4 s, 8 s, 16 s).
-5. **Open the PR** with `gh pr create` (title ends with the version, e.g. `(0.0.1-33)`). Use `.github/pull_request_template.md`
-   if there is one; otherwise a short Summary and Test plan. End the body with the PR attribution line from the system reminder.
+5. **Screenshots, then open the PR.**
+   - **Screenshots** of everything the change makes visible (new screen, changed screen: before and after; a phone view when the layout
+     changed). With the app running (`npx vite --port 5199`): `node scripts/screenshot.mjs /some-example shot.png` (add
+     `PW_CHROMIUM=/opt/pw-browsers/chromium` if Playwright lacks a browser); for a state that needs clicking, a throw-away
+     Playwright script that calls `page.screenshot()`. Look at each picture before using it. Keep them small (viewport only).
+   - **Upload them** to the `pr-assets` branch, which holds only pictures (images never go on the feature branch or on `main`):
+     ```sh
+     git fetch origin pr-assets 2>/dev/null || true
+     git worktree add /tmp/pr-assets pr-assets 2>/dev/null || git worktree add --orphan -b pr-assets /tmp/pr-assets
+     mkdir -p /tmp/pr-assets/<branch>/ && cp shot*.png /tmp/pr-assets/<branch>/
+     git -C /tmp/pr-assets add -A && git -C /tmp/pr-assets commit -m "Screenshots for <branch>" && git -C /tmp/pr-assets push -u origin pr-assets
+     git worktree remove /tmp/pr-assets
+     ```
+     and show each one in the description as
+     `![what it shows](https://github.com/<owner>/<repo>/blob/pr-assets/<branch>/shot.png?raw=true)`.
+   - **Open the PR** (`gh pr create`, or the GitHub tool when `gh` is not available). Title ends with the version, e.g. `(0.0.1-33)`.
+     The body follows `.github/pull_request_template.md`, all five sections: *What this adds* (two or three sentences for someone who has
+     not read the code), *How it works* (short, technical), *How to test* (numbered steps a person can follow), *Screenshots* (or "No
+     visible change." with a line why), *Checks* (what was run). Then the PR attribution line from the system reminder.
 6. **Wait for CI:** `gh pr checks --watch`.
    - **Red:** read the log (`gh run view --log-failed`), fix the cause, re-run only the failed tests locally (`-g`), push, and
      wait again. Repeat until green. Don't bump the version again for these pushes.
