@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import LZString from 'lz-string'
 import { clearStorage } from './storage'
+import { chooseTool, chooseFile } from './helpers'
 
 /** The records of the library database, read the way the page itself would. */
 async function records(page: Page): Promise<{ id: string; name: string; kind: string; comps: number }[]> {
@@ -52,7 +53,7 @@ const tiny = JSON.stringify({
 
 test('a circuit is kept in the library, and a reload brings it back', async ({ page }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'New' }).click()
+  await chooseFile(page, 'New')
   await expect(page.locator('.comp')).toHaveCount(0)
   await page.waitForTimeout(700)
   expect(await records(page)).toEqual([]) // a blank circuit that is left alone is not worth keeping
@@ -80,7 +81,7 @@ test('the single saved circuit of earlier versions becomes the first document', 
 
 test('a new tab opens the document last used', async ({ page, context }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'New' }).click()
+  await chooseFile(page, 'New')
   await addPart(page, 'switch', 300, 200)
   await expect.poll(async () => (await records(page)).map((r) => r.comps)).toEqual([1])
 
@@ -107,7 +108,7 @@ test('without a usable database the circuit still works, and the visitor is told
 
 test('an example is not saved until it is edited; the edit makes a copy, and what you had stays', async ({ page }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'New' }).click()
+  await chooseFile(page, 'New')
   await addPart(page, 'switch', 300, 200)
   await expect.poll(() => names(page)).toEqual(['Untitled 1'])
 
@@ -130,7 +131,7 @@ test('an example is not saved until it is edited; the edit makes a copy, and wha
 
 test('visiting an example link does not touch the circuit you were working on', async ({ page }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'New' }).click()
+  await chooseFile(page, 'New')
   await addPart(page, 'switch', 300, 200)
   await expect.poll(() => names(page)).toEqual(['Untitled 1'])
 
@@ -148,14 +149,14 @@ test('a shared link and an opened file each become a document of their own, at o
   await expect.poll(() => names(page)).toEqual(['Shared circuit'])
 
   const chooser = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Open', exact: true }).click()
+  await chooseFile(page, 'Open file')
   await (await chooser).setFiles({ name: 'half-adder.sklopko.json', mimeType: 'application/json', buffer: Buffer.from(tiny) })
   await expect.poll(() => names(page)).toEqual(['Shared circuit', 'half-adder'])
 })
 
 test('a challenge keeps your work: leave it, come back, and your circuit is there', async ({ page }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'Challenges', exact: true }).click()
+  await chooseTool(page, 'Challenges')
   await page.getByTestId('challenge-wire').click()
   const panel = page.getByRole('region', { name: 'Challenge' })
   await expect(page.locator('.comp')).toHaveCount(2)
@@ -166,7 +167,7 @@ test('a challenge keeps your work: leave it, come back, and your circuit is ther
   // Somewhere else, and back: the same document, with the part you added.
   await page.selectOption('select[aria-label="Load an example"]', 'gates')
   await expect(page.locator('.comp')).not.toHaveCount(3)
-  await page.getByRole('button', { name: 'Challenges', exact: true }).click()
+  await chooseTool(page, 'Challenges')
   await page.getByTestId('challenge-wire').click()
   await expect(page.locator('.comp')).toHaveCount(3)
   expect(await records(page)).toHaveLength(1)
@@ -186,7 +187,7 @@ const row = (page: Page, name: string) => dialog(page).locator('.library-row', {
 /** Two circuits in the library: "Untitled 1" (a switch) and "Electronic dice (copy)", which is open. */
 async function twoCircuits(page: Page) {
   await fresh(page)
-  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await chooseFile(page, 'New')
   await addPart(page, 'switch', 300, 200)
   await expect.poll(() => names(page)).toEqual(['Untitled 1'])
   await page.selectOption('select[aria-label="Load an example"]', 'dice')
@@ -196,7 +197,7 @@ async function twoCircuits(page: Page) {
 }
 
 const openLibrary = async (page: Page) => {
-  await page.getByRole('button', { name: 'My circuits' }).click()
+  await chooseFile(page, 'My circuits')
   await expect(dialog(page)).toBeVisible()
 }
 
@@ -230,7 +231,7 @@ test('the name over the canvas is the library name: click it to rename', async (
   await expect.poll(() => names(page)).toEqual(['Dice game', 'Untitled 1'])
 
   // And a new circuit is "Untitled", in italics, until it is edited (then it is kept as "Untitled 2").
-  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await chooseFile(page, 'New')
   await expect(page.locator('.doc-name.unsaved')).toHaveText('Untitled')
   await addPart(page, 'switch', 300, 200)
   await expect(page.getByRole('button', { name: 'Circuit name: Untitled 2' })).toBeVisible()
@@ -269,7 +270,7 @@ test('rename, duplicate and delete in the library; a delete can be undone', asyn
 
 test('state machines are in the library too', async ({ page }) => {
   await fresh(page)
-  await page.getByRole('button', { name: 'State machines…' }).click()
+  await chooseTool(page, 'State machines…')
   const panel = page.getByRole('dialog', { name: /State machine/ })
   await expect(panel).toBeVisible()
   await page.waitForTimeout(700)
@@ -310,7 +311,7 @@ test('the state machine of an earlier version is brought in', async ({ page }) =
   })
   await page.evaluate((s) => localStorage.setItem('sklopko.fsm.v1', s), old)
   await page.reload({ waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'State machines…' }).click()
+  await chooseTool(page, 'State machines…')
   await expect(page.getByRole('dialog', { name: /State machine/ }).getByLabel('Machine name')).toHaveValue('Old machine')
   await expect.poll(async () => (await records(page)).filter((r) => r.kind === 'fsm').map((r) => r.name)).toEqual(['Old machine'])
 })

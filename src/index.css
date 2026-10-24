@@ -1184,6 +1184,85 @@ button.danger {
   flex: 1 1 auto;
 }
 
+/* ---- Tools and File menus (wide screens) ---- */
+
+.toolbar-icons {
+  display: flex;
+  gap: 6px;
+}
+.toolbar .examples-select {
+  width: 124px;
+}
+.toolbar-menu .examples-select {
+  width: auto;
+}
+
+.drop-wrap {
+  position: relative;
+}
+.drop-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 210px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  z-index: 30;
+}
+.toolbar .drop-menu button {
+  background: transparent;
+  color: var(--text);
+  border-color: transparent;
+  text-align: left;
+  white-space: nowrap;
+}
+.toolbar .drop-menu button:hover:not(:disabled),
+.toolbar .drop-menu button:focus-visible {
+  background: var(--bg);
+  border-color: var(--panel-border);
+}
+.toolbar .drop-menu button.active::before,
+.toolbar .toolbar-menu button.active::before {
+  content: '✓ ';
+}
+.toolbar .drop-menu button.active {
+  background: transparent;
+  border-color: transparent;
+}
+.menu-label {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.toolbar-menu .menu-label {
+  flex: 1 1 100%;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 2px 2px 0;
+}
+.help-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.help-hide {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+@media (min-width: 1001px) {
+  .inspector.collapsed {
+    display: none;
+  }
+}
+
 /* ---- Waveform panel ---- */
 
 .toolbar button.active {

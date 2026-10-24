@@ -45,7 +45,7 @@ test('the overflow menu holds the secondary actions', async ({ page }) => {
 test('tap a part, tap the canvas to place it, then delete it from the action bar', async ({ page }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('button', { name: 'New' }).tap()
+  await page.getByRole('menuitem', { name: 'New', exact: true }).tap()
   await expect(page.locator('.comp')).toHaveCount(0)
 
   await page.locator('.palette-item[data-type="and"]').tap()
@@ -88,7 +88,7 @@ test('tapping a control operates it; a long-press selects it for editing', async
 test('state machines: edit in the table on a phone, join states by tapping, and generate', async ({ page }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('button', { name: 'State machines…' }).tap()
+  await page.getByRole('menuitem', { name: 'State machines…', exact: true }).tap()
   const panel = page.getByRole('dialog', { name: 'State machines' })
   await expect(panel).toBeVisible()
   // The diagram comes first on a narrow screen, and nothing sticks out sideways.
@@ -125,7 +125,7 @@ test('state machines: edit in the table on a phone, join states by tapping, and 
 test('a bus wire can be drawn by touch between two bus pins', async ({ page, context }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('button', { name: 'New' }).tap()
+  await page.getByRole('menuitem', { name: 'New', exact: true }).tap()
   const canvas = (await page.getByTestId('canvas').boundingBox())!
   const put = async (type: string, x: number, y: number) => {
     const item = page.locator(`.palette-item[data-type="${type}"]`)
@@ -157,14 +157,14 @@ test('My circuits fits a phone, with the circuit name over the canvas', async ({
   await fresh(page)
   await expect(page.locator('.status .doc-name')).toBeVisible()
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('button', { name: 'New', exact: true }).tap()
+  await page.getByRole('menuitem', { name: 'New', exact: true }).tap()
   await page.locator('.palette-item[data-type="and"]').tap()
   const canvas = (await page.getByTestId('canvas').boundingBox())!
   await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
   await expect(page.getByRole('button', { name: 'Circuit name: Untitled 1' })).toBeVisible()
 
   await page.getByRole('button', { name: 'More actions' }).tap()
-  await page.getByRole('button', { name: 'My circuits' }).tap()
+  await page.getByRole('menuitem', { name: 'My circuits', exact: true }).tap()
   const dialog = page.getByRole('dialog', { name: 'My circuits' })
   await expect(dialog.locator('.library-row')).toHaveCount(1)
   const width = page.viewportSize()!.width

@@ -22,6 +22,7 @@ import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
 import { openReference } from '../app/reference'
+import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
 
 const MEMORY_TYPES = new Set(['rom', 'ram', 'lut', 'console'])
@@ -310,7 +311,12 @@ function Help() {
   const circuit = useStore((s) => s.circuit)
   return (
     <>
-      <h2>How to</h2>
+      <div className="help-head">
+        <h2>How to</h2>
+        <button className="help-hide" onClick={() => updateSettings({ helpOpen: false })} aria-label="Hide help" title="Hide this panel. The ? button in the toolbar brings it back">
+          Hide
+        </button>
+      </div>
       <ul className="help">
         <li>
           <b>Add parts:</b> drag from the left panel, or click one and then click the canvas (Shift keeps placing).
@@ -380,12 +386,15 @@ export function Inspector() {
   // A program needs room for its lines: widen the panel (on desktop) while one is selected.
   const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
   const wide = only?.type === 'rom' && only.params.isa !== 'none'
+  // With nothing selected the panel is the help, which can be hidden (a selection brings the panel back).
+  const helpOpen = useSettings((s) => s.helpOpen)
+  const collapsed = !helpOpen && selection.length === 0
   useEffect(() => {
-    document.documentElement.style.setProperty('--inspector-w', wide ? '380px' : '250px')
+    document.documentElement.style.setProperty('--inspector-w', collapsed ? '0px' : wide ? '380px' : '250px')
     return () => {
       document.documentElement.style.removeProperty('--inspector-w')
     }
-  }, [wide])
+  }, [wide, collapsed])
   let content
   if (selection.length === 1 && circuit.comps[selection[0]])
     content = (
@@ -409,7 +418,7 @@ export function Inspector() {
     )
   else content = <Help />
   return (
-    <aside className={`inspector${sheetOpen ? ' open' : ''}`}>
+    <aside className={`inspector${sheetOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
       <button className="sheet-close" onClick={() => setSheetOpen(false)} aria-label="Close">
         ✕
       </button>
