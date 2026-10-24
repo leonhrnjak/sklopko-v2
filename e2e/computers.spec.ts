@@ -118,6 +118,21 @@ test('a plain ROM can be made a ready-made control ROM: its size, words, names, 
   await expect(page.getByLabel('Signals: errors')).toContainText('Line 2')
 })
 
+test('control ROM: a list in the row editor shows what was chosen, change after change', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Control ROM') // the simulation is running
+  await page.getByLabel('Contents are').selectOption('none')
+  const hex = page.getByLabel('Contents (hex words)')
+  await page.getByRole('row', { name: 'Row ADD' }).click()
+  const src = page.getByRole('group', { name: 'Signals of row ADD' }).getByRole('combobox', { name: 'ACC_SRC' })
+  // ADD is 83 (LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY); each choice sets bits 1–2, and the list shows exactly it.
+  for (const [value, word] of [['2', '85'], ['0', '81'], ['2', '85'], ['1', '83'], ['3', '87'], ['2', '85']]) {
+    await src.selectOption(value)
+    await expect(src).toHaveValue(value)
+    await expect(hex).toHaveValue(new RegExp(`^01 05 08 20 ${word} 93 `))
+  }
+})
+
 test('calculator example: changing the operation changes the ALU', async ({ page }) => {
   await page.goto('/calculator', { waitUntil: 'networkidle' })
   const aluTitle = page.locator('.comp .title', { hasText: /^ADD$/ })

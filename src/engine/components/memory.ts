@@ -49,7 +49,7 @@ export function parseWords(text: string, words: number, bits: number): number[] 
         r![i] = Number.isNaN(n) ? 0 : n & mask
       })
     if (cache.size > 64) cache.clear()
-    cache.set(key, r)
+    cache.set(key, Object.freeze(r) as number[]) // shared by everything that reads the same text: nobody may write into it
   }
   return r
 }
