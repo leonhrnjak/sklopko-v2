@@ -1,4 +1,7 @@
 # Full test suite for every pull request. Merging to main deploys to Cloudflare Pages.
+#
+# The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests split in four). The last job, `test`, waits
+# for all of them and is the one result to require: it keeps its name, so a branch rule on "test" keeps working.
 name: CI
 
 on:
@@ -10,9 +13,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  unit:
+    name: Unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,23 +24,82 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Unit tests
-        run: npm test
-      - name: Lint
-        run: npm run lint
-      - name: Type-check and build
-        run: npm run build
-      - name: Bundle budget
-        run: npm run check:bundle
+      - run: npm test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  build:
+    name: Type-check, build, bundle budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check:bundle
+
+  e2e:
+    name: E2E ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The offline spec tests the built app, so every shard builds it (about ten seconds).
+      - run: npm run build
+      - name: Cache Playwright's browser
+        id: browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium
+        if: steps.browser.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
-      - name: E2E (desktop + emulated phone)
-        run: npm run e2e
+      - name: Install Chromium's system libraries
+        if: steps.browser.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: E2E (desktop + emulated phone), shard ${{ matrix.shard }}
+        run: npx playwright test --shard=${{ matrix.shard }}
       - name: Upload Playwright results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
+          name: playwright-results-${{ strategy.job-index }}
           path: test-results
           retention-days: 7
           if-no-files-found: ignore
+
+  test:
+    name: test
+    if: always()
+    needs: [unit, lint, build, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        run: |
+          echo "unit=${{ needs.unit.result }} lint=${{ needs.lint.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          test "${{ needs.unit.result }}" = success -a "${{ needs.lint.result }}" = success -a "${{ needs.build.result }}" = success -a "${{ needs.e2e.result }}" = success

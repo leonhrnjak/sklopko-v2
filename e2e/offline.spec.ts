@@ -8,6 +8,9 @@ const PORT = 5198
 const BASE = `http://localhost:${PORT}`
 let server: ChildProcess | undefined
 
+// One server for the file: its tests run in order, in one worker, however the rest are spread.
+test.describe.configure({ mode: 'serial' })
+
 test.beforeAll(async () => {
   test.skip(!existsSync('dist/index.html'), 'dist/ is not built: run `npm run build`')
   server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })

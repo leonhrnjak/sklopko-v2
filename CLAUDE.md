@@ -14,8 +14,14 @@
 ## Workflow: feature branch → PR → CI → merge
 
 1. Work on a feature branch (never commit to `main` directly), push it, and open a PR with `gh pr create`.
-2. GitHub Actions (`.github/workflows/ci.yml`) runs the full suite on every PR: unit tests, lint, build, e2e.
-   Wait for it with `gh pr checks --watch`.
+   **Every PR description has five parts** (the template is `.github/pull_request_template.md`): what it adds (short, for a
+   reader who has not seen the code), how it works (short, technical), how to test it (numbered steps), screenshots, and the
+   checks that were run. Anything that can be seen needs **screenshots** (before and after for a change; a phone view if the
+   layout changed); if nothing can be seen, say "No visible change." The pictures live on the `pr-assets` branch, never on the
+   feature branch or `main`: `.claude/skills/ship/SKILL.md` has the commands, and `scripts/screenshot.mjs` takes them.
+2. GitHub Actions (`.github/workflows/ci.yml`) runs on every PR as parallel jobs: unit tests, lint, build (with the bundle budget),
+   and the e2e tests in four shards; the last job, `test`, needs them all and is the one to require. Wait for it with
+   `gh pr checks --watch`.
 3. **Green:** ask the user whether to merge. Merge only on their yes.
 4. **Red:** read the failing job's log (`gh run view --log-failed`), fix the cause, re-run **only the failed
    tests** locally (`-g`), push, and wait for CI again. Repeat until green, then go back to step 3.
