@@ -23,7 +23,7 @@
 > - [x] 14a Engine groundwork, v0.0.1-67
 > - [x] 14b ICs in the model and the simulation, v0.0.1-68
 > - [x] 14c Make and place ICs, v0.0.1-69
-> - [ ] 14d Edit an IC
+> - [x] 14d Edit an IC, v0.0.1-70
 > - [ ] 14e Collapse a selection into an IC; examples
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
 > - [ ] 16 Small wins
@@ -408,6 +408,27 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
 - On return, instances pick up the new definition, and wires to pins that no longer exist are pruned (`pruneWires`), with a
   toast saying how many.
 - Rename, and delete when unused, from the palette.
+
+*What it did, and where it differs from the plan.*
+- **The level is part of the circuit.** `Circuit.up = { def, outer }` is set while the body of an IC is on the canvas: the circuit shown *is*
+  the body (with the document's `ics` table), and `outer` is the circuit one level up (which has its own `up` when that is a body too).
+  The store did not have to change: `edit`, selection, the router and the simulator all work on the circuit that is shown, which for an
+  IC is "run alone, with its own switches". Undo snapshots are circuits, so they carry their level, and undo goes across levels
+  (entering and leaving are undo steps) without a separate `editing: string[]`.
+- `enterIC` / `enterDefinition` / `leaveIC` / `documentOf` / `levelsOf` (`model/ic.ts`). `leaveIC` puts the body into the table
+  and settles every circuit of the document (`settleCircuit`, moved from `serialize.ts`): instances take the IC's pins, wires to pins
+  that are gone are dropped and counted (the toast says "1 wire was removed…"), routes that no longer fit are redone.
+- **Saving from inside saves the whole document**: `serialize` takes the document of the circuit (`documentOf`), so autosave, share
+  links, files and thumbnails need no change.
+- **Where**: *Edit IC* in an instance's inspector, a double-click on an instance (it selects it first, and the handler goes by the
+  selection because the pointer is captured by then), and *Edit* in the parts list, which needs no instance. The breadcrumb
+  (`Main › Full adder › Half adder`, `← Back`, each earlier name a button) is over the canvas next to the circuit's name.
+- **Parts list**: each IC has *Edit*, *Rename* (an inline field) and *Delete*. A used IC (placed in the circuit or inside another IC) cannot
+  be deleted (a toast says so); a deleted one comes back with the toast's Undo.
+- **No loops**: placing or pasting an instance of an IC inside it, or inside an IC it is part of, is refused with a toast (`wouldLoop`).
+- Not done: tracing a signal across levels; showing the inside of an instance while it runs (the box stays a box).
+- Tests: `ic.test.ts` (entering, leaving, changed pins, two levels, usage, rename and delete), `app/ics.test.ts` (undo across levels, loop
+  refusal, rename and delete), four more in `e2e/ics.spec.ts`.
 
 **14e. Collapse a selection into an IC; examples (large)**
 - *Collapse into IC* (selection bar):

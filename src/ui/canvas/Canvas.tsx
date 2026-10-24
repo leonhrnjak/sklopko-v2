@@ -50,6 +50,7 @@ import { glitchingWires, useCapture } from '../../app/glitches'
 import { timingOf, useTiming } from '../../app/timing'
 import { useWave } from '../../app/waveform'
 import { busModel, type BitSource } from '../../model/buses'
+import { enterInstance } from '../../app/ics'
 import { placementOf } from '../../model/ic'
 import { withFrameContents } from '../../model/frames'
 import { isLabel, labelsNamed } from '../../model/labels'
@@ -637,6 +638,10 @@ export function Canvas() {
   const onDoubleClick = (e: MouseEvent) => {
     const target = (e.target as Element).closest<SVGElement>('[data-kind="wire"]')
     if (target) resetWireRoute(target.dataset.id!)
+    // A double-click on a custom IC opens it for editing. (The first click selected it; the pointer is captured by then, so the
+    // event does not say what was under it.)
+    const { selection } = useStore.getState()
+    if (!target && selection.length === 1 && circuit.comps[selection[0]]?.type === 'ic') enterInstance(selection[0])
   }
 
   const comps = Object.values(circuit.comps)

@@ -22,7 +22,7 @@ import { isLabel, labelNames, labelsNamed, probeGroups } from '../model/labels'
 import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
-import { expandInstance } from '../app/ics'
+import { enterInstance, expandInstance } from '../app/ics'
 import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
@@ -168,6 +168,9 @@ function IcSection({ comp }: { comp: Comp }) {
         Outputs: {show(outs)}
       </p>
       <div className="row">
+        <button onClick={() => enterInstance(comp.id)} title="Open the circuit inside this block to change it. Every copy of the block changes with it">
+          Edit IC
+        </button>
         <button onClick={() => expandInstance(comp.id)} title="Replace this block by the parts it is made of, wired as they were (one undo step)">
           Expand into parts
         </button>

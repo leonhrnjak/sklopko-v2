@@ -56,6 +56,12 @@ export interface Circuit {
    * circuit inside an IC refers to the ICs of the document by id.
    */
   ics?: Record<string, ICDef>
+  /**
+   * Set while the body of a custom IC is being edited: this circuit is that body, `def` is the IC and `outer` the circuit it is
+   * placed in (which has its own `up` when that is an IC body too). `ics` is the document's table, shared by every level. See
+   * `model/ic.ts` (`enterIC`, `leaveIC`, `documentOf`).
+   */
+  up?: { def: string; outer: Circuit }
 }
 
 /** A custom IC: a circuit with a name. Its pins are the labelled switches and LEDs (and bus inputs and displays) inside. */

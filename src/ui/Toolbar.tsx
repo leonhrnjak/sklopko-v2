@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
-import { openMakeIc } from '../app/ics'
+import { leaveLevels, leaveToDepth, openMakeIc } from '../app/ics'
 import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
@@ -23,6 +23,7 @@ import {
   undo,
   useStore,
 } from '../app/store'
+import { levelsOf } from '../model/ic'
 import { fitView } from './canvas/viewport'
 
 /** Labelled display options; used in the settings popover and in the phone menu. */
@@ -472,6 +473,34 @@ function DocName() {
   )
 }
 
+/** While the inside of an IC is open: where it is (Main › Full adder › Half adder), and the way back. */
+function Crumbs() {
+  const circuit = useStore((s) => s.circuit)
+  const levels = levelsOf(circuit)
+  if (!levels.length) return null
+  return (
+    <nav className="crumbs" aria-label="Editing an IC" data-testid="crumbs">
+      <button onClick={() => leaveLevels(1)} title="Back to the circuit this IC is placed in. Every copy of the IC changes with it">
+        ← Back
+      </button>
+      <ol>
+        <li>
+          <button onClick={() => leaveToDepth(0)}>Main</button>
+        </li>
+        {levels.map((id, i) => (
+          <li key={i}>
+            {i < levels.length - 1 ? (
+              <button onClick={() => leaveToDepth(i + 1)}>{circuit.ics?.[id]?.name ?? id}</button>
+            ) : (
+              <span aria-current="location">{circuit.ics?.[id]?.name ?? id}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
 export function StatusBar() {
   const status = useSimStatus()
   const running = useStore((s) => s.running)
@@ -482,6 +511,7 @@ export function StatusBar() {
     <>
       <div className="status">
         <DocName />
+        <Crumbs />
         {!running && <span className="badge paused">Paused</span>}
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">

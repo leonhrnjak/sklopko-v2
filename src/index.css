@@ -2724,3 +2724,58 @@ button.linklike:hover {
   font-size: 12px;
   padding: 2px 8px;
 }
+
+/* ---- Editing an IC: where you are ---- */
+
+.crumbs {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.crumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.crumbs li + li::before {
+  content: '›';
+  margin-right: 4px;
+  color: var(--muted);
+}
+.crumbs button {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+.crumbs ol button {
+  border-color: transparent;
+  background: transparent;
+  text-decoration: underline;
+}
+.crumbs [aria-current] {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.ic-actions {
+  display: flex;
+  gap: 4px;
+  margin: 2px 0 6px;
+}
+.ic-actions button {
+  flex: 1;
+  font-size: 11px;
+  padding: 1px 4px;
+}
+.ic-rename {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+}

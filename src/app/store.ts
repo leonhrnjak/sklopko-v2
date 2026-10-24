@@ -26,7 +26,7 @@ import {
 import { circuitRect } from '../model/bounds'
 import { hasDelay, realisticDelay } from '../model/delays'
 import { isInside } from '../model/frames'
-import { placedICs, placementOf } from '../model/ic'
+import { IC, levelsOf, placedICs, placementOf, wouldLoop } from '../model/ic'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
 import { isEmbed } from './embed'
@@ -163,6 +163,10 @@ export const selectAll = () => {
 export function addComp(type: string, x: number, y: number): string {
   const placement = placementOf(get().circuit, type)
   if (!placement) return ''
+  if (placement.type === IC && placesLoop(get().circuit, String(placement.params.ic))) {
+    showToast('An IC cannot be placed inside itself, or inside an IC it is part of.')
+    return ''
+  }
   checkpoint()
   const id = newId('c')
   edit((c) => {
@@ -173,6 +177,12 @@ export function addComp(type: string, x: number, y: number): string {
   })
   set({ selection: [id] })
   return id
+}
+
+/** Would an instance of this IC, placed in the circuit being edited, make the IC being edited contain itself? */
+function placesLoop(c: Circuit, defId: string): boolean {
+  const host = levelsOf(c).at(-1)
+  return !!host && wouldLoop(c.ics ?? {}, host, defId)
 }
 
 /** Move components by a grid-snapped delta. Call checkpoint() once at the start of a drag. */
@@ -466,18 +476,24 @@ export function paste() {
   pasteCount++
   const off = 40 * pasteCount
   const map = new Map<string, string>()
+  // Inside an IC, an instance of it (or of one it is part of) cannot be pasted.
+  const allowed = (k: Comp) => k.type !== IC || !placesLoop(get().circuit, String(k.params.ic))
+  const kept = clipboard.comps.filter(allowed)
+  if (kept.length < clipboard.comps.length) showToast('An IC cannot be placed inside itself, so those were left out.')
+  if (!kept.length) return
+  const keptIds = new Set(kept.map((k) => k.id))
   checkpoint()
   const newIds: string[] = []
   edit((c) => {
     // ICs the circuit does not have yet come with the parts; one it has under the same id stays as it is.
     for (const [defId, def] of Object.entries(clipboard!.ics)) if (!c.ics?.[defId]) (c.ics ??= {})[defId] = structuredClone(def)
-    for (const k of clipboard!.comps) {
+    for (const k of kept) {
       const id = newId('c')
       map.set(k.id, id)
       newIds.push(id)
       c.comps[id] = { ...structuredClone(k), id, x: k.x + off, y: k.y + off }
     }
-    for (const w of clipboard!.wires) {
+    for (const w of clipboard!.wires.filter((x) => keptIds.has(x.from.comp) && keptIds.has(x.to.comp))) {
       const id = newId('w')
       newIds.push(id)
       c.wires[id] = {
