@@ -2729,6 +2729,26 @@ button.linklike:hover {
   padding: 6px 10px;
   font: inherit;
 }
+.gallery-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.gallery-tabs button {
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.gallery-tabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.gallery-tabs small {
+  opacity: 0.7;
+}
 .gallery-group h3 {
   margin: 14px 0 8px;
 }
@@ -2791,6 +2811,14 @@ button.linklike:hover {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     padding: 10px 12px 14px;
+  }
+  /* One row to swipe sideways, not a block of chips that eats the screen. */
+  .gallery-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px 12px;
+    scrollbar-width: none;
+    flex: none;
   }
   .gallery-search {
     order: 3;

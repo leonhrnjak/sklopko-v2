@@ -91,6 +91,7 @@ export async function clickLabelled(page: Page, label: string) {
 /** Open an example from the gallery behind the Examples button. */
 export async function chooseExample(page: Page, id: string) {
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
+  await page.getByLabel('Search examples').fill(id) // the gallery opens on one category; a search looks through all
   await page.getByTestId(`example-${id}`).click()
   // The address changes once the example is on the canvas (it is fetched first).
   await page.waitForURL(new RegExp(`/${id}$`))
