@@ -7,7 +7,8 @@
 >
 > - [ ] B1 Measure, then memory that is big enough and cheap to snapshot (32 KB RAM, 16 KB ROM)
 > - [ ] B2 A terminal part (a screen and a keyboard on one 6551-style chip) and a first board that echoes what you type
-> - [ ] B3 BASIC in the ROM: the board boots to `READY.` and runs your programs
+> - [ ] B3a Microsoft's `m6502.asm`, ported and built into a ROM image, and run on the bare core (no board)
+> - [ ] B3b BASIC in the ROM: the board boots to `READY.` and runs your programs
 > - [ ] B4 Polish: speed setting, typing and pasting programs, example programs, reference notes, e2e, README
 
 ## Why
@@ -35,7 +36,7 @@ Reading the numbers:
 - **A big RAM would double the cost again if copied per edge.** The history keeps 1,000 snapshots (`HISTORY_EDGES`), and today a RAM
   snapshot is a copy of the whole array. At 64 KB that alone is 17 µs per edge against 11 µs for the whole board; at 32 KB I expect about half
   of that (an estimate from the 64 KB figure; B1 measures it). It also holds 1,000 × 32 KB = 32 MB of history.
-- **What BASIC needs** (estimates, to be confirmed by B3's test on the bare core): the cold start is a few hundred thousand cycles if it
+- **What BASIC needs** (estimates, to be confirmed by B3a's test on the bare core): the cold start is a few hundred thousand cycles if it
   tests memory (it can be told the size instead and skip the test), a `PRINT` is a few thousand, a `FOR` loop of 1,000 turns with a short body
   is about 100,000–200,000. At 26,000 cycles/s that is "READY. after ten seconds or so, and a loop of 1,000 takes five". Usable but slow;
   about four times faster would feel good. That is the target of B1's speed work.
@@ -101,17 +102,22 @@ Reading the numbers:
 - **Tests.** The part against the 6551's register behaviour (status bits, a character arriving, a read clearing it, IRQ), the pasted-text pacing,
   the board running the echo program on the bare core and on the board, one e2e test that types into the terminal.
 
-### B3. BASIC in the ROM
-- **The BASIC image** is Microsoft BASIC for the 6502, built **offline** (it is written for ca65, not for our assembler; *Licences* says which source and why) for our map with a small
-  target configuration: the input and output routines poll the terminal's status and data registers, the memory size is fixed so the start-up
-  skips the memory test, the start-up code sets the stack and the vectors. The binary is committed under `src/model/` with the recipe (source
-  version, configuration and the `ca65` and `ld65` commands) in a README next to it, so anyone can rebuild and compare it byte for byte.
-  We do not assemble it in the app.
+### B3a. The BASIC image, from Microsoft's source
+- **Port.** Microsoft's `m6502.asm` is one file of about 7,000 lines, with `REALIO` conditionals for four machines, written for another assembler (the README
+  names none). Our `asm6502.ts` has no macros. **First, read the file and decide**: either (a) a small offline script translates it to the syntax of an
+  assembler we can run (`ca65`, or ours if the macros are few), or (b) it is hand-ported. The port, its tool and its notes live under `tools/basic/` (not in the app).
+- **A new target, `REALIO=5`**: input and output through the terminal's status and data registers, the memory size fixed (no memory test), the start-up code sets
+  the stack and the vectors. These are ours.
+- **The binary** is committed under `src/model/` with a README of the recipe (source version, the translation, the commands) so it can be rebuilt and compared byte
+  for byte, and `LICENSE-BASIC`. We do not assemble it in the app.
+- **Tests, on the bare core with a scripted keyboard** (the terminal's registers as a small memory-mapped stub): `PRINT 2+2` prints `4`; a program with `FOR` and
+  `GOTO` gives the right output; `LIST` shows what was typed. Cycles to `READY.` and for a 1,000-turn loop are *measured and written into this note*
+  (replacing the estimates above). Optionally cross-checked against an Eater build on a developer's machine (the oracle above), never committed.
+
+### B3b. The BASIC computer
 - Example **BASIC computer**: the board with the terminal, the RAM and ROM of B1 and the BASIC ROM, framed and explained like the other boards
   (the memory map in the decoder's note, the terminal's note: "type here"), booting to `READY.` after answering its start-up questions by itself.
-- **Tests.** The image run on the **bare core** with a scripted keyboard: `PRINT 2+2` prints `4`; a program with `FOR` and `GOTO` gives the right
-  output; a `LIST` shows what was typed; cycles to `READY.` and for a 1,000-turn loop are *measured and written into this note* (replacing the
-  estimates above). Then the same on the board, for a few hundred cycles at the beginning and for the first prompt, and one e2e test that types
+- **Tests.** The same checks as B3a, now on the board: a few hundred cycles at the beginning, the first prompt, and one e2e test that types
   `10 PRINT "HELLO"`, `RUN` and sees `HELLO`.
 
 ### B4. Polish
@@ -143,14 +149,16 @@ What it means for us:
   project this is a low risk that people take every day, but it is a risk.
 - **EhBASIC is not the way out:** it asks permission for commercial use and the terms come from a mirror.
 
-**Decision, in order of preference (revisit before B3 commits an image):**
-1. **Build from the `ca65` source, `eater`-style, and keep every notice**: Microsoft's MIT notice and copyright line, Michael Steil's 2-clause BSD statement, Ben
-   Eater's changes if his files are used, with a short `LICENSE-BASIC` next to the image and a line in the reference page. Before committing it, **diff the Eater
-   base against Microsoft's `m6502.asm` version 1.1** (does the part that matters match?), and note the result here.
-2. **If that diff or a reviewer says no**, port Microsoft's `m6502.asm` (MIT, clean provenance) to our own `eater`-style target instead. It is one file with
-   conditional assembly, but written for another assembler; our `asm6502.ts` has no macros, so this is a port to `ca65` (offline, as above), probably a milestone of its own.
-3. **Last resort:** write a small BASIC of our own in 6502 assembly (no licence question, much more work, and not "Microsoft BASIC").
-- A note in the PR that adds the image says which of these was chosen and why.
+**Decision (chosen for the least risk): ship only code whose licence comes straight from its copyright holder.**
+1. **The image is built from Microsoft's own `m6502.asm`** ([microsoft/BASIC-M6502](https://github.com/microsoft/BASIC-M6502), MIT, version 1.1), with Microsoft's
+   copyright line and MIT notice kept in a `LICENSE-BASIC` next to the image and a line in the reference page ("where it comes from"). The grant is from the
+   copyright holder itself, so there is no chain of title to doubt. Our own additions (the I/O routines, the start-up code, the target configuration) are ours and
+   are written from scratch.
+2. **mist64/msbasic and Ben Eater's fork are not used in the repo.** Their code is not copied, linked or committed. They may be used on a developer's machine as an
+   **oracle** to check our build against ("does our `PRINT 2+2` do what theirs does?"), which keeps the work out of the repo and the paper trail clean.
+3. **If porting turns out to be too costly,** fall back to a small BASIC of our own in 6502 assembly: no licence question at all, much more work, and not Microsoft's.
+   EhBASIC is not an option (commercial use needs the author's permission).
+- The PR that adds the image says in its description which source it was built from.
 
 ## Not doing
 The C64 (see *Why*); a tape or disk, a file system, `LOAD` and `SAVE` (programs are typed or pasted; saving is the circuit's own file save, with
@@ -168,7 +176,7 @@ milestone: another behavioural part and a BASIC `POKE` example); other BASICs (A
 - **Speed** was the one that could sink it. Measured: with the history off the board already does 114,000–198,000 cycles/s, so the target is
   reachable if the snapshots are made cheap (B1). If sharing and a cheap clone fall short, BASIC still runs, only slowly, and the plan says so.
 - **Snapshots of a big RAM** (B1) and **share-link size** (B1) both touch every circuit; benchmark and test the old files first.
-- **Licence** of the BASIC build (above): Microsoft's own source is MIT, the `ca65` build's paper trail is weaker; B3 starts with the diff and the notices.
+- **The port** (B3a) is the open cost: one 7,000-line file for another assembler. B3a starts by reading it and deciding how to translate it; the fallback is a BASIC of our own.
 - **Typing on a phone** (B4) needs a real input element; plan the e2e on the emulated phone early.
 
 ## Verification
