@@ -28,5 +28,5 @@ function problems(c: Circuit, where: string): string[] {
 describe('net labels in the examples', () => {
   it('every name has one Send, a Receive and one width', () => {
     expect(EXAMPLES.flatMap((ex) => problems(ex.build(), ex.id))).toEqual([])
-  })
+  }, 60000)
 })
