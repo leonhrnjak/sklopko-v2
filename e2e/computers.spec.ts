@@ -38,6 +38,41 @@ test('control ROM: the listing names each row and what it switches on, and follo
   await expect(listing.locator('.row-listing.current .text')).toHaveText('STA')
 })
 
+test('control ROM: a row is edited by its signals, and the hex words follow', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await pickByLabel(page, 'Control ROM')
+  const listing = page.getByLabel('Listing')
+  const hex = page.getByLabel('Contents (hex words)')
+  await expect(hex).toHaveValue(/^01 05 08 20 83 93 00 40/)
+
+  // Open the SUB row: its signals are boxes to tick and lists to choose from.
+  await listing.getByRole('row', { name: 'Row SUB' }).click()
+  const editor = page.getByRole('group', { name: 'Signals of row SUB' })
+  await expect(editor.getByRole('checkbox', { name: 'SUBTRACT' })).toBeChecked()
+  await expect(editor.getByRole('combobox', { name: 'ACC_SRC' })).toHaveValue('1')
+  await editor.getByRole('checkbox', { name: 'SUBTRACT' }).uncheck()
+  await expect(listing.getByRole('row', { name: 'Row SUB' })).toContainText('LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY')
+  await expect(hex).toHaveValue(/^01 05 08 20 83 83 00 40/)
+  await editor.getByRole('combobox', { name: 'ACC_SRC' }).selectOption({ label: 'RAM (2)' })
+  await expect(hex).toHaveValue(/^01 05 08 20 83 85 00 40/)
+
+  // Only one row is open at a time; Clear row empties it; one undo step per change.
+  await listing.getByRole('row', { name: 'Row JMP' }).click()
+  await expect(page.getByRole('group', { name: /^Signals of row/ })).toHaveCount(1)
+  await page.getByRole('group', { name: 'Signals of row JMP' }).getByRole('button', { name: 'Clear row' }).click()
+  await expect(hex).toHaveValue(/^01 05 08 00 83 85/)
+  await expect(listing.getByRole('row', { name: 'Row JMP' })).toContainText('nothing')
+  // Done closes the editor, and so does Escape inside it (the part stays selected).
+  await page.getByRole('group', { name: 'Signals of row JMP' }).getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('group', { name: /^Signals of row/ })).toHaveCount(0)
+  await listing.getByRole('row', { name: 'Row ADD' }).press('Enter')
+  await page.getByRole('group', { name: 'Signals of row ADD' }).getByRole('checkbox', { name: 'SAVE_CARRY' }).focus()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('group', { name: /^Signals of row/ })).toHaveCount(0)
+  await expect(page.locator('.inspector h2')).toHaveText('ROM')
+})
+
 test('a ROM without names can be given the names of a built-in control ROM', async ({ page }) => {
   await freshEmpty(page)
   await place(page, 'rom', 300, 200)
@@ -54,6 +89,21 @@ test('a ROM without names can be given the names of a built-in control ROM', asy
   await page.getByLabel('Signals', { exact: true }).fill('LOAD\n1BAD\n')
   await page.getByLabel('Row names').click()
   await expect(page.getByLabel('Signals: errors')).toContainText('Line 2')
+})
+
+test('control ROM: a list in the row editor shows what was chosen, change after change', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Control ROM') // the simulation is running
+  await page.getByLabel('Contents are').selectOption('none')
+  const hex = page.getByLabel('Contents (hex words)')
+  await page.getByRole('row', { name: 'Row ADD' }).click()
+  const src = page.getByRole('group', { name: 'Signals of row ADD' }).getByRole('combobox', { name: 'ACC_SRC' })
+  // ADD is 83 (LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY); each choice sets bits 1–2, and the list shows exactly it.
+  for (const [value, word] of [['2', '85'], ['0', '81'], ['2', '85'], ['1', '83'], ['3', '87'], ['2', '85']]) {
+    await src.selectOption(value)
+    await expect(src).toHaveValue(value)
+    await expect(hex).toHaveValue(new RegExp(`^01 05 08 20 ${word} 93 `))
+  }
 })
 
 test('calculator example: changing the operation changes the ALU', async ({ page }) => {

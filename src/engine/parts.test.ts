@@ -95,6 +95,10 @@ describe('ROM', () => {
   it('parses hex words, filling and cutting to size', () => {
     expect(parseWords('1 2 3', 4, 4)).toEqual([1, 2, 3, 0])
     expect(parseWords('a,B\nf', 4, 4)).toEqual([10, 11, 15, 0])
+    // The words of one text are shared by everyone who reads it, so they cannot be written into (a row editor once did, and the
+    // old text then read back wrong).
+    expect(() => ((parseWords('1 2 3', 4, 4) as number[])[0] = 9)).toThrow()
+    expect(parseWords('1 2 3', 4, 4)).toEqual([1, 2, 3, 0])
     expect(parseWords('1F 20', 4, 4)).toEqual([15, 0, 0, 0]) // 0x1F & 15, 0x20 & 15
     expect(parseWords('1F 20', 4, 8)).toEqual([0x1f, 0x20, 0, 0])
     expect(parseWords('1 2 3 4 5 6', 4, 4)).toEqual([1, 2, 3, 4])

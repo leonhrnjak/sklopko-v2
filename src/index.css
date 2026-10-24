@@ -502,6 +502,49 @@ input:focus-visible {
 .row-listing.current .signals {
   color: var(--text);
 }
+.row-listing.editable {
+  cursor: pointer;
+}
+.row-listing.editable:hover,
+.row-listing.open {
+  background: var(--select-soft);
+}
+.row-listing.editable:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: -2px;
+}
+.row-editor {
+  margin-bottom: 12px;
+  border-radius: 7px;
+  padding: 8px;
+  border: 1px solid var(--select);
+  background: var(--bg);
+  font-size: 12px;
+}
+.row-editor h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+.row-editor .signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
+  gap: 4px 10px;
+  margin-bottom: 8px;
+}
+.row-editor .check,
+.row-editor .pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+.row-editor .pick {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
 .signals-editor {
   margin: 8px 0;
 }
