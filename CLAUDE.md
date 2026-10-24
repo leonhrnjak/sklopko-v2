@@ -2,14 +2,12 @@
 
 ## Versioning
 
-- **Every PR bumps the version.** On the feature branch, increase the version in `package.json` (and
-  `package-lock.json`) once per PR, not on every push to the branch. If `main` reached that version
-  first, bump again past it before merging.
-- **Bump the smallest number** unless told otherwise: `0.0.1-1` → `0.0.1-2` → `0.0.1-3`, using
-  `npm version prerelease --no-git-tag-version`. Change the other parts only when explicitly asked.
-- The version is shown in the app (top-right corner of the canvas) via `__APP_VERSION__`, injected by
-  `vite.config.ts`. Hovering it shows the build's commit hash.
-- The e2e test reads the expected version from `package.json`, so it needs no edit on a bump.
+- **A PR does not bump the version.** The version shown in the app (top-right corner of the canvas) is built, not stored: `vite.config.ts`
+  makes it `package.json`'s version plus a build number, the count of commits on `main`'s first-parent line plus `buildOffset`
+  (so each merge is the next number, and parallel PRs never conflict on `package.json`). It is injected as `__APP_VERSION__`;
+  hovering it shows the build's commit hash. On a feature branch the number counts that branch's commits, so it is only a preview.
+- Change `package.json`'s version (the `0.0.1` part) only when explicitly asked.
+- The e2e test checks only the shape of the shown version.
 
 ## Workflow: feature branch → PR → CI → merge
 
@@ -26,7 +24,7 @@
 4. **Red:** read the failing job's log (`gh run view --log-failed`), fix the cause, re-run **only the failed
    tests** locally (`-g`), push, and wait for CI again. Repeat until green, then go back to step 3.
 
-The `/ship` skill (`.claude/skills/ship/SKILL.md`) runs these steps: branch, version bump, scoped tests, push, PR, CI. When a
+The `/ship` skill (`.claude/skills/ship/SKILL.md`) runs these steps: branch, scoped tests, push, PR, CI. When a
 feature or fix the user asked for is finished, use it. Don't use it for plans, questions or exploration, or when the user
 said not to push. It still stops and asks before merging.
 

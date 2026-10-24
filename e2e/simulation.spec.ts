@@ -1,12 +1,9 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, clickLabelled, chooseExample } from './helpers'
-
-const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
 test('examples load and the welcome counter ticks', async ({ page }) => {
   await fresh(page)
-  await expect(page.locator('.version')).toHaveText(`v${pkg.version}`)
+  await expect(page.locator('.version')).toHaveText(/^v\d+\.\d+\.\d+(-\d+)?$/)
   const seg = page.locator('.comp polygon.seg.on')
   // The decade counter runs at 2 Hz: the lit segments change within a second or two.
   const first = await seg.count()
