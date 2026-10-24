@@ -469,6 +469,7 @@ input:focus-visible {
   margin-bottom: 12px;
   max-height: 22em;
   overflow: auto;
+  flex: none; /* the inspector is a flex column: without this a listing shrinks to nothing when the panel is taller than the window */
   border: 1px solid var(--panel-border);
   border-radius: 7px;
   background: var(--bg);
@@ -482,6 +483,24 @@ input:focus-visible {
 }
 .row-listing .addr {
   color: var(--muted);
+}
+.row-listing.control {
+  grid-template-columns: 2.2em 4.2em 4.6em 1fr;
+}
+.row-listing .signals {
+  color: var(--muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.row-listing.current .signals {
+  color: var(--text);
+}
+.signals-editor {
+  margin: 8px 0;
+}
+.signals-editor summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 .row-listing .text {
   font-weight: 600;

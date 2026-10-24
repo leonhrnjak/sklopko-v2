@@ -3,6 +3,8 @@ import { SKASM, SKASM_OPS, assemble, type Op } from '../engine/isa'
 import { newMachine, step as referenceStep } from '../engine/skasm-ref'
 import { speakerPitch, type ConsoleState, type FramebufferState, type SpeakerState } from '../engine/components/devices'
 import { Simulator } from '../engine/simulator'
+import { SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
+import { describeWord, parseRows, parseSignals, splitPlan } from '../engine/signals'
 import { bars, picture, RAYCASTER_SOURCE } from './raycaster'
 import { BALL_SOURCE, CALC_SOURCE, TICTACTOE_SOURCE, PONG_SOURCE, SNAKE_SOURCE, SIEVE_SOURCE, SINE_SOURCE, ANT_SOURCE, CONTROL_1, CONTROL_2, CONTROL_3, PROGRAMS, ROM_WORDS, SIREN_SOURCE, buildComputer2, controlWords, programTable, programWords, type Device } from './computer2'
 import type { Circuit } from './circuit'
@@ -942,4 +944,98 @@ describe('computer: the raycaster', () => {
     m.run(7500)
     expect(shades()).toEqual(want())
   }, 120000)
+})
+
+describe('control ROMs: the names of their bits and rows', () => {
+  const layouts = [SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3].map((t) => parseSignals(t))
+  const rows = parseRows(SKASM_ROWS)
+  const { rom1, rom2, rom3 } = controlWords()
+  const at = (name: string) => rows.rows.addresses[name]
+
+  it('the signal lists and the row names are well formed and fit their ROMs', () => {
+    layouts.forEach((l, i) => expect(l.errors, `list ${i + 1}`).toEqual([]))
+    expect(rows.errors).toEqual([])
+    expect(layouts.map((l) => l.layout.bits)).toEqual([16, 8, 2])
+  })
+
+  it('every instruction has a name at its address, and nothing else does', () => {
+    expect(Object.keys(rows.rows.addresses).sort()).toEqual(Object.keys(SKASM_OPS).sort())
+    for (const [name, op] of Object.entries(SKASM_OPS)) expect(at(name), name).toBe(op.code | ((op.sub ?? 0) << 4))
+  })
+
+  it('no row switches on a bit that a list does not name', () => {
+    for (const [rom, l] of [[rom1, layouts[0]], [rom2, layouts[1]], [rom3, layouts[2]]] as const)
+      rom.forEach((w, i) => expect(describeWord(l.layout, w), `row ${i}`).not.toMatch(/bit \d/))
+  })
+
+  it('Control ROM 1 says what each instruction does, in words', () => {
+    const say = (name: string) => describeWord(layouts[0].layout, rom1[at(name)])
+    const expected: Record<string, string> = {
+      LDI: 'LOAD_ACC, SRC=CONST',
+      LDA: 'LOAD_ACC, SRC=RAM',
+      STA: 'WRITE_RAM',
+      JMP: 'JUMP',
+      ADD: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS',
+      SUB: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, SUBTRACT',
+      JNC: 'JNC',
+      HALT: 'HALT',
+      JZ: 'JZ',
+      ADDI: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, B_IS_NUM',
+      CMPI: 'SAVE_FLAGS, SUBTRACT, B_IS_NUM',
+      SHL: 'LOAD_ACC, SRC=SHL',
+      SHR: 'LOAD_ACC, SRC=SHR',
+      SUBI: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, SUBTRACT, B_IS_NUM',
+      ANDI: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, B_IS_NUM, LOGIC, LOGIC_OP=AND',
+      ORI: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, B_IS_NUM, LOGIC, LOGIC_OP=OR',
+      XORI: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, B_IS_NUM, LOGIC, LOGIC_OP=XOR',
+      OUT: '',
+      IN: 'LOAD_ACC, SRC=PORT',
+      JNZ: '',
+      JC: '',
+      CMP: 'SAVE_FLAGS, SUBTRACT',
+      AND: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, LOGIC, LOGIC_OP=AND',
+      OR: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, LOGIC, LOGIC_OP=OR',
+      XOR: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, LOGIC, LOGIC_OP=XOR',
+      ADC: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, CARRY_IN',
+      SBC: 'LOAD_ACC, SRC=ALU, SAVE_FLAGS, SUBTRACT, CARRY_IN',
+      NOP: '',
+      LDXI: '',
+      TAX: '',
+      TXA: 'LOAD_ACC, SRC=X',
+      INX: 'SAVE_FLAGS',
+      DEX: 'SAVE_FLAGS',
+      LDX: 'LOAD_ACC, SRC=RAM',
+      STX: 'WRITE_RAM',
+      LDT: 'LOAD_ACC, SRC=TABLE',
+      CALL: '',
+      RET: '',
+    }
+    expect(Object.keys(expected).sort()).toEqual(Object.keys(SKASM_OPS).sort())
+    for (const [name, text] of Object.entries(expected)) expect(say(name), name).toBe(text)
+  })
+
+  it('Control ROMs 2 and 3 say what the rest of the instructions do', () => {
+    const say2 = (name: string) => describeWord(layouts[1].layout, rom2[at(name)])
+    const say3 = (name: string) => describeWord(layouts[2].layout, rom3[at(name)])
+    expect(['OUT', 'JNZ', 'JC', 'LDXI', 'TAX', 'INX', 'DEX', 'LDX', 'STX', 'ADD'].map(say2)).toEqual([
+      'PORT_WRITE', 'JNZ', 'JC', 'X_FROM_CONST', 'X_FROM_ACC', 'X_UP', 'X_DOWN', 'INDIRECT', 'INDIRECT', '',
+    ])
+    expect(['CALL', 'RET', 'JMP'].map(say3)).toEqual(['CALL', 'RET', ''])
+  })
+
+  it('the computer puts the lists on its three control ROMs, with the words the control table gives', () => {
+    const c = buildComputer2({ id: 'test', name: 'test', source: 'HALT', hz: 16, devices: ['console'], note: '' })
+    const find = (label: string) => Object.values(c.comps).find((k) => k.label === label)!.params
+    expect([find('Control'), find('Control 2'), find('Control 3')].map((p) => p.signals)).toEqual([SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3])
+    expect([find('Control'), find('Control 2'), find('Control 3')].every((p) => p.rows === SKASM_ROWS)).toBe(true)
+    expect(find('Control').data).toBe(CONTROL_1)
+  })
+
+  it('the control splitters follow the lists: each control bit leaves the ROM from the pin its signal is on', () => {
+    const c = buildComputer2({ id: 'test', name: 'test', source: 'HALT', hz: 16, devices: ['console'], note: '' })
+    for (const [key, text, bits] of [['control bits', SKASM_SIGNALS_1, 16], ['control 2 bits', SKASM_SIGNALS_2, 8], ['control 3 bits', SKASM_SIGNALS_3, 8]] as const) {
+      const s = Object.values(c.comps).find((k) => k.label === key)!
+      expect(String(s.params.split).split(',').map(Number), key).toEqual(splitPlan(parseSignals(text).layout, bits).widths)
+    }
+  })
 })

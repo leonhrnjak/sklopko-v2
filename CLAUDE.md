@@ -66,6 +66,9 @@ box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (lo
 `docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine
 editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
+**In progress: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
+listing (C1, done), editing a row by signal (C2), a text form (C3) and polish (C4). It is developed on one branch, a commit per milestone.
+
 Finished plans, for background: `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).

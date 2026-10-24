@@ -206,7 +206,7 @@ function CompInspector({ comp }: { comp: Comp }) {
         // What an IC instance is (its pins and name) comes from its definition: shown above, not edited here.
         if (comp.type === 'ic') return null
         // A ROM's contents (hex, or a program with its instruction set) are handled together, below.
-        if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data')) return null
+        if (comp.type === 'rom' && (p.key === 'isa' || p.key === 'source' || p.key === 'data' || p.key === 'signals' || p.key === 'rows')) return null
         // The bytes of the table are typed here only for a ROM of hex words; a program makes them with .byte (shown below).
         if (comp.type === 'rom' && p.key === 'tdata' && (comp.params.table !== 'on' || comp.params.isa !== 'none')) return null
         if (comp.type === 'lut' && p.key === 'data') return null // edited in the table below
@@ -414,7 +414,7 @@ export function Inspector() {
   const circuit = useStore((s) => s.circuit)
   // A program needs room for its lines: widen the panel (on desktop) while one is selected.
   const only = selection.length === 1 ? circuit.comps[selection[0]] : undefined
-  const wide = only?.type === 'rom' && only.params.isa !== 'none'
+  const wide = only?.type === 'rom' && (only.params.isa !== 'none' || String(only.params.signals).trim() !== '')
   // With nothing selected the panel is the help, which can be hidden (a selection brings the panel back).
   const helpOpen = useSettings((s) => s.helpOpen)
   const collapsed = !helpOpen && selection.length === 0

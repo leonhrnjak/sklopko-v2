@@ -1,4 +1,6 @@
 import { SKASM, SKASM_OPS, assemble, toHexBytes, toHexWords } from '../engine/isa'
+import { SKASM_ROWS, SKASM_SIGNALS_1, SKASM_SIGNALS_2, SKASM_SIGNALS_3 } from '../engine/signal-presets'
+import { parseSignals, splitPlan } from '../engine/signals'
 import { CircuitBuilder } from './builder'
 import { RAYCASTER_SOURCE } from './raycaster'
 import { boundsRect, type Circuit } from './circuit'
@@ -544,25 +546,33 @@ export function computer2Builder(o: Computer2Options) {
   wire(`${subWhich}.Y`, `${sub}.I1`)
   wire(`${isExt}.Y`, `${sub}.S0`)
   const ctlAddr = merger(CTL, 'ctlAddr', 8, [1, 1, 1, 1, 4], 'opcode, sub-opcode', [`${ir}.Y1`, `${ir}.Y2`, `${ir}.Y3`, `${ir}.Y4`, `${sub}.Y`])
-  const ctl = part(CTL, 'ctl', 'rom', { params: { ...BUS, abits: 8, dbits: 16, data: CONTROL_1 }, label: 'Control' })
-  const ctl2 = part(CTL, 'ctl2', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_2 }, label: 'Control 2' })
-  const ctl3 = part(CTL, 'ctl3', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_3 }, label: 'Control 3' })
+  const ctl = part(CTL, 'ctl', 'rom', { params: { ...BUS, abits: 8, dbits: 16, data: CONTROL_1, signals: SKASM_SIGNALS_1, rows: SKASM_ROWS }, label: 'Control' })
+  const ctl2 = part(CTL, 'ctl2', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_2, signals: SKASM_SIGNALS_2, rows: SKASM_ROWS }, label: 'Control 2' })
+  const ctl3 = part(CTL, 'ctl3', 'rom', { params: { ...BUS, abits: 8, dbits: 8, data: CONTROL_3, signals: SKASM_SIGNALS_3, rows: SKASM_ROWS }, label: 'Control 3' })
   wire(ctlAddr, `${ctl}.A`)
   wire(ctlAddr, `${ctl2}.A`)
   wire(ctlAddr, `${ctl3}.A`)
-  // The control bits, one wire each (the source of the accumulator and the logic operation are small buses).
-  const cs = splitter(CTL, 'cs', 16, [1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1], 'control bits', `${ctl}.D`)
-  const [LOAD_ACC, SRC, WRITE_RAM, SAVE_FLAGS, JUMP, JNC, JZ, HALT, SUBTRACT, B_IS_NUM, LOGIC, LOGIC_OP, CARRY_IN] = Array.from({ length: 13 }, (_, i) => `${cs}.Y${i}`)
+  // The control bits, one wire each (the source of the accumulator and the logic operation are small buses). The ROMs' signal
+  // lists say how the words are taken apart, so the bits are named in one place.
+  const splitControl = (key: string, text: string, bits: number, label: string, rom: string) => {
+    const plan = splitPlan(parseSignals(text).layout, bits)
+    const s = splitter(CTL, key, bits, plan.widths, label, `${rom}.D`)
+    return (name: string) => `${s}.Y${plan.output[name]}`
+  }
+  const c1 = splitControl('cs', SKASM_SIGNALS_1, 16, 'control bits', ctl)
+  const [LOAD_ACC, SRC, WRITE_RAM, SAVE_FLAGS, JUMP, JNC, JZ, HALT, SUBTRACT, B_IS_NUM, LOGIC, LOGIC_OP, CARRY_IN] = [
+    'LOAD_ACC', 'SRC', 'WRITE_RAM', 'SAVE_FLAGS', 'JUMP', 'JNC', 'JZ', 'HALT', 'SUBTRACT', 'B_IS_NUM', 'LOGIC', 'LOGIC_OP', 'CARRY_IN',
+  ].map(c1)
   named(LOAD_ACC, 'LOAD_ACC')
   named(WRITE_RAM, 'WRITE_RAM')
   named(SAVE_FLAGS, 'SAVE_FLAGS')
   named(SUBTRACT, 'SUBTRACT')
   named(B_IS_NUM, 'B_IS_NUM')
   named(LOGIC, 'LOGIC')
-  const cs2 = splitter(CTL, 'cs2', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'control 2 bits', `${ctl2}.D`)
-  const cs3 = splitter(CTL, 'cs3', 8, [1, 1, 6], 'control 3 bits', `${ctl3}.D`)
-  const [CALL_W, RET_W] = [`${cs3}.Y0`, `${cs3}.Y1`]
-  const [JNZ2, JC2, PORT_WRITE, INDIRECT_W, X_FROM_ACC_W, X_FROM_CONST_W, X_UP_W, X_DOWN_W] = Array.from({ length: 8 }, (_, i) => `${cs2}.Y${i}`)
+  const c2 = splitControl('cs2', SKASM_SIGNALS_2, 8, 'control 2 bits', ctl2)
+  const c3 = splitControl('cs3', SKASM_SIGNALS_3, 8, 'control 3 bits', ctl3)
+  const [CALL_W, RET_W] = ['CALL', 'RET'].map(c3)
+  const [JNZ2, JC2, PORT_WRITE, INDIRECT_W, X_FROM_ACC_W, X_FROM_CONST_W, X_UP_W, X_DOWN_W] = ['JNZ', 'JC', 'PORT_WRITE', 'INDIRECT', 'X_FROM_ACC', 'X_FROM_CONST', 'X_UP', 'X_DOWN'].map(c2)
 
   const flags = part(ACC, 'flags', 'busreg', { params: { bits: 2 }, label: 'Flags' })
   const fs = splitter(ACC, 'fs', 2, [1, 1], 'carry, zero', `${flags}.Q`)

@@ -21,6 +21,41 @@ test('ROM: contents are edited as hex text in the inspector and shown in the tab
   await expect(cell(3)).toHaveText('0')
 })
 
+test('control ROM: the listing names each row and what it switches on, and follows the instruction being read', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'Control ROM')
+  const listing = page.getByLabel('Listing')
+  const row = (name: string) => listing.getByRole('row').filter({ has: page.locator('.text', { hasText: new RegExp(`^${name}$`) }) })
+  await expect(row('ADD')).toContainText('LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY')
+  await expect(row('SUB')).toContainText('LOAD_ACC, ACC_SRC=ADDER, SUBTRACT, SAVE_CARRY')
+  await expect(row('HALT')).toContainText('HALT')
+  // The row being read is the opcode of the instruction at the PC: the program starts with LDI.
+  await expect(listing.locator('.row-listing.current .text')).toHaveText('LDI')
+  await page.getByRole('button', { name: 'Clock step' }).click()
+  await page.getByRole('button', { name: 'Clock step' }).click()
+  await expect(listing.locator('.row-listing.current .text')).toHaveText('STA')
+})
+
+test('a ROM without names can be given the names of a built-in control ROM', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'rom', 300, 200)
+  await page.getByLabel('Address bits').selectOption('4')
+  await page.getByLabel('Data bits').selectOption('8')
+  await page.getByLabel('Contents (hex words)').fill('01 05 08 20 83 93 00 40')
+  await page.getByLabel('Label').click()
+  await expect(page.getByLabel('Listing').getByRole('row').nth(4)).not.toContainText('ADD')
+  await page.getByText('Name the bits (for a control ROM)').click()
+  await page.getByLabel('Names to start from').selectOption({ label: 'Beginner computer, Control ROM' })
+  await expect(page.getByLabel('Listing').getByRole('row').nth(4)).toContainText('ADD')
+  await expect(page.getByLabel('Listing').getByRole('row').nth(4)).toContainText('LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY')
+  // Names that do not parse are reported, with the line.
+  await page.getByLabel('Signals', { exact: true }).fill('LOAD\n1BAD\n')
+  await page.getByLabel('Row names').click()
+  await expect(page.getByLabel('Signals: errors')).toContainText('Line 2')
+})
+
 test('calculator example: changing the operation changes the ALU', async ({ page }) => {
   await page.goto('/calculator', { waitUntil: 'networkidle' })
   const aluTitle = page.locator('.comp .title', { hasText: /^ADD$/ })

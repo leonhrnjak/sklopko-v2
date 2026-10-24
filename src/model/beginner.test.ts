@@ -5,6 +5,8 @@ import { Simulator } from '../engine/simulator'
 import { simComps } from './circuit'
 import { BEGINNER_CONTROL, BEGINNER_SOURCE, beginnerBuilder, beginnerComputer, beginnerWords } from './beginner'
 import { EXAMPLES } from './examples'
+import { BEGINNER_ROWS, BEGINNER_SIGNALS } from '../engine/signal-presets'
+import { describeWord, parseRows, parseSignals } from '../engine/signals'
 
 /** The circuit, without routing the wires (the simulator does not need them), running a program. */
 function machine(source: string) {
@@ -94,6 +96,46 @@ describe('beginner computer', () => {
     expect(words).toHaveLength(16)
     expect(words.map((w, i) => (w === '00' ? null : i)).filter((i) => i !== null)).toEqual([0, 1, 2, 3, 4, 5, 7])
     expect(words.slice(4, 6)).toEqual(['83', '93']) // ADD and SUB also remember the carry
+  })
+
+  it('the control ROM names its bits and its rows, and says what each instruction does', () => {
+    const { layout, errors } = parseSignals(BEGINNER_SIGNALS)
+    const rows = parseRows(BEGINNER_ROWS)
+    expect([errors, rows.errors]).toEqual([[], []])
+    expect(layout.bits).toBe(8)
+    const words = BEGINNER_CONTROL.split(' ').map((w) => parseInt(w, 16))
+    const say = (name: string) => describeWord(layout, words[rows.rows.addresses[name]])
+    expect(Object.keys(rows.rows.addresses)).toEqual(['LDI', 'LDA', 'STA', 'JMP', 'ADD', 'SUB', 'HALT'])
+    expect(['LDI', 'LDA', 'STA', 'JMP', 'ADD', 'SUB', 'HALT'].map(say)).toEqual([
+      'LOAD_ACC, ACC_SRC=NUM',
+      'LOAD_ACC, ACC_SRC=RAM',
+      'WRITE_RAM',
+      'JUMP',
+      'LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY',
+      'LOAD_ACC, ACC_SRC=ADDER, SUBTRACT, SAVE_CARRY',
+      'HALT',
+    ])
+  })
+
+  it('the names are on the bits the circuit wires up: each signal leaves the control ROM from its pin', () => {
+    const { b, keys } = beginnerBuilder()
+    const { layout } = parseSignals(BEGINNER_SIGNALS)
+    const bit = (name: string) => layout.signals.find((s) => s.name === name)!.from
+    const sent = new Map<string, number>()
+    for (const w of Object.values(b.c.wires)) {
+      const to = b.c.comps[w.to.comp]
+      if (w.from.comp === keys.ctl && to.type === 'netsend') sent.set(String(to.params.name), Number(w.from.pin.slice(1)))
+    }
+    expect(Object.fromEntries(sent)).toMatchObject({
+      LOAD_ACC: bit('LOAD_ACC'),
+      ACC_SRC0: bit('ACC_SRC'),
+      ACC_SRC1: bit('ACC_SRC') + 1,
+      WRITE_RAM: bit('WRITE_RAM'),
+      SUBTRACT: bit('SUBTRACT'),
+      JUMP: bit('JUMP'),
+      SAVE_CARRY: bit('SAVE_CARRY'),
+    })
+    expect(bit('HALT')).toBe(6) // wired to the halt LED, the breakpoint and the PC's enable
   })
 
   it('its words are the same SKASM words as on every other computer', () => {

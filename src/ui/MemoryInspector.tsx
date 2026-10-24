@@ -9,6 +9,8 @@ import { HEX_WORDS, parseWords } from '../engine/components/memory'
 import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
 import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
+import { SIGNAL_PRESETS } from '../engine/signal-presets'
+import { describeWord, parseRows, parseSignals, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
 import type { Comp } from '../model/circuit'
 import { TextParam } from './TextParam'
@@ -103,21 +105,108 @@ function ProgramEditor({ comp, isa, words }: { comp: Comp; isa: Isa; words: numb
   )
 }
 
-/** All words of a ROM: address, value and (for a program) the instruction, with the one being read right now marked. */
-function Listing({ comp, isa, values, digits }: { comp: Comp; isa?: Isa; values: number[]; digits: number }) {
+/** What a control ROM's row is called and what it switches on, for the listing. */
+interface ControlRow {
+  name: string
+  signals: string
+}
+
+/** All words of a ROM: address, value and (for a program) the instruction or (for a control ROM) the row's name and signals, with the one being read right now marked. */
+function Listing({ comp, isa, values, digits, control, hideEmpty }: { comp: Comp; isa?: Isa; values: number[]; digits: number; control?: ControlRow[]; hideEmpty?: boolean }) {
   useCompSignature(comp.id, true)
   const addr = toNum(sim.inputValues(comp.id), 0, Number(comp.params.abits))
   const addrDigits = Math.max(1, (values.length - 1).toString(16).length)
   return (
-    <div className="listing" role="table" aria-label="Listing">
-      {values.map((w, i) => (
-        <div key={i} className={`row-listing${i === addr ? ' current' : ''}`} role="row" aria-current={i === addr ? 'true' : undefined}>
-          <span className="addr">{hexOf(i, addrDigits)}</span>
-          <span className="word">{hexOf(w, digits)}</span>
-          <span className="text">{isa ? disassemble(isa, w) : ''}</span>
-        </div>
-      ))}
+    <div className={`listing${control ? ' control' : ''}`} role="table" aria-label="Listing">
+      {values.map((w, i) => {
+        const row = control?.[i]
+        // A control ROM is mostly empty rows: leave them out when asked, except the one being read.
+        if (hideEmpty && row && !row.name && !row.signals && i !== addr) return null
+        return (
+          <div key={i} className={`row-listing${i === addr ? ' current' : ''}${control ? ' control' : ''}`} role="row" aria-current={i === addr ? 'true' : undefined}>
+            <span className="addr">{hexOf(i, addrDigits)}</span>
+            <span className="word">{hexOf(w, digits)}</span>
+            {row ? (
+              <>
+                <span className="text">{row.name}</span>
+                <span className="signals">{row.signals || (row.name ? 'nothing' : '')}</span>
+              </>
+            ) : (
+              <span className="text">{isa ? disassemble(isa, w) : ''}</span>
+            )}
+          </div>
+        )
+      })}
     </div>
+  )
+}
+
+/** The names of a control ROM's bits and rows, as two texts to edit, with the built-in sets to start from. */
+function SignalsEditor({ comp, layout, errors }: { comp: Comp; layout: SignalLayout; errors: { signals: TextError[]; rows: TextError[] } }) {
+  const p = comp.params
+  const bits = Number(p.dbits)
+  const presets = SIGNAL_PRESETS.filter((x) => x.abits === Number(p.abits) && x.dbits === bits)
+  const named = String(p.signals).trim() !== ''
+  const field = (key: 'signals' | 'rows', label: string, rows: number, errs: TextError[]) => (
+    <label className="field">
+      <span>{label}</span>
+      <textarea
+        key={`${key}|${String(p[key])}`}
+        className={`mono asm${errs.length ? ' invalid' : ''}`}
+        aria-label={label}
+        rows={rows}
+        spellCheck={false}
+        wrap="off"
+        defaultValue={String(p[key])}
+        onBlur={(e) => e.target.value !== String(currentParams(comp.id)[key]) && setParams(comp.id, { [key]: e.target.value })}
+      />
+      {errs.length > 0 && (
+        <ul className="asm-errors" aria-label={`${label}: errors`}>
+          {errs.map((e, i) => (
+            <li key={i}>
+              <b>Line {e.line}:</b> {e.message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </label>
+  )
+  return (
+    <details className="signals-editor" open={errors.signals.length + errors.rows.length > 0 || undefined}>
+      <summary>{named ? 'Names of the bits and rows' : 'Name the bits (for a control ROM)'}</summary>
+      {presets.length > 0 && (
+        <label className="field">
+          <span>Start from</span>
+          <select
+            aria-label="Names to start from"
+            value=""
+            onChange={(e) => {
+              const x = SIGNAL_PRESETS.find((q) => q.id === e.target.value)
+              if (x) setParams(comp.id, { signals: x.signals, rows: x.rows })
+              else if (e.target.value === 'none') setParams(comp.id, { signals: '', rows: '' })
+            }}
+          >
+            <option value="">Choose…</option>
+            {presets.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+            {named && <option value="none">No names</option>}
+          </select>
+        </label>
+      )}
+      {field('signals', 'Signals', Math.min(18, Math.max(5, String(p.signals).split('\n').length + 1)), errors.signals)}
+      {layout.bits > bits && (
+        <small className="field-error">
+          The signals take {layout.bits} bits, and the ROM has {bits} data bits.
+        </small>
+      )}
+      {field('rows', 'Row names', 5, errors.rows)}
+      <small>
+        One signal per line, lowest bit first: <code>LOAD</code>, <code>SRC 3 = CONST ALU RAM</code> (a field with named values), <code>_ 2</code> (skip 2 bits). A row name is an address and a name: <code>1E ORI</code>.
+      </small>
+    </details>
   )
 }
 
@@ -140,6 +229,11 @@ function TableDump({ text }: { text: string }) {
   )
 }
 
+/** The name and the signals of each row of a control ROM. */
+function decodeRows(layout: SignalLayout, names: Record<number, string>, values: number[]): ControlRow[] {
+  return values.map((w, i) => ({ name: names[i] ?? '', signals: describeWord(layout, w) }))
+}
+
 export function RomSection({ comp }: { comp: Comp }) {
   const p = comp.params
   const isa = getIsa(String(p.isa))
@@ -147,6 +241,17 @@ export function RomSection({ comp }: { comp: Comp }) {
   const bits = Number(p.dbits)
   const values = parseWords(String(p.data), words, bits)
   const dataDef = getDef('rom').params!.find((d) => d.key === 'data')!
+  // A control ROM has names for its bits and rows: the listing then says what each row switches on.
+  const signalsText = String(p.signals)
+  const rowsText = String(p.rows)
+  const parsedNames = useMemo(() => ({ signals: parseSignals(signalsText), rows: parseRows(rowsText) }), [signalsText, rowsText])
+  const control = !isa && signalsText.trim() !== ''
+  const dataText = String(p.data)
+  const controlRows = useMemo(
+    () => (control ? decodeRows(parsedNames.signals.layout, parsedNames.rows.rows.names, parseWords(dataText, words, bits)) : undefined),
+    [control, parsedNames, dataText, words, bits],
+  )
+  const [hideEmpty, setHideEmpty] = useState(true)
 
   const save = () => {
     const now = currentParams(comp.id)
@@ -191,7 +296,14 @@ export function RomSection({ comp }: { comp: Comp }) {
       ) : (
         <TextParam key={`data|${String(p.data)}`} comp={comp} p={dataDef} />
       )}
-      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} />
+      {controlRows && words > 16 && (
+        <label className="field check">
+          <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+          <span>Only rows with a name or signals</span>
+        </label>
+      )}
+      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} />
+      {!isa && <SignalsEditor comp={comp} layout={parsedNames.signals.layout} errors={{ signals: parsedNames.signals.errors, rows: parsedNames.rows.errors }} />}
       {p.table === 'on' && <TableDump text={String(p.tdata)} />}
       <div className="row">
         <button onClick={load} title={isa ? 'Replace the program with a .asm file' : 'Replace the contents with a file of hex words'}>
