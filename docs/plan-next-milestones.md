@@ -22,7 +22,7 @@
 > - [x] 13b Example gallery, v0.0.1-66
 > - [x] 14a Engine groundwork, v0.0.1-67
 > - [x] 14b ICs in the model and the simulation, v0.0.1-68
-> - [ ] 14c Make and place ICs
+> - [x] 14c Make and place ICs, v0.0.1-69
 > - [ ] 14d Edit an IC
 > - [ ] 14e Collapse a selection into an IC; examples
 > - ~~15 Challenges for classrooms~~ (dropped for now, see below)
@@ -373,6 +373,33 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
 - The inspector shows the IC's name, *Edit IC* and *Expand into parts*, which inlines the instance as one undo step.
 - Validation: no inputs or outputs, duplicate pin names, recursion. A warning for operable parts inside (keypad, button):
   they can't be reached.
+
+*What it did, and where it differs from the plan.*
+- **Make IC…** is in the Tools menu (and *Make IC* in the phone's selection bar when several parts are selected). It opens `MakeIcDialog`
+  (a lazy chunk): it makes the IC from the selected parts, or from the whole circuit when nothing is selected, shows the pins it
+  would have, asks for a name and warns about what is wrong (no inputs, no outputs: the button stays disabled) or doubtful (a button, a
+  keypad, a gamepad or a cycling input inside cannot be operated). It adds the definition to `Circuit.ics` as one undo step and changes
+  nothing on the canvas. `makeIC`, `expandInstance` and the dialog's state are in `app/ics.ts`.
+- **The palette** has a section *ICs in this circuit* above the others (only when the circuit has some). An item places `ic:<id>`
+  (`placementOf` in `model/ic.ts` turns that into a part type and params for `addComp`, the placement ghost, the phone hint and the
+  palette thumbnail). Copying instances copies the definitions they need (and those those need) into the clipboard; pasting into a
+  circuit adds the ones it lacks and leaves one it already has under the same id.
+- **The instance** is drawn by the generic box symbol (the name in the middle, pin labels at the sides, bus stubs for bus pins) and
+  its wires take their colours from `busModel(c).bits` as always. Its inspector shows the name, the inputs and outputs, and *Expand
+  into parts* (`inlineInstance`: the parts of the definition come in at the instance's place, the wires that led to its inputs
+  now lead to what the switches inside led to, and the wires from its outputs start where the LEDs inside got their signal; net labels
+  that would clash with a name in use get `_2`; one undo step).
+- The raw params of an instance (`ic`, `name`, `ins`, `outs`) are not shown as fields.
+- **Not here:** *Edit IC*, rename and delete of an IC (14d), duplicate pin names (the interface already numbers them, so there is
+  nothing to refuse), the recursion check when placing (an IC can only contain ICs that existed when it was made, so a loop can only
+  come from editing: 14d uses `wouldLoop`).
+- **Startup size:** the new code pushed the JavaScript loaded at startup to 504 kB. The challenge state is split in two:
+  `app/challenges.ts` (open, current, solved) stays in the main chunk and `app/challengeWork.ts` (starting, checking, solutions;
+  the challenge data) loads with the panels, which takes the 11 kB challenge list out of the main chunk (now 487 kB). This is the first
+  of the two moves the 12a note listed for getting under 350 kB.
+- Tests: more in `model/ic.test.ts` (sub-circuits, ids, placement, operable parts, unpacking, label renaming), `app/ics.test.ts`
+  (making, placing, undo, copy and paste across circuits, expanding), `e2e/ics.spec.ts` (make, place, wire, run, reload; the window's
+  warnings; a selection; expand and undo).
 
 **14d. Edit an IC (medium–large)**
 - A breadcrumb "Main › Full adder › Half adder" with Back. The store edits the active level (`editing: string[]`). Undo

@@ -83,4 +83,6 @@ export async function clickLabelled(page: Page, label: string) {
 export async function chooseExample(page: Page, id: string) {
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
   await page.getByTestId(`example-${id}`).click()
+  // The address changes once the example is on the canvas (it is fetched first).
+  await page.waitForURL(new RegExp(`/${id}$`))
 }

@@ -3,6 +3,7 @@ import { useChallenges } from './app/challenges'
 import { isEmbed } from './app/embed'
 import { useFsm } from './app/fsm'
 import { useGallery } from './app/gallery'
+import { useMakeIc } from './app/ics'
 import { useLogic } from './app/logic'
 import { useReference } from './app/reference'
 import { useOpenOnFirstProbe, useWave } from './app/waveform'
@@ -23,6 +24,7 @@ const SkasmReference = lazy(() => import('./ui/SkasmReference').then((m) => ({ d
 const ChallengeList = lazy(() => import('./ui/challenges/ChallengeList').then((m) => ({ default: m.ChallengeList })))
 const ChallengePanel = lazy(() => import('./ui/challenges/ChallengePanel').then((m) => ({ default: m.ChallengePanel })))
 const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ default: m.ExampleGallery })))
+const MakeIcDialog = lazy(() => import('./ui/MakeIcDialog').then((m) => ({ default: m.MakeIcDialog })))
 const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ default: m.WaveformPanel })))
 
 export default function App() {
@@ -33,6 +35,7 @@ export default function App() {
   const challengeOpen = useChallenges((s) => s.current !== null)
   const waveOpen = useWave((s) => s.open)
   const galleryOpen = useGallery((s) => s.open)
+  const makeIcOpen = useMakeIc((s) => s.open)
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
     requestAnimationFrame(fitView)
@@ -78,6 +81,9 @@ export default function App() {
       </OnDemand>
       <OnDemand open={challengeListOpen}>
         <ChallengeList />
+      </OnDemand>
+      <OnDemand open={makeIcOpen}>
+        <MakeIcDialog />
       </OnDemand>
       <OnDemand open={galleryOpen}>
         <ExampleGallery />

@@ -1,9 +1,11 @@
 import { RECV, SEND } from '../engine/netlabels'
 import { getDef, hasDef } from '../engine/registry'
 import { encodePins, type IcPin } from '../engine/components/ic'
-import type { Params } from '../engine/types'
-import { emptyCircuit, type Circuit, type Comp, type ICDef, type PinRef } from './circuit'
+import { paramDefaults, type Params } from '../engine/types'
+import { circuitRect } from './bounds'
+import { emptyCircuit, snap, type Circuit, type Comp, type ICDef, type PinRef } from './circuit'
 import { isLabel } from './labels'
+import { reroute } from './ops'
 
 /**
  * Custom ICs. A definition is a circuit; its interface is the labelled parts inside: switches and bus inputs are inputs, LEDs and
@@ -214,4 +216,135 @@ export function expandICs(c: Circuit): Expansion {
   }
   emit(c, '', [])
   return { circuit: out, connectors }
+}
+
+// ---- Making, placing and unpacking ---------------------------------------------------------------
+
+/** A deep copy that also works on the drafts of the store's circuit (`structuredClone` refuses a proxy). */
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
+
+/** The `placing` value of a custom IC in the palette: `ic:<definition id>`. */
+export const placingIC = (defId: string) => `ic:${defId}`
+
+/** What a `placing` value puts on the canvas: the part type, its params and its name, or null when it names nothing (an IC that is not there). */
+export function placementOf(circuit: Circuit, placing: string): { type: string; params: Params; name: string } | null {
+  if (!placing.startsWith('ic:')) return hasDef(placing) ? { type: placing, params: paramDefaults(getDef(placing)), name: getDef(placing).name } : null
+  const def = circuit.ics?.[placing.slice(3)]
+  return def ? { type: IC, params: icParams(def), name: def.name } : null
+}
+
+/** The circuit made of the parts with these ids and the wires between them (all of it when no ids are given), copied, without the ICs table. */
+export function subCircuit(c: Circuit, ids?: string[]): Circuit {
+  const keep = ids ? new Set(ids) : null
+  const out = emptyCircuit()
+  for (const k of Object.values(c.comps)) if (!keep || keep.has(k.id)) out.comps[k.id] = clone(k)
+  for (const w of Object.values(c.wires)) if (out.comps[w.from.comp] && out.comps[w.to.comp]) out.wires[w.id] = clone(w)
+  return out
+}
+
+/** Names of parts inside that a person would have to operate (a button, a keypad…): inside an IC nobody can reach them. */
+export function operableInside(c: Circuit): string[] {
+  const names = new Set<string>()
+  for (const k of Object.values(c.comps)) {
+    if (!hasDef(k.type) || INPUTS.has(k.type)) continue
+    const def = getDef(k.type)
+    if (def.interactive || k.type === 'keypad' || k.type === 'gamepad') names.add(k.label || def.name)
+  }
+  return [...names]
+}
+
+/** An id for a new definition: the name as a slug, with a number when it is taken. */
+export function newICId(ics: Record<string, ICDef> | undefined, name: string): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ic'
+  let id = base
+  for (let n = 2; ics?.[id]; n++) id = `${base}-${n}`
+  return id
+}
+
+/**
+ * Replace an instance with the parts of its definition, in place (`c` is changed): the wires into its inputs now lead straight to
+ * what the switches inside led to, and the wires out of its outputs start where the LEDs inside got their signal. The parts come
+ * in at the instance's position with new ids; net labels inside that clash with a name in use are renamed. Returns the ids of the
+ * new parts and wires, or null when the instance has no definition.
+ */
+export function inlineInstance(c: Circuit, instId: string, makeId: (prefix: string) => string): string[] | null {
+  const inst = c.comps[instId]
+  const def = inst?.type === IC ? c.ics?.[String(inst.params.ic)] : undefined
+  if (!inst || !def) return null
+  const inner = def.circuit
+  const iface = deriveInterface(inner)
+  const inputs = new Map(iface.inputs.map((p) => [p.comp, p]))
+  const outputs = new Map(iface.outputs.map((p) => [p.comp, p]))
+
+  // What the outside has at each pin.
+  const driver = new Map<string, PinRef>() // input pin name → what feeds it
+  const leaving = new Map<string, PinRef[]>() // output pin name → what it feeds
+  const gone: string[] = []
+  for (const w of Object.values(c.wires)) {
+    if (w.to.comp === instId) {
+      driver.set(w.to.pin, w.from)
+      gone.push(w.id)
+    }
+    if (w.from.comp === instId) {
+      leaving.set(w.from.pin, [...(leaving.get(w.from.pin) ?? []), w.to])
+      gone.push(w.id)
+    }
+  }
+
+  const box = circuitRect(inner, 0)
+  const dx = snap(inst.x - box.x)
+  const dy = snap(inst.y - box.y)
+  const used = new Set<string>()
+  for (const k of Object.values(c.comps)) if (k.id !== instId && isLabel(k.type) && k.params.name) used.add(String(k.params.name))
+  const renamed = new Map<string, string>()
+  const labelName = (name: string) => {
+    let r = renamed.get(name)
+    if (r === undefined) {
+      r = name
+      for (let n = 2; used.has(r); n++) r = `${name}_${n}`
+      used.add(r)
+      renamed.set(name, r)
+    }
+    return r
+  }
+
+  delete c.comps[instId]
+  for (const id of gone) delete c.wires[id]
+  const ids: string[] = []
+  const map = new Map<string, string>()
+  for (const k of Object.values(inner.comps)) {
+    if (inputs.has(k.id) || outputs.has(k.id)) continue
+    const id = makeId('c')
+    map.set(k.id, id)
+    ids.push(id)
+    const copy = clone(k)
+    c.comps[id] = { ...copy, id, x: k.x + dx, y: k.y + dy, params: isLabel(k.type) && k.params.name ? { ...copy.params, name: labelName(String(k.params.name)) } : copy.params }
+  }
+
+  /** Where a signal inside comes from, outside: through an input switch it is what feeds that input. */
+  const source = (ref: PinRef): PinRef | undefined => {
+    const pin = inputs.get(ref.comp)
+    if (pin) return driver.get(pin.name)
+    const id = map.get(ref.comp)
+    return id ? { comp: id, pin: ref.pin } : undefined
+  }
+  const newWires: string[] = []
+  const add = (from: PinRef, to: PinRef) => {
+    const id = makeId('w')
+    c.wires[id] = { id, from, to, path: [] }
+    newWires.push(id)
+  }
+  const fed = new Map<string, PinRef | undefined>() // output pin name → the signal the LED inside shows
+  for (const w of Object.values(inner.wires)) {
+    const src = source(w.from)
+    const out = outputs.get(w.to.comp)
+    if (out) fed.set(out.name, src)
+    else if (src && map.has(w.to.comp)) add(src, { comp: map.get(w.to.comp)!, pin: w.to.pin })
+  }
+  for (const [pin, targets] of leaving) {
+    const src = fed.get(pin)
+    if (src) for (const to of targets) add(src, to)
+  }
+  reroute(c, newWires)
+  return [...ids, ...newWires]
 }

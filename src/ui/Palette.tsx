@@ -1,15 +1,25 @@
-import { memo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { memo, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
 import { viewLayoutOf } from '../engine/viewlayout'
-import { paramDefaults, type ComponentDef } from '../engine/types'
-import type { Comp } from '../model/circuit'
+import { paramDefaults, type ComponentDef, type Params } from '../engine/types'
+import type { Comp, ICDef } from '../model/circuit'
+import { icParams, placingIC } from '../model/ic'
 import { paletteDrag } from './paletteDrag'
 import { CompSymbol } from './symbols'
 
 const Thumb = memo(function Thumb({ def }: { def: ComponentDef }) {
-  const params = paramDefaults(def)
-  const l = viewLayoutOf(def.type, params)
+  return <PartThumb type={def.type} params={paramDefaults(def)} />
+})
+
+/** A custom IC as it looks when placed. */
+function IcThumb({ def }: { def: ICDef }) {
+  const params = useMemo(() => icParams(def), [def])
+  return <PartThumb type="ic" params={params} />
+}
+
+function PartThumb({ type, params }: { type: string; params: Params }) {
+  const l = viewLayoutOf(type, params)
   let x1 = 0
   let y1 = 0
   let x2 = l.w
@@ -21,7 +31,7 @@ const Thumb = memo(function Thumb({ def }: { def: ComponentDef }) {
     y2 = Math.max(y2, p.y)
   }
   const pad = 6
-  const comp: Comp = { id: '__thumb', type: def.type, x: 0, y: 0, rot: 0, flip: false, params }
+  const comp: Comp = { id: '__thumb', type, x: 0, y: 0, rot: 0, flip: false, params }
   return (
     <svg
       className="thumb"
@@ -31,7 +41,7 @@ const Thumb = memo(function Thumb({ def }: { def: ComponentDef }) {
       <CompSymbol comp={comp} layout={l} live={false} />
     </svg>
   )
-})
+}
 
 const WIDTH_KEY = 'sklopko.paletteWidth'
 const DEFAULT_WIDTH = 216
@@ -103,8 +113,66 @@ function savedWidthNow() {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--palette-w')) || DEFAULT_WIDTH
 }
 
+/** "ICs in this circuit": the custom ICs of the document, placed like any other part (see `placingIC`). */
+function IcSection({
+  ics,
+  q,
+  placing,
+  collapsed,
+  toggle,
+  lastPointer,
+}: {
+  ics: Record<string, ICDef> | undefined
+  q: string
+  placing: string | null
+  collapsed: boolean
+  toggle: () => void
+  lastPointer: { current: string }
+}) {
+  const items = Object.values(ics ?? {}).filter((d) => !q || d.name.toLowerCase().includes(q))
+  if (!items.length) return null
+  return (
+    <section className="palette-section" data-testid="ic-section">
+      <button className="palette-heading" onClick={toggle} aria-expanded={!collapsed}>
+        <span className={`chevron${collapsed ? ' closed' : ''}`}>▾</span>
+        ICs in this circuit
+      </button>
+      {!collapsed && (
+        <div className="palette-grid">
+          {items.map((d) => {
+            const what = placingIC(d.id)
+            return (
+              <button
+                key={d.id}
+                className={`palette-item${placing === what ? ' active' : ''}`}
+                title={`${d.name}: a custom IC of this circuit`}
+                data-type={what}
+                onPointerDown={(e) => {
+                  lastPointer.current = e.pointerType
+                  if (e.pointerType !== 'mouse' || e.button !== 0) return
+                  e.preventDefault()
+                  Object.assign(paletteDrag, { active: true, moved: false, x: e.clientX, y: e.clientY })
+                  setPlacing(placing === what ? null : what)
+                }}
+                onClick={(e) => {
+                  if (lastPointer.current === 'mouse' && e.detail !== 0) return
+                  setPlacing(placing === what ? null : what)
+                }}
+              >
+                <IcThumb def={d} />
+                <span className="palette-name">{d.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function Palette() {
   const placing = useStore((s) => s.placing)
+  const ics = useStore((s) => s.circuit.ics)
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const lastPointer = useRef('mouse')
@@ -120,6 +188,7 @@ export function Palette() {
         aria-label="Search parts"
       />
       <div className="palette-scroll">
+        <IcSection ics={ics} q={q} placing={placing} collapsed={!!collapsed.ics && !q} toggle={() => setCollapsed({ ...collapsed, ics: !collapsed.ics })} lastPointer={lastPointer} />
         {CATEGORIES.map((cat) => {
           const items = DEFS.filter(
             (d) =>

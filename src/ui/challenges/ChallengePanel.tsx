@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { closeChallenge, nextUnsolved, openChallengeList, restartChallenge, runCheck, showHint, showSolution, startChallenge, useChallenges } from '../../app/challenges'
+import { closeChallenge, openChallengeList, showHint, useChallenges } from '../../app/challenges'
+import { nextUnsolved, restartChallenge, runCheck, showSolution, startChallenge } from '../../app/challengeWork'
 import { useStore } from '../../app/store'
 import { CHALLENGES, goalTable, type Challenge } from '../../model/challenges'
 import { ruleProblems, type CheckResult } from '../../model/challengecheck'
