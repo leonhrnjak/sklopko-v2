@@ -1,11 +1,16 @@
-# Sklopko v2: milestones 11–16
+# Sklopko v2: milestones 11–16 (15 dropped)
 
 > **How to execute this plan**
 > - Read `CLAUDE.md` first. Its rules apply: feature branch → PR → CI → merge, one version bump per PR, scoped tests.
 > - Work milestone by milestone, in order. Each sub-milestone (11a, 11b, …) is one PR and ends in a working, tested state.
 >   Tick its box below when it merges, and add a short *What it did, and where it differs from the plan* note under it, as
 >   `plan-m10-buses.md` does.
-> - After each sub-milestone, stop and report; merge only when the user says so.
+> - Within a milestone, carry on from one sub-milestone to the next as soon as its PR is up and its CI is green; merge only
+>   when the user says so.
+> - **Stacked PRs.** Each sub-milestone is a branch based on the previous one (`m11a-…` on the plan branch, `m11b-…` on
+>   `m11a-…`, and so on) and its PR targets the previous branch, so each diff shows only its own work. When the one below
+>   merges, retarget the next to `main`. After each *milestone* (11, 12, …) stop, so the user can clear the conversation: this
+>   file is the memory, so keep the boxes ticked and the "What it did" notes current.
 >
 > - [ ] 11a Library storage
 > - [ ] 11b Nothing replaces your work
@@ -20,9 +25,7 @@
 > - [ ] 14c Make and place ICs
 > - [ ] 14d Edit an IC
 > - [ ] 14e Collapse a selection into an IC; examples
-> - [ ] 15a Challenge links
-> - [ ] 15b Clocked challenges
-> - [ ] 15c Your own challenges
+> - ~~15 Challenges for classrooms~~ (dropped for now, see below)
 > - [ ] 16 Small wins
 
 ## Context
@@ -52,7 +55,7 @@ Out of scope: Croatian UI (not needed), accounts, server storage, real-time coll
 | 12 | Load speed | small–medium | Halve the bundle, open examples without routing; thumbnails for 13 |
 | 13 | Toolbar and example gallery | small–medium | Room for 14's UI; show off the examples |
 | 14 | Custom ICs | large | Readable big circuits; build in layers, as it is taught |
-| 15 | Challenges for classrooms | medium | Links, clocked tasks, teachers' own challenges |
+| 15 | ~~Challenges for classrooms~~ | medium | **Dropped for now** (kept below for later) |
 | 16 | Small wins | small | Offline, keyboard, LUT from expression, testbench |
 
 ## Milestone 11: My circuits (medium)
@@ -224,7 +227,10 @@ Build a part from a circuit, use it like any other, nest it, and collapse part o
 - Collapse keeps behaviour (the computer's programs give the same output before and after).
 - e2e: make, place, wire, run; edit, back, instances updated; collapse; expand; undo across levels.
 
-## Milestone 15: Challenges for classrooms (medium)
+## Milestone 15: Challenges for classrooms (medium) — dropped for now
+> Not scheduled: nothing in 11–14 or 16 depends on it, except that the testbench in 16 now brings its own `pulse` step. The design
+> stays here for later. Milestone numbers are kept so references don't change.
+
 **15a. Challenge links (small)**
 - `/challenge/<id>` opens a challenge (its 11b record), resolved in `runtime.ts` like `exampleFromPath`; *Copy link* in the
   challenge panel.
@@ -259,7 +265,8 @@ Each is its own small PR, in any order.
 - **Lookup table from an expression**: a *Fill from expression* button in the LUT inspector, using the Logic panel's
   parser.
 - **Testbench for any circuit**: the challenge checker opened up. A list of steps (set inputs, pulse, expect outputs) saved
-  with the circuit, with *Run tests* and a list of failing steps. It reuses 15b's steps.
+  with the circuit, with *Run tests* and a list of failing steps. It needs a `pulse` step (one rising and falling edge on a labelled input such as `CLK`) added to the step checker in
+  `src/model/challengecheck.ts`, which challenges don't have today.
 
 ## Considered and not planned
 - **Croatian UI**: not needed.
