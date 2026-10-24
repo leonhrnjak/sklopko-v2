@@ -66,6 +66,9 @@ function Pager({ paging, total }: { paging: ReturnType<typeof usePage>; total: n
 
 /** The id of the 6502 assembly language among the ROM's *Contents are* choices (the others are word-based, see `engine/isa.ts`). */
 const ASM_6502 = '6502'
+const ASM_65C02 = '65c02'
+/** The two byte-based languages: a 6502 program and a 65C02 program. */
+const isAsm6502 = (id: string) => id === ASM_6502 || id === ASM_65C02
 
 /** What the inspector needs of a language a ROM can hold a program in: its width, and what a source text assembles to. */
 interface Language {
@@ -102,21 +105,24 @@ const skasmLanguage = (isa: Isa): Language => ({
   },
 })
 
-const language6502: Language = {
-  id: ASM_6502,
-  name: '6502 assembly',
+const language6502 = (cmos: boolean): Language => ({
+  id: cmos ? ASM_65C02 : ASM_6502,
+  name: cmos ? '65C02 assembly' : '6502 assembly',
   bits: 8,
   unit: 'bytes',
   assemble(source, words) {
-    const r = assemble6502(source, words)
+    const r = assemble6502(source, words, cmos)
     const used = r.items.reduce((n, it) => n + Math.max(it.bytes.length, it.gap ?? 0), 0)
     return { errors: r.errors, used, patch: { source, data: hexValues(r.bytes, 8) } }
   },
-}
+})
+const LANGUAGE_6502 = language6502(false)
+const LANGUAGE_65C02 = language6502(true)
 
 /** The language a ROM's `isa` setting names, if it is one. */
 const languageOf = (id: string): Language | undefined => {
-  if (id === ASM_6502) return language6502
+  if (id === ASM_6502) return LANGUAGE_6502
+  if (id === ASM_65C02) return LANGUAGE_65C02
   const isa = getIsa(id)
   if (!isa) return undefined
   let lang = skasmLanguages.get(isa.id)
@@ -136,7 +142,7 @@ function chooseIsa(comp: Comp, id: string) {
   // What the ROM holds becomes the program's first text, if it holds anything and was written in this width.
   if (!String(p.source) && String(p.data) !== dataDef.default && Number(p.dbits) === lang.bits) {
     const words = parseWords(String(p.data), 2 ** Number(p.abits), lang.bits)
-    if (id === ASM_6502) patch.source = sourceFromBytes(words)
+    if (isAsm6502(id)) patch.source = sourceFromBytes(words, 0, id === ASM_65C02)
     else {
       const isa = getIsa(id)!
       const used = words.reduce((n, w, i) => (w ? i + 1 : n), 0)
@@ -506,7 +512,7 @@ function decodeRows(layout: SignalLayout, names: Record<number, string>, values:
 export function RomSection({ comp }: { comp: Comp }) {
   const p = comp.params
   const lang = languageOf(String(p.isa))
-  const isa = lang && lang.id !== ASM_6502 ? getIsa(lang.id) : undefined
+  const isa = lang && !isAsm6502(lang.id) ? getIsa(lang.id) : undefined
   const words = 2 ** Number(p.abits)
   const bits = Number(p.dbits)
   const values = parseWords(String(p.data), words, bits)
@@ -531,10 +537,11 @@ export function RomSection({ comp }: { comp: Comp }) {
   // A 6502 program is listed as the assembler placed it while the ROM still holds that; any other bytes are read as instructions.
   const sourceText = String(p.source)
   const rows6502 = useMemo(() => {
-    if (lang?.id !== ASM_6502 || bits !== 8) return undefined
-    const r = assemble6502(sourceText, words)
+    if (!lang || !isAsm6502(lang.id) || bits !== 8) return undefined
+    const cmos = lang.id === ASM_65C02
+    const r = assemble6502(sourceText, words, cmos)
     const same = !r.errors.length && r.bytes.every((b, i) => b === values[i])
-    return { base: r.base, rows: listing6502(values, r.base, same ? r.items : undefined) }
+    return { base: r.base, rows: listing6502(values, r.base, same ? r.items : undefined, cmos) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, bits, sourceText, words, dataText])
   /** Write one word of the ROM (the words as they are now, not as they were when this was rendered). */
@@ -640,10 +647,10 @@ export function RomSection({ comp }: { comp: Comp }) {
         </button>
         {lang && (
           <button
-            onClick={() => (lang.id === ASM_6502 ? open6502Reference() : openReference())}
-            title={lang.id === ASM_6502 ? 'The instructions, addressing modes and syntax of 6502 assembly' : 'The instructions, ports and examples of the assembly language'}
+            onClick={() => (isAsm6502(lang.id) ? open6502Reference(undefined, lang.id === ASM_65C02 ? 'cmos' : 'nmos') : openReference())}
+            title={isAsm6502(lang.id) ? 'The instructions, addressing modes and syntax of 6502 and 65C02 assembly' : 'The instructions, ports and examples of the assembly language'}
           >
-            {lang.id === ASM_6502 ? '6502' : lang.name} reference…
+            {lang.id === ASM_65C02 ? '65C02' : lang.id === ASM_6502 ? '6502' : lang.name} reference…
           </button>
         )}
       </div>

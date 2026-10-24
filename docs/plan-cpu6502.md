@@ -11,7 +11,7 @@
 > - [x] R5 The board with devices, and 6502 example programs
 > - [ ] R6 Polish: 65C02, interrupts, timing-view presets, in three steps:
 >   - [x] R6a The 65C02 in the core: opcode table, cycle-exact model, vectors, Dormann
->   - [ ] R6b The 65C02 in the part (a *Chip* setting, VPB, MLB and BE pins), the assembler and the reference
+>   - [x] R6b The 65C02 in the part (a *Chip* setting, VPB, MLB and BE pins), the assembler and the reference
 >   - [ ] R6c An interrupt example, timing-view presets, a challenge or two
 
 ## Why
@@ -173,6 +173,16 @@ clear), STP waits for a reset. Tested by `testdata/65c02-singlestep.json` (20 ca
 opt-in, Dormann's 65C02 extended opcodes test (`VITE_DORMANN_65C02=…`, passes after 66,907,072 cycles); the NMOS tests are unchanged
 (96,241,367 cycles). Two details are the vectors', not the chip's: the extra cycle of decimal ADC with a constant reads `$007F` and SBC `$0000`.
 WAI and STP have no vectors; they are tested by hand. Not yet visible anywhere: the part, the assembler and the reference learn the 65C02 in R6b.
+
+**What R6b did, and where it differs from the plan.** The part has a *Chip* setting (MOS 6502 or WDC 65C02, NMOS by default, so nothing saved
+changes). With the 65C02 it gains the pins `BE` (bus enable: while 0, `A`, `D` and `R/W` float, and the CPU itself goes on), `VPB` (low while it reads an
+interrupt or reset vector) and `MLB` (low during the three cycles of a read-modify-write instruction), and its symbol says 65C02. The assembler takes a
+chip too: `assemble6502(source, capacity, cmos)`, with `(zp)`, `JMP (abs,X)`, `INC A`, `BIT #`, `STZ`, `BRA`, `PHX…PLY`, `TSB`, `TRB`, `RMBn`, `SMBn`,
+`BBRn zp,label` and `BBSn zp,label`; the NMOS assembler says when an instruction is the 65C02's. A ROM's *Contents are* offers *A program in 65C02
+assembly* (its listing reads 65C02 opcodes; an opcode the chip only runs as a NOP is shown as data). The 6502 reference has a switch between the two
+chips: the instruction table lists the 65C02's added instructions and forms (marked), changed cycle counts, the extra modes and its opcode map. One example:
+*65C02: a sweeping LED*, which uses SMB, RMB, STZ, PHX and BRA. Not modelled: the CPU stopping while BE is low (the pins float, the core carries
+on); the pin `SO` (still left out). The NMOS part's behaviour is unchanged (same simulator fingerprints for every earlier example).
 
 ## Open choices (my pick in bold)
 1. **NMOS first, 65C02 in R6.** The table carries both, so the order can swap.

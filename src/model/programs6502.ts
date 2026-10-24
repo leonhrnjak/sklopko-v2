@@ -159,3 +159,50 @@ place:  LDA by           ; XY = y * 16 + x
 
 .org $FFFC
 .word reset`
+
+/** A 65C02 program: one LED sweeps along the eight, made with the instructions that set and clear one bit (SMB, RMB), STZ, BRA, PHX and PLX. */
+export const SWEEP_65C02_SOURCE = `.org $F000
+LEDS = $4000
+bits = $00      ; the LED pattern is a byte in the zero page
+
+reset:  LDX #$FF
+        TXS
+        STZ bits        ; store zero: all the LEDs off
+sweep:
+        SMB0 bits
+        JSR show
+        RMB0 bits
+        SMB1 bits
+        JSR show
+        RMB1 bits
+        SMB2 bits
+        JSR show
+        RMB2 bits
+        SMB3 bits
+        JSR show
+        RMB3 bits
+        SMB4 bits
+        JSR show
+        RMB4 bits
+        SMB5 bits
+        JSR show
+        RMB5 bits
+        SMB6 bits
+        JSR show
+        RMB6 bits
+        SMB7 bits
+        JSR show
+        RMB7 bits
+        BRA sweep       ; branch always: and round again
+
+show:   LDA bits
+        STA LEDS        ; show the pattern
+        PHX             ; keep X, and wait
+        LDX #$30
+wait:   DEX
+        BNE wait
+        PLX
+        RTS
+
+.org $FFFC
+.word reset`

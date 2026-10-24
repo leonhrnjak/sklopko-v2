@@ -519,6 +519,29 @@ test('the 6502 ROM holds a program in assembly: a listing of its bytes, errors b
   await expect(dialog).toBeVisible()
 })
 
+test('the 65C02 example: its ROM holds a 65C02 program, and the reference opens on the 65C02', async ({ page }) => {
+  await page.goto('/65c02', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'ROM \\$F000–\\$FFFF')
+  await expect(page.getByLabel('Contents are')).toHaveValue('65c02')
+  await expect(page.getByLabel('Program source')).toHaveValue(/SMB0 bits/)
+  await expect(page.locator('.row-listing.code6502').first().locator('.text')).toHaveText('LDX #$FF')
+  // The new instructions are in the listing, and a typo in them is named.
+  await expect(page.locator('.row-listing.code6502 .text', { hasText: 'STZ $00' })).toHaveCount(1)
+  await page.getByLabel('Program source').fill('.org $F000\nSTZ #1')
+  await expect(page.getByLabel('Errors')).toContainText("STZ can't be written with a constant")
+
+  await page.getByRole('button', { name: '65C02 reference…' }).click()
+  const dialog = page.getByRole('dialog', { name: '6502 assembly reference' })
+  await expect(dialog.getByRole('button', { name: 'WDC 65C02' })).toHaveAttribute('aria-pressed', 'true')
+  await dialog.getByRole('tab', { name: 'Instructions' }).click()
+  await expect(dialog.locator('#op-BRA')).toContainText('branch always')
+  await expect(dialog.locator('#op-STZ')).toContainText('STZ n')
+  await dialog.getByRole('button', { name: 'MOS 6502' }).click()
+  await expect(dialog.locator('#op-BRA')).toHaveCount(0)
+})
+
 test('gamepad: the arrow keys press its buttons, and the paddle moves', async ({ page }) => {
   await page.goto('/computer-pong', { waitUntil: 'networkidle' })
   const down = page.locator('g.key.down')

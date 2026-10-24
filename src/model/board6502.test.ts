@@ -4,7 +4,8 @@ import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
 import { BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
+import { sweep65c02 } from './board6502-examples'
 import { flatten } from './buses'
 
 function start(o: Board6502Options = {}) {
@@ -172,5 +173,19 @@ start: LDA $4003
     expect(bits(sim, keys.leds, 'Q', 8)).toBe(0x16) // key 6, and bit 4: a press waits
     expect(sim.state(keys.console).lines[0]).toMatch(/^ +$/)
     expect([...speaker].sort()).toEqual([0, 1])
+  })
+
+  it('a 65C02 board runs a 65C02 program: the CPU part and the ROM are set to the chip', () => {
+    const { sim, keys } = start({ source: SWEEP_65C02_SOURCE, chip: 'cmos', devices: ['leds'] })
+    const seen: number[] = []
+    for (let i = 0; i < 2600; i++) {
+      oneCycle(sim)
+      const v = bits(sim, keys.leds, 'Q', 8)
+      if (v !== seen[seen.length - 1]) seen.push(v)
+    }
+    expect(seen.slice(0, 10)).toEqual([0, 1, 2, 4, 8, 16, 32, 64, 128, 1])
+    const rom = Object.values(sweep65c02().comps).find((c) => c.type === 'rom')!
+    const cpu = Object.values(sweep65c02().comps).find((c) => c.type === 'cpu6502')!
+    expect([rom.params.isa, cpu.params.chip]).toEqual(['65c02', 'cmos'])
   })
 })

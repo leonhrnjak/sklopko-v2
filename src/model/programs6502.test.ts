@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
 import { cycle, newCpu, reset } from '../engine/cpu6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE } from './programs6502'
 
 /** A machine for the programs that is nothing but the memory map: RAM, ROM, and a function called for each device write and read. */
-function run(source: string, cycles: number, dev: { write?: (reg: number, v: number) => void; read?: (reg: number) => number } = {}) {
-  const r = assemble6502(source, 0x1000)
+function run(source: string, cycles: number, dev: { write?: (reg: number, v: number) => void; read?: (reg: number) => number } = {}, cmos = false) {
+  const r = assemble6502(source, 0x1000, cmos)
   expect(r.errors).toEqual([])
   expect(r.base).toBe(0xf000)
   const ram = new Uint8Array(0x800)
-  const c = newCpu()
+  const c = newCpu(cmos)
   reset(c)
   for (let n = 0; n < cycles; n++) {
     if (!c.read) {
@@ -102,5 +102,16 @@ describe('the programs of the 6502 examples', () => {
     })
     const xs = seen.map((p) => p & 15)
     expect(xs.slice(0, 5)).toEqual([2, 1, 0, 0, 0]) // left until the wall, and it stays there while left is held
+  })
+
+  it('the 65C02 sweep lights one LED at a time, from the first to the last, and starts again', () => {
+    const shown: number[] = []
+    run(SWEEP_65C02_SOURCE, 6000, { write: (reg, v) => reg === 0 && shown.push(v) }, true)
+    expect(shown.slice(0, 10)).toEqual([1, 2, 4, 8, 16, 32, 64, 128, 1, 2])
+  })
+
+  it('the 65C02 sweep needs the 65C02: the NMOS assembler names the first instruction it does not have', () => {
+    const r = assemble6502(SWEEP_65C02_SOURCE, 0x1000)
+    expect(r.errors[0].message).toMatch(/instruction of the 65C02/)
   })
 })

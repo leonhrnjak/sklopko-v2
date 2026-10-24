@@ -12,6 +12,7 @@ export interface IsaChoice {
 export const ISA_CHOICES: IsaChoice[] = [
   { id: 'skasm', name: 'SKASM' },
   { id: '6502', name: '6502 assembly' },
+  { id: '65c02', name: '65C02 assembly' },
 ]
 
 /** Ids that circuits saved before SKASM used for a ROM's instruction set; they all mean SKASM now. */

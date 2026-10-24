@@ -84,6 +84,20 @@ const changed = (o: Opcode6502): Opcode6502 => {
 /** All the opcodes of the 65C02 that do something, by opcode, and a NOP for each of the rest. */
 export const OPCODES_65C02: Opcode6502[] = [...OPCODES_6502.map(changed), ...added]
 
+/** The opcodes of `OPCODES_65C02` by opcode, undefined for the ones that are a NOP only because nothing uses them. */
+export const DOCUMENTED_65C02: (Opcode6502 | undefined)[] = (() => {
+  const t = new Array<Opcode6502 | undefined>(256).fill(undefined)
+  for (const o of OPCODES_65C02) t[o.opcode] = o
+  return t
+})()
+
+/** Each mnemonic of the 65C02 with the opcode of each of its addressing modes (as `ENCODINGS` in `opcodes6502.ts`, for the assembler). */
+export const ENCODINGS_65C02: Record<string, Partial<Record<Mode6502, number>>> = (() => {
+  const t: Record<string, Partial<Record<Mode6502, number>>> = {}
+  for (const o of OPCODES_65C02) (t[o.mnemonic] ??= {})[o.mode] = o.opcode
+  return t
+})()
+
 export const BY_OPCODE_65C02: Opcode6502[] = (() => {
   const t = new Array<Opcode6502 | undefined>(256).fill(undefined)
   for (const o of OPCODES_65C02) t[o.opcode] = o

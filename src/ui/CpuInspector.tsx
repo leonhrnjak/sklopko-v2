@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { sim } from '../app/sim'
 import { setRunning } from '../app/store'
 import type { CpuState } from '../engine/components/cpu'
-import { PROG_INTERRUPT, PROG_RESET, type Cpu6502 } from '../engine/cpu6502'
+import { PROG_INTERRUPT, PROG_RESET, PROG_WAIT, type Cpu6502 } from '../engine/cpu6502'
 import { BY_OPCODE_6502 } from '../engine/opcodes6502'
+import { BY_OPCODE_65C02 } from '../engine/opcodes65c02'
 import type { Comp } from '../model/circuit'
 
 const hex = (n: number, digits: number) => n.toString(16).toUpperCase().padStart(digits, '0')
@@ -23,6 +24,9 @@ const MODE_NAMES: Record<string, string> = {
   izx: '(zero page,X)',
   izy: '(zero page),Y',
   rel: 'relative',
+  izp: '(zero page)',
+  iax: '(absolute,X)',
+  zpr: 'zero page, relative',
 }
 
 /** The state of the CPU now, refreshed while the simulation runs (a clock cycle need not change any pin the canvas draws). */
@@ -48,10 +52,11 @@ function useCpu(id: string): CpuState | undefined {
 
 /** What the CPU is in the middle of, in words. */
 function doing(c: Cpu6502): string {
+  if (c.prog === PROG_WAIT) return c.wait === 2 ? 'Stopped (STP): only a reset starts it again' : 'Waiting for an interrupt (WAI)'
   if (c.prog < 0) return `Fetching the next instruction from $${hex(c.pc, 4)}`
   if (c.prog === PROG_RESET) return `Reset sequence, cycle ${c.t + 1} of 7`
   if (c.prog === PROG_INTERRUPT) return `Interrupt sequence, cycle ${c.t + 2} of 7`
-  const o = BY_OPCODE_6502[c.op]
+  const o = c.cmos ? BY_OPCODE_65C02[c.op] : BY_OPCODE_6502[c.op]
   if (!o) return `Opcode $${hex(c.op, 2)}, which the part treats as a NOP`
   const mode = MODE_NAMES[o.mode]
   return `${o.mnemonic}${mode ? ` ${mode}` : ''} ($${hex(c.op, 2)}), cycle ${c.t + 2} of ${o.cycles}${o.kind === 'read' && o.pageCross ? '+' : ''}`

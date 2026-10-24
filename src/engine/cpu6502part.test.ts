@@ -3,6 +3,7 @@ import type { CpuState } from './components/cpu'
 import { getDef } from './registry'
 import { Simulator, type SimCircuit } from './simulator'
 import { Z, paramDefaults, toNum, type Params } from './types'
+import { viewLayoutOf } from './viewlayout'
 
 /** Tiny builder: `wire('a.Q', 'b.A')` connects output Q of a to input A of b. */
 function build(comps: Record<string, string | [string, Params]>, wires: [string, string][]): SimCircuit {
@@ -150,5 +151,56 @@ describe('the 6502 part', () => {
     r.set('NMIB', false)
     for (let i = 0; i < 30; i++) r.cycle()
     expect(r.state().cpu.y).toBe(y + 1) // an edge: once, though the line stays low
+  })
+})
+
+describe('the 65C02 chip', () => {
+  const cmos = { chip: 'cmos' }
+
+  it('has the pins BE, VPB and MLB, which the NMOS chip does not', () => {
+    const pins = (p: Params) => viewLayoutOf('cpu6502', { ...paramDefaults(getDef('cpu6502')), bus: false, ...p }).pins.map((x) => x.name)
+    expect(pins(cmos)).toEqual(expect.arrayContaining(['BE', 'VPB', 'MLB']))
+    expect(pins({})).not.toEqual(expect.arrayContaining(['BE']))
+    expect(pins({})).not.toEqual(expect.arrayContaining(['VPB']))
+  })
+
+  it('pulls VPB low in the two cycles that read the reset vector', () => {
+    const r = rig({ cpu: cmos })
+    const seen: string[] = []
+    for (let i = 0; i < 12; i++) {
+      if (r.sim.pinValue('cpu', 'VPB') === 0) seen.push(`$${r.bits('A', 8).toString(16)}`)
+      r.cycle()
+    }
+    expect(seen).toEqual(['$fc', '$fd'])
+  })
+
+  it('pulls MLB low during the three cycles of a read-modify-write instruction, and only then', () => {
+    // INC $50; NOP; NOP...  (reads of the zero page come from the ROM, which has $EA there)
+    const r = rig({ cpu: cmos, rom: image([0xe6, 0x50]) })
+    const locked: number[] = []
+    for (let i = 0; i < 20; i++) {
+      locked.push(r.sim.pinValue('cpu', 'MLB'))
+      r.cycle()
+    }
+    const first = locked.indexOf(0)
+    expect(locked.slice(first, first + 3)).toEqual([0, 0, 0])
+    expect(locked.filter((v) => v === 0)).toHaveLength(3)
+  })
+
+  it('lets go of the address bus, the data bus and R/W while BE is low', () => {
+    const r = rig({ cpu: cmos, switches: ['BE'] })
+    for (let i = 0; i < 12; i++) r.cycle()
+    expect(r.sim.pinValue('cpu', 'A0')).not.toBe(Z)
+    r.set('BE', false)
+    for (const pin of ['A0', 'A7', 'A15', 'D0', 'D7', 'RWB']) expect(r.sim.pinValue('cpu', pin), pin).toBe(Z)
+    r.set('BE', true)
+    expect(r.sim.pinValue('cpu', 'RWB')).not.toBe(Z)
+  })
+
+  it('runs the new instructions in a circuit: INC A and BRA', () => {
+    // LDA #$7F; INC A; TAX; BRA +1; INX (skipped); NOP... : X is $80
+    const r = rig({ cpu: cmos, rom: image([0xa9, 0x7f, 0x1a, 0xaa, 0x80, 0x01, 0xe8]) })
+    for (let i = 0; i < 30; i++) r.cycle()
+    expect(r.state().cpu.x).toBe(0x80)
   })
 })

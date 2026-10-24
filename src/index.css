@@ -2186,6 +2186,22 @@ table.truth td.in.changed {
 .ref-operand {
   color: var(--muted);
 }
+.ref-chip {
+  margin-bottom: 14px;
+  width: fit-content;
+}
+.ref-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  background: var(--select-soft);
+  color: var(--accent-strong);
+}
+.ref-map td.ref-new {
+  background: var(--select-soft);
+}
 .ref-form {
   white-space: nowrap;
 }
