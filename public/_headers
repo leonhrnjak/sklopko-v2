@@ -10,6 +10,15 @@
 /index.html
   Cache-Control: no-cache
 
+# The examples are made at build time and have no hash in their names: revalidate them. So is the service worker, which has to be
+# fetched fresh to find out that there is a new version.
+/examples/*
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+
 # Other sites may embed the app (?embed=1 shows just the circuit), so framing is allowed everywhere: there is
 # nothing to click-jack (no accounts, no backend).
 /*

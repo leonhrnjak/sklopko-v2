@@ -38,8 +38,8 @@ npx tsc -b                                                        # type-check, 
 npx playwright test --reporter=line e2e/editing.spec.ts           # the whole e2e spec file for the changed area
 ```
 
-The e2e specs are by area (`e2e/editing`, `simulation`, `buses`, `computers`, `logic`, `fsm`, `challenges`, `files`, `library`,
-`mobile`; shared helpers in `e2e/helpers.ts`, including `chooseTool` and `chooseFile` for the toolbar's Tools and File menus).
+The e2e specs are by area (`e2e/editing`, `simulation`, `buses`, `computers`, `logic`, `fsm`, `challenges`, `files`, `library`, `gallery`,
+`ics`, `keyboard`, `testbench`, `mobile`; `offline` needs `npm run build` first, since it tests the built app; shared helpers in `e2e/helpers.ts`, including `chooseTool` and `chooseFile` for the toolbar's Tools and File menus).
 Before pushing, run all the unit tests and the e2e spec file(s) for the area you changed (whole files,
 not single tests picked with `-g`), so most regressions show up before CI. Use `-g` only to re-run a
 specific failed test while fixing it. Don't run the whole e2e suite locally.
@@ -54,7 +54,7 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,
 custom ICs, small wins; milestone 15, challenges for classrooms, is dropped for now), in order, one PR per sub-milestone; tick each
-box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed: code splitting, prebuilt examples and thumbnails, rendering measured) is built; 13 (toolbar menus, collapsible help, e2e split, example gallery) is built; 14 (custom ICs: instances and expansion, make and place, edit, collapse, two examples) is built; 16 (small wins) is next. Each sub-milestone's PR is stacked on the one before it (#36 onward, one branch each), so the boxes are ticked when they merge.
+box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed: code splitting, prebuilt examples and thumbnails, rendering measured) is built; 13 (toolbar menus, collapsible help, e2e split, example gallery) is built; 14 (custom ICs: instances and expansion, make and place, edit, collapse, two examples) is built; 16 (small wins: keyboard control, a lookup table from an expression, a testbench, offline use) is built, so the roadmap is done apart from the dropped 15. Each sub-milestone's PR is stacked on the one before it (#36 onward, one branch each), so the boxes are ticked when they merge.
 
 **Milestones 0–10 are all done** (`docs/plan-next-features.md`). Milestone 10 (buses and tri-state) is recorded in
 `docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine
