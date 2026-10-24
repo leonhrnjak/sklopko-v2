@@ -53,12 +53,13 @@ test('after one visit the app opens and runs with no network: the page, a short 
   await expect(page.locator('.comp').first()).toBeVisible()
   // A short link opens an example from the cache; so does one chosen in the gallery.
   await page.goto(BASE + '/dice', { waitUntil: 'load' })
-  expect(await page.locator('.comp').count()).toBeGreaterThan(5)
+  // `count()` does not wait, and the example is drawn a moment after `load`, so poll it.
+  await expect.poll(() => page.locator('.comp').count()).toBeGreaterThan(5)
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
   await page.getByLabel('Search examples').fill('adder')
   await page.getByTestId('example-adder').click()
   await expect(page).toHaveURL(/\/adder$/)
-  expect(await page.locator('.comp').count()).toBe(5)
+  await expect.poll(() => page.locator('.comp').count()).toBe(5)
   // The panels that load on demand are in the cache too.
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await page.getByRole('menuitem', { name: 'Logic…' }).click()
