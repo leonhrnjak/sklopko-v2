@@ -519,6 +519,13 @@ input:focus-visible {
 .row-listing.control {
   grid-template-columns: 2.2em 4.2em 4.6em 1fr;
 }
+.row-listing.code6502 {
+  grid-template-columns: 3em 5.4em 1fr 2.5em; /* address, up to three bytes, the instruction, the source line */
+}
+.row-listing .line {
+  color: var(--muted);
+  text-align: right;
+}
 .row-listing .signals {
   color: var(--muted);
   white-space: normal;
@@ -2178,6 +2185,20 @@ table.truth td.in.changed {
 }
 .ref-operand {
   color: var(--muted);
+}
+.ref-form {
+  white-space: nowrap;
+}
+.ref-map td,
+.ref-map th {
+  padding: 3px 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+  border: 1px solid var(--panel-border);
+}
+.ref-map td:first-child {
+  white-space: normal;
 }
 .ref-example {
   margin-bottom: 18px;

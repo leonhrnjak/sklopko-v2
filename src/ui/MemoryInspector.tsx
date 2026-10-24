@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCompSignature } from '../app/hooks'
 import { downloadText, openTextFile } from '../app/files'
-import { openReference } from '../app/reference'
+import { open6502Reference, openReference } from '../app/reference'
 import { sim } from '../app/sim'
 import { pokeWord, setParams, showToast, useStore } from '../app/store'
 import type { ConsoleState } from '../engine/components/devices'
 import { HEX_WORDS, parseWords } from '../engine/components/memory'
 import { fillLut, lutInputNames, lutOutputNames } from '../logic/lut'
 import { getDef } from '../engine/registry'
-import { ISAS, assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmResult, type Isa } from '../engine/isa'
+import { assemble6502, listing6502, rowAt, sourceFromBytes, type ListRow6502 } from '../engine/asm6502'
+import { assemble, disassemble, getIsa, toHexBytes, toHexWords, type AsmError, type Isa } from '../engine/isa'
+import { ISA_CHOICES } from '../engine/isalist'
 import { SIGNAL_PRESETS, presetParams } from '../engine/signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalValue, signalsToText, valueName, withSignal, type RowNames, type Signal, type SignalLayout, type TextError } from '../engine/signals'
 import { toNum, type Params } from '../engine/types'
@@ -62,57 +64,113 @@ function Pager({ paging, total }: { paging: ReturnType<typeof usePage>; total: n
 
 // ---- ROM ---------------------------------------------------------------------------------------
 
+/** The id of the 6502 assembly language among the ROM's *Contents are* choices (the others are word-based, see `engine/isa.ts`). */
+const ASM_6502 = '6502'
+
+/** What the inspector needs of a language a ROM can hold a program in: its width, and what a source text assembles to. */
+interface Language {
+  id: string
+  name: string
+  /** The data bits a ROM needs for it. */
+  bits: number
+  /** What the program is measured in ("instructions", "bytes"). */
+  unit: string
+  assemble: (source: string, words: number, comp: Comp) => { errors: AsmError[]; used: number; patch: Params }
+}
+
+/** The ROM's hex text for these values, without the zero values at the end (they read as 0 anyway). */
+const hexValues = (values: number[], bits: number): string => {
+  let last = values.length
+  while (last > 0 && !values[last - 1]) last--
+  return toHexWords(values.slice(0, last), bits)
+}
+
+const skasmLanguage = (isa: Isa): Language => ({
+  id: isa.id,
+  name: isa.name,
+  bits: isa.bits,
+  unit: 'instructions',
+  assemble(source, words, comp) {
+    const r = assemble(isa, source, words)
+    const patch: Params = { source, data: hexValues(r.words, isa.bits) }
+    const tdata = toHexBytes(r.table)
+    if (comp.params.table === 'on' || tdata) {
+      patch.table = 'on'
+      patch.tdata = tdata
+    }
+    return { errors: r.errors, used: r.lineOf.length, patch }
+  },
+})
+
+const language6502: Language = {
+  id: ASM_6502,
+  name: '6502 assembly',
+  bits: 8,
+  unit: 'bytes',
+  assemble(source, words) {
+    const r = assemble6502(source, words)
+    const used = r.items.reduce((n, it) => n + Math.max(it.bytes.length, it.gap ?? 0), 0)
+    return { errors: r.errors, used, patch: { source, data: hexValues(r.bytes, 8) } }
+  },
+}
+
+/** The language a ROM's `isa` setting names, if it is one. */
+const languageOf = (id: string): Language | undefined => {
+  if (id === ASM_6502) return language6502
+  const isa = getIsa(id)
+  if (!isa) return undefined
+  let lang = skasmLanguages.get(isa.id)
+  if (!lang) skasmLanguages.set(isa.id, (lang = skasmLanguage(isa)))
+  return lang
+}
+const skasmLanguages = new Map<string, Language>()
+
 /** Pick how a ROM's contents are written. A program starts from what the ROM holds now. */
 function chooseIsa(comp: Comp, id: string) {
-  const isa = getIsa(id)
-  if (!isa) return setParams(comp.id, { isa: 'none' })
+  const lang = languageOf(id)
+  if (!lang) return setParams(comp.id, { isa: 'none' })
   const p = comp.params
   const patch: Params = { isa: id }
-  if (Number(p.dbits) !== isa.bits) patch.dbits = isa.bits
+  if (Number(p.dbits) !== lang.bits) patch.dbits = lang.bits
   const dataDef = getDef('rom').params!.find((d) => d.key === 'data')!
-  if (!String(p.source) && String(p.data) !== dataDef.default) {
-    const words = parseWords(String(p.data), 2 ** Number(p.abits), isa.bits)
-    const used = words.reduce((n, w, i) => (w ? i + 1 : n), 0)
-    patch.source = words.slice(0, used).map((w) => disassemble(isa, w)).join('\n')
+  // What the ROM holds becomes the program's first text, if it holds anything and was written in this width.
+  if (!String(p.source) && String(p.data) !== dataDef.default && Number(p.dbits) === lang.bits) {
+    const words = parseWords(String(p.data), 2 ** Number(p.abits), lang.bits)
+    if (id === ASM_6502) patch.source = sourceFromBytes(words)
+    else {
+      const isa = getIsa(id)!
+      const used = words.reduce((n, w, i) => (w ? i + 1 : n), 0)
+      patch.source = words.slice(0, used).map((w) => disassemble(isa, w)).join('\n')
+    }
   }
   setParams(comp.id, patch)
 }
 
-/** What a program that assembled changes in the ROM: its words, and its table (turned on if the program has one). */
-function assembled(isa: Isa, source: string, r: AsmResult, comp: Comp): Params {
-  const patch: Params = { source, data: toHexWords(r.words, isa.bits) }
-  const tdata = toHexBytes(r.table)
-  if (comp.params.table === 'on' || tdata) {
-    patch.table = 'on'
-    patch.tdata = tdata
-  }
-  return patch
-}
-
 /** Source of a program, checked as you type and applied when you click away (one undo step). */
-function ProgramEditor({ comp, isa, words }: { comp: Comp; isa: Isa; words: number }) {
+function ProgramEditor({ comp, lang, words }: { comp: Comp; lang: Language; words: number }) {
   const saved = String(comp.params.source)
   const [draft, setDraft] = useState(saved)
   const latest = useRef({ draft, saved })
   useEffect(() => {
     latest.current = { draft, saved }
   })
-  const result = useMemo(() => assemble(isa, draft, words), [isa, draft, words])
+  const table = comp.params.table
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  const result = useMemo(() => lang.assemble(draft, words, comp), [lang, draft, words, table])
   const commit = () => {
     const { draft: d, saved: s } = latest.current
     if (d === s) return
     latest.current.saved = d // the remount that follows must not apply it a second time
-    const r = assemble(isa, d, words)
+    const r = lang.assemble(d, words, currentComp(comp.id) ?? comp)
     // With errors the source is kept, but the circuit keeps running the last program that assembled.
-    setParams(comp.id, r.errors.length ? { source: d } : assembled(isa, d, r, comp))
+    setParams(comp.id, r.errors.length ? { source: d } : r.patch)
   }
   // Apply a pending edit when the inspector goes away (another part gets selected).
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => commit, [])
-  const count = result.lineOf.length
   return (
     <div className="field">
-      <span>Program ({isa.name})</span>
+      <span>Program ({lang.name})</span>
       <textarea
         className={`mono asm${result.errors.length ? ' invalid' : ''}`}
         aria-label="Program source"
@@ -135,7 +193,7 @@ function ProgramEditor({ comp, isa, words }: { comp: Comp; isa: Isa; words: numb
         </ul>
       ) : (
         <small>
-          {count} of {words} instructions.{draft !== saved ? ' Applies when you click outside the box (or press Ctrl+Enter).' : ''}
+          {result.used} of {words} {lang.unit}.{draft !== saved ? ' Applies when you click outside the box (or press Ctrl+Enter).' : ''}
         </small>
       )}
     </div>
@@ -195,6 +253,30 @@ function Listing({ comp, isa, values, digits, control, hideEmpty, editor, window
             ) : (
               <span className="text">{isa ? disassemble(isa, w) : ''}</span>
             )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The listing of a 6502 program: the address of each instruction, its bytes, what it is, and the source line it came from. The one being read right now is marked. */
+function Listing6502({ comp, rows, base, window: range }: { comp: Comp; rows: ListRow6502[]; base: number; window: { start: number; end: number } }) {
+  useCompSignature(comp.id, true)
+  const addr = toNum(sim.inputValues(comp.id), 0, Number(comp.params.abits))
+  const current = addr >= 0 ? rowAt(rows, base + addr) : -1
+  return (
+    <div className="listing" role="table" aria-label="Listing">
+      {rows.map((r, i) => {
+        if (r.addr - base < range.start || r.addr - base >= range.end) return null
+        return (
+          <div key={i} className={`row-listing code6502${i === current ? ' current' : ''}`} role="row" aria-current={i === current ? 'true' : undefined}>
+            <span className="addr">{hexOf(r.addr, 4)}</span>
+            <span className="word">{r.bytes.map((b) => hexOf(b, 2)).join(' ')}</span>
+            <span className="text">{r.text}</span>
+            <span className="line" title={r.line ? `Line ${r.line} of the program` : undefined}>
+              {r.line ?? ''}
+            </span>
           </div>
         )
       })}
@@ -423,7 +505,8 @@ function decodeRows(layout: SignalLayout, names: Record<number, string>, values:
 
 export function RomSection({ comp }: { comp: Comp }) {
   const p = comp.params
-  const isa = getIsa(String(p.isa))
+  const lang = languageOf(String(p.isa))
+  const isa = lang && lang.id !== ASM_6502 ? getIsa(lang.id) : undefined
   const words = 2 ** Number(p.abits)
   const bits = Number(p.dbits)
   const values = parseWords(String(p.data), words, bits)
@@ -432,11 +515,11 @@ export function RomSection({ comp }: { comp: Comp }) {
   const signalsText = String(p.signals)
   const rowsText = String(p.rows)
   const parsedNames = useMemo(() => ({ signals: parseSignals(signalsText), rows: parseRows(rowsText) }), [signalsText, rowsText])
-  const control = !isa && signalsText.trim() !== ''
+  const control = !lang && signalsText.trim() !== ''
   // The text form needs names that parse. Whether to show it or the hex words is a choice for as long as the part is selected.
   const named = signalsText.trim() !== '' && parsedNames.signals.errors.length === 0 && parsedNames.rows.errors.length === 0
   const [view, setView] = useState<'text' | 'hex'>('text')
-  const showText = !isa && named && view === 'text'
+  const showText = !lang && named && view === 'text'
   const dataText = String(p.data)
   const controlRows = useMemo(
     () => (control ? decodeRows(parsedNames.signals.layout, parsedNames.rows.rows.names, parseWords(dataText, words, bits)) : undefined),
@@ -445,6 +528,15 @@ export function RomSection({ comp }: { comp: Comp }) {
   const [hideEmpty, setHideEmpty] = useState(true)
   const [openRow, setOpenRow] = useState<number | null>(null)
   const paging = usePage(words, toNum(sim.inputValues(comp.id), 0, Number(p.abits)))
+  // A 6502 program is listed as the assembler placed it while the ROM still holds that; any other bytes are read as instructions.
+  const sourceText = String(p.source)
+  const rows6502 = useMemo(() => {
+    if (lang?.id !== ASM_6502 || bits !== 8) return undefined
+    const r = assemble6502(sourceText, words)
+    const same = !r.errors.length && r.bytes.every((b, i) => b === values[i])
+    return { base: r.base, rows: listing6502(values, r.base, same ? r.items : undefined) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, bits, sourceText, words, dataText])
   /** Write one word of the ROM (the words as they are now, not as they were when this was rendered). */
   const changeRow = (row: number, word: number) => {
     const now = [...parseWords(String(currentParams(comp.id).data), words, bits)] // a copy: the parsed words are shared
@@ -455,7 +547,7 @@ export function RomSection({ comp }: { comp: Comp }) {
 
   const save = () => {
     const now = currentParams(comp.id)
-    if (isa) downloadText('program.asm', String(now.source))
+    if (lang) downloadText('program.asm', String(now.source))
     else if (showText) downloadText('control.txt', `${signalsToText(parsedNames.signals.layout, parsedNames.rows.rows, parseWords(String(now.data), words, bits))}\n`)
     else downloadText('program.hex', `${String(now.data).trim()}\n`)
   }
@@ -469,9 +561,9 @@ export function RomSection({ comp }: { comp: Comp }) {
         setParams(comp.id, { data: toHexWords(r.words, bits) })
         showToast(`Opened ${file.name}.`)
       }
-    } else if (isa) {
-      const r = assemble(isa, file.text, words)
-      setParams(comp.id, r.errors.length ? { source: file.text } : assembled(isa, file.text, r, currentComp(comp.id) ?? comp))
+    } else if (lang) {
+      const r = lang.assemble(file.text, words, currentComp(comp.id) ?? comp)
+      setParams(comp.id, r.errors.length ? { source: file.text } : r.patch)
       showToast(r.errors.length ? `Opened ${file.name}, with ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}.` : `Opened ${file.name}.`)
     } else if (HEX_WORDS.test(file.text)) {
       setParams(comp.id, { data: file.text.trim().replace(/\s+/g, ' ') })
@@ -494,22 +586,22 @@ export function RomSection({ comp }: { comp: Comp }) {
         >
           {named && <option value="signals">Control signals (text)</option>}
           <option value="none">Hex words</option>
-          {ISAS.map((i) => (
+          {ISA_CHOICES.map((i) => (
             <option key={i.id} value={i.id}>
               A program in {i.name}
             </option>
           ))}
         </select>
       </label>
-      {isa && bits !== isa.bits ? (
+      {lang && bits !== lang.bits ? (
         <div className="field">
           <small className="field-error">
-            This instruction set needs {isa.bits} data bits, and the ROM has {bits}.
+            This instruction set needs {lang.bits} data bits, and the ROM has {bits}.
           </small>
-          <button onClick={() => setParams(comp.id, { dbits: isa.bits })}>Set to {isa.bits} bits</button>
+          <button onClick={() => setParams(comp.id, { dbits: lang.bits })}>Set to {lang.bits} bits</button>
         </div>
-      ) : isa ? (
-        <ProgramEditor key={`${comp.id}|${String(p.source)}`} comp={comp} isa={isa} words={words} />
+      ) : lang ? (
+        <ProgramEditor key={`${comp.id}|${String(p.source)}`} comp={comp} lang={lang} words={words} />
       ) : showText ? (
         <ControlTextEditor key={`${comp.id}|${String(p.data)}|${signalsText}|${rowsText}`} comp={comp} layout={parsedNames.signals.layout} rows={parsedNames.rows.rows} words={words} bits={bits} />
       ) : (
@@ -522,7 +614,11 @@ export function RomSection({ comp }: { comp: Comp }) {
         </label>
       )}
       <Pager paging={paging} total={words} />
-      <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} editor={editor} window={paging} />
+      {rows6502 ? (
+        <Listing6502 comp={comp} rows={rows6502.rows} base={rows6502.base} window={paging} />
+      ) : (
+        <Listing comp={comp} isa={isa && bits === isa.bits ? isa : undefined} values={values} digits={Math.ceil(bits / 4)} control={controlRows} hideEmpty={hideEmpty} editor={editor} window={paging} />
+      )}
       {editor && openRow !== null && openRow < words && (
         <RowEditor
           layout={editor.layout}
@@ -533,18 +629,21 @@ export function RomSection({ comp }: { comp: Comp }) {
           onClose={() => setOpenRow(null)}
         />
       )}
-      {!isa && <SignalsEditor comp={comp} layout={parsedNames.signals.layout} errors={{ signals: parsedNames.signals.errors, rows: parsedNames.rows.errors }} />}
+      {!lang && <SignalsEditor comp={comp} layout={parsedNames.signals.layout} errors={{ signals: parsedNames.signals.errors, rows: parsedNames.rows.errors }} />}
       {p.table === 'on' && <TableDump text={String(p.tdata)} />}
       <div className="row">
-        <button onClick={load} title={isa ? 'Replace the program with a .asm file' : 'Replace the contents with a file of hex words'}>
+        <button onClick={load} title={lang ? 'Replace the program with a .asm file' : 'Replace the contents with a file of hex words'}>
           Open…
         </button>
-        <button onClick={save} title={isa ? 'Download the program as a .asm file' : 'Download the contents as a .hex file'}>
+        <button onClick={save} title={lang ? 'Download the program as a .asm file' : 'Download the contents as a .hex file'}>
           Save…
         </button>
-        {isa && (
-          <button onClick={() => openReference()} title="The instructions, ports and examples of the assembly language">
-            {isa.name} reference…
+        {lang && (
+          <button
+            onClick={() => (lang.id === ASM_6502 ? open6502Reference() : openReference())}
+            title={lang.id === ASM_6502 ? 'The instructions, addressing modes and syntax of 6502 assembly' : 'The instructions, ports and examples of the assembly language'}
+          >
+            {lang.id === ASM_6502 ? '6502' : lang.name} reference…
           </button>
         )}
       </div>

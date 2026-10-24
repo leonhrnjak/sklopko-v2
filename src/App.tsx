@@ -22,7 +22,7 @@ import { StatusBar, Toolbar } from './ui/Toolbar'
 // The panels, each its own chunk, fetched the first time it is opened.
 const LogicPanel = lazy(() => import('./ui/logic/LogicPanel').then((m) => ({ default: m.LogicPanel })))
 const FsmPanel = lazy(() => import('./ui/fsm/FsmPanel').then((m) => ({ default: m.FsmPanel })))
-const SkasmReference = lazy(() => import('./ui/SkasmReference').then((m) => ({ default: m.SkasmReference })))
+const References = lazy(() => import('./ui/References').then((m) => ({ default: m.References })))
 const ChallengeList = lazy(() => import('./ui/challenges/ChallengeList').then((m) => ({ default: m.ChallengeList })))
 const ChallengePanel = lazy(() => import('./ui/challenges/ChallengePanel').then((m) => ({ default: m.ChallengePanel })))
 const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ default: m.ExampleGallery })))
@@ -83,7 +83,7 @@ export default function App() {
         <FsmPanel />
       </OnDemand>
       <OnDemand open={referenceOpen}>
-        <SkasmReference />
+        <References />
       </OnDemand>
       <OnDemand open={challengeListOpen}>
         <ChallengeList />

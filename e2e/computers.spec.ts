@@ -469,6 +469,49 @@ test('the 6502 board: the CPU shows its registers, steps one instruction at a ti
   await expect(doing).toContainText('ASL A')
 })
 
+test('the 6502 ROM holds a program in assembly: a listing of its bytes, errors by line, and the reference', async ({ page }) => {
+  await page.goto('/6502', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await pickByLabel(page, 'ROM \\$F000–\\$FFFF')
+  await expect(page.getByLabel('Contents are')).toHaveValue('6502')
+  const source = page.getByLabel('Program source')
+  await expect(source).toHaveValue(/start:\s+LDA #\$01/)
+  await expect(page.locator('.inspector')).toContainText('13 of 4096 bytes.')
+
+  // The listing: address, bytes, instruction and source line, and the vector as data.
+  const rows = page.locator('.row-listing.code6502')
+  await expect(rows.first()).toContainText('F000')
+  await expect(rows.first()).toContainText('A9 01')
+  await expect(rows.first().locator('.text')).toHaveText('LDA #$01')
+  await expect(rows.nth(1).locator('.text')).toHaveText('STA $4000')
+  await expect(rows.nth(3).locator('.text')).toHaveText('BNE $F002')
+
+  // A mistake is named with its line, and the ROM keeps its last good program.
+  await source.fill('.org $F000\nstart: LDA #$01\nSTA #3\nJMP start')
+  await expect(page.getByLabel('Errors')).toContainText("Line 3: STA can't be written with a constant")
+  await source.fill('.org $F000\nstart: LDA #$05\nSTA $4000\nJMP start\n.org $FFFC\n.word start')
+  await page.locator('.inspector h2').click() // click away: the program is applied
+  await expect(rows.first().locator('.text')).toHaveText('LDA #$05')
+  await expect(rows.first()).toContainText('A9 05')
+
+  // The reference, from the ROM and from the Tools menu.
+  await page.getByRole('button', { name: '6502 reference…' }).click()
+  const dialog = page.getByRole('dialog', { name: '6502 assembly reference' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('tab', { name: 'Instructions' }).click()
+  await expect(dialog.locator('#op-LDA')).toContainText('A = memory')
+  await expect(dialog.locator('#op-LDA')).toContainText('LDA (n),Y')
+  await dialog.getByRole('tab', { name: 'Addressing modes' }).click()
+  await expect(dialog.getByRole('cell', { name: '(n),Y', exact: true })).toBeVisible()
+  await dialog.getByRole('tab', { name: 'Opcode map' }).click()
+  await expect(dialog.getByRole('cell', { name: 'BRK', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await chooseTool(page, '6502…')
+  await expect(dialog).toBeVisible()
+})
+
 test('gamepad: the arrow keys press its buttons, and the paddle moves', async ({ page }) => {
   await page.goto('/computer-pong', { waitUntil: 'networkidle' })
   const down = page.locator('g.key.down')

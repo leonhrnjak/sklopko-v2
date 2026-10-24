@@ -25,14 +25,24 @@ export function romImage(bytes: number[], start = ROM_BASE): string {
 }
 
 /**
- * One LED lit, moving left, over and over (assembled by hand; the assembler comes later):
+ * One LED lit, moving left, over and over, as it is written in the ROM's inspector (`BLINK_BYTES` is what it assembles to):
  *
- *     F000  A9 01       LDA #$01     ; the pattern: one bit set
- *     F002  8D 00 40    STA $4000    ; show it on the LEDs
- *     F005  0A          ASL A        ; shift it left; the bit falls off the end after the eighth step
- *     F006  D0 FA       BNE $F002    ; not zero yet: show the next position
- *     F008  4C 00 F0    JMP $F000    ; start again
+ *     F000  A9 01       LDA #$01     the pattern: one bit set
+ *     F002  8D 00 40    STA $4000    show it on the LEDs
+ *     F005  0A          ASL A        shift it left; the bit falls off the end after the eighth step
+ *     F006  D0 FA       BNE $F002    not zero yet: show the next position
+ *     F008  4C 00 F0    JMP $F000    start again
  */
+export const BLINK_SOURCE = `.org $F000
+start:  LDA #$01    ; one bit set
+show:   STA $4000   ; show it on the LEDs
+        ASL A       ; shift it left
+        BNE show    ; until the bit falls off the end
+        JMP start   ; then begin again
+.org $FFFC
+.word start`
+
+
 export const BLINK_BYTES = [0xa9, 0x01, 0x8d, 0x00, 0x40, 0x0a, 0xd0, 0xfa, 0x4c, 0x00, 0xf0]
 
 export interface Board6502Options {
@@ -92,7 +102,7 @@ export function board6502Builder(o: Board6502Options = {}) {
   wire(`${nrw}.Y`, `${ledWe}.C`)
 
   // Memory.
-  const rom = part(MEMORY, 'rom', 'rom', { params: { bus: true, abits: 12, dbits: 8, data: o.rom ?? romImage(BLINK_BYTES) }, label: 'ROM $F000–$FFFF' })
+  const rom = part(MEMORY, 'rom', 'rom', { params: { bus: true, abits: 12, dbits: 8, data: o.rom ?? romImage(BLINK_BYTES), ...(o.rom ? {} : { isa: '6502', source: BLINK_SOURCE }) }, label: 'ROM $F000–$FFFF' })
   const romAddr = part(MEMORY, 'romAddr', 'merger', { params: { bits: 12, split: '11,1' }, label: 'A0–A11' })
   wire(`${split}.Y0`, `${romAddr}.A0`)
   wire(`${split}.Y1`, `${romAddr}.A1`)

@@ -7,7 +7,7 @@
 > - [x] R1 The 6502 core: an opcode table and a cycle-exact model, no UI
 > - [x] R2 Memory that is big enough, and cheap to snapshot
 > - [x] R3 The part: a 40-pin 6502 on the canvas, and a first board
-> - [ ] R4 6502 assembly: assembler, disassembler, reference page
+> - [x] R4 6502 assembly: assembler, disassembler, reference page
 > - [ ] R5 The board with devices, and 6502 example programs
 > - [ ] R6 Polish: 65C02, interrupts, timing-view presets
 
@@ -123,6 +123,20 @@ SKASM assembler no longer loads at startup, which paid for the new part in the s
 - Variable-length instructions break the one-word-per-address assumption of `assemble`/`lineOf`: a byte ROM gets its own listing
   in the ROM inspector (address, bytes, disassembly, source line); the ROM's *Contents are* offers *A program in 6502 assembly*.
 - A 6502 language reference page generated from the table (mnemonic, modes, bytes, cycles, flags), like `SkasmReference`.
+
+**What R4 did, and where it differs from the plan.** `src/engine/asm6502.ts` assembles real 6502 syntax: every addressing mode, `<` and `>`
+for the low and high byte, `+`/`-` in expressions, `*` for the current address, characters and strings, `.org` and `*=`, `.byte`, `.word` and
+`.res`. Zero page or absolute is chosen by whether the address is known and below 256 when the line is read (a name defined further down is
+absolute). The first `.org` is the address of the ROM's first byte, so a ROM at `$F000` begins with `.org $F000`. Every opcode is tested
+(assemble, then disassemble, against the table). The number, name and comment reading moved out of `isa.ts` into `asmlex.ts`, which both
+assemblers use; `lineOf` and the word-based `assemble` are untouched, and the 6502 gets its own listing (`listing6502`: address, bytes, text,
+source line) in the ROM inspector, which shows what the assembler placed while the ROM still holds it and reads other bytes as instructions.
+*Contents are* offers *A program in 6502 assembly* (8 data bits). A ROM's `data` is now stored without its trailing zero bytes (for SKASM
+programs too). The reference (Tools → 6502, or from the ROM) has syntax, every instruction with its opcodes, bytes and cycles, the addressing
+modes and the opcode map, all generated from the table; the mnemonic texts live in `mnemonics6502.ts` and the disassembler in `disasm6502.ts` so
+the startup bundle does not grow with them. The board example now holds its program as assembly, and its own *6502* example group. Also fixed:
+the CPU part's pins had no descriptions in the inspector (`pindata.ts`), which made `pins.test.ts` fail on `main`. Not done: a 6502 programs
+tab with examples in the reference (R5 brings the example programs).
 
 ### R5. The board with devices, and examples
 - The console, LCD, speaker, keypad and gamepad sit at memory-mapped addresses behind the decoder. Examples in 6502 assembly: counter

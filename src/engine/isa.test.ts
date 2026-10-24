@@ -442,7 +442,7 @@ describe('.byte and the table', () => {
 })
 
 describe('the list of instruction sets a ROM offers', () => {
-  it('matches the assemblers: the same ids and names, in the same order', () => {
-    expect(ISA_CHOICES).toEqual(ISAS.map((i) => ({ id: i.id, name: i.name })))
+  it('matches the assemblers: the same ids and names, in the same order, and then the 6502 (its assembler is byte-based, in asm6502.ts)', () => {
+    expect(ISA_CHOICES).toEqual([...ISAS.map((i) => ({ id: i.id, name: i.name })), { id: '6502', name: '6502 assembly' }])
   })
 })
