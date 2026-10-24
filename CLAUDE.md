@@ -2,12 +2,16 @@
 
 ## Versioning
 
-- **A PR does not bump the version.** The version shown in the app (top-right corner of the canvas) is built, not stored: `vite.config.ts`
-  makes it `package.json`'s version plus a build number, the count of commits on `main`'s first-parent line plus `buildOffset`
-  (so each merge is the next number, and parallel PRs never conflict on `package.json`). It is injected as `__APP_VERSION__`;
-  hovering it shows the build's commit hash. On a feature branch the number counts that branch's commits, so it is only a preview.
-- Change `package.json`'s version (the `0.0.1` part) only when explicitly asked.
-- The e2e test checks only the shape of the shown version.
+- **The shown version is `MAJOR.MINOR.PATCH`** (top-right corner of the canvas), and **a PR does not bump it**. `package.json`'s version
+  holds the first two numbers, set by hand; the third is built by `scripts/version.ts` (called from `vite.config.ts`): the number of
+  commits on `main`'s first-parent line since the commit that last changed `package.json`'s `"version"` line. So every merged PR is the
+  next patch number, and parallel PRs never conflict on `package.json`. It is injected as `__APP_VERSION__`; hovering it shows the
+  build's commit hash. On a feature branch it counts that branch's commits, so it is only a preview.
+- **When a larger feature starts** (a plan with milestones, a new area of the app), bump the **minor** number in `package.json` in
+  the first PR of that feature (`0.1.0` → `0.2.0`): the merge of that PR is `0.2.0`, the next PR `0.2.1`, and so on. Change the **major**
+  number only when explicitly asked. Never edit the patch number: it is not in `package.json`.
+- Anything else in `package.json` (dependencies, scripts) may change without touching the version line, and does not reset the patch number.
+- The e2e test checks only the shape of the shown version (`v1.2.3`); `src/version.test.ts` checks the counting.
 
 ## Workflow: feature branch → PR → CI → merge
 

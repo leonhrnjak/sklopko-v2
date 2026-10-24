@@ -4,7 +4,7 @@ import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, cli
 
 test('examples load and the welcome counter ticks', async ({ page }) => {
   await fresh(page)
-  await expect(page.locator('.version')).toHaveText(/^v\d+\.\d+\.\d+(-\d+)?$/)
+  await expect(page.locator('.version')).toHaveText(/^v\d+\.\d+\.\d+$/)
   const seg = page.locator('.comp polygon.seg.on')
   // The decade counter runs at 2 Hz: the lit segments change within a second or two.
   const first = await seg.count()
