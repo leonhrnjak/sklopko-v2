@@ -69,9 +69,6 @@ export const nbit: ComponentDef[] = [
     name: 'Bus constant',
     category: 'buses',
     description: 'A fixed number on a bus, written in hexadecimal.',
-    pins: {
-      'Q#|Q': 'The fixed number, bit 0 first. Set it in the inspector (hex).',
-    },
     params: [bitsParam, valueParam('Value (hex)')],
     title: (p) => `${hexOf(hexValue(p), p)}`,
     layout: (p) => box({ w: 60, right: names('Q', widthOf(p)) }),
@@ -87,9 +84,6 @@ export const nbit: ComponentDef[] = [
     description:
       'A number you set by hand, on a bus. Click it to count up, Alt/Option-click to count down; or type the value (in ' +
       'hexadecimal) in the inspector.',
-    pins: {
-      'Q#|Q': 'The number you set, bit 0 first. Click the part to count up.',
-    },
     params: [bitsParam, valueParam('Value (hex)')],
     interactive: 'cycle',
     title: (p) => `${hexOf(hexValue(p), p)}\n${hexValue(p)}`,
@@ -105,9 +99,6 @@ export const nbit: ComponentDef[] = [
     name: 'Bus display',
     category: 'buses',
     description: 'Shows the number on a bus, in hexadecimal, decimal or binary. A question mark means some bit is unknown.',
-    pins: {
-      'A#|A': 'The bus to show, bit 0 first. A question mark means a bit is unknown.',
-    },
     params: [
       bitsParam,
       {
@@ -134,13 +125,6 @@ export const nbit: ComponentDef[] = [
     name: 'Register',
     category: 'buses',
     description: 'Loads the bus D on the rising clock edge while LD=1, and holds it on Q. CLR clears it to 0.',
-    pins: {
-      'D#|D': 'Data: the number stored on the clock edge while LD is 1 (bit 0 first).',
-      LD: 'Load: 1 stores D on the rising edge, 0 keeps the old value. Unwired, it is 1.',
-      CLK: 'Clock: D is stored on each rising edge (0 to 1) while LD is 1.',
-      CLR: 'Clear: 1 sets the register to 0 at once, with no clock.',
-      'Q#|Q': 'The stored number, bit 0 first.',
-    },
     params: [bitsParam],
     title: () => 'REG',
     init: () => ({ n: 0, pc: X as V }),
@@ -168,15 +152,6 @@ export const nbit: ComponentDef[] = [
     description:
       'Binary counter with parallel load. On a rising CLK: LD=1 loads D, otherwise it counts up while EN=1, and wraps ' +
       'around after the largest number. R resets it to 0 at once. CO is high at the largest number while EN=1.',
-    pins: {
-      'D#|D': 'Data: the number loaded when LD is 1 (bit 0 first).',
-      LD: 'Load: 1 makes the next rising edge load D instead of counting.',
-      EN: 'Enable: 1 lets the clock count up, 0 holds the count. Unwired, it is 1.',
-      CLK: 'Clock: the count changes on each rising edge (0 to 1).',
-      R: 'Reset: 1 sets the count to 0 at once, with no clock.',
-      'Q#|Q': 'The count, bit 0 first. It wraps to 0 after the largest number.',
-      CO: 'Carry out: 1 when the count is the largest number and EN is 1.',
-    },
     params: [bitsParam],
     title: () => 'CNTR\nLOAD',
     init: () => ({ n: 0, pc: X as V }),
@@ -209,13 +184,6 @@ export const nbit: ComponentDef[] = [
     name: 'Adder (bus)',
     category: 'buses',
     description: 'Adds the numbers A and B plus carry-in Ci: S is the sum, Co the carry out.',
-    pins: {
-      'A#|A': 'First number to add (bit 0 first).',
-      'B#|B': 'Second number to add (bit 0 first).',
-      Ci: 'Carry in: 1 adds one more. Unwired, it is 0.',
-      'S#|S': 'Sum A + B + Ci, cut to the width (bit 0 first).',
-      Co: 'Carry out: 1 when the sum does not fit in the width.',
-    },
     params: [bitsParam],
     title: () => 'Σ',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'Ci', def: 0 }], right: [...names('S', widthOf(p)), 'Co'] }),
@@ -230,13 +198,6 @@ export const nbit: ComponentDef[] = [
     name: 'Subtractor (bus)',
     category: 'buses',
     description: 'Computes A − B − Bi: D is the difference. Bo=1 means the result went below zero.',
-    pins: {
-      'A#|A': 'The number to subtract from (bit 0 first).',
-      'B#|B': 'The number to subtract (bit 0 first).',
-      Bi: 'Borrow in: 1 subtracts one more. Unwired, it is 0.',
-      'D#|D': 'Difference A − B − Bi, cut to the width (bit 0 first).',
-      Bo: 'Borrow out: 1 when the result went below zero.',
-    },
     params: [bitsParam],
     title: () => '−',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'Bi', def: 0 }], right: [...names('D', widthOf(p)), 'Bo'] }),
@@ -253,14 +214,6 @@ export const nbit: ComponentDef[] = [
     category: 'buses',
     description:
       'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out, V signals signed overflow.',
-    pins: {
-      'A#|A': 'First number (bit 0 first).',
-      'B#|B': 'Second number (bit 0 first).',
-      M: 'Mode: 0 adds (A + B), 1 subtracts (A − B). Unwired, it adds.',
-      'S#|S': 'The result, cut to the width (bit 0 first).',
-      Co: 'Carry out: the carry of the addition (with M=1 it means no borrow).',
-      V: 'Overflow: 1 when the signed result does not fit in the width.',
-    },
     params: [bitsParam],
     title: () => '±',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'M', def: 0 }], right: [...names('S', widthOf(p)), 'Co', 'V'] }),
@@ -283,13 +236,6 @@ export const nbit: ComponentDef[] = [
     name: 'Comparator (bus)',
     category: 'buses',
     description: 'Compares the numbers A and B (as unsigned numbers).',
-    pins: {
-      'A#|A': 'First number, compared as unsigned (bit 0 first).',
-      'B#|B': 'Second number, compared as unsigned (bit 0 first).',
-      GT: '1 when A is greater than B.',
-      EQ: '1 when A equals B.',
-      LT: '1 when A is less than B.',
-    },
     params: [bitsParam],
     title: () => 'COMP',
     layout: (p) =>
@@ -312,11 +258,6 @@ export const nbit: ComponentDef[] = [
     description:
       'A logic gate on every bit of a bus: bit i of Y is the gate applied to bit i of A and bit i of B (NOT has only A). ' +
       'It is as slow as the single gate.',
-    pins: {
-      'A#|A': 'First bus: bit i goes into the gate for bit i (bit 0 first).',
-      'B#|B': 'Second bus (not on NOT): bit i goes into the gate for bit i.',
-      'Y#|Y': 'Result: each bit is the gate applied to the same bit of A and B (bit 0 first).',
-    },
     params: [
       bitsParam,
       {
@@ -342,11 +283,6 @@ export const nbit: ComponentDef[] = [
     name: 'Multiplexer (bus)',
     category: 'buses',
     description: 'Passes the bus I0..In picked by the select S to Y. With two inputs, S is a single wire.',
-    pins: {
-      'I#': 'Input bus number n (the number after the I): passed to Y when S selects it.',
-      'S#|S': 'Select: the number of the input to pass to Y (bit 0 first). With two inputs, one wire.',
-      'Y#|Y': 'Output: the selected input bus, bit 0 first.',
-    },
     params: [
       bitsParam,
       {

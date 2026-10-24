@@ -15,7 +15,7 @@ import {
   useStore,
 } from '../app/store'
 import { parsePins, type IcPin } from '../engine/components/ic'
-import { pinRows } from '../engine/pindocs'
+import { pinRows, type PinDocs } from '../engine/pindocs'
 import { getDef } from '../engine/registry'
 import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { hasDelay, MAX_DELAY } from '../model/delays'
@@ -183,7 +183,16 @@ function IcSection({ comp }: { comp: Comp }) {
 /** What each pin of a part does: the inputs, then the outputs. */
 function PinTable({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
-  const rows = pinRows(def, comp.params)
+  // The texts load with the inspector, not at startup (they are about 20 kB).
+  const [docs, setDocs] = useState<Record<string, PinDocs>>()
+  useEffect(() => {
+    let live = true
+    void import('../engine/pindata').then((m) => live && setDocs(m.PINS))
+    return () => {
+      live = false
+    }
+  }, [])
+  const rows = pinRows(def, comp.params, docs?.[comp.type])
   if (!rows.length) return null
   return (
     <table className="pins" aria-label="Pins">

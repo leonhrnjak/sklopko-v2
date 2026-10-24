@@ -89,13 +89,6 @@ export interface ComponentDef {
   name: string
   category: Category
   description: string
-  /**
-   * What each pin does, shown in the inspector as a table of inputs and outputs. The key is a pin name (`CLK`), or a name with `#` for
-   * a number (`A#` is A0, A1, A2...; a run of such pins is shown as one row, `A0–A3`), and `|` joins keys that share a text
-   * (`D#|D`: the scalar pins and the bus pin). Say what the pin does, not what it is called; give the value that triggers it
-   * ("1 loads", "rising edge"). `pins.test.ts` checks that every pin of every part has one.
-   */
-  pins?: Record<string, string>
   params?: ParamDef[]
   layout(p: Params): Layout
   init?(p: Params): any

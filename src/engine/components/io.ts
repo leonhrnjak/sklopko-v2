@@ -46,9 +46,6 @@ export const io: ComponentDef[] = [
       },
     ],
     interactive: 'toggle',
-    pins: {
-      Q: '1 while the switch is on, 0 while it is off. Click the switch (or press its key) to flip it.',
-    },
     layout: () => ({ w: 30, h: 20, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 40, y: 10 }] }),
     evaluate(inst) {
       inst.outs[0] = inst.params.on ? 1 : 0
@@ -61,9 +58,6 @@ export const io: ComponentDef[] = [
     description: 'Momentary button: outputs 1 only while held down.',
     interactive: 'momentary',
     init: () => ({ pressed: false }),
-    pins: {
-      Q: '1 only while the button is held down, 0 otherwise.',
-    },
     layout: () => ({ w: 20, h: 20, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 30, y: 10 }] }),
     evaluate(inst) {
       inst.outs[0] = inst.state.pressed ? 1 : 0
@@ -85,9 +79,6 @@ export const io: ComponentDef[] = [
     ],
     init: () => ({ phase: 0 as V, elapsed: 0 }),
     clockHalfPeriod: (p) => 500 / Number(p.hz),
-    pins: {
-      Q: 'The square wave: flips between 0 and 1 every half period, and starts at 0.',
-    },
     layout: () => ({ w: 40, h: 40, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 50, y: 20 }] }),
     evaluate(inst) {
       inst.outs[0] = inst.state.phase
@@ -110,9 +101,6 @@ export const io: ComponentDef[] = [
         ],
       },
     ],
-    pins: {
-      Q: 'Always the same level, 0 or 1, as chosen.',
-    },
     layout: () => ({ w: 20, h: 20, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 30, y: 10 }] }),
     evaluate(inst) {
       inst.outs[0] = Number(inst.params.value) ? 1 : 0
@@ -126,9 +114,6 @@ export const io: ComponentDef[] = [
       'Publishes its input under a name. Every Receive label with the same name carries this signal, with no wire ' +
       'in between and no delay. If several Send labels share a name, the first one that is driven wins.',
     params: [labelName, labelBits],
-    pins: {
-      A: 'The signal to publish under this label\'s name. With more than one bit it is a bus.',
-    },
     layout: (p) => ({ w: flagWidth(p), h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10, ...(Number(p.bits) > 1 ? { bus: Number(p.bits) } : {}) }] }),
     evaluate() {},
   },
@@ -140,9 +125,6 @@ export const io: ComponentDef[] = [
       'Carries the signal that the Send label with the same name publishes. Unknown (grey) when no driven Send ' +
       'label has that name.',
     params: [labelName, labelBits],
-    pins: {
-      Y: 'The signal published by the Send label with the same name; unknown (X) if none is driven. With more than one bit it is a bus.',
-    },
     layout: (p) => {
       const w = flagWidth(p)
       return { w, h: 20, pins: [{ name: 'Y', dir: 'out', side: 'r', x: w + 10, y: 10, ...(Number(p.bits) > 1 ? { bus: Number(p.bits) } : {}) }] }
@@ -159,13 +141,6 @@ export const io: ComponentDef[] = [
     description: 'Outputs a 4-bit number (A = least significant bit). Click to count up, Alt/Option-click to count down.',
     params: [{ key: 'value', label: 'Value', kind: 'number', min: 0, max: 15, default: 0 }],
     interactive: 'cycle',
-    pins: {
-      A: 'Bit 0 of the number (the least significant bit).',
-      B: 'Bit 1 of the number.',
-      C: 'Bit 2 of the number.',
-      D: 'Bit 3 of the number (the most significant bit).',
-      Q: 'All four bits as one bus (bus ports on), bit 0 first.',
-    },
     layout: () => box({ w: 40, right: ['A', 'B', 'C', 'D'] }),
     evaluate(inst) {
       writeNum(inst.outs, 0, 4, Number(inst.params.value) & 15)
@@ -185,9 +160,6 @@ export const io: ComponentDef[] = [
         options: ['green', 'red', 'yellow', 'blue', 'white'].map((c) => ({ value: c, label: c })),
       },
     ],
-    pins: {
-      A: 'The LED lights while this is 1; it stays dark for 0 and for an unknown (X) input.',
-    },
     layout: () => ({ w: 20, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] }),
     evaluate() {},
   },
@@ -243,9 +215,6 @@ export const probe: ComponentDef = {
     },
   ],
   init: (): Trace => ({ t: [], v: [] }),
-  pins: {
-    'A#|A': 'The signal to record in the waveform panel. With more than one bit the pins form one number (A0 is the least significant bit).',
-  },
   layout: (p) => {
     const n = probeBits(p)
     return n === 1 ? { w: 30, h: 20, pins: [{ name: 'A', dir: 'in', side: 'l', x: -10, y: 10 }] } : box({ w: 60, left: names('A', n) })
@@ -314,9 +283,6 @@ export const breakpoint: ComponentDef = {
     { key: 'value', label: 'Value (decimal)', kind: 'number', min: 0, max: 65535, default: 1 },
   ],
   init: (): BreakState => ({}),
-  pins: {
-    'A#|A': 'The signal to watch. With more than one bit the pins form one number (A0 is the least significant bit); an unknown (X) bit never triggers it.',
-  },
   layout: (p) => {
     const n = Number(p.width)
     return n === 1
@@ -355,16 +321,6 @@ export const display: ComponentDef[] = [
     name: '7-segment display',
     category: 'display',
     description: 'Seven-segment display. Each input lights one segment (a–g) or the decimal point (dp) while it is 1. Use a BCD → 7-segment decoder to show digits.',
-    pins: {
-      a: 'Top segment, lit while 1.',
-      b: 'Upper right segment, lit while 1.',
-      c: 'Lower right segment, lit while 1.',
-      d: 'Bottom segment, lit while 1.',
-      e: 'Lower left segment, lit while 1.',
-      f: 'Upper left segment, lit while 1.',
-      g: 'Middle segment, lit while 1.',
-      dp: 'Decimal point, lit while 1.',
-    },
     layout: () => box({ w: 80, left: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] }),
     evaluate() {},
   },
@@ -373,13 +329,6 @@ export const display: ComponentDef[] = [
     name: 'Hex display',
     category: 'display',
     description: 'Shows the 4-bit input (A = least significant bit) as a hex digit 0–F.',
-    pins: {
-      A: 'Bit 0 of the digit (the least significant bit).',
-      B: 'Bit 1 of the digit.',
-      C: 'Bit 2 of the digit.',
-      D: 'Bit 3 of the digit (the most significant bit).',
-      IN: 'All four bits as one bus (bus ports on), bit 0 first.',
-    },
     layout: () => box({ w: 60, left: ['A', 'B', 'C', 'D'] }),
     evaluate() {},
   },
@@ -390,15 +339,6 @@ export const display: ComponentDef[] = [
     description:
       'A die face with seven pips, one input each: top-left, top-right, middle-left, centre, middle-right, ' +
       'bottom-left, bottom-right.',
-    pins: {
-      TL: 'Top-left pip, shown while 1.',
-      TR: 'Top-right pip, shown while 1.',
-      ML: 'Middle-left pip, shown while 1.',
-      C: 'Centre pip, shown while 1.',
-      MR: 'Middle-right pip, shown while 1.',
-      BL: 'Bottom-left pip, shown while 1.',
-      BR: 'Bottom-right pip, shown while 1.',
-    },
     layout: () => box({ w: 160, left: ['TL', 'TR', 'ML', 'C', 'MR', 'BL', 'BR'] }),
     evaluate() {},
   },
@@ -409,10 +349,6 @@ export const display: ComponentDef[] = [
     description:
       'An 8×8 grid of LEDs. Pixel (row, column) lights while its row input R and its column input C are both 1. ' +
       'Pixels glow for a moment after they go dark, so an image drawn one row at a time by a fast scan looks steady.',
-    pins: {
-      'R#': 'Row n (R0 is the top row). A pixel lights while its row and its column are both 1.',
-      'C#': 'Column n (C0 is the left column). A pixel lights while its row and its column are both 1.',
-    },
     layout: () => box({ w: 200, left: names('R', 8), top: names('C', 8) }),
     // Simulated time each pixel was last lit (row-major), for the glow.
     init: () => ({ lit: new Float64Array(64).fill(-Infinity) }),
@@ -442,9 +378,6 @@ export const display: ComponentDef[] = [
       },
     ],
     // In bus mode the LEDs sit side by side, so the body is as wide as the row.
-    pins: {
-      'I#|I': 'LED n of the bar (I0 is the left one), lit while 1. With bus ports on, one bus lights all of them.',
-    },
     layout: (p) => box({ w: p.bus ? 20 + 10 * Number(p.n) : 40, left: Array.from({ length: Number(p.n) }, (_, i) => `I${i}`) }),
     evaluate() {},
   },

@@ -189,7 +189,7 @@ Wires of the same signal may share a trunk, and junction dots mark where it bran
 re-routes wires that cross others to untangle bundles. Only affected wires re-route when you move parts.
 Wires you shaped by hand keep their shape and stretch at the ends.
 
-**Adding a part** is one entry in `src/engine/components/*`: its pins (`layout`), what each pin does (`pins`, shown in the inspector), its behaviour
+**Adding a part** is one entry in `src/engine/components/*`: its pins (`layout`), what each pin does (its text in `src/engine/pindata.ts`, shown in the inspector), its behaviour
 (`evaluate`) and optional params. The palette, inspector, saving and routing pick it up automatically. Box-shaped parts
 need no drawing code; gates and displays have custom symbols in `src/ui/symbols.tsx`.
 

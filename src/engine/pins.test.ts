@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pinKey, pinRows } from './pindocs'
+import { PINS } from './pindata'
 import { DEFS } from './registry'
 import { paramDefaults, type ComponentDef, type Params } from './types'
 import { viewLayoutOf } from './viewlayout'
@@ -20,18 +21,23 @@ function variants(def: ComponentDef): Params[] {
 const SKIP = new Set(['ic', 'note', 'frame'])
 
 describe('pin documentation', () => {
+  it('has no text for a part that does not exist', () => {
+    const types = new Set(DEFS.map((d) => d.type))
+    expect(Object.keys(PINS).filter((t) => !types.has(t))).toEqual([])
+  })
+
   for (const def of DEFS.filter((d) => !SKIP.has(d.type))) {
     it(`${def.type} says what every pin does, and has no text for a pin it lacks`, () => {
       const used = new Set<string>()
       for (const p of variants(def)) {
         for (const pin of viewLayoutOf(def.type, p).pins) {
-          const k = pinKey(def, pin.name)
+          const k = pinKey(PINS[def.type] ?? {}, pin.name)
           expect(k, `${def.type} pin ${pin.name} (${JSON.stringify(p)})`).toBeDefined()
           used.add(k!.key)
         }
-        for (const r of pinRows(def, p)) expect(r.text.trim().length, `${def.type} ${r.names}`).toBeGreaterThan(8)
+        for (const r of pinRows(def, p, PINS[def.type])) expect(r.text.trim().length, `${def.type} ${r.names}`).toBeGreaterThan(8)
       }
-      expect(Object.keys(def.pins ?? {}).filter((k) => !used.has(k)), `${def.type}: keys that match no pin`).toEqual([])
+      expect(Object.keys(PINS[def.type] ?? {}).filter((k) => !used.has(k)), `${def.type}: keys that match no pin`).toEqual([])
     })
   }
 })
