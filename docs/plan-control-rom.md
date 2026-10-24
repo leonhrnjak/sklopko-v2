@@ -4,8 +4,8 @@
 > - Read `CLAUDE.md` first. Its rules apply: version bump once per PR, scoped tests, quiet reporters.
 > - Work milestone by milestone, in order. Each ends in a working, tested state. Tick its box below when it is done and add a
 >   short *What it did, and where it differs from the plan* note under it, as `plan-m10-buses.md` does.
-> - This work is developed on the one branch the session was given (`ccr-0cfe5e63-zdou8p`), one commit per milestone, so the
->   "one PR per sub-milestone" habit of `plan-next-milestones.md` becomes "one commit per sub-milestone".
+> - One PR per milestone, stacked as in `plan-next-milestones.md`: `c1-decoded-listing` on `main`, `c2-edit-row` on that, and so on;
+>   each bumps the version once.
 >
 > - [x] C1 A decoded listing: named signals and named rows, on the four computer ROMs, v0.0.1-79
 > - [ ] C2 Edit a row by signal: toggles and lists instead of hex
