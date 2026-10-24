@@ -39,6 +39,12 @@ export const sequential: ComponentDef[] = [
     name: 'SR latch',
     category: 'sequential',
     description: 'Set/reset latch. S=1 sets Q, R=1 resets it, both 0 holds the stored bit.',
+    pins: {
+      S: 'Set: 1 makes Q 1. Held until R is 1.',
+      R: 'Reset: 1 makes Q 0. Held until S is 1.',
+      Q: 'The stored bit. Both S and R at 1 is forbidden and makes Q and ~Q both 0.',
+      NQ: 'The opposite of Q (~Q).',
+    },
     title: () => 'SR',
     init: () => ({ q: 0 as V }),
     layout: () => box({ left: ['S', 'R'], right: Q_OUTS }),
@@ -61,6 +67,12 @@ export const sequential: ComponentDef[] = [
     name: 'D latch',
     category: 'sequential',
     description: 'Gated D latch. While EN=1 the output follows D; when EN=0 it holds.',
+    pins: {
+      D: 'Data: the bit to store. Q follows it while EN is 1.',
+      E: 'Enable (EN): 1 makes the latch transparent, so Q follows D. 0 holds the last value.',
+      Q: 'The stored bit; it changes at any time while EN is 1.',
+      NQ: 'The opposite of Q (~Q).',
+    },
     title: () => 'D',
     init: () => ({ q: 0 as V }),
     layout: () => box({ left: ['D', { name: 'E', label: 'EN' }], right: Q_OUTS }),
@@ -75,6 +87,14 @@ export const sequential: ComponentDef[] = [
     name: 'D flip-flop',
     category: 'sequential',
     description: 'Stores D on the rising clock edge. S and R asynchronously set/reset Q.',
+    pins: {
+      D: 'Data: the bit copied to Q on a rising edge of CLK.',
+      CLK: 'Clock: Q takes D on each rising edge (0 to 1).',
+      S: 'Asynchronous set: 1 forces Q to 1 at once, with no clock.',
+      R: 'Asynchronous reset: 1 forces Q to 0 at once, with no clock. It wins over S.',
+      Q: 'The stored bit; it changes only on a rising edge of CLK, or on S or R.',
+      NQ: 'The opposite of Q (~Q).',
+    },
     title: () => 'D',
     init: flipFlopInit,
     layout: () => box({ left: ['D', CLK], top: [SET], bottom: [RESET], right: Q_OUTS }),
@@ -91,6 +111,15 @@ export const sequential: ComponentDef[] = [
     name: 'JK flip-flop',
     category: 'sequential',
     description: 'On the rising edge: J=1 sets, K=1 resets, both 1 toggles, both 0 holds.',
+    pins: {
+      J: 'Set request: with J=1 and K=0, Q becomes 1 on the next rising edge.',
+      K: 'Reset request: with K=1 and J=0, Q becomes 0 on the next rising edge.',
+      CLK: 'Clock: J and K are read on each rising edge (0 to 1).',
+      S: 'Asynchronous set: 1 forces Q to 1 at once, with no clock.',
+      R: 'Asynchronous reset: 1 forces Q to 0 at once, with no clock. It wins over S.',
+      Q: 'The stored bit. J=K=1 flips it on each rising edge, J=K=0 holds it.',
+      NQ: 'The opposite of Q (~Q).',
+    },
     title: () => 'JK',
     init: flipFlopInit,
     layout: () => box({ left: ['J', CLK, 'K'], top: [SET], bottom: [RESET], right: Q_OUTS }),
@@ -112,6 +141,14 @@ export const sequential: ComponentDef[] = [
     name: 'T flip-flop',
     category: 'sequential',
     description: 'Toggles Q on the rising clock edge while T=1.',
+    pins: {
+      T: 'Toggle: 1 flips Q on each rising edge of CLK, 0 holds it. Unwired, it is 1.',
+      CLK: 'Clock: Q flips on each rising edge (0 to 1) while T is 1.',
+      S: 'Asynchronous set: 1 forces Q to 1 at once, with no clock.',
+      R: 'Asynchronous reset: 1 forces Q to 0 at once, with no clock. It wins over S.',
+      Q: 'The stored bit; with T=1 it changes at half the clock frequency.',
+      NQ: 'The opposite of Q (~Q).',
+    },
     title: () => 'T',
     init: flipFlopInit,
     layout: () => box({ left: [{ name: 'T', def: 1 }, CLK], top: [SET], bottom: [RESET], right: Q_OUTS }),
@@ -134,6 +171,17 @@ export const sequential: ComponentDef[] = [
       '4-bit synchronous counter (A = least significant bit). Counts on rising CLK while EN=1, ' +
       'up when U/D=1, down when U/D=0. R resets to 0. CO is high at the last count while EN=1, ' +
       'so chaining CO into the next counter\'s EN builds multi-digit counters.',
+    pins: {
+      CLK: 'Clock: the count changes on each rising edge (0 to 1) while EN is 1.',
+      EN: 'Enable: 1 lets the clock count, 0 holds the count. Unwired, it is 1.',
+      UD: 'Up/down: 1 counts up, 0 counts down. Unwired, it counts up.',
+      R: 'Reset: 1 sets the count to 0 at once, with no clock.',
+      A: 'Count bit 0 (the least significant bit).',
+      B: 'Count bit 1.',
+      C: 'Count bit 2.',
+      D: 'Count bit 3 (the most significant bit).',
+      CO: 'Carry out: 1 at the last count (the top going up, 0 going down) while EN is 1. Wire it to the next counter\'s EN.',
+    },
     params: [
       {
         key: 'mod',
@@ -178,6 +226,15 @@ export const sequential: ComponentDef[] = [
       '4-bit binary counter with parallel load (like a 74161), counting 0–15. On a rising CLK: LD=1 loads D0–D3, ' +
       'otherwise it counts up while EN=1. R resets it to 0 at once. CO is high at 15 while EN=1. ' +
       'A program counter: load a jump target, or just count.',
+    pins: {
+      'D#|D': 'Data: the number loaded when LD is 1 (bit 0 first).',
+      LD: 'Load: 1 makes the next rising edge load D instead of counting.',
+      EN: 'Enable: 1 lets the clock count up, 0 holds the count. Unwired, it is 1.',
+      CLK: 'Clock: the count changes on each rising edge (0 to 1).',
+      R: 'Reset: 1 sets the count to 0 at once, with no clock.',
+      'Q#|Q': 'The count, bit 0 first (0 to 15).',
+      CO: 'Carry out: 1 when the count is 15 and EN is 1.',
+    },
     title: () => 'CNTR\nLOAD',
     init: () => ({ n: 0, pc: X as V }),
     layout: () =>
@@ -207,6 +264,21 @@ export const sequential: ComponentDef[] = [
     name: '4-bit register',
     category: 'sequential',
     description: 'Loads inputs A–D on the rising clock edge while LD=1. CLR clears it to 0.',
+    pins: {
+      A: 'Data bit 0 (the least significant bit), stored on the clock edge.',
+      B: 'Data bit 1.',
+      C: 'Data bit 2.',
+      D: 'Data bit 3 (the most significant bit).',
+      IN: 'Data: the 4-bit number stored on the clock edge while LD is 1.',
+      LD: 'Load: 1 stores the inputs on the rising edge, 0 keeps the old value. Unwired, it is 1.',
+      CLK: 'Clock: the inputs are stored on each rising edge (0 to 1) while LD is 1.',
+      CLR: 'Clear: 1 sets the register to 0 at once, with no clock.',
+      QA: 'Stored bit 0 (the least significant bit).',
+      QB: 'Stored bit 1.',
+      QC: 'Stored bit 2.',
+      QD: 'Stored bit 3 (the most significant bit).',
+      Q: 'The stored 4-bit number.',
+    },
     title: () => 'REG',
     init: () => ({ n: 0, pc: X as V }),
     layout: () =>
@@ -231,6 +303,20 @@ export const sequential: ComponentDef[] = [
     description:
       '4-bit shift register. On each rising edge it shifts SI into QA (QA→QB→QC→QD), ' +
       'or loads A–D in parallel when LD=1. Works as serial-in/parallel-out or parallel-in/serial-out (QD).',
+    pins: {
+      SI: 'Serial in: the bit that enters QA on each shift.',
+      A: 'Parallel data bit 0, loaded into QA when LD is 1.',
+      B: 'Parallel data bit 1, loaded into QB when LD is 1.',
+      C: 'Parallel data bit 2, loaded into QC when LD is 1.',
+      D: 'Parallel data bit 3, loaded into QD when LD is 1.',
+      LD: 'Load: 1 loads A–D on the rising edge, 0 shifts instead.',
+      CLK: 'Clock: the register shifts or loads on each rising edge (0 to 1).',
+      CLR: 'Clear: 1 sets every bit to 0 at once, with no clock.',
+      QA: 'First bit: takes SI on each shift.',
+      QB: 'Second bit: takes the old QA on each shift.',
+      QC: 'Third bit: takes the old QB on each shift.',
+      QD: 'Last bit: takes the old QC on each shift. The serial output.',
+    },
     title: () => 'SHIFT\nREG',
     init: () => ({ bits: [0, 0, 0, 0] as V[], pc: X as V }),
     layout: () =>
@@ -258,6 +344,14 @@ export const sequential: ComponentDef[] = [
     description:
       'Ring counter circulates a single 1 (1000→0100→…); Johnson counter fills with 1s then 0s ' +
       '(0000→1000→1100→…). R resets it.',
+    pins: {
+      CLK: 'Clock: the pattern moves one place on each rising edge (0 to 1).',
+      R: 'Reset: 1 restores the start pattern at once (1000 for a ring, 0000 for Johnson).',
+      Q0: 'Output 0: the first place of the pattern.',
+      Q1: 'Output 1: takes the old Q0 on each edge.',
+      Q2: 'Output 2: takes the old Q1 on each edge.',
+      Q3: 'Output 3: takes the old Q2 on each edge; the last place feeds back to Q0.',
+    },
     params: [
       {
         key: 'kind',
@@ -305,6 +399,13 @@ export const memoryRam: ComponentDef[] = [
       'A is always on Q. On a rising CLK ' +
       'with WE=1 the data inputs D are written to that address (not when the address or data is unknown). ' +
       'Contents are cleared by Reset. While the simulation is paused you can edit the words in the inspector.',
+    pins: {
+      'D#|D': 'Data in: the word written when WE is 1 (bit 0 first).',
+      WE: 'Write enable: 1 writes D into the addressed word on the rising edge of CLK.',
+      CLK: 'Clock: a write happens on each rising edge (0 to 1) while WE is 1.',
+      'A#|A': 'Address: which word is read on Q and written by WE (bit 0 first).',
+      'Q#|Q': 'Data out: the addressed word, always shown, not only on a clock edge.',
+    },
     params: [
       {
         key: 'dbits',

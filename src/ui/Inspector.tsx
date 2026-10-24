@@ -15,6 +15,7 @@ import {
   useStore,
 } from '../app/store'
 import { parsePins, type IcPin } from '../engine/components/ic'
+import { pinRows } from '../engine/pindocs'
 import { getDef } from '../engine/registry'
 import { isAnnotation, type Comp, type Wire } from '../model/circuit'
 import { hasDelay, MAX_DELAY } from '../model/delays'
@@ -179,6 +180,35 @@ function IcSection({ comp }: { comp: Comp }) {
   )
 }
 
+/** What each pin of a part does: the inputs, then the outputs. */
+function PinTable({ comp }: { comp: Comp }) {
+  const def = getDef(comp.type)
+  const rows = pinRows(def, comp.params)
+  if (!rows.length) return null
+  return (
+    <table className="pins" aria-label="Pins">
+      <tbody>
+        {(['in', 'out'] as const).map(
+          (dir) =>
+            rows.some((r) => r.dir === dir) && [
+              <tr key={dir} className="pins-head">
+                <th colSpan={2}>{dir === 'in' ? 'Inputs' : 'Outputs'}</th>
+              </tr>,
+              ...rows
+                .filter((r) => r.dir === dir)
+                .map((r) => (
+                  <tr key={`${dir}-${r.names}`}>
+                    <td className={`pins-name ${dir}`}>{r.names}</td>
+                    <td>{r.text}</td>
+                  </tr>
+                )),
+            ],
+        )}
+      </tbody>
+    </table>
+  )
+}
+
 function CompInspector({ comp }: { comp: Comp }) {
   const def = getDef(comp.type)
   const circuit = useStore((s) => s.circuit)
@@ -188,6 +218,7 @@ function CompInspector({ comp }: { comp: Comp }) {
     <>
       <h2>{comp.type === 'ic' ? String(comp.params.name || def.name) : def.name}</h2>
       <p className="desc">{def.description}</p>
+      {comp.type !== 'ic' && <PinTable comp={comp} />}
       {comp.type === 'ic' && <IcSection comp={comp} />}
       {!isAnnotation(comp) && (
       <label className="field">
