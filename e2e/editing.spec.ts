@@ -398,10 +398,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
     'Save file',
     'Embed code',
     'Clear wires',
-    'SVG, whole circuit',
-    'SVG, what is on screen',
-    'PNG, whole circuit',
-    'PNG, what is on screen',
+    'Save picture…',
   ])
   await page.getByTestId('canvas').click({ position: { x: 600, y: 400 } })
   await expect(file).toHaveCount(0)

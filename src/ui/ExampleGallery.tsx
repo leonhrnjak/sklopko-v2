@@ -26,7 +26,8 @@ export function ExampleGallery() {
             placeholder="Search examples…"
             aria-label="Search examples"
             value={query}
-            autoFocus
+            // On a phone, focusing it would open the keyboard over the pictures the person came to see.
+            autoFocus={!matchMedia('(pointer: coarse)').matches}
             onChange={(e) => setGalleryQuery(e.target.value)}
           />
           <span className="challenge-count">

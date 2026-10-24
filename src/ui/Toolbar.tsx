@@ -8,6 +8,7 @@ import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
+import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
 import { openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
@@ -306,8 +307,6 @@ export function Toolbar() {
     </>
   )
 
-  const savePicture = (format: 'svg' | 'png', area: 'all' | 'view') => void import('./canvas/exportImage').then((m) => m.exportImage(format, area))
-
   const fileItems = (
     <>
       <MenuItem onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
@@ -328,16 +327,14 @@ export function Toolbar() {
       <MenuItem onClick={clearWires} title="Remove all wires, keep the parts (undoable)">
         Clear wires
       </MenuItem>
-      <MenuLabel>Save a picture</MenuLabel>
-      <MenuItem onClick={() => savePicture('svg', 'all')}>SVG, whole circuit</MenuItem>
-      <MenuItem onClick={() => savePicture('svg', 'view')}>SVG, what is on screen</MenuItem>
-      <MenuItem onClick={() => savePicture('png', 'all')}>PNG, whole circuit</MenuItem>
-      <MenuItem onClick={() => savePicture('png', 'view')}>PNG, what is on screen</MenuItem>
+      <MenuItem onClick={openPicture} title="Save the circuit as an SVG or PNG picture: all of it, or what is on screen">
+        Save picture…
+      </MenuItem>
     </>
   )
 
   const examplesButton = (
-    <button onClick={openGallery} title="Pictures of every example, with a search: open one to see it work">
+    <button className="examples-btn" onClick={openGallery} title="Pictures of every example, with a search: open one to see it work">
       Examples
     </button>
   )
@@ -400,11 +397,11 @@ export function Toolbar() {
               if ((e.target as HTMLElement).closest('button')) setMenuOpen(false)
             }}
           >
-            <div className="menu-section">{simControls}</div>
             <div className="menu-section">
               {examplesButton}
               {shareButton}
             </div>
+            <div className="menu-section">{simControls}</div>
             <div className="menu-section" role="menu" aria-label="Tools">
               <MenuLabel>Tools</MenuLabel>
               {toolItems}

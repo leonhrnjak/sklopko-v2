@@ -99,12 +99,17 @@ test('embed code: the toolbar copies an iframe for this circuit', async ({ page,
 test('picture export: SVG of the whole circuit, and of what is on screen; PNG', async ({ page }) => {
   await page.goto('/labels', { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
-  const save = async (value: string) => {
+  const save = async (format: 'SVG' | 'PNG', show: 'Whole circuit' | 'What is on screen') => {
+    await chooseFile(page, 'Save picture…')
+    const dialog = page.getByRole('dialog', { name: 'Save a picture' })
+    await dialog.getByLabel(format).check()
+    await dialog.getByLabel(show).check()
     const download = page.waitForEvent('download')
-    await chooseFile(page, value)
+    await dialog.getByRole('button', { name: `Save ${format}` }).click()
+    await expect(dialog).toHaveCount(0)
     return download
   }
-  const svgFile = await save('SVG, whole circuit')
+  const svgFile = await save('SVG', 'Whole circuit')
   expect(svgFile.suggestedFilename()).toBe('circuit.svg')
   const svg = readFileSync((await svgFile.path())!, 'utf8')
   expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="[-\d. ]+" width="\d+" height="\d+">/)
@@ -122,11 +127,11 @@ test('picture export: SVG of the whole circuit, and of what is on screen; PNG', 
   await page.keyboard.down('Control')
   for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -200)
   await page.keyboard.up('Control')
-  const viewFile = await save('SVG, what is on screen')
+  const viewFile = await save('SVG', 'What is on screen')
   const [, , wView, hView] = viewBox(readFileSync((await viewFile.path())!, 'utf8'))
   expect(wView * hView).toBeLessThan(wAll * hAll)
 
-  const png = await save('PNG, whole circuit')
+  const png = await save('PNG', 'Whole circuit')
   expect(png.suggestedFilename()).toBe('circuit.png')
   const bytes = readFileSync((await png.path())!)
   expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47])
