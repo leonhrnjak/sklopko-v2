@@ -3365,3 +3365,43 @@ button.linklike:hover {
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
+
+/* ---- The character LCD ---- */
+
+.lcd-body {
+  fill: #9bb83f;
+  stroke: #2f3b10;
+  stroke-width: 1.5;
+}
+.lcd-body.off {
+  fill: #7d9330;
+}
+.lcd-dots,
+.lcd-cursor {
+  fill: #1b2606;
+  pointer-events: none;
+}
+.lcd-blink {
+  fill: #1b2606;
+  opacity: 0.85;
+  animation: lcd-blink 1s steps(1) infinite;
+  pointer-events: none;
+}
+@keyframes lcd-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.lcd-busy {
+  fill: #b45309;
+}
+.lcd-cg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lcd-cg pre {
+  margin: 0;
+  font: 9px/9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}

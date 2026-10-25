@@ -484,6 +484,14 @@ export const PINS: Record<string, PinDocs> = {
     CB2: 'Control line B2 as an output (PCR bits 7–5 of 4 to 7: handshake, pulse, low, high), otherwise Z.',
     IRQB: 'Interrupt request, active low: 0 while a flag in the flag register is set and its enable is on, until the program clears the flag.',
   },
+  hd44780: {
+    CLK: 'The board’s clock, only to time the busy flag: the chip is busy for a number of its rising edges after an instruction (37 at the data sheet’s times, 1,520 after clear and home), taking the clock for 1 MHz.',
+    RS: 'Register select: 0 is an instruction (or, in a read, the busy flag and the address), 1 is a character (the display memory, or the custom characters).',
+    RW: 'Read/write: 0 writes the byte on the data pins at the falling edge of E, 1 shows a byte on the data pins while E is high.',
+    E: 'Enable: the chip takes a write at the falling edge (1 to 0) of E; a read starts at its rising edge and its data stay while E is high. In 4-bit mode each byte takes two pulses, the high half first.',
+    'DIN#|DIN': 'What the data pins show (D0 in is bit 0): the byte to write. In 4-bit mode only D4 in to D7 in count. Join it to the wires that D and the CPU’s port drive; a pin below D4 in that nothing drives reads 0 (D4 in to D7 in must be driven, or the write is ignored).',
+    'D#|D': 'The chip’s data, driven only while it is read (E high, R/W 1): in 8-bit mode all eight pins (bit 7 is the busy flag after RS = 0), in 4-bit mode D4 to D7 and the rest Z. Otherwise Z, so that another part can drive the wires.',
+  },
   framebuffer: {
     'X#|X': 'Column of the pixel to write (0 to 15, X0 is the least significant bit).',
     'Y#|Y': 'Row of the pixel to write (0 to 15, 0 is the top row).',

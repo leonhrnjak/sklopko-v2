@@ -763,3 +763,16 @@ test('the VIA example: its registers show the program’s setup, and the timer i
   // Once a second the timer interrupts the CPU, whose routine adds one to port B.
   await expect(regs.getByRole('row', { name: /^Port B/ })).toContainText(/\$0[1-9A-F] out/, { timeout: 20000 })
 })
+
+test('the LCD: placed on its own it is off and blank; its inspector says what state it is in', async ({ page }) => {
+  await freshEmpty(page)
+  const lcd = await place(page, 'hd44780', 420, 300)
+  await clickComp(page, lcd)
+  await expect(page.getByLabel('Text on the LCD')).toContainText('(display off)')
+  const state = page.getByLabel('State of the LCD')
+  await expect(state).toContainText('8-bit, 1 line')
+  await expect(state).toContainText('off, cursor off, blink off')
+  await expect(page.locator(`.comp[data-id="${lcd}"]`)).toContainText('LCD 16×2 (display off)')
+  await page.getByText('Custom characters (CGRAM)').click()
+  await expect(page.getByLabel('Custom character 7')).toBeVisible()
+})
