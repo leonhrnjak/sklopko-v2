@@ -27,7 +27,7 @@ export interface AciaState {
   /** Characters waiting to be delivered, and the position of the next one. */
   keys: string
   next: number
-  /** The text on the screen, one string per line; the last is the cursor's. Never changed in place: a print replaces the array. */
+  /** The text on the screen, one string per line; the last is the cursor's. Changed in place; `rev` counts the changes. */
   lines: string[]
   /** The cursor's column. */
   col: number
@@ -150,39 +150,38 @@ export function aciaPut(st: AciaState, code: number) {
   const lines = st.lines
   const last = lines.length - 1
   if (code === 12) {
-    st.lines = ['']
+    lines.length = 0
+    lines.push('')
     st.col = 0
     st.wrapped = false
   } else if (code === 13) {
     st.col = 0
     st.wrapped = false
   } else if (code === 10) {
-    st.lines = scrolled([...lines, ''])
+    newLine(lines)
     st.wrapped = false
   } else if (code === 8) {
     if (st.col === 0) {
       // Back over the wrap: onto the last column of the line above, blanking its last character, and the line below is gone.
       if (!st.wrapped || last === 0 || lines[last].trim() !== '' || lines[last - 1].length < SCREEN_COLS) return
-      st.lines = [...lines.slice(0, last - 1), lines[last - 1].slice(0, SCREEN_COLS - 1)]
+      lines.pop()
+      lines[last - 1] = lines[last - 1].slice(0, SCREEN_COLS - 1)
       st.col = SCREEN_COLS - 1
       st.wrapped = false
     } else {
       st.col--
-      st.lines = [...lines.slice(0, last), put(lines[last], st.col, ' ')]
+      lines[last] = put(lines[last], st.col, ' ')
     }
   } else if (code === 7) st.bells++
   else if (code >= 32 && code <= 126) {
-    let at = st.col
-    let base = lines.slice(0, last)
-    let line = lines[last]
-    if (at >= SCREEN_COLS) {
-      base = [...lines]
-      line = ''
-      at = 0
+    if (st.col >= SCREEN_COLS) {
+      newLine(lines)
+      st.col = 0
       st.wrapped = true
     }
-    st.lines = scrolled([...base, put(line, at, String.fromCharCode(code))])
-    st.col = at + 1
+    const at = lines.length - 1
+    lines[at] = put(lines[at], st.col, String.fromCharCode(code))
+    st.col++
   } else return
   st.rev++
 }
@@ -191,7 +190,11 @@ function put(line: string, col: number, ch: string): string {
   return line.slice(0, col).padEnd(col, ' ') + ch + line.slice(col + 1)
 }
 
-const scrolled = (lines: string[]) => (lines.length > SCREEN_LINES ? lines.slice(lines.length - SCREEN_LINES) : lines)
+/** A new, empty last line; the oldest is forgotten beyond `SCREEN_LINES`. */
+function newLine(lines: string[]) {
+  lines.push('')
+  if (lines.length > SCREEN_LINES) lines.shift()
+}
 
 /** The text of the screen as plain lines (trailing spaces cut), for a reader or a test. */
 export const screenText = (st: AciaState) => st.lines.map((l) => l.replace(/\s+$/, '')).join('\n')
