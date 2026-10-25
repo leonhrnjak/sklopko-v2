@@ -1,3 +1,4 @@
+import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
 import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
@@ -101,3 +102,31 @@ export const echoIrq6502 = (): Circuit =>
       devices: TERMINAL_DEVICE,
     },
   )
+
+/** The ROM of the BASIC computer as hex text (16 KB, from $C000: Microsoft BASIC and the terminal code). */
+const basicRomText = () => basicRomBytes().map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' ')
+
+const BASIC_DECODE =
+  'Ben Eater\u2019s memory map. RAM is $0000\u2013$3FFF (16 KB: BASIC\u2019s zero page and stack, then your program and its variables, about 15,600 bytes free). The terminal\u2019s own chip selects do the decoding (CS0 = A14, CS1 = A15 low), so its four registers are at $5000\u2013$5003. The ROM is $8000\u2013$FFFF (16 KB seen twice): Microsoft BASIC from $C000, and the reset and interrupt vectors at $FFFA.'
+
+const BASIC_MEMORY =
+  'The ROM holds Microsoft BASIC 1.1 (1978, MIT licence, built from Microsoft\u2019s own source) and a small routine that talks to the terminal. Your program and its variables live in the RAM, starting above BASIC\u2019s zero page. The RAM\u2019s inspector shows them as you type: a program line is a link, a line number and the keywords as one-byte tokens.'
+
+const BASIC_DEVICES =
+  'Click the terminal\u2019s screen and type. Try PRINT 2+2, then 10 PRINT "HELLO" and RUN. Capitals only; Backspace deletes, Control+C stops a program. The clock is 1 MHz and the step-back history is off, but this is a simulation of every gate\u2019s wires in a web page: expect about a sixth of a real 6502\u2019s speed, so a 1,000-turn FOR loop takes several seconds. The switch makes BASIC ask MEMORY SIZE? and TERMINAL WIDTH? at the next Reset: press Enter for both.'
+
+/** The BASIC computer: Ben Eater\u2019s board with Microsoft BASIC in its ROM. */
+export const basic6502 = (): Circuit => {
+  const c = boardExample(
+    { hz: 1_000_000, memory: 'big', rom: basicRomText(), devices: ['terminal'], dsrSwitch: { label: 'Ask the start-up questions (at Reset)' } },
+    {
+      intro:
+        'A BASIC computer you can read wire by wire: a 6502, 16 KB of RAM, 16 KB of ROM holding Microsoft BASIC, and one serial chip with a screen and a keyboard on the other end, as on Ben Eater\u2019s breadboard. It starts by itself and says OK. Click the terminal\u2019s screen and type a program. Reset is a cold start: the program is lost.',
+      decode: BASIC_DECODE,
+      memory: BASIC_MEMORY,
+      devices: BASIC_DEVICES,
+    },
+  )
+  c.history = false // stepping back over a BASIC interpreter teaches nothing, and the board runs about four times faster without
+  return c
+}

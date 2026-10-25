@@ -1,6 +1,6 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) B4 (the terminal part) and B5 (the board with the terminal) are built; B6 and B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) B4 (the terminal part), B5 (the board with the terminal) and B6 (the BASIC computer) are built; B7 is not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
@@ -10,7 +10,7 @@
 > - [x] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [x] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
 > - [x] B5 A board with the terminal, and two echo examples
-> - [ ] B6 The BASIC computer: the board boots to `OK` and runs your programs
+> - [x] B6 The BASIC computer: the board boots to `OK` and runs your programs
 > - [ ] B7 Polish: programs to type in, a BASIC reference page, speed setting, README
 >
 > This spec grew out of the plan in PR #82. *Review of the plan* lists what changed and why; the rest is the spec.
@@ -424,6 +424,23 @@ with the sources `ECHO_SOURCE` and `ECHO_IRQ_SOURCE` in `programs6502.ts`, using
 - **Tests.** The B1 checks again, now on the board (start-up to `OK`, `PRINT 2+2`, a short program, the switch on and *Reset*: `MEMORY SIZE?`); the board left running for a
   minute keeps its memory use flat (the trace, the history and the screen are bounded); e2e: open the example, type
   `10 PRINT "HELLO"` and `RUN`, see `HELLO`, on the desktop and on the emulated phone.
+
+**What B6 did, and where it differs from the spec.** The example `6502-basic` (*6502* group, short link `/6502-basic`) is the board of B5 with the
+16 KB BASIC image (`basic-rom.ts`) in its ROM, the clock at 1 MHz and `history: false` saved with the circuit. The decoder's, memory's and devices' notes
+say what the spec asked (the memory map, where BASIC and your program live, *click the screen and type; try `PRINT 2+2`*, and the speed: about a
+sixth of a real 6502). It starts by itself and *Reset* is a cold start (the simulator's reset clears the RAM and the screen).
+
+- **The switch** *Ask the start-up questions (at Reset)* is a plain switch part on the terminal's `DSRB` pin (`dsrSwitch` in the builder), off.
+  Turned on, the next *Reset* shows `MEMORY SIZE?` and `TERMINAL WIDTH?`; Enter answers both.
+- **Measured.** In headless Chromium with software rendering, the CPU inspector says 170,000 cycles a second (17% of a 1 MHz 6502) with the BASIC board
+  running a program, above the 60,000 target. Start-up to `OK` is about 17,000 cycles (a fraction of a second). The share link of the board is the
+  18,183 characters measured in B3, and its example file is 60 KB (a 16 KB ROM as hex text).
+- **Notes are cut at 600 characters** by the note part (a longer text is dropped), so the devices note is shorter than the spec's draft; a test checks
+  that no note of the board is over the limit.
+- **Tests.** Board (`board6502.test.ts`): the circuit's settings (history off, 1 MHz, a 16 KB ROM, one switch, the setting survives a save); start-up to
+  the banner and `OK`; `PRINT 2+2`; a three-line program and `RUN`; the switch on and *Reset* gives the two questions; a program printing forever
+  for 600,000 cycles keeps the screen at its 200 lines, the history empty. e2e: desktop (type `10 print "hello"` and `run`) and the emulated phone
+  (tap, type `print 6*7`, see `42`). The offline spec counts the examples (it said 54 and was already behind by B5's two; now 57).
 
 ### B7. Polish
 - **Programs to type in**: the terminal's inspector (or the example's note) lists a few, each with *Copy* and *Type it in* (through

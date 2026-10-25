@@ -77,6 +77,8 @@ export interface Board6502Options {
   devices?: Device6502[]
   /** With the terminal: its IRQ pin goes to the CPU's (a typed character interrupts it). */
   interrupt?: boolean
+  /** With the terminal: a switch on its DSR pin (status bit 6), a setting a program can read; the BASIC computer asks its start-up questions when it is on. */
+  dsrSwitch?: { label: string; on?: boolean }
   /** The chip: the NMOS 6502 (the default) or the WDC 65C02. The program is assembled for it. */
   chip?: 'nmos' | 'cmos'
   /** A timer that interrupts the CPU (NMI) this many times a second. */
@@ -237,6 +239,10 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(`${cpu}.RWB`, `${t}.RWB`)
     wire(`${cpu}.D`, `${t}.DI`)
     if (o.interrupt) wire(`${t}.IRQB`, `${cpu}.IRQB`)
+    if (o.dsrSwitch) {
+      const sw = dev(INPUT, 'dsrSwitch', 'switch', { params: { on: !!o.dsrSwitch.on }, label: o.dsrSwitch.label })
+      wire(`${sw}.Q`, `${t}.DSRB`)
+    }
     wire(`${t}.D`, `${mux}.I2`)
   }
   if (has.has('leds')) {
@@ -350,6 +356,8 @@ export function board6502Builder(o: Board6502Options = {}) {
 /** What a board example says about itself: the text over the CPU's, the decoder's and the devices' frames. */
 export interface BoardTexts {
   intro: string
+  /** About the memory (a note over its frame); the default describes the program ROM and the RAM of the small boards. */
+  memory?: string
   /** About the address decoding (a note over its frame); the default depends on the devices. */
   decode?: string
   /** About the devices (a note over their frame); the first board has none. */
@@ -374,7 +382,7 @@ export function boardExample(o: Board6502Options, t: BoardTexts): Circuit {
   note(b, 0, -420, t.intro, 60)
   note(b, 300, -230, CPU_NOTE, 38, 'blue')
   note(b, 760, -230, t.decode ?? (simple ? DECODE_NOTE : DEVICE_DECODE_NOTE), 38, 'yellow')
-  note(b, 1300, -230, MEMORY_NOTE, 38, 'green')
+  note(b, 1300, -230, t.memory ?? MEMORY_NOTE, 38, 'green')
   if (t.devices) note(b, 1800, -230, t.devices, 48, 'pink')
   return b.build()
 }

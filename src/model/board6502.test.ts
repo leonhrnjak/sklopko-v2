@@ -6,7 +6,7 @@ import { assemble6502 } from '../engine/asm6502'
 import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
 import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
 import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
-import { sweep65c02 } from './board6502-examples'
+import { basic6502, sweep65c02 } from './board6502-examples'
 import { flatten } from './buses'
 import { basicRomBytes } from './basic-rom'
 import { deserialize, fromShareHash, serialize, toShareHash } from './serialize'
@@ -419,5 +419,98 @@ describe('the 6502 board with the terminal', () => {
     // The program ran from the ROM and used the stack in the RAM to call SEND; it also finished the greeting, so both work.
     const stack = (sim.state(keys.ram).mem as Uint8Array).slice(0x1f0, 0x200)
     expect(stack.some((v) => v !== 0)).toBe(true)
+  })
+})
+
+describe('the BASIC computer', () => {
+  const find = (c: ReturnType<typeof basic6502>, type: string) => Object.values(c.comps).find((p) => p.type === type)!.id
+  function boot() {
+    const c = basic6502()
+    const sim = new Simulator()
+    sim.load(flatten(c))
+    sim.setHistory(c.history !== false)
+    sim.settle()
+    const term = find(c, 'acia6551')
+    const st = () => sim.state(term) as AciaState
+    const run = (until: () => boolean, max = 3_000_000) => {
+      for (let n = 0; n < max && !until(); n++) oneCycle(sim)
+      return until()
+    }
+    const idle = (n = 3000) => {
+      for (let i = 0; i < n; i++) oneCycle(sim)
+    }
+    return { c, sim, term, st, run, idle, screen: () => screenText(st()) }
+  }
+  /** Type a line and run until BASIC prints OK after it again. */
+  const enter = (m: ReturnType<typeof boot>, text: string, max = 3_000_000) => {
+    const before = (m.screen().match(/OK/g) ?? []).length
+    aciaType(m.st(), text + '\r')
+    return m.run(() => (m.screen().match(/OK/g) ?? []).length > before, max)
+  }
+
+  it('is the board of B5 with the BASIC ROM, a 1 MHz clock and no step-back history', () => {
+    const c = basic6502()
+    expect(c.history).toBe(false)
+    expect(c.comps[find(c, 'clock')].params.hz).toBe(1_000_000)
+    expect(String(c.comps[find(c, 'rom')].params.data).split(' ')).toHaveLength(16384)
+    expect(Object.values(c.comps).filter((p) => p.type === 'switch')).toHaveLength(1)
+    expect(deserialize(JSON.parse(JSON.stringify(serialize(c)))).history).toBe(false)
+  })
+
+  it('explains itself: every note fits the part (600 characters) and none was dropped for being too long', () => {
+    const notes = Object.values(basic6502().comps).filter((p) => p.type === 'note')
+    expect(notes).toHaveLength(5)
+    for (const n of notes) expect(String(n.params.text).length, String(n.params.text).slice(0, 30)).toBeLessThanOrEqual(600)
+    expect(notes.every((n) => n.params.text !== 'Note')).toBe(true)
+  })
+
+  it('starts by itself: the memory it has, the banner, and OK', { timeout: 60_000 }, () => {
+    const m = boot()
+    expect(m.run(() => /OK$/.test(m.screen()))).toBe(true)
+    expect(m.screen().trimStart()).toBe('15615 BYTES FREE\n\nSKLOPKO BASIC V1.1\nCOPYRIGHT 1978 MICROSOFT\n\nOK')
+  })
+
+  it('adds, and runs a program typed in', { timeout: 120_000 }, () => {
+    const m = boot()
+    m.run(() => /OK$/.test(m.screen()))
+    expect(enter(m, 'PRINT 2+2')).toBe(true)
+    expect(m.screen()).toMatch(/PRINT 2\+2\n 4\n\nOK$/)
+    for (const line of ['10 FOR I=1 TO 3', '20 PRINT "HELLO";I', '30 NEXT I']) {
+      aciaType(m.st(), line + '\r') // a program line is stored, and BASIC does not say OK
+      expect(m.run(() => m.st().next >= m.st().keys.length)).toBe(true)
+      m.idle(20_000)
+    }
+    expect(enter(m, 'RUN')).toBe(true)
+    expect(m.screen()).toMatch(/HELLO 1\nHELLO 2\nHELLO 3\n\nOK$/)
+  })
+
+  it('asks the start-up questions when its switch is on at Reset, and does not when it is off', { timeout: 120_000 }, () => {
+    const m = boot()
+    m.run(() => /OK$/.test(m.screen()))
+    expect(m.screen()).not.toContain('MEMORY SIZE?')
+    m.sim.setParams(find(m.c, 'switch'), { on: true })
+    m.sim.reset() // a cold start: the screen and the program are gone
+    m.sim.settle()
+    expect(m.run(() => /MEMORY SIZE\? $/.test(m.screen() + ' '))).toBe(true)
+    aciaType(m.st(), '\r')
+    expect(m.run(() => /TERMINAL WIDTH\? $/.test(m.screen() + ' '))).toBe(true)
+    aciaType(m.st(), '\r')
+    expect(m.run(() => /OK$/.test(m.screen()))).toBe(true)
+    expect(m.screen()).toContain('15615 BYTES FREE')
+  })
+
+  it('left running keeps its memory flat: the screen and the keyboard buffer are bounded', { timeout: 300_000 }, () => {
+    const m = boot()
+    m.run(() => /OK$/.test(m.screen()))
+    aciaType(m.st(), '10 PRINT "X";:GOTO 10\rRUN\r')
+    m.idle(300_000)
+    expect(m.screen()).toContain('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX') // a whole line of them: it is running
+    const lines = m.st().lines.length
+    const history = (m.sim as unknown as { history: unknown[] }).history.length
+    m.idle(300_000)
+    expect(m.st().lines.length).toBeLessThanOrEqual(200)
+    expect(m.st().lines.length).toBeGreaterThanOrEqual(lines - 1)
+    expect((m.sim as unknown as { history: unknown[] }).history.length).toBe(history)
+    expect(history).toBe(0)
   })
 })

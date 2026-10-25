@@ -80,6 +80,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('6502', '6502-hello', '6502 + console: hello (a string in the ROM)'),
   e('6502', '6502-keypad', '6502 + console + keypad: type a key, see it'),
   e('6502', '6502-ball', '6502 + screen + gamepad: a bouncing ball'),
+  e('6502', '6502-basic', 'BASIC computer: a 6502 that runs Microsoft BASIC'),
   e('6502', '6502-echo', '6502 + terminal: echo (polling the status register)'),
   e('6502', '6502-echo-irq', '6502 + terminal: echo by interrupt'),
   e('6502', '65c02', '65C02: a sweeping LED with SMB, RMB, STZ and BRA'),
