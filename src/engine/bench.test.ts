@@ -44,10 +44,12 @@ function time(name: string, build: () => ReturnType<typeof synthetic>, ms: numbe
 }
 
 /** Clock edges per real second on the 6502 board (history on, as in the app), and what a snapshot of a big RAM would cost. */
-function edgesPerSecond(name: string, o: Parameters<typeof board6502Builder>[0], edges: number) {
+function edgesPerSecond(name: string, o: Parameters<typeof board6502Builder>[0], edges: number, history = true) {
   const sim = new Simulator()
+  sim.setHistory(history)
   sim.load(flatten(board6502Builder(o).b.build()))
   sim.settle()
+  for (let i = 0; i < 100; i++) sim.advance((1000 / (o!.hz! * 2)) * 50 + 1e-6) // (warm up the code before it is timed)
   const half = 1000 / (o!.hz! * 2)
   const t0 = performance.now()
   for (let i = 0; i < edges / 50; i++) sim.advance(half * 50 + 1e-6)
@@ -56,9 +58,13 @@ function edgesPerSecond(name: string, o: Parameters<typeof board6502Builder>[0],
 }
 
 describe.skipIf(!on)('simulator timings', () => {
-  it('the 6502 board', { timeout: 120000 }, () => {
-    edgesPerSecond('6502 board, LEDs', { hz: 1000, source: COUNTER_SOURCE, devices: ['leds'] }, 20000)
-    edgesPerSecond('6502 board, screen and gamepad', { hz: 1000, devices: ['screen', 'gamepad', 'leds', 'console', 'keypad'] }, 20000)
+  it('the 6502 board, with and without the history for stepping back', { timeout: 120000 }, () => {
+    const five = ['screen', 'gamepad', 'leds', 'console', 'keypad'] as const
+    for (const history of [true, false]) {
+      const h = history ? 'history on ' : 'history off'
+      edgesPerSecond(`6502 board, LEDs, ${h}`, { hz: 1000, source: COUNTER_SOURCE, devices: ['leds'] }, 40000, history)
+      edgesPerSecond(`6502 board, five devices, ${h}`, { hz: 1000, devices: [...five] }, 40000, history)
+    }
   })
   it('a 64 KB array copy', () => {
     const a = new Uint8Array(65536)

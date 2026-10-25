@@ -1,12 +1,12 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 is built (the BASIC ROM and its tests); B2 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests) and B2 (fast clock, history off) are built; B3 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
 >
 > - [x] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
-> - [ ] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
+> - [x] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
 > - [ ] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [ ] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
 > - [ ] B5 A board with the terminal, and two echo examples
@@ -127,7 +127,8 @@ instant, a start-up of under a second (B1 measures it) and an empty 1,000-turn l
 8%), and the texts say so; the example programs print as they go.
 
 **Gate after B2:** if the app stays under 60,000 cycles/s, B2's PR says by how much, and the *Speed* setting of B7 (more work per frame)
-moves into B3.
+moves into B3. *Result:* it did (1,700 cycles/s in a browser, whatever the history), because drawing took 135 ms of each 150 ms frame; the
+work per frame is now automatic for a circuit that cannot keep up (see the note of B2), which gives 48,000 to 110,000 (B2's note).
 
 ## Steps
 
@@ -275,6 +276,34 @@ from `$F000`), and a test fails if the committed image is not what the source bu
   old file without it has history on; the clock's new settings in a saved file; an e2e test that the checkbox disables *Step back*.
 - **Measured, and written here:** the benchmark with history on and off, warm, on one machine; the in-app rate of the LED board at 1 MHz
   with history off.
+
+**What B2 did, and where it differs from the spec.** The engine part is as specified: `Simulator.setHistory(on)`, `historyOn`, nothing
+recorded at a clock edge when it is off, the setting kept over a load and a reset, a new history from the next edge when it is switched
+on again. The setting is `Circuit.history`, written as `false` only when off (so no existing file changes; the file format is version 4
+and an older file reads as on), in files and share links. Undo and redo follow it, and the simulator follows the circuit
+(`startRuntime` hands it over at each change, `loadIntoSim` at each load). The clock's rates go up to `1_000_000` Hz, shown as `1 MHz`
+(not 1,048,576: a real 6502 runs at a million), by powers of two from 8192. The CPU inspector says "Running at 100,000 cycles a second
+(10% of a 1 MHz 6502)", measured over the last second (`RateMeter` in `src/app/cpurate.ts`).
+
+- **The checkbox is in the Tools menu, not next to Back:** the toolbar is full, and the narrow layout's ☰ menu already holds the Tools
+  list, so the entry (*Step-back history*, ticked when on) is there on a phone too. Back is disabled when it is off, and its tooltip says
+  where to switch it on.
+- **Found by measuring in the browser: the page, not the simulation, was the limit.** With a 1 MHz clock the page dropped from 60 to
+  6.8 frames a second: each frame gave the simulation its 10 ms, and drawing the circuit took about 135 ms more (headless Chromium with
+  software rendering, 4 vCPU Xeon at 2.8 GHz: slower than a desktop with a GPU, but the shape is the same). So the board ran at
+  **1,700 cycles a second whatever the history setting**, and the 4× of the engine did not show. The "Speed" setting that the gate after B2
+  had put into B3 became an automatic one: the simulator says when it ran out of its time with clock time left (`Simulator.lagging`), and
+  only then does the next frame give it as much as the rest of the frame cost, between 10 and 100 ms (`workBudget` in
+  `src/app/workbudget.ts`). A circuit that keeps up stays at 10 ms and 60 frames a second. The price is that a circuit with a very fast
+  clock is redrawn 2–5 times a second. **B7's Speed setting is therefore not needed** (it could still be added as an override).
+- **Probes are capped at 20,000 transitions** (`TRACE_MAX_POINTS`): at 1 MHz they kept millions, and the cost of drawing and of the
+  memory grew every second (the 6502 board has probes, and slowed down more and more).
+- **Measured.** Engine, warm benchmark on this machine (`VITE_BENCH=1 npx vitest run src/engine/bench`), cycles a second: LEDs only
+  41,830 with history, **178,727 without** (4.3×); five devices 28,075 with, **107,103 without** (3.8×). In the browser at 1 MHz (the same
+  sandbox as above): before the work budget 1,700 on the LED board, with it, history on / off: LED board with probes 14,000 / 48,000,
+  console and keypad board 22,000 / **86,000–110,000** (two runs). The target of the spec, 60,000 cycles a second for a board with one
+  device and no probes, is met by the last one even in this slow environment; the BASIC board itself is measured in B6.
+- **Not done, as decided:** snapshot-cost work (paged RAM, a ring of snapshots, a cheap CPU copy) stays out; `Not doing` says so.
 
 ### B3. Big memory
 - **RAM** address bits up to 15 (32 KB); **ROM** up to 14 (16 KB), and its hex text cap raised to 49,152 characters. Old files load

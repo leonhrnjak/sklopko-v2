@@ -3,7 +3,7 @@ import { CircuitBuilder } from './builder'
 import { checkChallenge } from './challengecheck'
 import { CHALLENGES } from './challenges'
 import { testNames, parseTests, runTests } from './testbench'
-import { deserialize, migrate, serialize } from './serialize'
+import { deserialize, FORMAT_VERSION, migrate, serialize } from './serialize'
 
 /** A D flip-flop with a clock switch: D, CLK in; Q out. */
 function dff() {
@@ -132,11 +132,11 @@ describe('the testbench in a saved circuit', () => {
     const c = andGate()
     c.tests = 'A=1 B=1; expect Y=1'
     const saved = serialize(c)
-    expect(saved.version).toBe(3)
+    expect(saved.version).toBe(FORMAT_VERSION)
     expect(deserialize(JSON.parse(JSON.stringify(saved))).tests).toBe('A=1 B=1; expect Y=1')
     expect(serialize(andGate()).tests).toBeUndefined()
     expect(deserialize(serialize(andGate())).tests).toBeUndefined()
-    expect(migrate({ app: 'sklopko', version: 2, comps: [], wires: [] })).toMatchObject({ version: 3 })
+    expect(migrate({ app: 'sklopko', version: 2, comps: [], wires: [] })).toMatchObject({ version: FORMAT_VERSION })
   })
 
   it('is cut to its limit when a file has more, and ignored when it is not text', () => {

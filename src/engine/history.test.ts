@@ -209,4 +209,65 @@ describe('stepping back', () => {
     expect(s.pinValue('led', 'A')).toBe(1)
     expect(s.time).toBeLessThan(375)
   })
+
+  describe('with the history off', () => {
+    it('takes no snapshots: there is nothing to step back to, running or stepping', () => {
+      const s = new Simulator()
+      s.setHistory(false)
+      s.load(machine(256))
+      s.settle()
+      for (let i = 0; i < 6; i++) s.stepClock()
+      s.frame(100)
+      expect(s.canStepBack()).toBe(false)
+      expect(s.stepBack()).toBe(false)
+      expect(s.time).toBeGreaterThan(0)
+    })
+
+    it('runs to the same state as with the history on', () => {
+      const run = (history: boolean) => {
+        const s = new Simulator()
+        s.setHistory(history)
+        s.load(machine(256))
+        s.settle()
+        for (let i = 0; i < 40; i++) s.stepClock()
+        s.advance(200)
+        return look(s)
+      }
+      expect(run(false)).toEqual(run(true))
+    })
+
+    it('forgets the history when it is switched off, and begins a new one when it is switched on', () => {
+      const s = start(machine())
+      for (let i = 0; i < 4; i++) s.stepClock()
+      expect(s.canStepBack()).toBe(true)
+      s.setHistory(false)
+      expect(s.historyOn).toBe(false)
+      expect(s.canStepBack()).toBe(false)
+      for (let i = 0; i < 4; i++) s.stepClock()
+      expect(s.canStepBack()).toBe(false)
+      s.setHistory(true)
+      expect(s.canStepBack()).toBe(false) // (nothing yet: the history begins at the next edge)
+      const before = look(s)
+      for (let i = 0; i < 3; i++) s.stepClock()
+      let backs = 0
+      while (s.stepBack()) backs++
+      expect(backs).toBe(3)
+      expect(look(s).time).toBeCloseTo(before.time, 6) // (back to where the history began, and no further)
+    })
+
+    it('stays off when a circuit is loaded or reset', () => {
+      const s = new Simulator()
+      s.setHistory(false)
+      s.load(machine())
+      s.settle()
+      s.reset()
+      s.settle()
+      s.load(machine())
+      s.settle()
+      s.stepClock()
+      s.stepClock()
+      expect(s.historyOn).toBe(false)
+      expect(s.canStepBack()).toBe(false)
+    })
+  })
 })

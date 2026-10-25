@@ -1,5 +1,6 @@
 import { counterDisplay } from '../model/example-counter'
 import { WELCOME_ID, exampleFromPath, type ExampleInfo } from '../model/examples-index'
+import { historyOf } from '../model/ic'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
@@ -10,6 +11,7 @@ import { installGamepadKeys } from './gamepad'
 import { installKeypadKeys } from './keypad'
 import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
 import { loadIntoSim, sim } from './sim'
+import { MIN_WORK_MS, workBudget } from './workbudget'
 import { setRunning, showToast, useStore } from './store'
 
 /** Where the one saved circuit lived before the library; read once, to bring it in. */
@@ -127,6 +129,13 @@ export async function startRuntime() {
     if (s.running) sim.settle()
   }
   useStore.subscribe(sync)
+  // The history setting is not structural (the circuit is not compiled again), so the simulator is told when it changes: by the
+  // checkbox, and by undo and redo.
+  useStore.subscribe((s, prev) => {
+    if (s.circuit === prev.circuit) return
+    const on = historyOf(s.circuit)
+    if (on !== sim.historyOn) sim.setHistory(on)
+  })
 
   startAutosave()
 
@@ -141,11 +150,18 @@ export async function startRuntime() {
   sim.settle()
 
   let last = performance.now()
+  let workMs = MIN_WORK_MS
+  let frameEnd = last
   const loop = (t: number) => {
     const dt = Math.min(t - last, 100)
     last = t
+    const otherMs = performance.now() - frameEnd // drawing the last frame, and waiting for this one
     const { running, speed } = useStore.getState()
-    if (running) sim.frame(dt * speed, 10) // up to 10 ms of simulation work a frame, however many clock edges that is
+    // Up to `workMs` of simulation work a frame, however many clock edges that is: 10 ms, more for a circuit too big for its clock.
+    if (running) {
+      sim.frame(dt * speed, workMs)
+      workMs = workBudget(sim.lagging, otherMs)
+    }
     // A breakpoint stopped the simulation (while running or on a single step): say which one.
     const hit = sim.takeBreak()
     if (hit) {
@@ -155,6 +171,7 @@ export async function startRuntime() {
     }
     sim.publish()
     updateAudio(useStore.getState().circuit, running, speed)
+    frameEnd = performance.now()
     requestAnimationFrame(loop)
   }
   requestAnimationFrame(loop)

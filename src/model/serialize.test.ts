@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { loadIntoSim, sim } from '../app/sim'
 import { EXAMPLES } from './examples'
-import { deserialize, fromShareHash, serialize, toShareHash } from './serialize'
+import { deserialize, fromShareHash, migrate, serialize, toShareHash } from './serialize'
 
 describe('serialization', () => {
   for (const ex of EXAMPLES) {
@@ -15,6 +15,32 @@ describe('serialization', () => {
   it('round-trips through a share link', () => {
     const c = EXAMPLES[0].build()
     expect(fromShareHash('#' + toShareHash(c))).toEqual(deserialize(serialize(c)))
+  })
+
+  describe('the history setting', () => {
+    const circuit = () => EXAMPLES[0].build()
+
+    it('is not written when the history is on, so no file changes', () => {
+      const saved = serialize(circuit())
+      expect('history' in saved).toBe(false)
+      expect(deserialize(JSON.parse(JSON.stringify(saved))).history).toBeUndefined()
+    })
+
+    it('is written as false when it is off, and read back, in a file and in a share link', () => {
+      const c = { ...circuit(), history: false as const }
+      const saved = JSON.parse(JSON.stringify(serialize(c)))
+      expect(saved.history).toBe(false)
+      expect(deserialize(saved).history).toBe(false)
+      expect(fromShareHash('#' + toShareHash(c))?.history).toBe(false)
+    })
+
+    it('is on for a file from before it came in, and for anything but false', () => {
+      const old = JSON.parse(JSON.stringify(serialize(circuit())))
+      old.version = 3
+      expect(migrate(old)).toMatchObject({ version: 4 })
+      expect(deserialize(old).history).toBeUndefined()
+      for (const odd of [true, 0, 'false', null]) expect(deserialize({ ...old, history: odd }).history).toBeUndefined()
+    })
   })
 
   it('drops unknown parts and dangling wires, re-routes broken paths', () => {

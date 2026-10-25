@@ -7,6 +7,7 @@ import { fitView } from './canvas/viewport'
 export function EmbedBar() {
   const running = useStore((s) => s.running)
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
+  const historyOn = useSyncExternalStore(sim.subscribe, () => sim.historyOn)
   // The same circuit in the editor: the link without ?embed=1 (a share link or an example's short link).
   const params = new URLSearchParams(location.search)
   params.delete('embed')
@@ -24,7 +25,7 @@ export function EmbedBar() {
           sim.publish()
         }}
         disabled={!canBack}
-        title="Go back to the previous clock edge"
+        title={historyOn ? 'Go back to the previous clock edge' : 'Stepping back is switched off for this circuit, so that it runs faster'}
       >
         ◀ Back
       </button>

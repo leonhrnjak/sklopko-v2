@@ -422,6 +422,13 @@ export function documentOf(c: Circuit): Circuit {
   return doc
 }
 
+/** Does the document keep the history for stepping back? (The setting belongs to the top level, also while an IC's body is edited.) */
+export function historyOf(c: Circuit): boolean {
+  let top = c
+  while (top.up) top = top.up.outer
+  return top.history !== false
+}
+
 /** The ids of the ICs between the top level and this circuit, outermost first (empty at the top level). */
 export function levelsOf(c: Circuit): string[] {
   const path: string[] = []
