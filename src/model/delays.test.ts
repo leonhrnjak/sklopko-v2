@@ -43,6 +43,6 @@ describe('realistic delays change when things happen, not what happens', () => {
       // The delays were really in use: the slow circuit needed more ticks to settle. (Parts inside a custom IC keep their own delays,
       // and the blocks hold most of the circuit.)
       if (!c.ics) expect(slow.ticks).toBeGreaterThan(plain.ticks)
-    })
+    }, 30_000) // (the 8-bit computer as blocks takes about 4 s alone: a loaded machine passes the default 5 s)
   }
 })
