@@ -116,6 +116,26 @@ describe('serialization', () => {
     expect(c.comps.m.params.dbits).toBe(4)
   })
 
+  it('drops what a hand-written file gets wrong: fractional rotations and counts, ids that break the file format', () => {
+    const c = deserialize({
+      app: 'sklopko',
+      version: 3,
+      comps: [
+        { id: 'a', type: 'and', x: 0, y: 0, rot: 1.5, params: { inputs: 2.5 } },
+        { id: 'b.c', type: 'switch', x: 0, y: 100 },
+        { id: '__proto__', type: 'switch', x: 0, y: 200 },
+        { id: 'ok', type: 'switch', x: 0, y: 300, rot: 5 },
+      ],
+      wires: [{ id: '__proto__', from: 'ok.Q', to: 'a.A' }],
+    })
+    expect(Object.keys(c.comps)).toEqual(['a', 'ok'])
+    expect(c.comps.a.rot).toBe(0)
+    expect(c.comps.a.params.inputs).toBe(2)
+    expect(c.comps.ok.rot).toBe(1)
+    expect(Object.keys(c.wires)).toEqual([])
+    expect(Object.getPrototypeOf(c.comps)).toBe(Object.prototype)
+  })
+
   it('rejects files that are not circuits', () => {
     expect(() => deserialize({ hello: 'world' })).toThrow()
   })
