@@ -93,8 +93,9 @@ security headers.
   circuit. *File ▾ → Embed code* copies the iframe HTML for the current circuit, e.g.
   `<iframe src="https://…/computer?embed=1" width="900" height="560"></iframe>`. The site allows being framed by
   any page.
-- **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
-  signals that cross show a small bridge. Stored in the browser.
+- **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), wire hops on or off (wires of different
+  signals that cross show a small bridge), and signal colours: green 1 / red 0, or orange 1 / blue 0 for people who
+  confuse red and green. Stored in the browser.
 - **Files:** autosaves to the browser, as a document in your library (IndexedDB; the single saved circuit of earlier
   versions is brought in on the first visit). Nothing replaces your work: an example or *New* opens without a document of
   its own and becomes one, "<example> (copy)" or "Untitled N", the moment you edit it; a share link or an opened file is a

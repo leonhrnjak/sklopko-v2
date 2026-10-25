@@ -1,19 +1,22 @@
 import { create } from 'zustand'
 
 export type GateStyle = 'us' | 'iec'
+/** Signal colours: red/green (the default) or orange/blue, which people who confuse red and green can tell apart. */
+export type WireColors = 'classic' | 'blue-orange'
 
 export interface Settings {
   /** US (curved) or IEC (rectangular) gate symbols. */
   gateStyle: GateStyle
   /** Draw a small hop where wires of different signals cross. */
   hops: boolean
+  wireColors: WireColors
   /** The help panel on the right shows when nothing is selected. Open until the visitor hides it. */
   helpOpen: boolean
 }
 
 const KEY = 'sklopko.settings.v1'
 
-const DEFAULTS: Settings = { gateStyle: 'us', hops: true, helpOpen: true }
+const DEFAULTS: Settings = { gateStyle: 'us', hops: true, wireColors: 'classic', helpOpen: true }
 
 function load(): Settings {
   try {
@@ -22,6 +25,7 @@ function load(): Settings {
       return {
         gateStyle: raw.gateStyle === 'iec' ? 'iec' : 'us',
         hops: typeof raw.hops === 'boolean' ? raw.hops : DEFAULTS.hops,
+        wireColors: raw.wireColors === 'blue-orange' ? 'blue-orange' : 'classic',
         helpOpen: typeof raw.helpOpen === 'boolean' ? raw.helpOpen : DEFAULTS.helpOpen,
       }
   } catch {
@@ -32,11 +36,18 @@ function load(): Settings {
 
 export const useSettings = create<Settings>(() => load())
 
+/** The stylesheet swaps the signal colours on this attribute of the page. */
+function applyWireColors(w: WireColors) {
+  if (typeof document !== 'undefined') document.documentElement.dataset.wires = w
+}
+applyWireColors(useSettings.getState().wireColors)
+
 export function updateSettings(patch: Partial<Settings>) {
   useSettings.setState(patch)
-  const { gateStyle, hops, helpOpen } = useSettings.getState()
+  const { gateStyle, hops, wireColors, helpOpen } = useSettings.getState()
+  applyWireColors(wireColors)
   try {
-    localStorage.setItem(KEY, JSON.stringify({ gateStyle, hops, helpOpen }))
+    localStorage.setItem(KEY, JSON.stringify({ gateStyle, hops, wireColors, helpOpen }))
   } catch {
     // Not persisted; the setting still applies for this visit.
   }
