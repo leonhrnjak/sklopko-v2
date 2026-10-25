@@ -230,3 +230,114 @@ nmi:    INC ticks       ; the timer ticked
 .word nmi               ; NMI vector
 .word reset             ; reset vector`
 
+
+
+/**
+ * The programs of the terminal boards (`memory: 'big'`, the ROM's image begins at $C000), with Ben Eater's register names. The
+ * terminal's four registers are at $5000–$5003 (and repeat through $4000–$7FFF):
+ *
+ *     $5000  ACIA_DATA    read: the key that arrived (clears "receiver full")     write: print the character
+ *     $5001  ACIA_STATUS  read: bit 3 receiver full, bit 4 ready to send,         write: programmed reset
+ *                         bit 7 interrupt (reading it clears the interrupt)
+ *     $5002  ACIA_CMD     bit 0 receiver on, bit 1 set = no receive interrupt
+ *     $5003  ACIA_CTRL    baud rate and word length (this terminal takes any)
+ */
+
+/** Print HELLO, then send every key typed back to the screen; Enter is sent as CR and LF. The loop polls the status register. */
+export const ECHO_SOURCE = `.org $C000
+ACIA_DATA   = $5000
+ACIA_STATUS = $5001
+ACIA_CMD    = $5002
+ACIA_CTRL   = $5003
+
+reset:  LDX #$FF
+        TXS
+        STA ACIA_STATUS ; any write to the status register resets the chip
+        LDA #$1F        ; 19200 baud, 8 bits, 1 stop bit (this terminal ignores them)
+        STA ACIA_CTRL
+        LDA #$0B        ; receiver on (bit 0), no interrupt (bit 1)
+        STA ACIA_CMD
+
+        LDX #0
+hello:  LDA text,X      ; print the greeting
+        BEQ listen      ; a 0 ends it
+        JSR send
+        INX
+        BNE hello
+
+listen: LDA ACIA_STATUS ; wait for a key: bit 3 says one has arrived
+        AND #$08
+        BEQ listen
+        LDA ACIA_DATA   ; take it (that clears bit 3) ...
+        JSR send        ; ... and send it back
+        CMP #13         ; Enter is a CR: start a new line as well
+        BNE listen
+        LDA #10
+        JSR send
+        JMP listen
+
+send:   PHA             ; print A, keeping it: wait until the chip is ready to send (bit 4)
+ready:  LDA ACIA_STATUS
+        AND #$10
+        BEQ ready
+        PLA
+        STA ACIA_DATA
+        RTS
+
+text:   .byte "HELLO", 13, 10, 0
+
+.org $FFFC
+.word reset`
+
+/**
+ * The same, with the receive interrupt: the main program only counts, in the RAM, and the chip pulls IRQ low for every key; the
+ * interrupt routine reads the status (which lets IRQ go) and then the key, and prints it.
+ */
+export const ECHO_IRQ_SOURCE = `.org $C000
+ACIA_DATA   = $5000
+ACIA_STATUS = $5001
+ACIA_CMD    = $5002
+ACIA_CTRL   = $5003
+count       = $00       ; a two-byte counter: the main program is busy, and this shows it
+
+reset:  LDX #$FF
+        TXS
+        STA ACIA_STATUS ; reset the chip
+        LDA #$1F
+        STA ACIA_CTRL
+        LDA #$09        ; receiver on (bit 0), receive interrupt on (bit 1 clear)
+        STA ACIA_CMD
+        LDA #0
+        STA count
+        STA count+1
+
+        LDX #0
+hello:  LDA text,X
+        BEQ go
+        STA ACIA_DATA   ; the chip is always ready to send, so there is nothing to wait for
+        INX
+        BNE hello
+
+go:     CLI             ; from here on a key interrupts
+busy:   INC count       ; do something else, over and over
+        BNE busy
+        INC count+1
+        JMP busy
+
+irq:    PHA
+        LDA ACIA_STATUS ; reading the status clears the interrupt: IRQ goes high again
+        LDA ACIA_DATA   ; the key that arrived
+        STA ACIA_DATA   ; send it back
+        CMP #13
+        BNE done
+        LDA #10         ; Enter: a new line as well
+        STA ACIA_DATA
+done:   PLA
+        RTI
+
+text:   .byte "HELLO", 13, 10, 0
+
+.org $FFFA
+.word $0000             ; NMI vector (not used)
+.word reset
+.word irq`

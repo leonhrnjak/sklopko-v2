@@ -4,7 +4,8 @@ import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
 import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
+import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { sweep65c02 } from './board6502-examples'
 import { flatten } from './buses'
 import { basicRomBytes } from './basic-rom'
@@ -330,5 +331,93 @@ describe('the 6502 board with big memory', () => {
     expect(fromShareHash(hash)!.comps[keys.rom].params.data).toBe(rom)
     // Measured: 18,183 characters for the board with BASIC in its ROM (written down in docs/plan-basic-computer.md, B3).
     expect(hash.length).toBeLessThan(25_000)
+  })
+})
+
+describe('the 6502 board with the terminal', () => {
+  const board = (source: string, interrupt = false) => start({ memory: 'big', source, devices: ['terminal'], interrupt })
+  const screen = (sim: Simulator, id: string) => screenText(sim.state(id) as AciaState)
+  const type = (sim: Simulator, id: string, text: string) => aciaType(sim.state(id) as AciaState, text)
+  /** Run until the screen shows `text` (at most `max` cycles); returns whether it did. */
+  const until = (sim: Simulator, id: string, text: string, max = 20_000) => {
+    for (let n = 0; n < max && screen(sim, id) !== text; n++) oneCycle(sim)
+    return screen(sim, id) === text
+  }
+
+  it('needs the big memory, and is the only device', () => {
+    expect(() => board6502Builder({ devices: ['terminal'] })).toThrow(/needs memory: 'big'/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['terminal', 'leds'] })).toThrow(/only device/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['terminal'], source: ECHO_SOURCE })).not.toThrow()
+  })
+
+  it('is wired as Ben Eater wired it: A14 and A15 select the chip, A0 and A1 pick the register, R/W and the data bus go straight on', () => {
+    const { b, keys } = board6502Builder({ memory: 'big', source: ECHO_SOURCE, devices: ['terminal'] })
+    const c = b.build(false)
+    const t = keys.terminal
+    expect(c.comps[t].type).toBe('acia6551')
+    const into = (pin: string) => Object.values(c.wires).filter((w) => [w.from, w.to].some((r) => r.comp === t && (r.pin === pin || r.pin.startsWith(pin)))).length
+    for (const pin of ['PHI2', 'RESB', 'CS0', 'CS1B', 'RS0', 'RS1', 'RWB', 'DI', 'D']) expect(into(pin), pin).toBeGreaterThan(0)
+    expect(into('IRQB')).toBe(0) // the polling program does not use the interrupt
+    const irq = board6502Builder({ memory: 'big', source: ECHO_IRQ_SOURCE, devices: ['terminal'], interrupt: true })
+    const ic = irq.b.build(false)
+    expect(Object.values(ic.wires).some((w) => w.from.comp === irq.keys.terminal && w.from.pin === 'IRQB' && w.to.comp === irq.keys.cpu && w.to.pin === 'IRQB')).toBe(true)
+  })
+
+  it('echo: prints HELLO, then sends back what is typed, an Enter as a new line', () => {
+    const { sim, keys } = board(ECHO_SOURCE)
+    expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
+    type(sim, keys.terminal, 'hi there\r')
+    expect(until(sim, keys.terminal, 'HELLO\nHI THERE\n')).toBe(true)
+    type(sim, keys.terminal, 'x')
+    expect(until(sim, keys.terminal, 'HELLO\nHI THERE\nX')).toBe(true)
+  })
+
+  it('echo: a key typed before the program turns the receiver on waits for it', () => {
+    const { sim, keys } = board(ECHO_SOURCE)
+    type(sim, keys.terminal, 'q')
+    expect(until(sim, keys.terminal, 'HELLO\nQ')).toBe(true)
+  })
+
+  it('echo: the break key arrives like any other (Control+C is $03, which the screen does not show)', () => {
+    const { sim, keys } = board(ECHO_SOURCE)
+    expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
+    aciaBreak(sim.state(keys.terminal) as AciaState)
+    for (let n = 0; n < 400; n++) oneCycle(sim)
+    expect((sim.state(keys.terminal) as AciaState).keys.length).toBe((sim.state(keys.terminal) as AciaState).next) // it was read
+    expect(screen(sim, keys.terminal)).toBe('HELLO\n')
+  })
+
+  it('echo by interrupt: the main program keeps counting, and every key interrupts it', () => {
+    const { sim, keys } = board(ECHO_IRQ_SOURCE, true)
+    const count = () => {
+      const m = sim.state(keys.ram).mem as Uint8Array
+      return m[0] | (m[1] << 8)
+    }
+    expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
+    for (let n = 0; n < 200; n++) oneCycle(sim)
+    const before = count()
+    expect(before).toBeGreaterThan(0)
+    type(sim, keys.terminal, 'ok\r')
+    expect(until(sim, keys.terminal, 'HELLO\nOK\n')).toBe(true)
+    for (let n = 0; n < 200; n++) oneCycle(sim)
+    expect(count()).toBeGreaterThan(before + 20) // it went on counting between and after the interrupts
+    expect(sim.pinValue(keys.terminal, 'IRQB')).toBe(1) // and the line is released
+  })
+
+  it('echo by interrupt: without the wire the chip raises its flag but the CPU never answers', () => {
+    const { sim, keys } = board(ECHO_IRQ_SOURCE, false)
+    expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
+    type(sim, keys.terminal, 'a')
+    for (let n = 0; n < 600; n++) oneCycle(sim)
+    expect(screen(sim, keys.terminal)).toBe('HELLO\n')
+    expect(sim.pinValue(keys.terminal, 'IRQB')).toBe(0)
+  })
+
+  it('reads the ROM at $8000 and up whatever the terminal says, and RAM below $4000', () => {
+    const { sim, keys } = board(ECHO_SOURCE)
+    expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
+    // The program ran from the ROM and used the stack in the RAM to call SEND; it also finished the greeting, so both work.
+    const stack = (sim.state(keys.ram).mem as Uint8Array).slice(0x1f0, 0x200)
+    expect(stack.some((v) => v !== 0)).toBe(true)
   })
 })

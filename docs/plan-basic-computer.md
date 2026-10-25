@@ -1,6 +1,6 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) and B4 (the terminal part) are built; B5 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) B4 (the terminal part) and B5 (the board with the terminal) are built; B6 and B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
@@ -9,7 +9,7 @@
 > - [x] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
 > - [x] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [x] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
-> - [ ] B5 A board with the terminal, and two echo examples
+> - [x] B5 A board with the terminal, and two echo examples
 > - [ ] B6 The BASIC computer: the board boots to `OK` and runs your programs
 > - [ ] B7 Polish: programs to type in, a BASIC reference page, speed setting, README
 >
@@ -395,6 +395,25 @@ inspector with the registers, the screen, and the four buttons. Pin texts are in
   slow clock, so you can step through the loop that polls the status register.
 - **Tests.** Both programs on the board in the unit tests (typed text comes back; the interrupt one with the CPU busy in a loop);
   e2e: open the example, type, see the echo.
+
+**What B5 did, and where it differs from the spec.** As specified: `board6502Builder({ memory: 'big', devices: ['terminal'] })` puts the
+`acia6551` part on the board (CS0 ← A14, CS1B ← A15, RS0/RS1 ← A0/A1 from an address splitter, R/W straight from the CPU, the CPU's D into DI,
+the terminal's D into the multiplexer's third input, RESB from the reset button's inverter), and `interrupt: true` wires its IRQB to the CPU's.
+It throws if the memory is not `'big'` or if there is any other device. The examples are `6502-echo` and `6502-echo-irq` (256 Hz, history on),
+with the sources `ECHO_SOURCE` and `ECHO_IRQ_SOURCE` in `programs6502.ts`, using Ben Eater's register names.
+
+- **No write strobe, no register decoder.** The chip looks at the address wires itself (that is what its two selects are for), so the board
+  has none of the LED register's decoding (`nA15`, `ledWe`, the 3-bit decoder) and the address splitter is `A0, A1, the rest`. The decoder's
+  note says why: the block `$4000–$7FFF` repeats the four registers.
+- **The rising-edge design works against the CPU**, as B4 left open: the CPU samples D at its falling edge and sees the value the read returned,
+  including a status register whose interrupt bit the same read cleared. Nothing needed changing.
+- **The polling echo** sends with a wait for status bit 4 (always set here, but it is the habit of real code); the interrupt echo does not.
+  Enter is CR, and both send an LF after it. The interrupt echo's main program counts in `$00–$01`, so the RAM inspector shows it still busy.
+- **Labels are cut at 40 characters** (the file format's limit; the first labels were longer and the round-trip test said so).
+- **Tests.** Unit (`board6502.test.ts`): the builder's refusals; the wiring; polling echo (HELLO, typed text back as capitals, a key typed before the
+  receiver was on, the break key); interrupt echo (the counter keeps counting between and after interrupts, IRQ released afterwards); without
+  the IRQ wire the flag is raised and the CPU never answers. e2e (`computers.spec.ts`): both examples, type and see the echo. The golden file
+  and the gallery counts gained the two examples.
 
 ### B6. The BASIC computer
 - Example **BASIC computer**: the board of B5 with `basic-rom.ts` in its ROM, the clock at 1 MHz, history off, framed and explained like the other

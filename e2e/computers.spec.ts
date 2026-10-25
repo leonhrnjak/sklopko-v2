@@ -651,3 +651,20 @@ test('the terminal: click its screen and type, and the text waits in the keyboar
   await page.keyboard.press('Tab')
   await expect(keyboard).not.toBeFocused()
 })
+
+for (const [path, what] of [
+  ['/6502-echo', 'polling the status register'],
+  ['/6502-echo-irq', 'by interrupt'],
+] as const) {
+  test(`the terminal board, ${what}: the program prints HELLO and sends every key back`, async ({ page }) => {
+    await page.goto(path, { waitUntil: 'networkidle' })
+    await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+    const screen = page.getByLabel('Screen text')
+    await expect(screen).toContainText('HELLO', { timeout: 20000 })
+    // Picking the part gave it the keyboard: type, and the 6502 sends it back (as capitals) with its Enter as a new line.
+    await page.keyboard.type('hi there')
+    await page.keyboard.press('Enter')
+    await expect(screen).toHaveText(/HELLO\s+HI THERE\s*$/, { timeout: 20000 })
+    await expect(page.getByLabel('Registers of the terminal chip')).toContainText('receiver on')
+  })
+}
