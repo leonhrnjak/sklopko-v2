@@ -51,13 +51,20 @@ export const interruptOn = (st: AciaState) => (st.command & 2) === 0
 /** The level of the interrupt line (IRQ is low while this is true). */
 export const aciaIrq = (st: AciaState) => st.interrupt
 
-/** What RESB low does: the registers are cleared; the screen and the keyboard buffer stay. */
+/** What RESB low does to the chip: the registers are cleared. (The part can also wipe the terminal: `aciaWipe`.) */
 export function aciaReset(st: AciaState) {
   st.command = 0
   st.control = 0
   st.rx = 0
   st.full = false
   st.interrupt = false
+}
+
+/** The terminal's own reset: a blank screen, the cursor at the top, and nothing waiting on the keyboard. A no-op (no change counted) when it is so already. */
+export function aciaWipe(st: AciaState) {
+  st.keys = ''
+  st.next = 0
+  if (st.lines.length > 1 || st.lines[0] !== '' || st.col !== 0) aciaPut(st, 12)
 }
 
 /** Deliver the next waiting character if the receiver is on and the last one was read. Called at every clock. */

@@ -711,6 +711,32 @@ test('the BASIC computer: a program to type in is typed on the terminal and runs
   await expect(screen).toContainText(/\n {4}1 {3}2 {3}3 {3}4 {3}5 {3}6 {3}7 {3}8 {3}9\n/, { timeout: 60000 })
 })
 
+test('the BASIC computer: the board’s Reset button restarts it on a blank screen, and so does the toolbar’s', async ({ page }) => {
+  await page.goto('/6502-basic', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  const screen = page.getByLabel('Screen text')
+  await expect(screen).toContainText('OK', { timeout: 60000 })
+  await page.keyboard.type('print 3+3')
+  await page.keyboard.press('Enter')
+  await expect(screen).toContainText('PRINT 3+3', { timeout: 60000 })
+  await expect(screen).toHaveText(/ 6\s+OK\s*$/, { timeout: 60000 })
+  // Hold the board's own Reset button: the screen empties, and BASIC starts again with nothing of the old text above its banner.
+  const button = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Reset$/ }) }).locator('> g').first()
+  const b = (await button.boundingBox())!
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(500)
+  await page.mouse.up()
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  await expect(screen).toHaveText(/^\s*15615 BYTES FREE\s+SKLOPKO BASIC V1.1\s+COPYRIGHT 1978 MICROSOFT\s+OK\s*$/, { timeout: 60000 })
+  // The toolbar's Reset switches the whole circuit off and on again: the same.
+  await page.keyboard.type('print 4+4')
+  await page.keyboard.press('Enter')
+  await expect(screen).toHaveText(/ 8\s+OK\s*$/, { timeout: 60000 })
+  await page.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(screen).toHaveText(/^\s*15615 BYTES FREE\s+SKLOPKO BASIC V1.1\s+COPYRIGHT 1978 MICROSOFT\s+OK\s*$/, { timeout: 60000 })
+})
+
 test('the SKASM reference has a Control signals tab: each signal of the ROMs, and what each instruction switches on', async ({ page }) => {
   await freshEmpty(page)
   await chooseTool(page, 'SKASM…')

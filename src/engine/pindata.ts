@@ -453,7 +453,7 @@ export const PINS: Record<string, PinDocs> = {
   },
   acia6551: {
     PHI2: 'The clock. The chip works at its rising edge (0 to 1): it takes a write, or answers a read, if it is selected.',
-    RESB: 'Reset, active low: while it is 0 the command, control and status registers are cleared. The screen and what was typed stay.',
+    RESB: 'Reset, active low: while it is 0 the command, control and status registers are cleared, and so are the screen and what was typed (the part’s “Clear the screen on reset” setting).',
     CS0: 'Chip select, active high: the chip answers only while this is 1 and CS1 is 0. On a 6502 board it comes from an address wire.',
     CS1B: 'Chip select, active low: the chip answers only while this is 0 and CS0 is 1. On a 6502 board it comes from an address wire.',
     'RS#': 'Register select (RS0 least significant): 0 the character, 1 the status (a write: programmed reset), 2 the command register, 3 the control register.',

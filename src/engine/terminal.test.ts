@@ -123,8 +123,29 @@ describe('the 6551 terminal part', () => {
     expect(c.inst.outs.includes(X)).toBe(false)
   })
 
-  it('clears the registers while RES is low, and keeps the screen and the keyboard buffer', () => {
+  it('clears the registers while RES is low, and by default the screen and the keyboard buffer too', () => {
     const c = chip()
+    c.cycle(COMMAND, 'write', 0x0b)
+    c.cycle(DATA, 'write', 0x48)
+    c.cycle(DATA, 'write', 0x0d)
+    c.cycle(DATA, 'write', 0x0a)
+    aciaType(c.st, 'ab')
+    c.set({ RESB: 0, PHI2: 0 })
+    expect(c.st.command).toBe(0)
+    expect(c.st.lines).toEqual([''])
+    expect(c.st.col).toBe(0)
+    expect(c.st.keys.length - c.st.next).toBe(0)
+    const rev = c.st.rev
+    c.set({ RESB: 0, PHI2: 1 })
+    c.set({ RESB: 0, PHI2: 0 })
+    expect(c.st.rev).toBe(rev) // holding the button does not keep changing the screen
+    c.cycle(DATA, 'write', 0x48) // and it works again afterwards
+    expect(c.st.lines).toEqual(['H'])
+  })
+
+  it('keeps the screen and the keyboard buffer in reset when the setting is off', () => {
+    const c = chip()
+    c.inst.params = { ...c.inst.params, resetClears: false }
     c.cycle(COMMAND, 'write', 0x0b)
     c.cycle(DATA, 'write', 0x48)
     aciaType(c.st, 'ab')
