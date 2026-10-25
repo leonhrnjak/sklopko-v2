@@ -613,3 +613,41 @@ test('a lookup table is filled from an expression, with the error shown when the
   await expect(cell(0, 'Y0')).toHaveText('0')
   await expect(cell(2, 'Y0')).toHaveText('0')
 })
+
+test('the terminal: click its screen and type, and the text waits in the keyboard buffer until a program switches the receiver on', async ({ page }) => {
+  await freshEmpty(page)
+  const term = await place(page, 'acia6551', 420, 300)
+  const keyboard = page.locator(`textarea[data-terminal-input="${term}"]`)
+  const waiting = (text: string) => expect(page.getByText(text, { exact: true })).toBeVisible()
+  await waiting('Nothing is waiting on the keyboard.')
+  await expect(page.getByLabel('Registers of the terminal chip')).toContainText('receiver off (typing waits)')
+
+  // A click on the part gives it the keyboard; Delete and Backspace are typed, they do not delete the part.
+  await clickComp(page, term)
+  await expect(keyboard).toBeFocused()
+  await page.keyboard.type('print 1')
+  await waiting('7 characters waiting on the keyboard.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Backspace')
+  await page.keyboard.press('Delete')
+  await waiting('10 characters waiting on the keyboard.')
+  await expect(page.locator(`.comp[data-id="${term}"]`)).toHaveCount(1)
+
+  // Control+C is the break: it throws away what was waiting and is the only thing left.
+  await page.keyboard.press('Control+c')
+  await waiting('1 character waiting on the keyboard.')
+
+  // Pasting through the box in the inspector goes through the same buffer: Enter for a line break, capitals by default.
+  await page.getByRole('button', { name: 'Type text…' }).click()
+  await page.getByLabel('Text to type').fill('a\nb')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await waiting('4 characters waiting on the keyboard.')
+  await page.getByRole('button', { name: 'Break', exact: true }).click()
+  await waiting('1 character waiting on the keyboard.')
+
+  // Tab leaves the terminal.
+  await clickComp(page, term)
+  await expect(keyboard).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(keyboard).not.toBeFocused()
+})

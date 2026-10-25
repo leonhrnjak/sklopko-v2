@@ -2217,6 +2217,47 @@ table.truth td.in.changed {
   fill: #86efac;
   opacity: 0.55;
 }
+.term-text {
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  fill: #86efac;
+  white-space: pre;
+  pointer-events: none;
+}
+.term-cursor {
+  fill: #86efac;
+  opacity: 0.3;
+  pointer-events: none;
+}
+.comp:focus-within .term-cursor {
+  opacity: 0.85;
+  animation: term-blink 1s steps(1) infinite;
+}
+@keyframes term-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+.term-hint {
+  font: 10px ui-sans-serif, system-ui, sans-serif;
+  fill: #94a3b8;
+  pointer-events: none;
+}
+.comp:focus-within .term-hint {
+  display: none;
+}
+/* The terminal's keyboard is a text box nobody sees: clicks go through to the part, which focuses it. */
+.term-input-box {
+  pointer-events: none;
+}
+.term-input {
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  resize: none;
+  border: 0;
+  padding: 0;
+  pointer-events: none;
+}
 .speaker-cone {
   fill: var(--ink);
   opacity: 0.55;
@@ -2252,6 +2293,21 @@ table.truth td.in.changed {
 }
 .key.down .key-label {
   fill: #fff;
+}
+.term-regs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.term-regs th {
+  text-align: left;
+  font-weight: 600;
+  padding: 3px 8px 3px 0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.term-regs td {
+  padding: 3px 0;
 }
 .console-view {
   margin: 0 0 10px;

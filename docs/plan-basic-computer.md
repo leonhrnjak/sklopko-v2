@@ -1,6 +1,6 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) are built; B4 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) and B4 (the terminal part) are built; B5 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
@@ -8,7 +8,7 @@
 > - [x] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
 > - [x] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
 > - [x] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
-> - [ ] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
+> - [x] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
 > - [ ] B5 A board with the terminal, and two echo examples
 > - [ ] B6 The BASIC computer: the board boots to `OK` and runs your programs
 > - [ ] B7 Polish: programs to type in, a BASIC reference page, speed setting, README
@@ -351,6 +351,40 @@ the small board is unchanged: a test compares its saved file with the default bo
   IRQB, the receiver off until command bit 0, programmed reset, `RESB`, `DSRB` in status bit 6); the keyboard buffer's pacing (a character only after the one
   before was read, 8,000 characters at most); the screen (CR, LF, BS, FF, the deferred wrap, scrolling); a snapshot shared with the
   live state is not changed by a later print; an e2e test that types into the terminal on the desktop and on the emulated phone.
+
+**What B4 did, and where it differs from the spec.** The part is `acia6551` (`src/engine/components/terminal.ts`, in the *Input / output* group
+of the palette, *Serial terminal (6551)*): the pins as specified (Φ2, RES, CS0, CS1, RS0, RS1, R/W, DI0–DI7, DSR in; D0–D7, IRQ out), a bus
+mode that joins DI and D, a *Capitals* setting (on), the register behaviour of `acia.ts` unchanged, a symbol with the 40 × 24 screen, and an
+inspector with the registers, the screen, and the four buttons. Pin texts are in `pindata.ts`.
+
+- **It acts at the rising edge of Φ2, not the falling one.** The CPU part moves on at the *falling* edge and changes its address, R/W and
+  data in the same step, so a device that looked at those pins at the falling edge could see the next cycle's. Every other device on the
+  board (the LED register, the console, the screen) already takes its write at the rising edge, when the pins have been steady for half a
+  cycle. The terminal does the same: at the rising edge, if CS0 = 1 and CS1 = 0, a write takes DI into the register, and a read **keeps the
+  value it returns** (`out`), which D shows until the next edge. That is also what makes the status register right: the read clears the
+  interrupt bit at the edge, but the CPU, which samples D at the falling edge, still sees the bit. Not selected, D shows 0. D is never X
+  and a pin that is X (a select, R/W, a register select, the data of a write) makes the edge do nothing.
+- **A character moves into the receive register at the same edge in which the one before was read** (the read clears *full*, then the
+  chip's clock delivers the next), so the next status read already shows the next character. Nothing is lost; there is no baud rate to wait for.
+- **The keyboard.** A hidden `<textarea>` sits over the screen in a `foreignObject` (so it moves, turns and zooms with the part). A click on the
+  part (the canvas handler, on pointer-up) focuses it; Tab or a click elsewhere takes the focus away. Typed text comes in through `input`
+  events, Enter, Backspace and Delete are keys (CR, BS, DEL), Escape and Control+C are the break (`aciaBreak`), and Control+V or Cmd+V paste
+  as usual. After a **touch** the focus waits for the `click` that follows the finger: the browser's mouse-down, sent after the tap,
+  would take the focus away again (found by the phone test). While it has the focus the screen shows a blinking cursor, and otherwise
+  *click to type*. The global key handlers (canvas shortcuts, keypad, gamepad) already ignore a text box, so Delete does not delete the part.
+- **The inspector** (`TerminalInspector.tsx`, loaded when the part is first selected): the registers with their bits spelled out (character,
+  status with *receiver full*, *transmitter empty*, DSR and *interrupt*, command with *receiver on/off* and *receive interrupt*, control), how many
+  characters wait on the keyboard, the screen text (all 200 lines, scrolling), and the buttons *Type text…* (a box that sends through the
+  keyboard buffer), *Copy screen*, *Clear screen* and *Break*. The registers are read every 100 ms while it is open.
+- **Not in B4:** the part is not on a board yet (B5), so the timing of the rising-edge design against the CPU is first checked there, with
+  the echo programs. The startup bundle grew by the part, its symbol and its styles (167.2 kB to 171.2 kB gzipped with the UI work that
+  came in between; the budget is 180 kB); the inspector is its own lazy chunk.
+- **Tests.** Part, pin level (`terminal.test.ts`, 12): the write at the rising edge and only then; status and DSR; the receiver off until
+  command bit 0; one character at a time; IRQ low from the arrival until the status is read, and that status still showing bit 7; no interrupt with the
+  interrupt off; the two selects; unknown pins; RES clears the registers and keeps the screen and the buffer; the programmed reset; the control register;
+  a copy for the history unchanged by a later print. Keyboard logic (`app/terminal.test.ts`, 6): the keys, the break ahead of the queue,
+  capitals and no capitals, a paste. e2e: on the desktop, click, type, Backspace and Delete (the part stays), Control+C, the *Type text…* box, *Break*
+  and Tab; on the emulated phone, tap and type. The pin-documentation and bus-mode tests include the part.
 
 ### B5. A board with the terminal, and two echo examples
 - `board6502Builder` gets a `terminal` device: CS0 ← A14, CS1B ← A15, RS0/RS1 ← A0/A1, R/W ← the CPU, its D into the multiplexer's

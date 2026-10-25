@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useReducer, type ReactNode } from
 import { ALU_OPS } from '../engine/components/combinational'
 import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, speakerPitch, type ConsoleState, type FramebufferState, type GamepadState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
+import { SCREEN_COLS, SCREEN_ROWS } from '../engine/acia'
+import type { TerminalState } from '../engine/components/terminal'
+import { inputOnTerminal, keyOnTerminal, typeOnTerminal } from '../app/terminal'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
 import { probeBits } from '../engine/components/io'
@@ -10,6 +13,10 @@ import { X, Z, toNum, type Layout, type PinDef, type V } from '../engine/types'
 import { useSettings } from '../app/settings'
 import { sim } from '../app/sim'
 import type { Comp } from '../model/circuit'
+
+/** The terminal's screen: the height of a line and the width of a character, in the symbol's own units. */
+const TERM_LINE_H = 11
+const TERM_CHAR_W = 6
 
 /** Rotation/flip of the enclosing component, so text can stay upright. */
 const Orient = createContext({ rot: 0, flip: false })
@@ -683,6 +690,63 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
     case 'matrix':
       content = <MatrixSym comp={comp} l={l} live={live} />
       break
+    case 'acia6551': {
+      const st: TerminalState | undefined = live ? sim.state(comp.id) : undefined
+      const lines = (st?.lines ?? ['']).slice(-SCREEN_ROWS)
+      const last = lines.length - 1
+      const x0 = 44
+      const w = l.w - 54
+      const h = SCREEN_ROWS * TERM_LINE_H + 8
+      content = (
+        <BoxSym l={l}>
+          <rect className="screen-body" x={x0} y={12} width={w} height={h} rx={3} />
+          {lines.map((line, i) =>
+            line.trim() ? (
+              <text key={i} x={x0 + 3} y={12 + 4 + (i + 0.5) * TERM_LINE_H} dominantBaseline="central" className="term-text">
+                {line}
+              </text>
+            ) : null,
+          )}
+          {live && st && <rect className="term-cursor" x={x0 + 3 + Math.min(st.col, SCREEN_COLS - 1) * TERM_CHAR_W} y={12 + 4 + last * TERM_LINE_H + 1} width={TERM_CHAR_W} height={TERM_LINE_H - 2} />}
+          {live && (
+            <>
+              <text x={x0 + w / 2} y={12 + h - 10} textAnchor="middle" className="term-hint">
+                click to type
+              </text>
+              {/* The keyboard: a text box that cannot be seen. Clicking the screen focuses it (see `focusTerminal`); what is typed
+                  into it goes to the chip's keyboard buffer. A phone's on-screen keyboard opens for it too. */}
+              <foreignObject x={x0} y={12} width={w} height={h} className="term-input-box">
+                <textarea
+                  className="term-input"
+                  data-terminal-input={comp.id}
+                  aria-label="Terminal keyboard: type here"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return
+                    if (keyOnTerminal(comp.id, e)) e.preventDefault()
+                  }}
+                  onInput={(e) => {
+                    const box = e.currentTarget
+                    const native = e.nativeEvent as InputEvent
+                    inputOnTerminal(comp.id, box.value, native.inputType ?? '')
+                    box.value = ''
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault()
+                    typeOnTerminal(comp.id, e.clipboardData.getData('text'))
+                  }}
+                />
+              </foreignObject>
+            </>
+          )}
+          <Title text="Terminal" x={x0 + w / 2} y={12 + h + (l.h - 12 - h) / 2} />
+        </BoxSym>
+      )
+      break
+    }
     case 'console': {
       const st: ConsoleState | undefined = live ? sim.state(comp.id) : undefined
       const lines = (st?.lines ?? ['']).slice(-CONSOLE_ROWS)

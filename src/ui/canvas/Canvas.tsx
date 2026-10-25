@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as RPointerEvent } from 'react'
 import { getDef } from '../../engine/registry'
 import { sim } from '../../app/sim'
+import { focusTerminal } from '../../app/terminal'
 import {
   addComp,
   checkpoint,
@@ -615,6 +616,7 @@ export function Canvas() {
         window.clearTimeout(o.timer)
         if (o.pressed) sim.setState(o.clickId, { pressed: false })
         if (o.moved) moveComps(o.ids, { x: 0, y: 0 }, true)
+        else if (!o.shift && e.type === 'pointerup' && useStore.getState().circuit.comps[o.clickId]?.type === 'acia6551') focusTerminal(o.clickId, e.pointerType !== 'mouse')
         else if (o.control) {
           if (!o.longPressed && e.type === 'pointerup') interact(o.clickId, e.altKey)
         } else if (o.shift && o.wasSelected) select(selection.filter((x) => x !== o.clickId))
