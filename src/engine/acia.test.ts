@@ -239,15 +239,17 @@ describe('the screen', () => {
     expect(st.lines[st.lines.length - 2]).toBe(String(SCREEN_LINES + 29))
   })
 
-  it('never changes a lines array that was handed out', () => {
+  it('changes its lines in place and counts the changes, so a copy taken for a history stays what it was', () => {
     const st = aciaInit()
     print(st, 'ab')
-    const before = st.lines
-    const copy = [...before]
+    const lines = st.lines
+    const rev = st.rev
+    const copy = structuredClone(st) // (what the simulator's history does with a part's state)
     print(st, 'cd\r\nef')
-    aciaPut(st, 8)
-    aciaPut(st, 12)
-    expect(before).toEqual(copy)
+    expect(st.lines).toBe(lines)
+    expect(st.rev).toBeGreaterThan(rev)
+    expect(copy.lines).toEqual(['ab'])
+    expect(screenText(copy)).toBe('ab')
   })
 
   it('shows a character written to the data register', () => {

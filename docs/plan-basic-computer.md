@@ -99,8 +99,8 @@ Ctrl+C send $03 (BASIC's *break*), which does not wait its turn: what was typed 
 ASCII 32–126 is dropped. With **Capitals** on (a setting, on by default, since this BASIC knows its keywords only in capitals) letters
 are sent as capitals. Click elsewhere or press Tab to stop typing.
 
-**State, for the history** (on the echo boards, which keep it): plain values plus the screen's `lines` array, which is never changed
-in place (a print replaces it), and the keyboard buffer as a string with a read position, so the generic copy stays cheap.
+**State, for the history** (on the echo boards, which keep it): plain values plus the screen's `lines` array (changed in place, 200 short
+strings at most, which the simulator's generic copy handles at each clock edge), and the keyboard buffer as a string with a read position.
 
 **Not modelled:** baud rate and timing, parity, framing and overrun errors, the handshake lines, the transmit interrupt, echo mode,
 the W65C51's stuck *transmitter empty* bit.
@@ -253,9 +253,10 @@ from `$F000`), and a test fails if the committed image is not what the source bu
   or pasted (it now jumps the queue and clears it); a memory size typed at `MEMORY SIZE?` above `$4000` put BASIC's strings on the
   terminal's registers (it is cut to `MEMTOP`, one more edit); Backspace over a wrapped line left the screen one character behind BASIC
   (the terminal goes back over its own wraps); the translator turned `<X/^O400>+1` into the high byte of `X+1` (it now refuses to add
-  anything to a high byte, or a name to either byte). The comma-field edit and these have tests that fail without them. Not changed: the
-  screen is still a new array for each character printed (1.2 µs a character on this machine with a full 200 lines, against about a
-  thousand 6502 cycles BASIC needs for one: well under 1% of the time).
+  anything to a high byte, or a name to either byte). The comma-field edit and these have tests that fail without them. Also changed on the
+  review's advice: printing a character updates the screen's lines in place instead of copying the array (0.04 µs a character with a
+  full 200 lines, down from 1.2 µs; my first reply measured 1.2 µs as negligible and left it, which was the wrong call when the better
+  version costs nothing, since the history copies arrays itself).
 - **For the later milestones:** the terminal part has to behave as `acia.ts` does (its tests are the specification, B4 wraps it), the board
   must give BASIC a command register of `$0B` at reset (`io.s` writes it: the receiver is on, its interrupt off), and Backspace reaches
   BASIC as `$08` (`io.s` turns it into the `_` that BASIC takes for delete).
