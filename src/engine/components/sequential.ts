@@ -301,10 +301,11 @@ export const memoryRam: ComponentDef[] = [
     name: 'RAM',
     category: 'memory',
     description:
-      'Read/write memory of 4 or 8 bit words (16 words, or up to 2048 with more address bits). The word addressed by ' +
+      'Read/write memory of 4 or 8 bit words (16 words, or up to 32768 with more address bits). The word addressed by ' +
       'A is always on Q. On a rising CLK ' +
       'with WE=1 the data inputs D are written to that address (not when the address or data is unknown). ' +
-      'Contents are cleared by Reset. While the simulation is paused you can edit the words in the inspector.',
+      'Contents are cleared by Reset. While the simulation is paused you can edit the words in the inspector. ' +
+      'With the step-back history on, a big RAM is copied at every clock edge: switch the history off (Tools) for a fast circuit.',
     params: [
       {
         key: 'dbits',
@@ -320,7 +321,7 @@ export const memoryRam: ComponentDef[] = [
         kind: 'select',
         default: 4,
         structural: true,
-        options: [4, 5, 6, 7, 8, 9, 10, 11].map((v) => ({ value: v, label: `${v} (${2 ** v} words)` })),
+        options: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((v) => ({ value: v, label: `${v} (${2 ** v} words)` })),
       },
     ],
     title: (p) => `RAM ${2 ** ramBits(p)}×${p.dbits}`,

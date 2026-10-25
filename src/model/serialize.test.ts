@@ -72,7 +72,7 @@ describe('serialization', () => {
         { id: 'r', type: 'rom', x: 0, y: 0, params: { abits: 99, dbits: 8, data: 'xyz' } },
         { id: 'g', type: 'and', x: 100, y: 0, params: { inputs: 500 } },
         { id: 'r2', type: 'rom', x: 200, y: 0, params: { data: 'FF 0A' } },
-        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(14001) } },
+        { id: 'r3', type: 'rom', x: 300, y: 0, params: { data: 'A'.repeat(49153) } },
       ],
       wires: [],
     })
@@ -80,6 +80,24 @@ describe('serialization', () => {
     expect(c.comps.g.params.inputs).toBe(2)
     expect(c.comps.r2.params.data).toBe('FF 0A')
     expect(c.comps.r3.params.data).toBe('0 1 2 3 4 5 6 7 8 9 A B C D E F')
+  })
+
+  it('keeps a 4 KB ROM as it was and takes a 16 KB ROM and a 32 KB RAM', () => {
+    const image = (bytes: number) => Array.from({ length: bytes }, (_, i) => (i & 255).toString(16).toUpperCase().padStart(2, '0')).join(' ')
+    const c = deserialize({
+      app: 'sklopko',
+      version: 4,
+      comps: [
+        { id: 'old', type: 'rom', x: 0, y: 0, params: { abits: 12, dbits: 8, data: image(4096) } },
+        { id: 'big', type: 'rom', x: 100, y: 0, params: { abits: 14, dbits: 8, data: image(16384) } },
+        { id: 'ram', type: 'ram', x: 200, y: 0, params: { abits: 15, dbits: 8 } },
+      ],
+      wires: [],
+    })
+    expect(c.comps.old.params).toMatchObject({ abits: 12, data: image(4096) })
+    expect(c.comps.big.params).toMatchObject({ abits: 14, data: image(16384) })
+    expect(String(c.comps.big.params.data)).toHaveLength(49151)
+    expect(c.comps.ram.params.abits).toBe(15)
   })
 
   it('keeps net label names and drops names that are not allowed', () => {

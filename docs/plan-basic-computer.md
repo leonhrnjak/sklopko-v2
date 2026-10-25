@@ -1,13 +1,13 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests) and B2 (fast clock, history off) are built; B3 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) are built; B4 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
 >
 > - [x] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
 > - [x] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
-> - [ ] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
+> - [x] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [ ] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
 > - [ ] B5 A board with the terminal, and two echo examples
 > - [ ] B6 The BASIC computer: the board boots to `OK` and runs your programs
@@ -316,6 +316,28 @@ and an older file reads as on), in files and share links. Undo and redo follow i
 - **Tests.** An old file with a 4 KB ROM loads the same; a saved 16 KB ROM survives save, load and a share link; a board with
   `memory: 'big'` runs a program that fills all 16 KB of RAM with a pattern and checks it, then reads the last ROM byte at both
   mirrors; the share link of a board with a full 16 KB ROM is measured and written here.
+
+**What B3 did, and where it differs from the spec.** As specified: the RAM's address bits go up to 15 (32 KB; its description now says to
+switch the history off for a fast circuit with a big RAM), the ROM's up to 14 (16 KB) with its hex text cap raised from 14,000 to 49,152
+characters (16,384 bytes of two digits and a space). Old files load unchanged: a test loads a 4 KB ROM, a 16 KB ROM and a 32 KB RAM, and
+still drops an oversized text (49,153 characters). `board6502Builder({ memory: 'big' })` builds the RAM of 16 KB at `$0000–$3FFF` and the ROM of
+16 KB seen at `$8000` and again at `$C000`; the address splitter is `A0–A13, A14, A15`, the ROM takes A0–A13 straight from it (no merger), and
+the small board is unchanged: a test compares its saved file with the default board's.
+
+- **Where the image begins.** The assembler's image starts at the program's first `.org`, so the big board's source must start at
+  `.org $C000` (the image is the ROM from `$C000`; `$8000` shows the same bytes) and the small board's at `$F000`. The builder now says so
+  (*The program starts at $F000, but this board's ROM image begins at $C000*) instead of building a board that runs the wrong bytes. The
+  default blink program is moved to `$C000` on the big board, and `romImage(bytes, start, size)` takes the size (the vector is at
+  `size − 4`). The ROM inspector already took the size from the part's address bits, so nothing changed there.
+- **The page list.** A 16 KB memory has 64 pages of 256 words. The drop-down keeps one flat list up to 32 pages (so the 4 KB ROM looks as
+  before) and splits a longer one into groups of 4 KB with their address ranges (`optgroup`).
+- **Tests.** A program fills all 16 KB of RAM with a pattern (`low EOR high EOR $A5`, page 0 last because it holds the pointer) and checks
+  the ROM at `$8000`/`$C000` and at `$BFFF`/`$FFFF`; the test then compares all 16,384 RAM bytes with the pattern from outside (about
+  300,000 cycles of the gate-level board, a few seconds with the history off). Hello and the keypad echo run on the big board with their
+  origin moved to `$C000`. e2e: a RAM of 16,384 words shows 64 pages in four groups, and so does a 14-bit ROM.
+- **Measured: the share link of the big board with the BASIC ROM in it is 18,183 characters** (the ROM's 16 KB as hex text, LZ-compressed
+  by the share link; BASIC is only 8 KB of the image, the rest is zeros, which compress to almost nothing). Browsers and chat programs
+  take links of that size; B6 can still offer *Copy as file* beside it.
 
 ### B4. The terminal part
 - The `acia6551` part around B1's `src/engine/acia.ts` (*The terminal part* above), with the screen and the keyboard buffer added: its symbol (the screen drawn inside, a cursor while it has the focus, "click to type" when it has not), pin descriptions

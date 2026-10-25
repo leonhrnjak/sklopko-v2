@@ -369,6 +369,23 @@ test('devices: a RAM of 2048 words and a ROM of 4096 are read a page of 256 at a
   await expect(page.getByRole('table', { name: 'Listing' }).locator('.row-listing')).toHaveCount(256)
 })
 
+test('devices: a RAM of 16384 words has 64 pages, listed in four groups of 4 KB', async ({ page }) => {
+  await freshEmpty(page)
+  const ram = await place(page, 'ram', 300, 200)
+  await page.getByLabel('Address bits').selectOption('14')
+  await expect(page.locator(`.comp[data-id="${ram}"]`)).toContainText('RAM 16384×4')
+  const pages = page.getByLabel('Page of the memory')
+  await expect(pages.locator('option')).toHaveCount(65) // "the one being read" and 64 pages
+  await expect(pages.locator('optgroup')).toHaveCount(4)
+  await pages.selectOption('63')
+  await expect(page.locator('.ram-word').first().locator('.addr')).toHaveText('3F00')
+  await expect(page.locator('.ram-word').last().locator('.addr')).toHaveText('3FFF')
+  // The ROM goes up to 14 bits too.
+  await place(page, 'rom', 300, 500)
+  await page.getByLabel('Address bits').selectOption('14')
+  await expect(pages.locator('option')).toHaveCount(65)
+})
+
 test('the SKASM reference opens from the toolbar and from a program ROM, and has the instructions, ports and examples', async ({ page }) => {
   await freshEmpty(page)
   await chooseTool(page, 'SKASM…')

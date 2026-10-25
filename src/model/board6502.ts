@@ -11,18 +11,30 @@ import { boundsRect, type Circuit } from './circuit'
  *     $0000–$3FFF  RAM (2 KB, repeated)          $4000–$7FFF  the LED register (write only)
  *     $8000–$FFFF  ROM (4 KB, repeated)          the CPU starts at the address stored in $FFFC–$FFFD
  *
+ * With `memory: 'big'` the same map holds a RAM of 16 KB (all of $0000–$3FFF) and a ROM of 16 KB (seen at $8000 and again at $C000).
+ *
  * The data bus is split in two (`D` out of the CPU, `DI` into it): a multiplexer picks what the CPU reads, RAM or ROM.
  */
 
 export const ROM_BASE = 0xf000
 export const ROM_SIZE = 0x1000
+/** The big ROM: 16 KB, its image is read from `$C000` (`$8000` shows the same bytes). */
+export const BIG_ROM_BASE = 0xc000
+export const BIG_ROM_SIZE = 0x4000
 
-/** The ROM's 4096 bytes as hex text, with `bytes` placed from `$F000` and the reset vector pointing at `start`. */
-export function romImage(bytes: number[], start = ROM_BASE): string {
-  const image = new Array<number>(ROM_SIZE).fill(0)
+/** The sizes of a board's memory: address bits and the ROM image's size and first address. */
+const memoryOf = (m: 'small' | 'big' | undefined) =>
+  m === 'big' ? { ramBits: 14, romBits: 14, romSize: BIG_ROM_SIZE, romBase: BIG_ROM_BASE } : { ramBits: 11, romBits: 12, romSize: ROM_SIZE, romBase: ROM_BASE }
+
+/**
+ * The ROM's bytes as hex text, with `bytes` placed from the first address of the image (`$F000` for the 4 KB ROM, `$C000` for the
+ * 16 KB one, which `size` says) and the reset vector pointing at `start`.
+ */
+export function romImage(bytes: number[], start = 0x10000 - ROM_SIZE, size = ROM_SIZE): string {
+  const image = new Array<number>(size).fill(0)
   bytes.forEach((b, i) => (image[i] = b))
-  image[0xffc - 0x000] = start & 255
-  image[0xffd - 0x000] = start >> 8
+  image[size - 4] = start & 255
+  image[size - 3] = start >> 8
   return image.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')
 }
 
@@ -57,6 +69,8 @@ export interface Board6502Options {
   rom?: string
   /** The program in 6502 assembly, assembled into the ROM (the blink program if neither this nor `rom` is given). */
   source?: string
+  /** `'small'` (the default): RAM 2 KB, ROM 4 KB. `'big'`: RAM 16 KB at `$0000`, ROM 16 KB at `$8000`, as on Ben Eater's computer. */
+  memory?: 'small' | 'big'
   /** The devices on the board; only the LEDs if not given. */
   devices?: Device6502[]
   /** The chip: the NMOS 6502 (the default) or the WDC 65C02. The program is assembled for it. */
@@ -70,10 +84,14 @@ export interface Board6502Options {
 /** The ROM's parameters for a program: its source, and the bytes that assembles to. */
 function programParams(o: Board6502Options): Params {
   if (o.rom) return { data: o.rom }
-  const source = o.source ?? BLINK_SOURCE
+  // (The blink program begins at $F000; in the 16 KB ROM the image begins at $C000.)
+  const source = o.source ?? (o.memory === 'big' ? BLINK_SOURCE.replace('.org $F000', '.org $C000') : BLINK_SOURCE)
   const cmos = o.chip === 'cmos'
-  const r = assemble6502(source, ROM_SIZE, cmos)
+  const { romSize, romBase } = memoryOf(o.memory)
+  const r = assemble6502(source, romSize, cmos)
   if (r.errors.length) throw new Error(`The program does not assemble: line ${r.errors[0].line}: ${r.errors[0].message}`)
+  // The image is the ROM from its first address on, so a program must begin there (the first .org).
+  if (r.base !== romBase) throw new Error(`The program starts at $${r.base.toString(16).toUpperCase()}, but this board's ROM image begins at $${romBase.toString(16).toUpperCase()}.`)
   return { isa: cmos ? '65c02' : '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
 }
 
@@ -88,6 +106,8 @@ export function board6502Builder(o: Board6502Options = {}) {
     cols[col] = y + boundsRect(b.c.comps[id]).h + gap + (opts.label ? 20 : 0)
     return (keys[key] = id)
   }
+  const mem = memoryOf(o.memory)
+  const big = o.memory === 'big'
   const has = new Set(o.devices ?? ['leds'])
   const simple = has.size === 1 && has.has('leds') // the first board: the LED register answers to the whole block
   const links: { from: string; to: string; name?: string }[] = []
@@ -119,22 +139,27 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(`${ntimer}.Y`, `${cpu}.NMIB`)
   }
 
-  // Address decoding: the address bus is cut into the low 11 bits (inside a RAM) and A11–A15, one wire each.
-  const split = part(DECODE, 'split', 'splitter', { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
+  // Address decoding: the address bus is cut into the low bits (inside the RAM and the ROM) and the top wires, one each: A14 and
+  // A15 say which chip is meant. The small board also splits A11–A13 off, for the ROM's smaller size.
+  const split = part(DECODE, 'split', 'splitter', big
+    ? { params: { bits: 16, split: '14,1,1' }, label: 'address: A0–A13, A14, A15' }
+    : { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
   wire(`${cpu}.A`, `${split}.A`)
+  const a14 = `${split}.${big ? 'Y1' : 'Y4'}`
+  const a15 = `${split}.${big ? 'Y2' : 'Y5'}`
   const nrw = part(DECODE, 'nrw', 'not', { label: 'writing' })
   wire(`${cpu}.RWB`, `${nrw}.A`)
   const ramSel = part(DECODE, 'ramSel', 'nor', { label: 'RAM: A15 = 0, A14 = 0' })
-  wire(`${split}.Y5`, `${ramSel}.A`)
-  wire(`${split}.Y4`, `${ramSel}.B`)
+  wire(a15, `${ramSel}.A`)
+  wire(a14, `${ramSel}.B`)
   const ramWe = part(DECODE, 'ramWe', 'and', { label: 'write RAM' })
   wire(`${ramSel}.Y`, `${ramWe}.A`)
   wire(`${nrw}.Y`, `${ramWe}.B`)
   const nA15 = part(DECODE, 'nA15', 'not', { label: 'A15 = 0' })
-  wire(`${split}.Y5`, `${nA15}.A`)
+  wire(a15, `${nA15}.A`)
   const ledWe = part(DECODE, 'ledWe', 'and', { params: { inputs: 3 }, label: simple ? 'LEDs: A15 = 0, A14 = 1, writing' : 'devices: A15 = 0, A14 = 1, writing' })
   wire(`${nA15}.Y`, `${ledWe}.A`)
-  wire(`${split}.Y4`, `${ledWe}.B`)
+  wire(a14, `${ledWe}.B`)
   wire(`${nrw}.Y`, `${ledWe}.C`)
   // With several devices the low three address bits say which register is meant: a decoder turns them into one strobe each.
   let lowSplit = ''
@@ -151,12 +176,18 @@ export function board6502Builder(o: Board6502Options = {}) {
   }
 
   // Memory.
-  const rom = part(MEMORY, 'rom', 'rom', { params: { bus: true, abits: 12, dbits: 8, ...programParams(o) }, label: 'ROM $F000–$FFFF' })
-  const romAddr = part(MEMORY, 'romAddr', 'merger', { params: { bits: 12, split: '11,1' }, label: 'A0–A11' })
-  wire(`${split}.Y0`, `${romAddr}.A0`)
-  wire(`${split}.Y1`, `${romAddr}.A1`)
-  wire(`${romAddr}.Y`, `${rom}.A`)
-  const ram = part(MEMORY, 'ram', 'ram', { params: { bus: true, dbits: 8, abits: 11 }, label: 'RAM $0000–$07FF' })
+  const rom = part(MEMORY, 'rom', 'rom', {
+    params: { bus: true, abits: mem.romBits, dbits: 8, ...programParams(o) },
+    label: big ? 'ROM $8000–$FFFF (16 KB, seen at $8000 and $C000)' : 'ROM $F000–$FFFF',
+  })
+  if (big) wire(`${split}.Y0`, `${rom}.A`) // A0–A13 straight in: A14 is not looked at, so the ROM shows twice
+  else {
+    const romAddr = part(MEMORY, 'romAddr', 'merger', { params: { bits: 12, split: '11,1' }, label: 'A0–A11' })
+    wire(`${split}.Y0`, `${romAddr}.A0`)
+    wire(`${split}.Y1`, `${romAddr}.A1`)
+    wire(`${romAddr}.Y`, `${rom}.A`)
+  }
+  const ram = part(MEMORY, 'ram', 'ram', { params: { bus: true, dbits: 8, abits: mem.ramBits }, label: big ? 'RAM $0000–$3FFF (16 KB)' : 'RAM $0000–$07FF' })
   wire(`${split}.Y0`, `${ram}.A`)
   wire(`${cpu}.D`, `${ram}.D`)
   wire(`${ramWe}.Y`, `${ram}.WE`)
@@ -169,11 +200,11 @@ export function board6502Builder(o: Board6502Options = {}) {
   if (readable) {
     // Four inputs take a two-bit select, A15 and A14 put together.
     const sel = part(MEMORY, 'sel', 'merger', { params: { bits: 2, split: '1,1' }, label: 'A15, A14' })
-    wire(`${split}.Y5`, `${sel}.A0`)
-    wire(`${split}.Y4`, `${sel}.A1`)
+    wire(a15, `${sel}.A0`)
+    wire(a14, `${sel}.A1`)
     wire(`${sel}.Y`, `${mux}.S`)
     wire(`${rom}.D`, `${mux}.I3`) // A15 = 1 is the ROM, whatever A14 says
-  } else wire(`${split}.Y5`, `${mux}.S0`)
+  } else wire(a15, `${mux}.S0`)
   wire(`${mux}.Y`, `${cpu}.DI`)
 
   // Devices. Each has a register at an address of the block $4000–$7FFF: a write is a strobe from the decoder on the rising clock edge.

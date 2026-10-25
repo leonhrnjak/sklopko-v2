@@ -39,10 +39,20 @@ function usePage(total: number, current: number) {
   return { pages, page, start: page * PAGE, end: Math.min(total, (page + 1) * PAGE), follow: picked === null, pick: setPicked }
 }
 
+/** Pages in a group of the drop-down: 4 KB of bytes. A list longer than two groups is split. */
+const GROUP_PAGES = 16
+
+/** The page numbers of a drop-down, in groups of `GROUP_PAGES` when there are many (one group when few). */
+function pageGroups(pages: number): { first: number; count: number }[] {
+  if (pages <= 2 * GROUP_PAGES) return [{ first: 0, count: pages }]
+  return Array.from({ length: Math.ceil(pages / GROUP_PAGES) }, (_, g) => ({ first: g * GROUP_PAGES, count: Math.min(GROUP_PAGES, pages - g * GROUP_PAGES) }))
+}
+
 /** A drop-down of the pages of a memory with more than 256 words; nothing for a smaller one. */
 function Pager({ paging, total }: { paging: ReturnType<typeof usePage>; total: number }) {
   if (paging.pages <= 1) return null
   const digits = Math.max(1, (total - 1).toString(16).length)
+  const groups = pageGroups(paging.pages)
   return (
     <label className="field">
       <span>Page</span>
@@ -52,11 +62,22 @@ function Pager({ paging, total }: { paging: ReturnType<typeof usePage>; total: n
         onChange={(e) => paging.pick(e.target.value === 'follow' ? null : Number(e.target.value))}
       >
         <option value="follow">The one being read</option>
-        {Array.from({ length: paging.pages }, (_, k) => (
-          <option key={k} value={k}>
-            {hexOf(k * PAGE, digits)}–{hexOf(Math.min(total, (k + 1) * PAGE) - 1, digits)}
-          </option>
-        ))}
+        {groups.map((g) => {
+          const options = Array.from({ length: g.count }, (_, i) => {
+            const k = g.first + i
+            return (
+              <option key={k} value={k}>
+                {hexOf(k * PAGE, digits)}–{hexOf(Math.min(total, (k + 1) * PAGE) - 1, digits)}
+              </option>
+            )
+          })
+          // A memory of many pages is listed in groups of 4 KB.
+          return groups.length === 1 ? options : (
+            <optgroup key={g.first} label={`${hexOf(g.first * PAGE, digits)}–${hexOf(Math.min(total, (g.first + g.count) * PAGE) - 1, digits)}`}>
+              {options}
+            </optgroup>
+          )
+        })}
       </select>
     </label>
   )
