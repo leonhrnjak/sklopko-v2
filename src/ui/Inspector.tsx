@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from 'react'
 import {
   deleteSelection,
   select,
+  duplicateSelection,
   flipSelection,
   groupProbes,
   resetWireRoute,
@@ -332,6 +333,9 @@ function CompInspector({ comp }: { comp: Comp }) {
             </button>
           </>
         )}
+        <button onClick={duplicateSelection} title="Duplicate (⌘D)">
+          Duplicate
+        </button>
         <button className="danger" onClick={deleteAndClose} title="Delete (Del)">
           Delete
         </button>
@@ -486,8 +490,16 @@ export function Inspector() {
           </button>
         </div>
         <div className="row">
-          <button onClick={rotateSelection}>⟳ Rotate</button>
-          <button className="danger" onClick={deleteAndClose}>
+          <button onClick={rotateSelection} title="Rotate (R)">
+            ⟳ Rotate
+          </button>
+          <button onClick={flipSelection} title="Flip (F)">
+            ⇋ Flip
+          </button>
+          <button onClick={duplicateSelection} title="Duplicate (⌘D)">
+            Duplicate
+          </button>
+          <button className="danger" onClick={deleteAndClose} title="Delete (Del)">
             Delete
           </button>
         </div>

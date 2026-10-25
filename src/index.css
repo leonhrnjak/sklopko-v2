@@ -44,6 +44,9 @@
   :root {
     --accent: #3fa98a;
     --accent-strong: #57c3a2;
+    /* The top bar stays dark teal: the bright accent is for small marks, not a whole strip of white text. */
+    --bar: #1f5e4c;
+    --bar-strong: #1a4e3f;
     --bg: #111413;
     --panel: #181c1b;
     --panel-border: #2a302e;
@@ -78,6 +81,20 @@
     --danger: #fb923c;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     color-scheme: dark;
+  }
+}
+
+/* Signal colours for people who confuse red and green (Settings → Signal colours): 1 is orange, 0 is blue, and buses move to purple. */
+:root[data-wires='blue-orange'] {
+  --wire-1: #d97706;
+  --wire-0: #1d4ed8;
+  --wire-bus: #9333ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-wires='blue-orange'] {
+    --wire-1: #fbbf24;
+    --wire-0: #5b8cff;
+    --wire-bus: #e879f9;
   }
 }
 
@@ -155,7 +172,7 @@ input:focus-visible {
   align-items: center;
   gap: 14px;
   padding: 8px 14px;
-  background: var(--accent);
+  background: var(--bar, var(--accent));
   color: var(--accent-ink);
   flex-wrap: wrap;
   position: relative;
@@ -179,6 +196,25 @@ input:focus-visible {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+/* Laptop widths: keep the whole toolbar on one row (the phone layout takes over below 1000px). */
+@media (min-width: 1001px) and (max-width: 1240px) {
+  .brand-sub {
+    display: none;
+  }
+}
+@media (min-width: 1001px) and (max-width: 1400px) {
+  .toolbar {
+    gap: 8px;
+  }
+  .toolbar .group {
+    gap: 4px;
+  }
+  .toolbar button,
+  .toolbar select {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 }
 .toolbar button,
 .toolbar select {
@@ -204,7 +240,7 @@ input:focus-visible {
 }
 .toolbar button.primary {
   background: #fff;
-  color: var(--accent-strong);
+  color: var(--bar-strong, var(--accent-strong));
   font-weight: 600;
   min-width: 86px;
 }
@@ -1252,6 +1288,9 @@ button.danger {
   line-height: 1.7;
   padding: 16px;
 }
+.empty-hint p {
+  margin: 0;
+}
 .toast {
   position: absolute;
   bottom: 16px;
@@ -1300,7 +1339,7 @@ button.danger {
   margin-top: 4px;
   padding: 10px;
   border-radius: 12px;
-  background: var(--accent-strong);
+  background: var(--bar-strong, var(--accent-strong));
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;

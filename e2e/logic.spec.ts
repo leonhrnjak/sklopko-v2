@@ -187,3 +187,10 @@ test('logic: compare a circuit with an expression, and with another circuit file
   await (await bad).setFiles({ name: 'nope.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') })
   await expect(panel.getByLabel('Errors')).toContainText('Could not read nope.json')
 })
+
+test('logic: analyze says when the circuit only has parts it cannot read (4-bit inputs, displays)', async ({ page }) => {
+  await page.goto('/adder', { waitUntil: 'networkidle' })
+  await chooseTool(page, 'Logic…')
+  const panel = page.getByRole('dialog', { name: 'Logic tools' })
+  await expect(panel).toContainText('which this tab does not read')
+})

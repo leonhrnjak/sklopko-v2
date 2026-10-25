@@ -33,6 +33,7 @@ import { fitView } from './canvas/viewport'
 function SettingsFields() {
   const gateStyle = useSettings((s) => s.gateStyle)
   const hops = useSettings((s) => s.hops)
+  const wireColors = useSettings((s) => s.wireColors)
   return (
     <>
       <label className="setting">
@@ -55,6 +56,17 @@ function SettingsFields() {
         >
           <option value="on">On</option>
           <option value="off">Off</option>
+        </select>
+      </label>
+      <label className="setting">
+        <span>Signal colours</span>
+        <select
+          value={wireColors}
+          onChange={(e) => updateSettings({ wireColors: e.target.value === 'blue-orange' ? 'blue-orange' : 'classic' })}
+          data-testid="setting-colors"
+        >
+          <option value="classic">Green 1 / red 0</option>
+          <option value="blue-orange">Orange 1 / blue 0</option>
         </select>
       </label>
     </>
@@ -279,20 +291,13 @@ export function Toolbar() {
 
   const toolItems = (
     <>
+      <MenuLabel>Build and check</MenuLabel>
       <MenuItem onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
         Logic
         <Dots />
       </MenuItem>
       <MenuItem onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
         State machines
-        <Dots />
-      </MenuItem>
-      <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
-        SKASM
-        <Dots />
-      </MenuItem>
-      <MenuItem onClick={() => open6502Reference()} title="The 6502 assembly language">
-        6502
         <Dots />
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
@@ -303,9 +308,19 @@ export function Toolbar() {
         Tests
         <Dots />
       </MenuItem>
+      <MenuLabel>Learn</MenuLabel>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges
       </MenuItem>
+      <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
+        SKASM
+        <Dots />
+      </MenuItem>
+      <MenuItem onClick={() => open6502Reference()} title="The 6502 assembly language">
+        6502
+        <Dots />
+      </MenuItem>
+      <MenuLabel>Show</MenuLabel>
       <MenuItem
         checked={historyOn}
         onClick={() => setHistoryOn(!historyOn)}
@@ -549,9 +564,11 @@ export function StatusBar() {
       </div>
       {empty && (
         <div className="empty-hint">
-          Drag parts from the left onto the canvas, then drag from pin to pin to wire them.
-          <br />
-          Or pick one of the <b>Examples</b> above.
+          <p>
+            Drag parts from the left onto the canvas, then drag from pin to pin to wire them.
+            <br />
+            Or pick one of the <b>Examples</b> above.
+          </p>
         </div>
       )}
       {toast && (
