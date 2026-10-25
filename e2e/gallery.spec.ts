@@ -20,7 +20,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await expect(gallery(page).locator('.gallery-card b').first()).not.toHaveText('Basic gates')
   await tabs.getByRole('button', { name: /^All/ }).click()
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(57)
-  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(11)
+  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(12)
   await tabs.getByRole('button', { name: /^Start here/ }).click()
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
   await expect(gallery(page).getByTestId('example-gates')).toContainText('AND, OR, NOT')
@@ -41,6 +41,20 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await expect(gallery(page)).toContainText('No example matches')
   await page.keyboard.press('Escape')
   await expect(gallery(page)).toHaveCount(0)
+})
+
+test('the BASIC computer has a category of its own, with the BASIC computer first and the terminal examples that lead up to it', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'Examples', exact: true }).click()
+  const tabs = gallery(page).getByRole('navigation', { name: 'Categories' })
+  await tabs.getByRole('button', { name: /^BASIC computer/ }).click()
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(3)
+  await expect(gallery(page).locator('.gallery-card b').first()).toContainText('BASIC computer')
+  await expect(gallery(page).getByTestId('example-6502-echo')).toBeVisible()
+  // The 6502 category no longer holds them.
+  await tabs.getByRole('button', { name: /^6502/ }).click()
+  await expect(gallery(page).getByTestId('example-6502-basic')).toHaveCount(0)
+  await expect(gallery(page).getByTestId('example-6502-hello')).toBeVisible()
 })
 
 test('opening a card opens the example and keeps the circuit you were working on', async ({ page }) => {
