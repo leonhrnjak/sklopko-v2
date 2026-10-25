@@ -68,14 +68,14 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 
 The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,
 custom ICs, small wins; milestone 15, challenges for classrooms, is dropped for now), in order, one PR per sub-milestone; tick each
-box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed: code splitting, prebuilt examples and thumbnails, rendering measured) is built; 13 (toolbar menus, collapsible help, e2e split, example gallery) is built; 14 (custom ICs: instances and expansion, make and place, edit, collapse, two examples) is built; 16 (small wins: keyboard control, a lookup table from an expression, a testbench, offline use) is built, so the roadmap is done apart from the dropped 15. Each sub-milestone's PR was stacked on the one before it (#36 onward, one branch each). All of these have merged. The control ROMs plan (`docs/plan-control-rom.md`: named signals and rows, edit by signal, the text form, ready-made ROMs) has C1 to C4 merged (v0.0.1-79 to -82); C5 (polish: reference page, example notes, e2e, README) is open.
+box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed: code splitting, prebuilt examples and thumbnails, rendering measured) is built; 13 (toolbar menus, collapsible help, e2e split, example gallery) is built; 14 (custom ICs: instances and expansion, make and place, edit, collapse, two examples) is built; 16 (small wins: keyboard control, a lookup table from an expression, a testbench, offline use) is built, so the roadmap is done apart from the dropped 15. Each sub-milestone's PR was stacked on the one before it (#36 onward, one branch each). All of these have merged. The control ROMs plan (`docs/plan-control-rom.md`: named signals and rows, edit by signal, the text form, ready-made ROMs) has C1 to C4 merged (v0.0.1-79 to -82); C5 (polish: reference page, example notes, e2e, README) is done too.
 
 **Milestones 0–10 are all done** (`docs/plan-next-features.md`). Milestone 10 (buses and tri-state) is recorded in
 `docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine
 editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
 
-**In progress: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
-listing (C1), editing a row by signal (C2), a text form (C3) and polish (C4); one PR per milestone, stacked (`c1-decoded-listing`, `c2-edit-row`, `c3-text-form`…), tick the boxes in the plan when each merges.
+**Done: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
+listing (C1), editing a row by signal (C2), a text form (C3), ready-made ROMs (C4), and the reference tab and notes (C5); one PR per milestone, stacked (`c1-decoded-listing`, `c2-edit-row`, `c3-text-form`…), tick the boxes in the plan when each merges.
 
 **Done: a real CPU part, the MOS 6502 and the 65C02** (`docs/plan-cpu6502.md`: PRs #66, #67, #69, #73, #75, #76, #77, #78 and #80; the shown version is `v0.1.0` from #79 on): a cycle-exact core
 (R1), bigger RAM and ROM (R2), the part and a first board (R3), 6502 assembly with a listing and a reference page (R4), devices and

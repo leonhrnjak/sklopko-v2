@@ -179,7 +179,7 @@ export function beginnerComputer(): Circuit {
     b,
     860,
     -260,
-    '2. DECODE. An instruction is just a number, and its first part is the opcode: which instruction it is. The Control ROM is a second lookup table. Its row for that opcode says which parts to switch on: load the ACC? write the RAM? subtract? jump? stop? Each of these control signals travels by name (LOAD_ACC, WRITE_RAM, SUBTRACT...): labels with the same name are one wire.',
+    '2. DECODE. An instruction is just a number, and its first part is the opcode: which instruction it is. The Control ROM is a second lookup table. Its row for that opcode says which parts to switch on: load the ACC? write the RAM? subtract? jump? stop? Each of these control signals travels by name (LOAD_ACC, WRITE_RAM, SUBTRACT...): labels with the same name are one wire. Click the Control ROM to read its rows by name and signal, and click a row to change what that instruction does (Tools → SKASM → Control signals explains each one).',
     38,
     'yellow',
   )

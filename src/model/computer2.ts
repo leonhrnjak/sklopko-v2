@@ -1785,7 +1785,7 @@ export const PROGRAMS: Program[] = [
     hz: 4,
     devices: ['number'],
     probes: true,
-    note: 'A complete 8-bit computer. The clock steps the program counter (PC) through the program in the ROM. The control ROMs decode each instruction, and the adders, logic unit, RAM and accumulator carry it out. OUT NUMBER sends the accumulator to the decimal display at the right. Click the Program ROM to read or edit its assembly (the SKASM… button explains the language). ◀ Back steps back one clock edge, and it pauses by itself at HALT. New to this? Try the Beginner example first.',
+    note: 'A complete 8-bit computer. The clock steps the program counter (PC) through the program in the ROM. The control ROMs decode each instruction (select one: its rows are listed by name and by the signals they switch on), and the adders, logic unit, RAM and accumulator carry it out. OUT NUMBER sends the accumulator to the decimal display at the right. Click the Program ROM to read or edit its assembly (the SKASM… button explains the language). ◀ Back steps back one clock edge, and it pauses by itself at HALT. New to this? Try the Beginner example first.',
   },
   {
     id: 'computer-lcd',
