@@ -204,8 +204,10 @@ The register model is written here, as `src/engine/acia.ts` (*The terminal part*
   binary, and our build against Ben Eater's `msbasic` (`PRINT` of the same expressions). If the KIM-1 build matches byte for byte, the
   translator is proven; any difference is listed in the PR.
 
-**If the port goes badly** (the translator cannot produce a ROM that reaches `OK` after a few days of work): stop and report, with
-the fallback below (*Risks*), before anything else in this spec is built.
+**Time limit: one week.** If by then the KIM-1 build from our translator is not byte-exact against the original binary, or our own
+build does not reach `OK` and pass the tests above, stop and report. The fallback is then Ben Eater's route (*Risks*): the same
+harness, tests and `io.s` ideas, only the image is built from `beneater/msbasic` with `ca65` instead of from our translation.
+Nothing else in the spec changes.
 
 ### B2. A fast clock, and history off for a circuit
 - **A per-circuit setting, *Step-back history*** (on by default). It is saved in the file (`history: false`, written only when off,
@@ -293,9 +295,13 @@ Checked on 2026-10-24 by reading the repositories' pages (not a legal opinion, a
 1. **The image is built from Microsoft's own `m6502.asm`**, with Microsoft's copyright line and MIT notice kept in `scripts/basic/LICENSE`,
    a `LICENSE-BASIC` next to the image, and the reference page. The banner keeps `COPYRIGHT 1978 MICROSOFT`. Our additions (the
    translator, the target, the I/O and start-up code) are ours, written from scratch.
-2. **mist64/msbasic and Ben Eater's fork are not used in the repo.** Their code is not copied, linked or committed. They, and the
-   historical KIM-1 binary, may be used on a developer's machine as an **oracle** to check our build against.
+2. **mist64/msbasic and Ben Eater's fork are not used in the repo** as long as plan A works. Their code is not copied, linked or
+   committed. They, and the historical KIM-1 binary, may be used on a developer's machine as an **oracle** to check our build against.
 3. **EhBASIC is not an option** (commercial use needs the author's permission).
+4. **Only if B1 falls back** (*Risks*): the image is built from `beneater/msbasic`. For its `eater` target the code is essentially
+   Microsoft's BASIC 1.1, which Microsoft has since released under MIT; the reconstruction and the target are BSD by their READMEs (no
+   `LICENSE` file). The repo then keeps Microsoft's MIT notice and the BSD notice (Michael Steil, Ben Eater) next to the image, the
+   README says which commit it was built from and that the BSD grant is a README statement, and the reference page credits both.
 - The PR that adds the image says in its description which source it was built from.
 
 ## Not doing
@@ -324,8 +330,10 @@ every circuit with history faster, and they stay a good later step, but the BASI
 ## Risks
 - **The port (B1)**: about 7,000 lines in a dialect nothing here reads, with its macro file missing. The instruction forms are
   recovered from use and the octal maths package is easy to get subtly wrong; the maths checks and the KIM-1 comparison are there for
-  that. Fallback, if B1 cannot reach `OK`: a small integer BASIC of our own in 6502 assembly (no licence question, much more work, not
-  Microsoft's). Not EhBASIC.
+  that. **Fallback**, if B1 is not done within its week: build the image from Ben Eater's fork of mist64's reconstruction
+  (`beneater/msbasic`, its `eater` target, which already talks to a 6551) with the `cc65` tools, on a developer's machine, and commit
+  the image with its recipe. About a day of work. Its licence is a little weaker (see *Licences*, point 4). Not a BASIC of our own
+  (far more work, and not Microsoft's), and not EhBASIC.
 - **Speed (B2)**: the target follows from the history-off benchmark (114,000–198,000 cycles/s). If the app falls short, BASIC still
   runs, only slower, and the gate after B2 brings the *Speed* setting forward.
 - **B2 touches every circuit only through a default**: history on unless a file says off; the existing history tests and the golden
