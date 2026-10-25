@@ -125,6 +125,60 @@ test('Back: steps the computer back one clock edge at a time, to the very start'
   await expect(current).toHaveText('STA 0')
 })
 
+test('Step-back history can be switched off: Back is disabled and says why, undo and a reload keep to it', async ({ page }) => {
+  await page.goto('/computer', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  const back = page.getByRole('button', { name: '◀ Back' })
+  const step = async (n: number) => {
+    for (let i = 0; i < n; i++) await page.getByRole('button', { name: 'Clock step' }).click()
+  }
+  await step(3)
+  await expect(back).toBeEnabled()
+
+  await toggleTool(page, 'history-toggle')
+  await expect(back).toBeDisabled()
+  await expect(back).toHaveAttribute('title', /switched off.*Step-back history/)
+  await page.getByRole('button', { name: 'Tools ▾' }).click()
+  await expect(page.getByTestId('history-toggle')).toHaveAttribute('aria-checked', 'false')
+  await page.keyboard.press('Escape')
+  await step(2) // the circuit still runs, there is just nothing to go back to
+  await expect(back).toBeDisabled()
+
+  // Switching it off was one step of undo and redo; the history begins again at the next edge.
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await step(3)
+  await expect(back).toBeEnabled()
+  await expect(back).toHaveAttribute('title', /previous clock edge/)
+  await page.getByRole('button', { name: 'Redo' }).click()
+  await expect(back).toBeDisabled()
+
+  // The setting is part of the circuit: a reload (after the autosave) brings it back off.
+  await page.waitForTimeout(900)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await step(3)
+  await expect(back).toBeDisabled()
+  await toggleTool(page, 'history-toggle')
+  await step(3)
+  await expect(back).toBeEnabled()
+})
+
+test('a CPU with a fast clock says how fast it really runs', async ({ page }) => {
+  await page.goto('/6502-keypad', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Clock \\(Φ2\\)')
+  await page.getByLabel('Frequency (Hz)').selectOption({ label: '1 MHz' })
+  await pickByLabel(page, 'CPU')
+  const rate = page.getByTestId('cpu-rate')
+  await expect(rate).toContainText('cycles a second', { timeout: 15000 })
+  await expect(rate).toContainText('of a 1 MHz 6502')
+  // (a number of the page’s own making: it must be less than the million that was asked for)
+  const text = (await rate.textContent())!
+  const cycles = Number(/Running at ([\d,]+) cycles/.exec(text)![1].replace(/,/g, ''))
+  expect(cycles).toBeGreaterThan(500)
+  expect(cycles).toBeLessThan(1_000_000)
+})
+
 test('Back while running pauses the simulation', async ({ page }) => {
   await page.goto('/computer', { waitUntil: 'networkidle' })
   await page.selectOption('select[aria-label="Simulation speed"]', '4')

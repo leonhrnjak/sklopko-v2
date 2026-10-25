@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONSOLE_COLS, CONSOLE_LINES, consolePut, speakerPitch, speakerTone, type ConsoleState } from './components/devices'
+import { TRACE_MAX_POINTS } from './components/io'
 import { getDef } from './registry'
 import { X, paramDefaults, type Params, type V } from './types'
 
@@ -146,6 +147,24 @@ describe('speaker', () => {
     expect(inst.state.edges).toEqual([2, 4, 6])
     def.rewind!(inst, 4)
     expect(inst.state.edges).toEqual([2, 4])
+  })
+})
+
+describe('probe', () => {
+  it('keeps no more than TRACE_MAX_POINTS transitions, the newest, however fast the signal changes', () => {
+    const def = getDef('probe')
+    const inst = { ins: [0] as V[], outs: [] as V[], state: def.init!({}) as { t: number[]; v: number[] }, params: {} }
+    for (let i = 0; i < TRACE_MAX_POINTS * 3; i++) {
+      inst.ins = [(i & 1) as V]
+      def.sample!(inst, i * 0.001) // (a million transitions a second)
+    }
+    expect(inst.state.t.length).toBeLessThanOrEqual(TRACE_MAX_POINTS)
+    expect(inst.state.t.length).toBeGreaterThan(TRACE_MAX_POINTS / 2)
+    expect(inst.state.t[inst.state.t.length - 1]).toBeCloseTo((TRACE_MAX_POINTS * 3 - 1) * 0.001, 6)
+    expect(inst.state.t.length).toBe(inst.state.v.length)
+    // the times are still in order and each value is the one that was recorded with it
+    expect(inst.state.t.every((t, i) => i === 0 || t > inst.state.t[i - 1])).toBe(true)
+    expect(inst.state.v[inst.state.v.length - 1]).toBe(((TRACE_MAX_POINTS * 3 - 1) & 1) as V)
   })
 })
 

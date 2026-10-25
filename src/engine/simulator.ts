@@ -154,6 +154,10 @@ export class Simulator {
   private hit: string | null = null
   /** The circuit has changed since the snapshot at `cursor`: time passed, or something was operated. */
   private moved = false
+  /** Whether the snapshots for stepping back are taken at all (see `setHistory`). */
+  private keepHistory = true
+  /** The last `advance` ran out of its time (`deadline`) with clock time left over, which was skipped: the circuit is too big for its clock. */
+  private late = false
 
   load(c: SimCircuit) {
     this.dropCapture()
@@ -474,10 +478,14 @@ export class Simulator {
    */
   advance(ms: number, deadline?: number) {
     let left = ms
+    this.late = false
     this.hit = null // a stop is reported for the call that tripped it (see takeBreak)
     const maxEdges = deadline === undefined ? 64 : 100000
     for (let edges = 0; edges < maxEdges && this.clocks.length; edges++) {
-      if (deadline !== undefined && (edges & 3) === 3 && performance.now() > deadline) break
+      if (deadline !== undefined && (edges & 3) === 3 && performance.now() > deadline) {
+        this.late = true
+        break
+      }
       // A breakpoint stops the simulation at the edge that tripped it: no further edges, and the rest of the time is dropped.
       if (this.hit !== null) return
       let step = Infinity
@@ -508,8 +516,34 @@ export class Simulator {
     if (left > 1e-3) this.moved = true
   }
 
+  /**
+   * Take the snapshots for stepping back, or not. Off, nothing is copied at a clock edge and there is nothing to step back to: this
+   * is what a circuit that runs too many edges to step back over (a computer running a program) needs. The setting stays when a
+   * circuit is loaded or reset. Turning it off forgets the history; turning it on begins a new one at the next clock edge.
+   */
+  setHistory(on: boolean) {
+    if (this.keepHistory === on) return
+    this.keepHistory = on
+    if (!on) {
+      this.history = []
+      this.cursor = -1
+      this.moved = false
+    }
+    this.dirty = true
+  }
+
+  get historyOn() {
+    return this.keepHistory
+  }
+
+  /** Did the last `advance` (or `frame`) have to skip clock time because its work took too long? Whoever runs the simulation may give it more time. */
+  get lagging() {
+    return this.late
+  }
+
   /** Remember the settled state, dropping any snapshots after the one we stepped back to. */
   private record() {
+    if (!this.keepHistory) return
     if (this.cursor < this.history.length - 1) this.history.length = this.cursor + 1
     this.history.push({
       time: this.time,

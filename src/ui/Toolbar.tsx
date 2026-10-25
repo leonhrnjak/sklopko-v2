@@ -13,6 +13,7 @@ import { openLogic } from '../app/logic'
 import { open6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
+import { setHistoryOn, useHistoryOn } from '../app/stepback'
 import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
 import {
@@ -216,6 +217,7 @@ export function Toolbar() {
   }, [menuOpen])
 
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
+  const historyOn = useHistoryOn()
   const step = () => {
     sim.tick()
     sim.publish()
@@ -243,7 +245,11 @@ export function Toolbar() {
       <button
         onClick={stepBack}
         disabled={!canBack}
-        title="Go back to the previous clock edge: every signal, memory and the time as they were then. Pauses the simulation."
+        title={
+          historyOn
+            ? 'Go back to the previous clock edge: every signal, memory and the time as they were then. Pauses the simulation.'
+            : 'Stepping back is switched off for this circuit, so that it runs faster. Switch it on in Tools → Step-back history.'
+        }
       >
         ◀ Back
       </button>
@@ -299,6 +305,14 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges
+      </MenuItem>
+      <MenuItem
+        checked={historyOn}
+        onClick={() => setHistoryOn(!historyOn)}
+        title="Keep a snapshot at every clock edge, so that ◀ Back can step back over the last 1,000. Switch it off for a circuit with a very fast clock, such as a computer running a program: it runs several times faster. Saved with the circuit."
+        testid="history-toggle"
+      >
+        Step-back history
       </MenuItem>
       <MenuItem
         checked={waveOpen}

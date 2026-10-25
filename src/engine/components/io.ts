@@ -26,6 +26,11 @@ const flagWidth = (p: Params) => {
   return Math.ceil((chars * 8 + 22) / 10) * 10
 }
 
+
+/** The rates a clock can be set to, in Hz. A real 6502 runs at 1 MHz. */
+export const CLOCK_RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1_000_000]
+const clockLabel = (hz: number) => (hz >= 1_000_000 ? `${hz / 1_000_000} MHz` : `${hz} Hz`)
+
 export const io: ComponentDef[] = [
   {
     type: 'switch',
@@ -67,14 +72,16 @@ export const io: ComponentDef[] = [
     type: 'clock',
     name: 'Clock',
     category: 'io',
-    description: 'Square wave source from 0.25 to 4096 Hz. It flips every half period in real time while the simulation runs; Clock step flips it by hand.',
+    description:
+      'Square wave source from 0.25 Hz to 1 MHz. It flips every half period in real time while the simulation runs; Clock step flips it by hand. ' +
+      'A clock faster than the page can simulate runs as fast as the page can (the Gate delays and the speed menu do not change that).',
     params: [
       {
         key: 'hz',
         label: 'Frequency (Hz)',
         kind: 'select',
         default: 1,
-        options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096].map((v) => ({ value: v, label: `${v} Hz` })),
+        options: CLOCK_RATES.map((v) => ({ value: v, label: clockLabel(v) })),
       },
     ],
     init: () => ({ phase: 0 as V, elapsed: 0 }),
@@ -167,6 +174,8 @@ export const io: ComponentDef[] = [
 
 /** How much history a probe keeps, in simulated ms. */
 export const TRACE_KEEP_MS = 60_000
+/** The most transitions a probe keeps, whatever the time: a fast clock makes millions, and drawing or keeping them all would slow the page down. */
+export const TRACE_MAX_POINTS = 20_000
 
 /** A probe's recorded signal: value `v[i]` holds from time `t[i]` (ms) until the next transition. */
 export interface Trace {
@@ -234,6 +243,11 @@ export const probe: ComponentDef = {
       while (k + 1 < st.t.length && st.t[k + 1] < cutoff) k++
       st.t.splice(0, k)
       st.v.splice(0, k)
+    }
+    if (st.t.length > TRACE_MAX_POINTS) {
+      const drop = TRACE_MAX_POINTS >> 2 // (a quarter at a time, so that the cost of forgetting is small for each point recorded)
+      st.t.splice(0, drop)
+      st.v.splice(0, drop)
     }
   },
   rewind(inst, time) {

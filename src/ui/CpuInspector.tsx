@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { describeRate, RateMeter } from '../app/cpurate'
 import { sim } from '../app/sim'
-import { setRunning } from '../app/store'
+import { setRunning, useStore } from '../app/store'
 import type { CpuState } from '../engine/components/cpu'
 import { PROG_INTERRUPT, PROG_RESET, PROG_WAIT, type Cpu6502 } from '../engine/cpu6502'
 import { BY_OPCODE_6502 } from '../engine/opcodes6502'
@@ -50,6 +51,17 @@ function useCpu(id: string): CpuState | undefined {
   return state
 }
 
+/** How fast the CPU really runs, while the simulation runs: cycles a second over the last second (null before there is a reading). */
+function useCycleRate(cycles: number | undefined): number | null {
+  const running = useStore((s) => s.running)
+  const meter = useRef(new RateMeter())
+  const [rate, setRate] = useState<number | null>(null)
+  useEffect(() => {
+    setRate(cycles === undefined ? null : meter.current.sample(performance.now(), cycles, running))
+  }, [cycles, running])
+  return rate
+}
+
 /** What the CPU is in the middle of, in words. */
 function doing(c: Cpu6502): string {
   if (c.prog === PROG_WAIT) return c.wait === 2 ? 'Stopped (STP): only a reset starts it again' : 'Waiting for an interrupt (WAI)'
@@ -72,6 +84,7 @@ function stepUntil(done: () => boolean, max = 400) {
 /** The registers and flags of a 6502 part, what it is doing, and ways to step it. */
 export function CpuSection({ comp }: { comp: Comp }) {
   const st = useCpu(comp.id)
+  const rate = useCycleRate(st?.cpu.cycles)
   if (!st) return null
   const c = st.cpu
   const live = () => sim.state(comp.id) as CpuState | undefined
@@ -123,6 +136,11 @@ export function CpuSection({ comp }: { comp: Comp }) {
       <small aria-live="polite" data-testid="cpu-doing">
         {status}
       </small>
+      {rate !== null && (
+        <small data-testid="cpu-rate" title="Measured over the last second. A circuit with a fast clock runs as fast as the page can simulate it, whatever the clock says.">
+          {describeRate(rate)}
+        </small>
+      )}
       <div className="row">
         <button onClick={stepCycle} title="Run the clock until the CPU has finished one cycle (pauses the simulation)">
           Step one cycle

@@ -34,22 +34,26 @@ interface SavedIC extends SavedBody {
 }
 export interface SavedCircuit extends SavedBody {
   app: 'sklopko'
-  /** 1: before custom ICs. 2: adds `ics`. 3: adds `tests`. */
+  /** 1: before custom ICs. 2: adds `ics`. 3: adds `tests`. 4: adds `history`. */
   version: number
   /** The custom ICs of the document (version 2). */
   ics?: SavedIC[]
   /** The testbench text (version 3). */
   tests?: string
+  /** Written, as `false`, only when the document runs without the history for stepping back (version 4). */
+  history?: false
 }
 
 /** The version `serialize` writes. */
-export const FORMAT_VERSION = 3
+export const FORMAT_VERSION = 4
 
 const MIGRATIONS: Record<number, (d: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: custom ICs came in; an older file has none.
   1: (d) => ({ ...d, version: 2, ics: Array.isArray(d.ics) ? d.ics : [] }),
   // 2 → 3: the testbench came in; an older file has none.
   2: (d) => ({ ...d, version: 3 }),
+  // 3 → 4: the history setting came in; an older file runs with it on.
+  3: (d) => ({ ...d, version: 4 }),
 }
 
 /** The longest testbench text a file may hold. */
@@ -100,6 +104,7 @@ export function serialize(circuit: Circuit): SavedCircuit {
     ...serializeBody(c),
     ...(ics.length ? { ics: ics.map((def) => ({ id: def.id, name: def.name, ...serializeBody(def.circuit) })) } : {}),
     ...(c.tests ? { tests: c.tests } : {}),
+    ...(c.history === false ? { history: false as const } : {}),
   }
 }
 
@@ -175,6 +180,7 @@ export function deserialize(data: unknown): Circuit {
   if (findCycle(ics)) throw new Error('A custom IC in this file contains itself.')
   if (Object.keys(ics).length) c.ics = ics
   if (typeof d.tests === 'string' && d.tests.trim()) c.tests = d.tests.slice(0, MAX_TESTS)
+  if (d.history === false) c.history = false
   for (const circuit of [c, ...Object.values(ics).map((def) => def.circuit)]) settleCircuit(circuit, ics)
   return c
 }

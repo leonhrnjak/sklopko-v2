@@ -59,6 +59,11 @@ export interface Circuit {
   /** The testbench of the document: steps written as text, run with *Run tests* (see `model/testbench.ts`). Only the top-level circuit has it. */
   tests?: string
   /**
+   * `false` when the document is run without the snapshots for stepping back (a computer running a program has too many clock edges to
+   * step back over, and the snapshots cost most of the time). Absent means on. Only the top-level circuit has it; see `Simulator.setHistory`.
+   */
+  history?: false
+  /**
    * Set while the body of a custom IC is being edited: this circuit is that body, `def` is the IC and `outer` the circuit it is
    * placed in (which has its own `up` when that is an IC body too). `ics` is the document's table, shared by every level. See
    * `model/ic.ts` (`enterIC`, `leaveIC`, `documentOf`).
