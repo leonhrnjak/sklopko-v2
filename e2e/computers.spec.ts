@@ -695,7 +695,7 @@ test('the BASIC reference: statements, functions and the programs to type in, fr
   await dialog.getByRole('tab', { name: 'Functions and operators' }).click()
   await expect(dialog.locator('[id="basic-SQR"]')).toContainText('1.41421356')
   await dialog.getByRole('tab', { name: 'Programs to type in' }).click()
-  await expect(dialog.locator('[data-program]')).toHaveCount(4)
+  await expect(dialog.locator('[data-program]')).toHaveCount(5)
   await expect(dialog.getByRole('button', { name: 'Type it in' })).toHaveCount(0) // no terminal in this circuit
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
@@ -775,4 +775,27 @@ test('the LCD: placed on its own it is off and blank; its inspector says what st
   await expect(page.locator(`.comp[data-id="${lcd}"]`)).toContainText('LCD 16×2 (display off)')
   await page.getByText('Custom characters (CGRAM)').click()
   await expect(page.getByLabel('Custom character 7')).toBeVisible()
+})
+
+test('the LCD example: the 6502 sets the display up and writes Hello, world! through the VIA', async ({ page }) => {
+  await page.goto('/6502-lcd', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'LCD 16×2 on port B')
+  await expect(page.getByLabel('Text on the LCD')).toContainText('Hello, world!', { timeout: 30000 })
+  const state = page.getByLabel('State of the LCD')
+  await expect(state).toContainText('8-bit, 2 lines')
+  await expect(state).toContainText('on, cursor on, blink off')
+  await expect(state.getByRole('row', { name: /^Ignored/ })).toContainText('nothing') // nothing was written while it was busy
+})
+
+test('the BASIC computer with the LCD: a program to type in POKEs two lines onto the display', async ({ page }) => {
+  await page.goto('/6502-basic-lcd', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  await expect(page.getByLabel('Screen text')).toContainText('OK', { timeout: 60000 })
+  await page.getByText('Programs to type in', { exact: true }).click()
+  await page.locator('[data-program="lcd"]').getByRole('button', { name: 'Type it in' }).click()
+  await expect(page.getByLabel('Screen text')).toContainText(/RUN\s+OK/, { timeout: 120000 })
+  await pickByLabel(page, 'LCD 16×2 on port B')
+  const text = page.getByLabel('Text on the LCD')
+  await expect(text).toContainText('HELLO FROM BASIC')
+  await expect(text).toContainText('ON A 6502')
 })

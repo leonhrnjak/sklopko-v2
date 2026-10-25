@@ -82,7 +82,7 @@ export function lcdExec(st: LcdState, rs: number, d: number, time: BusyTime) {
   }
   st.rev++
   if (rs) {
-    st.last = `data ${byte.toString(16).toUpperCase().padStart(2, '0')}`
+    st.last = `data ${byte.toString(16).toUpperCase().padStart(2, '0')}${byte >= 0x20 && byte < 0x7f ? ` (${String.fromCharCode(byte)})` : ''}`
     if (st.cg) st.cgram[st.ac & 0x3f] = byte
     else {
       st.ddram[st.ac & 0x7f] = byte

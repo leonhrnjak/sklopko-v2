@@ -12,6 +12,8 @@ export interface BasicProgram {
   lines: string[]
   /** What to type after it, to start it. */
   run: string
+  /** It needs a part of the board that only some BASIC computers have: it POKEs the LCD on the VIA. */
+  needs?: 'lcd'
 }
 
 export const BASIC_PROGRAMS: BasicProgram[] = [
@@ -50,6 +52,28 @@ export const BASIC_PROGRAMS: BasicProgram[] = [
     about: 'Tries every odd number against every divisor up to its square root, and prints each prime as it finds it; all 25 take about half a minute. (A FOR loop in this BASIC always runs its body once, which is why 2 is printed first.)',
     lines: ['10 PRINT 2;', '20 FOR N=3 TO 100 STEP 2', '30 FOR D=2 TO SQR(N)', '40 IF N/D=INT(N/D) THEN 60', '50 NEXT D', '55 PRINT N;', '60 NEXT N'],
     run: 'RUN',
+  },
+  {
+    id: 'lcd',
+    title: 'Hello on the LCD',
+    about: 'For the BASIC computer with the VIA and the LCD (not the plain one: there $6000 is the terminal). Port B ($6000 = 24576) is the LCD’s data pins, and PA5, PA6 and PA7 of port A ($6001) are RS, R/W and E. It sets the ports, sends the four set-up instructions, and writes two lines; nothing waits for the busy flag, because BASIC is slower than the LCD.',
+    lines: [
+      '10 REM LCD ON THE VIA: PB IS THE DATA BUS',
+      '20 POKE 24578,255:POKE 24579,224',
+      '30 FOR I=1 TO 4:READ C:GOSUB 100:NEXT I',
+      '40 DATA 56,14,6,1',
+      '50 T$="HELLO FROM BASIC":GOSUB 200',
+      '60 C=192:GOSUB 100',
+      '70 T$="ON A 6502":GOSUB 200',
+      '80 END',
+      '100 POKE 24576,C:POKE 24577,0:POKE 24577,128:POKE 24577,0',
+      '110 FOR D=1 TO 5:NEXT D:RETURN',
+      '200 FOR I=1 TO LEN(T$):C=ASC(MID$(T$,I,1))',
+      '210 POKE 24576,C:POKE 24577,32:POKE 24577,160:POKE 24577,32',
+      '220 NEXT I:RETURN',
+    ],
+    run: 'RUN',
+    needs: 'lcd',
   },
 ]
 

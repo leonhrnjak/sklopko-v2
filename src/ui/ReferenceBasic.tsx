@@ -134,6 +134,7 @@ export function ReferenceBasic() {
   const open = useReference((s) => s.open && s.language === 'basic')
   const tab = useReference((s) => s.tab as ReferenceBasicTab)
   const terminal = useStore((s) => Object.values(s.circuit.comps).find((c) => c.type === 'acia6551')?.id)
+  const hasLcd = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'hd44780'))
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeReference()
@@ -172,7 +173,7 @@ export function ReferenceBasic() {
                 {terminal ? 'Each program can be copied, or typed in on this circuit’s terminal as if from the keyboard (the last line starts it).' : 'Copy a program, open the BASIC computer example, click its terminal and paste.'}{' '}
                 Stop a program with Control+C.
               </p>
-              <BasicPrograms terminalId={terminal} />
+              <BasicPrograms terminalId={terminal} hasLcd={hasLcd} />
             </div>
           )}
         </div>
