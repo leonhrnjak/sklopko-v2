@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ReferenceTab = 'start' | 'format' | 'instructions' | 'ports' | 'examples'
+export type ReferenceTab = 'start' | 'format' | 'instructions' | 'ports' | 'signals' | 'examples'
 
 /** The sections of the 6502 reference. */
 export type Reference6502Tab = 'start' | 'instructions' | 'modes' | 'map'

@@ -11,7 +11,7 @@
 > - [x] C2 Edit a row by signal: toggles and lists instead of hex, v0.0.1-80
 > - [x] C3 The text form: `LDI: LOAD_ACC SRC=CONST`, and the computers' control ROMs generated from it, v0.0.1-81
 > - [x] C4 Ready-made control ROMs with the pins named after the signals, v0.0.1-82
-- [ ] C5 Polish: the reference page, the example notes, e2e, README
+- [x] C5 Polish: the reference page, the example notes, e2e, README
 
 ## Why
 The program ROM is easy to read and write because it has a language (SKASM) and a listing that shows each word as an
@@ -153,4 +153,19 @@ in one step.
 - **Not done:** the 8-bit computer still uses bus ports and a splitter after each control ROM, so its ROMs do not show signal names on
   the canvas; the splitter outputs and net labels name the signals. Changing the computer to single-pin ROMs would remove three splitters
   but change a large, routed layout, so it is left for a decision.
+
+### C5 (polish)
+- **SKASM reference → Control signals** (`ControlSignals` in `SkasmReference.tsx`): a table for each of the three control ROMs (signal, ROM pins, what it
+  does, and the names of a field's values), a table of **what each instruction switches on** with one column per ROM, and the Beginner computer's ROM with its
+  rows. The instruction table is read from the ROMs' own words (`presetWords` in `signal-presets.ts` assembles the preset texts, and `describeWord` writes a
+  row), so it cannot drift from the computers. The sentences are `SIGNAL_DOCS` in `signal-presets.ts`, by preset and signal; a unit test requires one for every
+  signal of every preset and none for a signal that does not exist.
+- **Notes and blurbs:** the Beginner example's DECODE note says to click the Control ROM, read its rows by name, and edit a row by its signals, and points at
+  the new tab; the 8-bit computer's note says its control ROMs are listed by name and signal; the gallery blurbs of both say so (within the 130-character limit).
+- **e2e:** the reference's tab (signals and the generated table, e.g. SBC = `LOAD_ACC SRC=ALU SAVE_FLAGS SUBTRACT CARRY_IN`) and a phone test: open the
+  Beginner example, pause, tap the Control ROM and *Edit*, see the listing within the width of the screen, tap a row and then a signal, and the row and its
+  word change. C1 to C4 already had four e2e tests (listing, row editor, text, ready-made ROM) and the README had its line.
+- **Phone check, found:** the listing (a name, the word and the signals wrap on their own lines) and the row editor (two columns of signals) fit an iPhone 13
+  without sideways scrolling. The *text* box scrolls sideways for a long row, as the program boxes do (`wrap="off"`); that was left, since a wrapped row
+  would look like two.
 

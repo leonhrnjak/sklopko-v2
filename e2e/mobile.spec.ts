@@ -279,3 +279,30 @@ test('the BASIC computer on a phone: tap the terminal and run a program', async 
   await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
   await expect(page.getByLabel('Screen text')).toContainText(/PRINT 6\*7\s+42\s+OK/, { timeout: 60000 })
 })
+
+test('a control ROM on a phone: the listing fits, and a row is edited by its signals with taps', async ({ page }) => {
+  await page.goto('/beginner', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).tap()
+  const rom = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^Control ROM$/ }) }).locator('> g').first()
+  await rom.tap()
+  await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
+  const listing = page.getByLabel('Listing')
+  await expect(listing).toBeVisible()
+  const row = (name: string) => listing.getByRole('row').filter({ has: page.locator('.text', { hasText: new RegExp(`^${name}$`) }) })
+  await expect(row('ADD')).toContainText('LOAD_ACC, ACC_SRC=ADDER, SAVE_CARRY')
+  // Nothing sticks out sideways: not the page, not the listing, not its rows.
+  const out = await page.evaluate(() => {
+    const width = window.innerWidth
+    const box = document.querySelector('[aria-label="Listing"]')!.getBoundingClientRect()
+    return { page: document.documentElement.scrollWidth - width, right: Math.round(box.right - width) }
+  })
+  expect(out.page).toBeLessThanOrEqual(0)
+  expect(out.right).toBeLessThanOrEqual(0)
+  // A tap on a row opens the editor under it; a tap on a signal changes the row and the hex word.
+  await row('ADD').tap()
+  const editor = page.getByRole('group', { name: 'Signals of row ADD' })
+  await expect(editor).toBeVisible()
+  await editor.getByLabel('SAVE_CARRY').tap()
+  await expect(row('ADD')).not.toContainText('SAVE_CARRY')
+  await expect(row('ADD')).toContainText('LOAD_ACC, ACC_SRC=ADDER')
+})

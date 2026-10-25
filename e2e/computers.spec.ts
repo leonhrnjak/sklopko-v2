@@ -736,3 +736,19 @@ test('the BASIC computer: the board’s Reset button restarts it on a blank scre
   await page.getByRole('button', { name: 'Reset', exact: true }).click()
   await expect(screen).toHaveText(/^\s*15615 BYTES FREE\s+SKLOPKO BASIC V1.1\s+COPYRIGHT 1978 MICROSOFT\s+OK\s*$/, { timeout: 60000 })
 })
+
+test('the SKASM reference has a Control signals tab: each signal of the ROMs, and what each instruction switches on', async ({ page }) => {
+  await freshEmpty(page)
+  await chooseTool(page, 'SKASM…')
+  const dialog = page.getByRole('dialog', { name: 'SKASM language reference' })
+  await dialog.getByRole('tab', { name: 'Control signals' }).click()
+  await expect(dialog).toContainText('Control ROM 1 of the SKASM computers (16 bits)')
+  await expect(dialog.getByRole('row', { name: /^SRC D1–D3/ })).toContainText('TABLE the lookup ROM')
+  await expect(dialog.getByRole('row', { name: /^CALL D0/ })).toContainText('return stack')
+  // Generated from the ROMs' own words: LDI loads the accumulator from the constant, SBC subtracts with the carry.
+  const by = dialog.getByTestId('signals-by-instruction')
+  await expect(by.getByRole('row', { name: /^LDI/ })).toContainText('LOAD_ACC SRC=CONST')
+  await expect(by.getByRole('row', { name: /^SBC/ })).toContainText('LOAD_ACC SRC=ALU SAVE_FLAGS SUBTRACT CARRY_IN')
+  await expect(by.getByRole('row', { name: /^CALL/ })).toContainText('CALL')
+  await expect(dialog).toContainText('The Beginner computer’s control ROM (8 bits, 16 rows)')
+})
