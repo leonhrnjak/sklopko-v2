@@ -268,7 +268,7 @@ test('the terminal takes typing on a phone: tap it, then the keyboard goes to it
 })
 
 test('the BASIC computer on a phone: tap the terminal and run a program', async ({ page }) => {
-  await page.goto('/basic-computer', { waitUntil: 'networkidle' })
+  await page.goto('/6502-basic', { waitUntil: 'networkidle' })
   const term = page.locator('.comp', { has: page.locator('.screen-body') })
   const id = (await term.getAttribute('data-id'))!
   const keyboard = page.locator(`textarea[data-terminal-input="${id}"]`)

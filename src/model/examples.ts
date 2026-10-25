@@ -1121,7 +1121,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   '6502-hello': hello6502,
   '6502-keypad': keypad6502,
   '6502-ball': ball6502,
-  'basic-computer': basic6502,
+  '6502-basic': basic6502,
   '6502-echo': echo6502,
   '6502-echo-irq': echoIrq6502,
   '65c02': sweep65c02,

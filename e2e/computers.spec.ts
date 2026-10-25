@@ -670,7 +670,7 @@ for (const [path, what] of [
 }
 
 test('the BASIC computer: it starts by itself, and a program typed on its terminal runs', async ({ page }) => {
-  await page.goto('/basic-computer', { waitUntil: 'networkidle' })
+  await page.goto('/6502-basic', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
   const screen = page.getByLabel('Screen text')
   await expect(screen).toContainText('SKLOPKO BASIC', { timeout: 60000 })

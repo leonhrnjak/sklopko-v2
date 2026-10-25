@@ -425,7 +425,7 @@ with the sources `ECHO_SOURCE` and `ECHO_IRQ_SOURCE` in `programs6502.ts`, using
   minute keeps its memory use flat (the trace, the history and the screen are bounded); e2e: open the example, type
   `10 PRINT "HELLO"` and `RUN`, see `HELLO`, on the desktop and on the emulated phone.
 
-**What B6 did, and where it differs from the spec.** The example `basic-computer` (*6502* group, short link `/basic-computer`) is the board of B5 with the
+**What B6 did, and where it differs from the spec.** The example `6502-basic` (*6502* group, short link `/6502-basic`) is the board of B5 with the
 16 KB BASIC image (`basic-rom.ts`) in its ROM, the clock at 1 MHz and `history: false` saved with the circuit. The decoder's, memory's and devices' notes
 say what the spec asked (the memory map, where BASIC and your program live, *click the screen and type; try `PRINT 2+2`*, and the speed: about a
 sixth of a real 6502). It starts by itself and *Reset* is a cold start (the simulator's reset clears the RAM and the screen).
