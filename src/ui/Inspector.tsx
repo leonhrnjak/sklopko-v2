@@ -33,6 +33,7 @@ const MEMORY_TYPES = new Set(['rom', 'ram', 'lut', 'console', 'cpu6502'])
 
 // The editors for ROM, RAM, LUT and console contents load when such a part is first selected.
 const MemorySection = lazy(() => import('./MemoryInspector').then((m) => ({ default: m.MemorySection })))
+const TerminalSection = lazy(() => import('./TerminalInspector').then((m) => ({ default: m.TerminalSection })))
 
 function deleteAndClose() {
   deleteSelection()
@@ -318,6 +319,11 @@ function CompInspector({ comp }: { comp: Comp }) {
       {MEMORY_TYPES.has(comp.type) && (
         <Suspense fallback={null}>
           <MemorySection comp={comp} />
+        </Suspense>
+      )}
+      {comp.type === 'acia6551' && (
+        <Suspense fallback={null}>
+          <TerminalSection comp={comp} />
         </Suspense>
       )}
       {isLabel(comp.type) && <LabelLinks comp={comp} />}

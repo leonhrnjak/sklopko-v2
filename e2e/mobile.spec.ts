@@ -248,3 +248,21 @@ test('the parts list folds down to its handle, folds away while a part waits to 
   await expect(page.locator('.placing-hint')).toHaveCount(0)
   await expect(page.locator('.palette .search')).toBeVisible()
 })
+
+test('the terminal takes typing on a phone: tap it, then the keyboard goes to it', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.getByRole('menuitem', { name: 'New', exact: true }).tap()
+  await page.locator('.palette-item[data-type="acia6551"]').tap()
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
+  const term = page.locator('.comp').first()
+  await expect(term).toHaveCount(1)
+  const id = (await term.getAttribute('data-id'))!
+  const keyboard = page.locator(`textarea[data-terminal-input="${id}"]`)
+  await term.locator('.screen-body').tap()
+  await expect(keyboard).toBeFocused()
+  await page.keyboard.type('ok')
+  await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
+  await expect(page.getByText('2 characters waiting on the keyboard.', { exact: true })).toBeVisible()
+})
