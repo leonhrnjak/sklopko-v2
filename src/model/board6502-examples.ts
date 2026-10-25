@@ -1,6 +1,6 @@
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -71,3 +71,33 @@ export const timer65c02 = (): Circuit =>
     },
   )
 
+
+const TERMINAL_MAP =
+  'This is Ben Eater\u2019s memory map. The terminal is a 6551 serial chip: its chip selects are A14 (CS0, must be 1) and A15 (CS1, must be 0), so it answers in $4000\u2013$7FFF, and A0 and A1 pick one of its four registers, so $5000\u2013$5003 is the data, status, command and control registers (and they repeat). RAM is $0000\u2013$3FFF and the ROM is $8000\u2013$FFFF. The chip works at the rising edge of the clock, like every device here.'
+
+const TERMINAL_DEVICE =
+  'The terminal is a screen and a keyboard on the other end of a serial chip. Click its screen and type; select it to see its registers. Until the program sets bit 0 of the command register (the receiver), what you type waits in the keyboard buffer. Bit 3 of the status register says a key has arrived; reading the data register takes it, and writing the data register prints a character.'
+
+/** Echo: the program polls the terminal's status register. */
+export const echo6502 = (): Circuit =>
+  boardExample(
+    { hz: 256, memory: 'big', source: ECHO_SOURCE, devices: ['terminal'] },
+    {
+      intro:
+        'A 6502 with a terminal. The program switches the serial chip on, prints HELLO, and then waits: it reads the status register over and over until bit 3 (a key has arrived), reads the key from the data register and writes it straight back, so it appears on the screen. Click the terminal\u2019s screen and type. Pause and use Clock step to watch the loop poll the status register; select the ROM to read the program.',
+      decode: TERMINAL_MAP,
+      devices: TERMINAL_DEVICE,
+    },
+  )
+
+/** Echo by interrupt: the terminal pulls the CPU's IRQ line. */
+export const echoIrq6502 = (): Circuit =>
+  boardExample(
+    { hz: 256, memory: 'big', source: ECHO_IRQ_SOURCE, devices: ['terminal'], interrupt: true },
+    {
+      intro:
+        'The same echo, without polling. The main program does something else: it counts in the first two bytes of the RAM, over and over. The terminal\u2019s IRQ pin is wired to the CPU\u2019s: when a key arrives the chip pulls it low, the CPU finishes its instruction, pushes where it was, and runs the interrupt routine whose address is stored at $FFFE. The routine reads the status register (which lets IRQ go high again), reads the key, writes it back, and returns with RTI. Type, and watch the count in the RAM keep going.',
+      decode: TERMINAL_MAP,
+      devices: TERMINAL_DEVICE,
+    },
+  )
