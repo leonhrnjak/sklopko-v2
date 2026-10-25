@@ -1,11 +1,11 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made; nothing built.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 is built (the BASIC ROM and its tests); B2 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
 >
-> - [ ] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
+> - [x] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
 > - [ ] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
 > - [ ] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [ ] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
@@ -88,18 +88,19 @@ the next character moves into the receive register. So a character is only deliv
 is lost, there is no overrun, and a pasted program goes in at the speed BASIC takes it.
 
 **The screen** is 40 columns by 24 rows (BASIC is told its width is 40), with 200 lines kept for scrolling back in the inspector.
-Codes: 32–126 print; CR (13) goes to column 0; LF (10) to the next line; BS (8) moves back one column and blanks it; FF (12) clears;
+Codes: 32–126 print; CR (13) goes to column 0; LF (10) to the next line; BS (8) moves back one column and blanks it (at the start of a line that the terminal wrapped it goes back onto the line above, so that the
+screen follows what BASIC deletes); FF (12) clears;
 BEL (7) flashes the screen frame; anything else is ignored. A line wraps when a character arrives at a full line (not when it fills),
 so a program that prints exactly 40 characters and then CR LF does not get a blank line.
 
 **The keyboard.** Click the screen to type: a hidden `<textarea>` over the part takes the focus, which also opens a phone's on-screen
 keyboard. Text is read from `input` events (phone keyboards send no usable `keydown`), Enter sends CR, Backspace sends BS ($08), Esc and
-Ctrl+C send $03 (BASIC's *break*). Pasting goes into the keyboard buffer: line breaks become CR, tabs a space, anything outside
+Ctrl+C send $03 (BASIC's *break*), which does not wait its turn: what was typed and not yet read is thrown away and the break is the next character. Pasting goes into the keyboard buffer: line breaks become CR, tabs a space, anything outside
 ASCII 32–126 is dropped. With **Capitals** on (a setting, on by default, since this BASIC knows its keywords only in capitals) letters
 are sent as capitals. Click elsewhere or press Tab to stop typing.
 
-**State, for the history** (on the echo boards, which keep it): plain values plus the screen's `lines` array, which is never changed
-in place (a print replaces it), and the keyboard buffer as a string with a read position, so the generic copy stays cheap.
+**State, for the history** (on the echo boards, which keep it): plain values plus the screen's `lines` array (changed in place, 200 short
+strings at most, which the simulator's generic copy handles at each clock edge), and the keyboard buffer as a string with a read position.
 
 **Not modelled:** baud rate and timing, parity, framing and overrun errors, the handshake lines, the transmit interrupt, echo mode,
 the W65C51's stuck *transmitter empty* bit.
@@ -182,8 +183,9 @@ expansion, the conditionals, the number bases and the constant arithmetic itself
 - *Character in* (waits): a character kept by *break check* comes first; otherwise wait for *receiver full*, read it, strip bit 7.
   Backspace ($08) or Delete ($7F) echoes BS and returns `_` (BASIC's "delete a character"); anything else is echoed and returned.
 - *Get* (does not wait): the same without waiting and without echo; 0 if nothing is there.
-- *Break check*: if a character is waiting, read it; Ctrl-C ($03) means break; any other character is kept (one byte in zero page)
-  for *character in*, so typing ahead while a program runs is not lost.
+- *Break check*: if a character has arrived, read it; Ctrl-C ($03) means break (and the type-ahead is thrown away); any other character
+  goes into a queue of 16 in page 2 for *character in* and *get*, so typing ahead while a program runs is not lost, and a Control-C cannot
+  wait behind another key.
 - IRQ and NMI vectors point at an `RTI`.
 
 **The bare-core harness** (`src/model/basic.test.ts` with a small helper): the CPU core, a 64 KB array for the memory map above, and
@@ -208,6 +210,55 @@ The register model is written here, as `src/engine/acia.ts` (*The terminal part*
 build does not reach `OK` and pass the tests above, stop and report. The fallback is then Ben Eater's route (*Risks*): the same
 harness, tests and `io.s` ideas, only the image is built from `beneater/msbasic` with `ca65` instead of from our translation.
 Nothing else in the spec changes.
+
+**What B1 did, and where it differs from the spec.** It took a day, not a week, and the fallback was not needed. `scripts/basic/` holds
+Microsoft's file verbatim (its SHA-256 is pinned by a test), the translator `macro10.ts`, the edits and the build (`target.ts`), our I/O
+code (`io.s`) and a README; `src/engine/acia.ts` is the terminal's register model (24 tests) and `src/model/basic-harness.ts` the bare
+core around it. `npm run build:basic` writes `src/model/basic-rom.ts` (the 16 KB image: BASIC from `$C000` to `$E032`, 8,243 bytes, our code
+from `$F000`), and a test fails if the committed image is not what the source builds. The minor version is `0.2.0`.
+
+- **Measured**, on the bare core with the questions off: 16,813 cycles from reset to `OK`, with `15615 BYTES FREE`; typing `PRINT 2+2`
+  and its answer, 22,019 cycles, `PRINT "HELLO"` 11,143, `PRINT SQR(2)` 75,837; an empty 1,000-turn `FOR` loop
+  958,478 (about a million, as finding 4 said); the same loop with `A=A+1` in it 3,602,599. Typing in a program, as a paste feeds it:
+  20 lines 410,254 cycles (20,500 a line, growing with the size because BASIC relinks the whole program at each new line), 50 lines
+  1,586,429, 300 lines 14.7 million. At the targeted 60,000–100,000 cycles a second that is 4–7 s for 20 lines, so the programs to type
+  in (B7) stay short. A run of those 20 `PRINT` lines: 267,497.
+- **The maths agrees with the true values to 4.3 × 10⁻⁹** (relative, 91 results across `SQR LOG EXP SIN COS TAN ATN ^ / * -`; the
+  32-bit mantissa allows about that), and the same, to the last digit, with a second build of Microsoft BASIC: the **oracle** of
+  `src/model/basic-oracle.test.ts` (developer machine only) runs 68 numbers, 19 string and format cases, 15 programs and 400 seeded
+  random expressions on mist64's KIM-1 build (built with cc65) and on ours: identical output, and a single flipped bit in the sine
+  polynomial is caught by the random ones. **The byte-for-byte comparison with the KIM-1 binary that the spec asked for is not
+  possible:** that binary is the 1977 build and Microsoft's file the July 1978 source (the later one has a `GO TO` case, the earlier
+  the long error messages), so they differ in the keyword list, the error table and the addresses. Comparing what the programs print is
+  what is done instead. (The `eater` target of Ben Eater's fork is a different build again, `CONFIG_2A` with 7 digits, so it cannot be compared digit
+  for digit with a 9-digit one.)
+- **The target is the KIM-1 build (`REALIO=1`), not a new `REALIO=6`:** the KIM-1 block is the plainest, and its hooks are the ones
+  to point at the terminal anyway, so a new block would only have copied it. There are 25 edits to 6,954 lines, each in `target.ts` with
+  its reason: the switches (width 40, `RAMLOC=$0300`, `ROMLOC=$C000`, no LOAD/SAVE, the 6502's own ROR), the hooks (`JSR TERMIN`, the break
+  check, the banner), `MEMTOP`, the start-up switch, and two repairs of Microsoft's own code that our additions exposed: a branch that
+  became too long (`BEQ TYPAUT`, now a jump), and the comma-field cut-off, which the code computes as `width/14*14` when it asks the
+  width but which was assembled in one field short (at width 40 `PRINT 1,2,3` put the third item on a second line only when the
+  questions were off: the oracle found it).
+- **The switch** is the DSR pin as planned (`io.s` reads status bit 6 at reset). With the questions on, `MEMORY SIZE?` accepts a number
+  or Enter (the test stops at `$4000`: no stray `U`), then `TERMINAL WIDTH?`; `A` at the first prints the authors' names.
+- **Translator facts the spec did not have:** names are significant to six characters (the dispatch table says `RESTORE` where the routine
+  is `RESTOR`); `* / & !` bind tighter than `+ -` (not strictly left to right as assumed); a number with an 8 or 9 in it is decimal
+  even in base 8; `LDA zp,Y` does not exist, so a zero-page name with `,Y` is three bytes; the translator counts addresses itself (one
+  condition asks whether the input buffer straddles a page), and a test checks that it agrees with the assembler about every label (about 900)
+  for ours and for machines 1, 3 and 4 of the file. Machine 2 (OSI) has no `GET` routine in Microsoft's file and machine 0 is the PDP-10
+  simulator; neither is built.
+- **The review of #83 found, and the PR fixed:** after one key typed while a program ran, Control-C no longer stopped it (the break check
+  gave up while a key was kept; it now always reads what has arrived and keeps up to 16 keys), and a break waited behind everything typed
+  or pasted (it now jumps the queue and clears it); a memory size typed at `MEMORY SIZE?` above `$4000` put BASIC's strings on the
+  terminal's registers (it is cut to `MEMTOP`, one more edit); Backspace over a wrapped line left the screen one character behind BASIC
+  (the terminal goes back over its own wraps); the translator turned `<X/^O400>+1` into the high byte of `X+1` (it now refuses to add
+  anything to a high byte, or a name to either byte). The comma-field edit and these have tests that fail without them. Also changed on the
+  review's advice: printing a character updates the screen's lines in place instead of copying the array (0.04 µs a character with a
+  full 200 lines, down from 1.2 µs; my first reply measured 1.2 µs as negligible and left it, which was the wrong call when the better
+  version costs nothing, since the history copies arrays itself).
+- **For the later milestones:** the terminal part has to behave as `acia.ts` does (its tests are the specification, B4 wraps it), the board
+  must give BASIC a command register of `$0B` at reset (`io.s` writes it: the receiver is on, its interrupt off), and Backspace reaches
+  BASIC as `$08` (`io.s` turns it into the `_` that BASIC takes for delete).
 
 ### B2. A fast clock, and history off for a circuit
 - **A per-circuit setting, *Step-back history*** (on by default). It is saved in the file (`history: false`, written only when off,

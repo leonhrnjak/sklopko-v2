@@ -1,7 +1,7 @@
 {
   "name": "sklopko",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "lint": "oxlint",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "build:basic": "vitest run src/model/basic-build --mode build-basic"
   },
   "dependencies": {
     "immer": "^11.2.7",
