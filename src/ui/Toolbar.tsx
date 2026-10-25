@@ -10,7 +10,7 @@ import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
-import { open6502Reference, openReference } from '../app/reference'
+import { open6502Reference, openBasicReference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setHistoryOn, useHistoryOn } from '../app/stepback'
@@ -318,6 +318,10 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => open6502Reference()} title="The 6502 assembly language">
         6502
+        <Dots />
+      </MenuItem>
+      <MenuItem onClick={() => openBasicReference()} title="The BASIC of the BASIC computer: its statements, functions and errors, and programs to type in">
+        BASIC
         <Dots />
       </MenuItem>
       <MenuLabel>Show</MenuLabel>

@@ -7,6 +7,7 @@ import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, r
 import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
 import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { basic6502, sweep65c02 } from './board6502-examples'
+import { BASIC_PROGRAMS, programText } from './basic-programs'
 import { flatten } from './buses'
 import { basicRomBytes } from './basic-rom'
 import { deserialize, fromShareHash, serialize, toShareHash } from './serialize'
@@ -497,6 +498,21 @@ describe('the BASIC computer', () => {
     aciaType(m.st(), '\r')
     expect(m.run(() => /OK$/.test(m.screen()))).toBe(true)
     expect(m.screen()).toContain('15615 BYTES FREE')
+  })
+
+  it('runs the programs to type in on the board as it does on the bare core: the table prints its first row within a few seconds of cycles', { timeout: 300_000 }, () => {
+    const m = boot()
+    m.run(() => /OK$/.test(m.screen()))
+    const table = BASIC_PROGRAMS.find((p) => p.id === 'table')!
+    aciaType(m.st(), programText(table, false))
+    expect(m.run(() => m.st().next >= m.st().keys.length)).toBe(true)
+    m.idle(20_000)
+    const start = m.screen().length
+    aciaType(m.st(), 'RUN\r')
+    let cycles = 0
+    expect(m.run(() => (cycles++, / {3}9\n/.test(m.screen().slice(start))), 3_000_000)).toBe(true)
+    expect(cycles).toBeLessThan(500_000)
+    expect(m.screen()).toContain('    1   2   3   4   5   6   7   8   9')
   })
 
   it('left running keeps its memory flat: the screen and the keyboard buffer are bounded', { timeout: 300_000 }, () => {

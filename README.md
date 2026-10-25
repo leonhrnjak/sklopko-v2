@@ -113,7 +113,7 @@ security headers.
 - **Examples:** the *Examples* button opens a gallery of every example with a picture, a line about it and a search box,
   one group at a time (or *All*); each card has a *Copy link* button. Every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Opening an
   example shows its link in the address bar, and Share copies it while the example is unedited.
-- **Toolbar:** *Tools ▾* (Logic, State machines, SKASM, Make IC, Tests, Challenges, Waveforms, Timing) and *File ▾* (New, My
+- **Toolbar:** *Tools ▾* (Logic, State machines, Make IC, Tests, Challenges, the SKASM, 6502 and BASIC references, Step-back history, Waveforms, Timing) and *File ▾* (New, My
   circuits, Open and Save file, Embed code, Clear wires, pictures). The *How to* panel on the right can be hidden (**Hide**);
   the **?** button brings it back.
 - **Custom ICs:** *Tools ▾ → Make IC…* turns the circuit (or the selected parts) into a part of your own: its pins are the
@@ -136,7 +136,7 @@ security headers.
 
 | Group | Parts |
 |---|---|
-| Input / output | switch, push button, clock (0.25–4096 Hz), constant 0/1, 4-bit input, keypad (hex digits or calculator keys), gamepad (arrow-key buttons), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
+| Input / output | switch, push button, clock (0.25 Hz–1 MHz), constant 0/1, 4-bit input, keypad (hex digits or calculator keys), gamepad (arrow-key buttons), serial terminal (a 6551 chip with a 40 × 24 screen and a keyboard), LED, speaker (a tone from the square wave on its input; *Octaves up* for slow circuits), probe (waveform trace), breakpoint, send / receive net labels |
 | Logic gates | AND, OR, NAND, NOR, XOR, XNOR (2–8 inputs), NOT, buffer |
 | Flip-flops & counters | SR latch, D latch, D / JK / T flip-flops (async set/reset), up/down counter (any range from 0–1 to 0–15; chain CO → EN for multi-digit counters), counter with parallel load (a program counter), 4-bit register, shift register (serial/parallel), ring and Johnson counters |
 | Arithmetic | half/full adder, 4-bit adder, half/full subtractor, 4-bit subtractor, 4-bit adder/subtractor with overflow, 4-bit comparator, 4-bit ALU (8 operations), multiplier (2×2 / 4×4), BCD adder |
@@ -160,6 +160,16 @@ keypad and LCD (`/computer-tictactoe`) and a console (`/computer-sieve`, primes)
 **calculator** (`/calculator`) has an ALU, multiplier, ROM lookup table, BCD adder, comparator and a memory register.
 `/databus` shows the other way to move data: several sources sharing one 8-bit bus through tri-state buffers, and `/buses` and
 `/tristate` are the small introductions. To write your own program, pick *A program in SKASM* in a Program ROM's inspector.
+
+**A real CPU.** The MOS 6502 (and the WDC 65C02) is one part, cycle-exact, on a board like Ben Eater's: a ROM with a program in
+6502 assembly (*Tools ▾ → 6502* is the reference, with every instruction and addressing mode), a RAM, address decoding made of a few gates,
+and devices at memory addresses (LEDs, a console, a speaker, a keypad, a gamepad, a pixel screen, a timer that interrupts it). The
+*6502* group of the examples has them, from a blinking LED (`/6502`) to an interrupt waking a 65C02 from sleep (`/65c02-timer`).
+`/6502-echo` and `/6502-echo-irq` add a serial terminal (click its screen and type; the program sends every key back, by polling and by
+interrupt), and **`/6502-basic` is a computer that runs Microsoft BASIC**: a 6502, 16 KB of RAM, 16 KB of ROM and the terminal, with the
+memory map of Ben Eater's breadboard computer. It boots to `OK`; type `10 PRINT "HELLO"` and `RUN`. It runs at a 1 MHz clock without the
+step-back history, a sixth or so of a real 6502's speed in a browser. The BASIC is Microsoft's own 1978 source (MIT licence), translated
+and built by `npm run build:basic`; *Tools ▾ → BASIC* lists its statements and functions and has four programs to type in.
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.

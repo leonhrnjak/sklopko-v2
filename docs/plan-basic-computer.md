@@ -1,6 +1,6 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) B4 (the terminal part), B5 (the board with the terminal) and B6 (the BASIC computer) are built; B7 is not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: done (B1 to B7). Spec, all decisions made. B1 (the BASIC ROM and its tests), B2 (fast clock, history off) and B3 (big memory) B4 (the terminal part), B5 (the board with the terminal), B6 (the BASIC computer) and B7 (polish) are built: the plan is done.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
@@ -11,7 +11,7 @@
 > - [x] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
 > - [x] B5 A board with the terminal, and two echo examples
 > - [x] B6 The BASIC computer: the board boots to `OK` and runs your programs
-> - [ ] B7 Polish: programs to type in, a BASIC reference page, speed setting, README
+> - [x] B7 Polish: programs to type in, a BASIC reference page, speed setting, README
 >
 > This spec grew out of the plan in PR #82. *Review of the plan* lists what changed and why; the rest is the spec.
 
@@ -452,6 +452,37 @@ sixth of a real 6502). It starts by itself and *Reset* is a cold start (the simu
 - **Speed**: if the gate after B2 did not already need it, a *Speed* setting for the work done per frame, with a note of what it costs
   the page.
 - README, the example's thumbnail and blurb, the e2e for the area, screenshots at desktop and phone width.
+
+**What B7 did, and where it differs from the spec.** *Programs to type in*, a *BASIC reference* in the Tools menu, the README, and the e2e
+for both. No *Speed* setting: B2 made the work per frame automatic, as its note says.
+
+- **Programs** (`src/model/basic-programs.ts`): the endless maze, a multiplication table, *Guess the number* and primes to 100, each with *Copy*
+  and, when there is a terminal, *Type it in* (the lines and `RUN` go through the keyboard buffer). They are in the terminal's inspector (a
+  *Programs to type in* section, shown when a ROM of the circuit holds Microsoft BASIC, found by its `MICROSOFT` banner) and in the reference's last
+  tab. **Timed on the bare core and once on the board** (`basic-programs.test.ts`, `board6502.test.ts`), in CPU cycles:
+
+  | Program | First output | All of it |
+  |---|---|---|
+  | maze | 20 slashes after 270,000 cycles (a row of 40 after 540,000) | endless |
+  | table | first row after 280,000 | 2.36 million |
+  | primes to 100 | 2 3 5 7 11 after 390,000 | 4.7 million |
+  | guess | the question at once | until you find it |
+
+  At the 170,000 cycles a second measured in B6, the first output is two to three seconds away and the table takes 14 seconds, the primes half a
+  minute. **That is slower than the spec's "a few seconds" for the whole program**: printing one number costs about 30,000 cycles (floating point in
+  software), so the criterion became *prints as it goes, the first row within 500,000 cycles*, and each program's text says how long it takes. The
+  checks also found that a `FOR` loop in this BASIC always runs its body once (so the primes start at 3, and 2 is printed first), that `DEF` and
+  `GET` are for programs only (`?ID ERROR` in direct mode) and that there is no `MOD`.
+- **Reference** (`src/model/basic-reference.ts`, `ReferenceBasic.tsx`; Tools → *BASIC…*): *Getting started* (typing, line editing, Control+C, capitals,
+  variables, the memory map, speed, the switch, the 17 error codes, where it comes from, with the MIT notice's repository), *Statements* and *Functions
+  and operators* as tables, and the programs. **Checked against the image:** a unit test reads the keyword table out of the built ROM and requires the
+  reference to list exactly its 68 words, and the 17 error codes in the ROM's order; every entry with an example is run on the bare core and must print what
+  the page says.
+- **README** now describes the 6502 board, the terminal and the BASIC computer, and the parts table and the toolbar line are brought up to date (the clock goes
+  to 1 MHz).
+- **Tests.** e2e: the reference from the Tools menu (all tabs, no *Type it in* without a terminal) and typing the table in through the inspector on the
+  board; the Tools-menu list in `editing.spec.ts` has *BASIC…*. The thumbnail and blurb of the example were done in B6; the thumbnails are drawn by
+  the build.
 
 ## Licences
 Checked on 2026-10-24 by reading the repositories' pages (not a legal opinion, and the repositories' contents may change). What there is:
