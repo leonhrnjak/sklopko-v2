@@ -9,7 +9,9 @@ import { useTestbench } from './app/testbench'
 import { useLogic } from './app/logic'
 import { useReference } from './app/reference'
 import { useOpenOnFirstProbe, useWave } from './app/waveform'
+import { usePartsDrawer } from './app/parts'
 import { Canvas } from './ui/canvas/Canvas'
+import { ContextMenu } from './ui/canvas/ContextMenu'
 import { EmbedBar } from './ui/EmbedBar'
 import { LibraryDialog } from './ui/library/LibraryDialog'
 import { fitView } from './ui/canvas/viewport'
@@ -18,6 +20,7 @@ import { OnDemand } from './ui/OnDemand'
 import { Palette } from './ui/Palette'
 import { SelectionBar } from './ui/SelectionBar'
 import { StatusBar, Toolbar } from './ui/Toolbar'
+import { ZoomControls } from './ui/ZoomControls'
 
 // The panels, each its own chunk, fetched the first time it is opened.
 const LogicPanel = lazy(() => import('./ui/logic/LogicPanel').then((m) => ({ default: m.LogicPanel })))
@@ -42,6 +45,7 @@ export default function App() {
   const makeIcOpen = useMakeIc((s) => s.open)
   const pictureOpen = usePicture((s) => s.open)
   const testsOpen = useTestbench((s) => s.open)
+  const partsOpen = usePartsDrawer((s) => s.open)
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
     requestAnimationFrame(fitView)
@@ -59,13 +63,15 @@ export default function App() {
   return (
     <div className="app">
       <Toolbar />
-      <main className="main">
+      <main className={`main${partsOpen ? '' : ' parts-closed'}`}>
         <Palette />
         <div className="stage">
           <div className="stage-view">
             <Canvas />
             <StatusBar />
+            <ZoomControls />
             <SelectionBar />
+            <ContextMenu />
           </div>
           <OnDemand open={waveOpen}>
             <WaveformPanel />

@@ -373,6 +373,101 @@ test('a part has a delay that can be set, and "realistic delays" fills them in',
   await expect(delay).toHaveValue('1')
 })
 
+test('signal colours: orange 1 and blue 0 for people who confuse red and green, remembered across a reload', async ({ page }) => {
+  await fresh(page)
+  const one = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--wire-1').trim())
+  const classic = await one()
+  await page.getByTestId('settings').click()
+  await page.getByTestId('setting-colors').selectOption('blue-orange')
+  await expect.poll(one).not.toBe(classic)
+  await page.reload({ waitUntil: 'networkidle' })
+  await expect(page.locator('html')).toHaveAttribute('data-wires', 'blue-orange')
+  await page.getByTestId('settings').click()
+  await page.getByTestId('setting-colors').selectOption('classic')
+  await expect.poll(one).toBe(classic)
+})
+
+test('several selected parts can be rotated, flipped and duplicated from the inspector', async ({ page }) => {
+  await freshEmpty(page)
+  await place(page, 'switch', 200, 120)
+  await place(page, 'led', 400, 120)
+  await page.keyboard.press('ControlOrMeta+a')
+  const inspector = page.locator('.inspector')
+  await expect(inspector.getByRole('heading', { name: '2 selected' })).toBeVisible()
+  await expect(inspector.getByRole('button', { name: /Flip/ })).toBeVisible()
+  await inspector.getByRole('button', { name: 'Duplicate' }).click()
+  await expect(page.locator('.comp')).toHaveCount(4)
+})
+
+test('an empty canvas says how to start, in one block of text', async ({ page }) => {
+  await freshEmpty(page)
+  const hint = page.locator('.empty-hint p')
+  await expect(hint).toContainText('Drag parts from the left')
+  await expect(hint).toContainText('Examples above.')
+})
+
+test('right-click opens a menu for the part, the wire or the canvas under the pointer', async ({ page }) => {
+  await page.goto('/gates', { waitUntil: 'networkidle' })
+  await clearStorage(page)
+  await page.reload({ waitUntil: 'networkidle' })
+  const menu = page.getByRole('menu', { name: 'Canvas actions' })
+  const items = menu.getByRole('menuitem')
+  const count = () => page.locator('.comp').count()
+  const before = await count()
+
+  // A part: it is selected, the menu acts on it, and Escape closes the menu.
+  await page.locator('.comp[data-id^="xor"] .sym-body').first().click({ button: 'right' })
+  await expect(items).toHaveText([/Rotate/, /Flip/, /Duplicate/, /Copy/, /Delete/])
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await page.locator('.comp[data-id^="xor"] .sym-body').first().click({ button: 'right' })
+  await menu.getByRole('menuitem', { name: /Duplicate/ }).click()
+  await expect(menu).toHaveCount(0)
+  expect(await count()).toBe(before + 1)
+
+  // A wire: auto-route and delete.
+  const onWire = await page.locator('path.wire').last().evaluate((el: SVGPathElement) => {
+    const p = el.getPointAtLength(el.getTotalLength() / 2)
+    const m = el.getScreenCTM()!
+    return { x: p.x * m.a + m.e, y: p.y * m.d + m.f }
+  })
+  await page.mouse.click(onWire.x, onWire.y, { button: 'right' })
+  await expect(items).toHaveText([/Auto-route/, /Delete/])
+  // Empty canvas: it clears the selection and offers the canvas actions; Paste uses what was copied.
+  await page.getByTestId('canvas').click({ button: 'right', position: { x: 60, y: 560 } })
+  await expect(items).toHaveText([/Paste/, /Select all/, /Fit to screen/])
+  await menu.getByRole('menuitem', { name: /Paste/ }).click()
+  expect(await count()).toBe(before + 2) // the duplicate above copied the part, so there was something to paste
+  // Clicking elsewhere closes it.
+  await page.getByTestId('canvas').click({ position: { x: 400, y: 560 } })
+  await expect(menu).toHaveCount(0)
+})
+
+test('zoom buttons, the percentage and the + and - keys', async ({ page }) => {
+  await fresh(page)
+  const level = page.getByTestId('zoom-level')
+  await level.click()
+  await expect(level).toHaveText('100%')
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(level).toHaveText('125%')
+  await page.getByRole('button', { name: 'Zoom out' }).click()
+  await page.getByRole('button', { name: 'Zoom out' }).click()
+  await expect(level).toHaveText('80%')
+  await page.getByTestId('canvas').click({ position: { x: 600, y: 500 } })
+  await page.keyboard.press('+')
+  await expect(level).toHaveText('100%')
+  await page.keyboard.press('-')
+  await expect(level).toHaveText('80%')
+  await level.click()
+  await expect(level).toHaveText('100%')
+})
+
+test('the toolbar stays on one row at laptop widths', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await fresh(page)
+  expect((await page.locator('.toolbar').boundingBox())!.height).toBeLessThan(70)
+})
+
 test('the toolbar is one row, and Tools and File are menus that close after a choice, on Escape and on a click elsewhere', async ({ page }) => {
   await fresh(page)
   const height = (await page.locator('.toolbar').boundingBox())!.height
@@ -381,7 +476,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
   const tools = page.getByRole('menu', { name: 'Tools' })
   await expect(tools).toHaveCount(0)
   await page.getByRole('button', { name: 'Tools ▾' }).click()
-  await expect(tools.getByRole('menuitem')).toHaveText(['Logic…', 'State machines…', 'SKASM…', '6502…', 'Make IC…', 'Tests…', 'Challenges'])
+  await expect(tools.getByRole('menuitem')).toHaveText(['Logic…', 'State machines…', 'Make IC…', 'Tests…', 'Challenges', 'SKASM…', '6502…'])
   await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Waveforms', 'Timing'])
   await page.keyboard.press('Escape')
   await expect(tools).toHaveCount(0)

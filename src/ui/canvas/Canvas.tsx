@@ -59,7 +59,8 @@ import { traceCone, traceNet } from '../../model/trace'
 import { ComponentView, GhostWire, Junctions, PinsView, TraceRings, WireView, HopArcs } from './views'
 import { paletteDrag } from '../paletteDrag'
 import { compTransform } from '../transform'
-import { MIN_ZOOM, fitView, registerCanvas } from './viewport'
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, fitView, registerCanvas, zoomBy } from './viewport'
+import { openContextMenu } from '../../app/contextMenu'
 
 type Op =
   /** Pan the view. `place` = drop the part being placed here if this turns out to be a tap. */
@@ -247,7 +248,7 @@ export function Canvas() {
         const r = el.getBoundingClientRect()
         const mx = e.clientX - r.left
         const my = e.clientY - r.top
-        const zoom = Math.min(3, Math.max(MIN_ZOOM, v.zoom * Math.exp(-e.deltaY * 0.0025)))
+        const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * Math.exp(-e.deltaY * 0.0025)))
         setView({ zoom, x: mx - ((mx - v.x) / v.zoom) * zoom, y: my - ((my - v.y) / v.zoom) * zoom })
       } else {
         setView({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY })
@@ -297,6 +298,8 @@ export function Canvas() {
       } else if (!mod && k === 'r') rotateSelection()
       else if (!mod && k === 'f') flipSelection()
       else if (!mod && (k === '0' || k === 'h')) fitView()
+      else if (!mod && (e.key === '+' || e.key === '=')) zoomBy(ZOOM_STEP)
+      else if (!mod && e.key === '-') zoomBy(1 / ZOOM_STEP)
       else return
     }
     const up = (e: KeyboardEvent) => {
@@ -365,9 +368,11 @@ export function Canvas() {
     }
     if (e.button === 2) {
       if (isEmbed()) return
-      // Right-click selects whatever is under the pointer (the way to edit a switch without flipping it).
+      // Right-click selects whatever is under the pointer (the way to edit a switch without flipping it), unless it is
+      // already part of the selection: then the menu that opens acts on all of it. On empty canvas it clears the selection.
       const hit = (e.target as Element).closest<SVGElement>('[data-kind="comp"], [data-kind="wire"]')
-      if (hit) select([hit.dataset.id!])
+      if (!hit) select([])
+      else if (!useStore.getState().selection.includes(hit.dataset.id!)) select([hit.dataset.id!])
       return
     }
     if (e.button !== 0) return
@@ -507,7 +512,7 @@ export function Canvas() {
       case 'pinch': {
         if (pointers.current.size < 2) return
         const { d, mx, my } = pinchState()
-        const zoom = Math.min(3, Math.max(MIN_ZOOM, (o.zoom0 * d) / o.d0))
+        const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, (o.zoom0 * d) / o.d0))
         setView({ zoom, x: mx - o.anchor.x * zoom, y: my - o.anchor.y * zoom })
         break
       }
@@ -669,7 +674,12 @@ export function Canvas() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        // A long press on a phone selects the part (see the long-press timers); the menu is for the mouse.
+        if (isEmbed() || coarsePointer) return
+        openContextMenu(e.clientX, e.clientY)
+      }}
       data-testid="canvas"
     >
       <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>

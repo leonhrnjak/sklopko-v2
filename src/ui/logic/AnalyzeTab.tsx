@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { sendToBuild } from '../../app/logic'
-import { showToast } from '../../app/store'
+import { showToast, useStore } from '../../app/store'
 import { print } from '../../logic/expr'
 import { minimizeExpr } from '../../logic/minimize'
 import { tableToText, type Cell } from '../../logic/table'
@@ -22,12 +22,20 @@ async function copy(text: string, what: string) {
 export function AnalyzeTab() {
   const { ports, inputIds, outputIds, toggle, result, error } = useCircuitAnalysis()
   const [mapOutput, setMapOutput] = useState(0)
+  const hasOtherIo = useStore((s) => Object.values(s.circuit.comps).some((k) => k.type === 'hexin' || k.type === 'hexdisp' || k.type === 'seg7'))
 
   if (!ports.inputs.length || !ports.outputs.length)
     return (
       <p className="logic-empty">
         This tab works out what a circuit does. Put at least one <b>Switch</b> and one <b>LED</b> on the canvas and wire them up; give them labels
         (A, B, Y…) to name the columns. Or open an example, such as <i>Basic gates</i>.
+        {hasOtherIo && (
+          <>
+            <br />
+            <br />
+            This circuit uses 4-bit inputs or displays, which this tab does not read: it only sweeps Switches and reads LEDs.
+          </>
+        )}
       </p>
     )
 

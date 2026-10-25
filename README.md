@@ -38,6 +38,11 @@ security headers.
   input picks the wire back up so you can re-plug or remove it.
 - **Move:** drag parts and their wires re-route. Drag a wire segment sideways to reshape it by hand.
   Double-click a wire to auto-route it again.
+- **Right-click** a part, a wire, a selection or empty canvas for a menu: rotate, flip, duplicate, copy, delete, open an IC,
+  auto-route a wire, paste, select all, fit.
+- **Zoom:** the − and + buttons in the corner of the canvas (the percentage between them goes back to 100%), the `-` and
+  `+` keys, ⌘/Ctrl+scroll, or pinch. On a phone the parts list folds down to its *Parts* handle, and folds away by
+  itself while a part waits to be placed.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), **Back** (go back one clock edge: every signal, memory and the
@@ -93,8 +98,9 @@ security headers.
   circuit. *File ▾ → Embed code* copies the iframe HTML for the current circuit, e.g.
   `<iframe src="https://…/computer?embed=1" width="900" height="560"></iframe>`. The site allows being framed by
   any page.
-- **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), and wire hops on or off. Wires of different
-  signals that cross show a small bridge. Stored in the browser.
+- **Settings (⚙):** gate symbols US (curved) or IEC (rectangles), wire hops on or off (wires of different
+  signals that cross show a small bridge), and signal colours: green 1 / red 0, or orange 1 / blue 0 for people who
+  confuse red and green. Stored in the browser.
 - **Files:** autosaves to the browser, as a document in your library (IndexedDB; the single saved circuit of earlier
   versions is brought in on the first visit). Nothing replaces your work: an example or *New* opens without a document of
   its own and becomes one, "<example> (copy)" or "Untitled N", the moment you edit it; a share link or an opened file is a
