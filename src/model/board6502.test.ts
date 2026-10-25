@@ -3,10 +3,12 @@ import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
-import { BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
+import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
 import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { sweep65c02 } from './board6502-examples'
 import { flatten } from './buses'
+import { basicRomBytes } from './basic-rom'
+import { deserialize, fromShareHash, serialize, toShareHash } from './serialize'
 
 function start(o: Board6502Options = {}) {
   const { b, keys } = board6502Builder({ hz: 100, ...o })
@@ -207,5 +209,126 @@ start: LDA $4003
   it('the probes are on the clock, the address bus, the data, R/W and SYNC', () => {
     const labels = Object.values(board6502().comps).filter((c) => c.type === 'probe').map((c) => c.label)
     expect(labels).toEqual(['Φ2', 'A', 'D (read)', 'R/W', 'SYNC'])
+  })
+})
+
+/** Fills the 16 KB of RAM with a pattern, then looks at the ROM through both of its mirrors. The LEDs say how that went. */
+const FILL_SOURCE = `.org $C000
+start:  LDX #$FF
+        TXS
+        LDA #$00       ; the pointer ($00/$01) goes through the pages $02 to $3F
+        STA $00
+        LDA #$02
+        STA $01
+page:   LDY #$00
+byte:   TYA            ; the pattern for the address: low byte, high byte and $A5 added up by EOR
+        EOR $01
+        EOR #$A5
+        STA ($00),Y
+        INY
+        BNE byte
+        INC $01
+        LDA $01
+        CMP #$40
+        BNE page
+        LDX #$00       ; page $01, by its address
+one:    TXA
+        EOR #$A4
+        STA $0100,X
+        INX
+        BNE one
+        LDX #$00       ; page $00 last: it held the pointer
+zero:   TXA
+        EOR #$A5
+        STA $00,X
+        INX
+        BNE zero
+        LDA $8000      ; the ROM is seen twice: the first byte at $8000 and at $C000
+        CMP $C000
+        BNE fail
+        LDA $BFFF      ; and the last byte at $BFFF and at $FFFF
+        CMP $FFFF
+        BNE fail
+        CMP #$5C
+        BNE fail
+        LDA #$AA
+        STA $4000
+done:   JMP done
+fail:   LDA #$EE
+        STA $4000
+        JMP fail
+.org $FFFC
+.word start
+.word $5CA7`
+
+describe('the 6502 board with big memory', () => {
+  const big = (o: Board6502Options = {}) => start({ memory: 'big', ...o })
+  /** The programs of the small board begin at $F000; the big ROM begins at $C000. */
+  const atC000 = (source: string) => source.replace('.org $F000', '.org $C000')
+
+  it('refuses a program that does not begin where its ROM image does', () => {
+    expect(() => board6502Builder({ memory: 'big', source: HELLO_SOURCE })).toThrow(/starts at \$F000.*begins at \$C000/)
+    expect(() => board6502Builder({ source: '.org $E000\nNOP' })).toThrow(/starts at \$E000.*begins at \$F000/)
+  })
+
+  it('has a 16 KB RAM at $0000 and a 16 KB ROM at $8000, and its image has the vector at the top', () => {
+    const { b, keys } = board6502Builder({ memory: 'big' })
+    const c = b.build(false)
+    expect([c.comps[keys.ram].params.abits, c.comps[keys.rom].params.abits]).toEqual([14, 14])
+    expect(keys.romAddr).toBeUndefined() // the ROM takes A0–A13 straight from the splitter
+    const image = romImage(BLINK_BYTES, 0xc000, BIG_ROM_SIZE).split(' ')
+    expect(image).toHaveLength(16384)
+    expect(image.slice(16380, 16382)).toEqual(['00', 'C0'])
+    expect(String(c.comps[keys.rom].params.data).split(' ')).toHaveLength(16384)
+  })
+
+  it('fills all 16 KB of RAM with a pattern and sees the ROM at both of its places', { timeout: 120_000 }, () => {
+    const { sim, keys } = big({ source: FILL_SOURCE, devices: ['leds'] })
+    sim.setHistory(false)
+    for (let n = 0; n < 400_000 && bits(sim, keys.leds, 'Q', 8) === 0; n++) oneCycle(sim)
+    expect(bits(sim, keys.leds, 'Q', 8)).toBe(0xaa) // 0xEE would mean that a mirror of the ROM is wrong
+    const mem = sim.state(keys.ram).mem as Uint8Array
+    expect(mem).toHaveLength(16384)
+    const wrong: number[] = []
+    for (let a = 0; a < mem.length; a++) if (mem[a] !== ((a & 255) ^ (a >> 8) ^ 0xa5)) wrong.push(a)
+    expect(wrong.slice(0, 8)).toEqual([])
+  })
+
+  it('keeps the devices where they were, and prints from a ROM in the upper half', () => {
+    const { sim, keys } = big({ source: atC000(HELLO_SOURCE), devices: ['console'] })
+    for (let i = 0; i < 600; i++) oneCycle(sim)
+    expect(sim.state(keys.console).lines.join('\n')).toBe('Hello from a 6502!\n')
+  })
+
+  it('reads the keypad through the same A14 and A15 as the small board', () => {
+    const { sim, keys } = big({ source: atC000(KEYPAD_SOURCE), devices: ['leds', 'console', 'keypad'] })
+    for (let i = 0; i < 200; i++) oneCycle(sim)
+    sim.setState(keys.keypad, { pressed: true, tapped: true, key: 11 })
+    for (let i = 0; i < 3; i++) oneCycle(sim)
+    sim.setState(keys.keypad, { pressed: false })
+    for (let i = 0; i < 120; i++) oneCycle(sim)
+    expect(sim.state(keys.console).lines).toEqual(['B'])
+    expect(bits(sim, keys.leds, 'Q', 8)).toBe(11)
+  })
+
+  it('leaves the small board as it was: the same parts and the same wires', () => {
+    const small = board6502Builder({ memory: 'small' }).b.build(false)
+    const plain = board6502Builder().b.build(false)
+    expect(serialize(small)).toEqual(serialize(plain))
+    const rom = Object.values(small.comps).find((c) => c.type === 'rom')!
+    expect([rom.params.abits, rom.params.data && String(rom.params.data).split(' ').length]).toEqual([12, 4096])
+  })
+
+  it('a 16 KB ROM survives a file and a share link', () => {
+    const rom = Array.from(basicRomBytes(), (v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' ')
+    expect(rom.length).toBeLessThanOrEqual(49152)
+    const { b, keys } = board6502Builder({ memory: 'big', rom })
+    const c = b.build(false)
+    const again = deserialize(JSON.parse(JSON.stringify(serialize(c))))
+    expect(again.comps[keys.rom].params.data).toBe(rom)
+    const hash = toShareHash(c)
+    expect(fromShareHash(hash)!.comps[keys.rom].params.data).toBe(rom)
+    // Measured: 18,183 characters for the board with BASIC in its ROM (written down in docs/plan-basic-computer.md, B3).
+    expect(hash.length).toBeLessThan(25_000)
   })
 })
