@@ -1,7 +1,7 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -130,3 +130,21 @@ export const basic6502 = (): Circuit => {
   c.history = false // stepping back over a BASIC interpreter teaches nothing, and the board runs about four times faster without
   return c
 }
+
+const VIA_DECODE =
+  'The VIA is at $6000 as on Ben Eater\u2019s board: it answers when A15 is 0 and A14 and A13 are both 1 (an AND gate gives its CS1, and A15 is its CS2), and A0 to A3 pick one of its sixteen registers. RAM is $0000\u2013$3FFF, the ROM $8000\u2013$FFFF. Its interrupt pin goes straight to the CPU\u2019s IRQ.'
+
+const VIA_DEVICES =
+  'The 6522 has two 8-bit ports and two timers. Port B is wired to eight LEDs: a pin shows only after DDRB says it is an output (until then the chip lets go of it, and the LED is grey). Timer 1 counts the clock, interrupts the CPU when it reaches 0, and starts again; select the VIA to see its registers. PB7 is the timer\u2019s own square wave, with no help from the CPU.'
+
+/** The VIA's timer interrupts the CPU, which counts on port B's LEDs. */
+export const via6502 = (): Circuit =>
+  boardExample(
+    { hz: 1024, memory: 'big', source: VIA_TIMER_SOURCE, devices: ['via'], viaLeds: true },
+    {
+      intro:
+        'A 6522 VIA, the chip that gives a 6502 its input and output pins. The program sets port B to outputs, starts timer 1 in free-running mode, and goes to sleep in a one-line loop. Once a second the timer interrupts the CPU: the routine reads the timer (that clears the flag), adds one to a counter and shows it on the LEDs. The top LED is the timer\u2019s own square wave. Select the VIA to watch its registers; select the ROM to read the program.',
+      decode: VIA_DECODE,
+      devices: VIA_DEVICES,
+    },
+  )

@@ -5,7 +5,7 @@ import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
 import { board6502 } from './board6502'
-import { ball6502, basic6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
+import { ball6502, basic6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
 import { computerBlocks, icAdder } from './ic-examples'
 import { hazard, ripple } from './timing-examples'
 import { generateFsm } from './fsm'
@@ -1122,6 +1122,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   '6502-keypad': keypad6502,
   '6502-ball': ball6502,
   '6502-basic': basic6502,
+  '6502-via': via6502,
   '6502-echo': echo6502,
   '6502-echo-irq': echoIrq6502,
   '65c02': sweep65c02,

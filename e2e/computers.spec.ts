@@ -752,3 +752,14 @@ test('the SKASM reference has a Control signals tab: each signal of the ROMs, an
   await expect(by.getByRole('row', { name: /^CALL/ })).toContainText('CALL')
   await expect(dialog).toContainText('The Beginner computer’s control ROM (8 bits, 16 rows)')
 })
+
+test('the VIA example: its registers show the program’s setup, and the timer interrupt counts on port B', async ({ page }) => {
+  await page.goto('/6502-via', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'VIA \\(6522\\) \\$6000–\\$600F')
+  const regs = page.getByLabel('Registers of the VIA')
+  await expect(regs).toContainText('timer 1 free-running', { timeout: 20000 })
+  await expect(regs).toContainText('PB7 follows timer 1')
+  await expect(regs).toContainText('11111111 direction')
+  // Once a second the timer interrupts the CPU, whose routine adds one to port B.
+  await expect(regs.getByRole('row', { name: /^Port B/ })).toContainText(/\$0[1-9A-F] out/, { timeout: 20000 })
+})
