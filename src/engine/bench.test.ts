@@ -2,6 +2,8 @@ import { describe, it } from 'vitest'
 import { flatten } from '../model/buses'
 import { CircuitBuilder } from '../model/builder'
 import { EXAMPLES } from '../model/examples'
+import { board6502Builder } from '../model/board6502'
+import { COUNTER_SOURCE } from '../model/programs6502'
 import { Simulator } from './simulator'
 
 /**
@@ -41,7 +43,30 @@ function time(name: string, build: () => ReturnType<typeof synthetic>, ms: numbe
   console.log(`${name}: ${ms} ms of simulated time in ${took.toFixed(0)} ms (${sim.ticks} ticks)`)
 }
 
+/** Clock edges per real second on the 6502 board (history on, as in the app), and what a snapshot of a big RAM would cost. */
+function edgesPerSecond(name: string, o: Parameters<typeof board6502Builder>[0], edges: number) {
+  const sim = new Simulator()
+  sim.load(flatten(board6502Builder(o).b.build()))
+  sim.settle()
+  const half = 1000 / (o!.hz! * 2)
+  const t0 = performance.now()
+  for (let i = 0; i < edges / 50; i++) sim.advance(half * 50 + 1e-6)
+  const took = performance.now() - t0
+  console.log(`${name}: ${edges} edges in ${took.toFixed(0)} ms = ${((edges / took) * 1000).toFixed(0)} edges/s (${((edges / took) * 500).toFixed(0)} cycles/s)`)
+}
+
 describe.skipIf(!on)('simulator timings', () => {
+  it('the 6502 board', { timeout: 120000 }, () => {
+    edgesPerSecond('6502 board, LEDs', { hz: 1000, source: COUNTER_SOURCE, devices: ['leds'] }, 20000)
+    edgesPerSecond('6502 board, screen and gamepad', { hz: 1000, devices: ['screen', 'gamepad', 'leds', 'console', 'keypad'] }, 20000)
+  })
+  it('a 64 KB array copy', () => {
+    const a = new Uint8Array(65536)
+    const t0 = performance.now()
+    for (let i = 0; i < 20000; i++) a.slice()
+    const took = performance.now() - t0
+    console.log(`20,000 copies of 64 KB: ${took.toFixed(0)} ms (${((20000 / took) * 1000).toFixed(0)} per second)`)
+  })
   it('the raycaster', { timeout: 120000 }, () => time('raycaster', EXAMPLES.find((e) => e.id === 'computer-raycaster')!.build, 1000))
   it('the prime sieve', { timeout: 120000 }, () => time('sieve', EXAMPLES.find((e) => e.id === 'computer-sieve')!.build, 1000))
   it('1,600 parts in a shift register', { timeout: 120000 }, () => time('synthetic', synthetic, 2000))
