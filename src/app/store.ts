@@ -471,6 +471,9 @@ export function copySelection() {
   return true
 }
 
+/** Is there something copied to paste? */
+export const hasClipboard = () => clipboard !== null
+
 export function paste() {
   if (!clipboard) return
   pasteCount++

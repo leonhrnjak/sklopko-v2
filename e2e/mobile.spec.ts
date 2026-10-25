@@ -225,3 +225,26 @@ test('My circuits fits a phone, with the circuit name over the canvas', async ({
   }
   await expect(dialog.getByRole('button', { name: 'New circuit' })).toBeVisible()
 })
+
+test('the parts list folds down to its handle, folds away while a part waits to be placed, and comes back after', async ({ page }) => {
+  await fresh(page)
+  const handle = page.getByTestId('parts-handle')
+  const canvasHeight = async () => (await page.getByTestId('canvas').boundingBox())!.height
+  const open = await canvasHeight()
+  await expect(page.locator('.palette .search')).toBeVisible()
+
+  await handle.tap()
+  await expect(page.locator('.palette .search')).toBeHidden()
+  await expect(handle).toHaveAttribute('aria-expanded', 'false')
+  expect(await canvasHeight()).toBeGreaterThan(open + 100)
+
+  await handle.tap()
+  await expect(page.locator('.palette .search')).toBeVisible()
+  await page.locator('.palette-item[data-type="and"]').tap()
+  await expect(page.locator('.palette .search')).toBeHidden()
+  await expect(page.locator('.placing-hint')).toContainText('AND')
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + 100)
+  await expect(page.locator('.placing-hint')).toHaveCount(0)
+  await expect(page.locator('.palette .search')).toBeVisible()
+})

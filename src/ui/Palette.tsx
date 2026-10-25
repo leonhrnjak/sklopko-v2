@@ -1,5 +1,6 @@
-import { memo, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { deleteIC, enterDefinitionById, renameIC } from '../app/ics'
+import { setPartsOpen, usePartsDrawer } from '../app/parts'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
 import { viewLayoutOf } from '../engine/viewlayout'
@@ -217,9 +218,32 @@ export function Palette() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const lastPointer = useRef('mouse')
   const q = query.trim().toLowerCase()
+  const open = usePartsDrawer((s) => s.open)
+
+  // On a phone, choosing a part folds the list away while it waits to be placed, so the canvas it is to be tapped onto is all in
+  // view; once it is placed (or cancelled) the list comes back, ready for the next part. The handle overrides this.
+  const foldedForPlacing = useRef(false)
+  useEffect(() => {
+    if (!matchMedia('(max-width: 760px)').matches) return
+    if (placing && usePartsDrawer.getState().open) {
+      foldedForPlacing.current = true
+      setPartsOpen(false)
+    } else if (!placing && foldedForPlacing.current) {
+      foldedForPlacing.current = false
+      setPartsOpen(true)
+    }
+  }, [placing])
 
   return (
     <aside className="palette">
+      <button className="palette-handle" onClick={() => {
+          foldedForPlacing.current = false
+          setPartsOpen(!open)
+        }}
+        aria-expanded={open} aria-label="Parts" data-testid="parts-handle">
+        <span className="grip" aria-hidden="true" />
+        Parts <span className={`chevron${open ? '' : ' closed'}`}>▾</span>
+      </button>
       <input
         className="search"
         placeholder="Search parts…"

@@ -38,6 +38,11 @@ security headers.
   input picks the wire back up so you can re-plug or remove it.
 - **Move:** drag parts and their wires re-route. Drag a wire segment sideways to reshape it by hand.
   Double-click a wire to auto-route it again.
+- **Right-click** a part, a wire, a selection or empty canvas for a menu: rotate, flip, duplicate, copy, delete, open an IC,
+  auto-route a wire, paste, select all, fit.
+- **Zoom:** the − and + buttons in the corner of the canvas (the percentage between them goes back to 100%), the `-` and
+  `+` keys, ⌘/Ctrl+scroll, or pinch. On a phone the parts list folds down to its *Parts* handle, and folds away by
+  itself while a part waits to be placed.
 - **Operate:** click switches, hold push buttons, click a 4-bit input to count up (Alt/Option-click: down).
   Clicking a control never selects it; to edit one, long-press it, right-click it, or drag it.
 - **Simulation:** Run/Pause, Step (one gate delay), **Back** (go back one clock edge: every signal, memory and the

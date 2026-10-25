@@ -18,6 +18,24 @@ export function registerCanvas(el: SVGSVGElement | null) {
 /** The canvas element, if it is on screen. */
 export const canvasElement = () => svgEl
 
+/** The largest zoom (the wheel and the buttons stop here). */
+export const MAX_ZOOM = 3
+
+/** Set the zoom, keeping the middle of the canvas where it is. */
+export function zoomTo(zoom: number) {
+  if (!svgEl) return
+  const v = useStore.getState().view
+  const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+  const { width, height } = svgEl.getBoundingClientRect()
+  const mx = width / 2
+  const my = height / 2
+  setView({ zoom: z, x: mx - ((mx - v.x) / v.zoom) * z, y: my - ((my - v.y) / v.zoom) * z })
+}
+
+/** One step of the zoom buttons and the + and - keys: a quarter more or less. */
+export const zoomBy = (factor: number) => zoomTo(useStore.getState().view.zoom * factor)
+export const ZOOM_STEP = 1.25
+
 /** Zoom and pan so the whole circuit is visible. */
 export function fitView() {
   const { circuit } = useStore.getState()

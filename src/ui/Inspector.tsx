@@ -423,10 +423,10 @@ function Help() {
           .
         </li>
         <li>
-          <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll or pinch to zoom, H to fit.
+          <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll, pinch, the − and + buttons or the - and + keys to zoom (the percentage goes back to 100%), H to fit. Right-click a part, a wire or the canvas for a menu of what you can do there.
         </li>
         <li>
-          <b>Touch screens:</b> tap a part in the list, then tap the canvas to place it. Drag empty canvas with one
+          <b>Touch screens:</b> tap a part in the list, then tap the canvas to place it (the list folds away meanwhile; the Parts handle folds it by hand). Drag empty canvas with one
           finger to pan, pinch to zoom. Selecting something shows Rotate, Delete and Edit buttons (long-press a
           switch or button to select it).
         </li>
