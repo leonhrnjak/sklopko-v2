@@ -29,7 +29,8 @@ const flagWidth = (p: Params) => {
 
 /** The rates a clock can be set to, in Hz. A real 6502 runs at 1 MHz. */
 export const CLOCK_RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1_000_000]
-const clockLabel = (hz: number) => (hz >= 1_000_000 ? `${hz / 1_000_000} MHz` : `${hz} Hz`)
+/** `0.25 Hz`, `1.024 kHz`, `65.536 kHz`, `1 MHz`: kilohertz from 1,000 Hz, megahertz from 1,000,000 (the rates are powers of two, so they are not round in kHz). */
+const clockLabel = (hz: number) => (hz >= 1_000_000 ? `${hz / 1_000_000} MHz` : hz >= 1000 ? `${hz / 1000} kHz` : `${hz} Hz`)
 
 export const io: ComponentDef[] = [
   {
@@ -78,7 +79,7 @@ export const io: ComponentDef[] = [
     params: [
       {
         key: 'hz',
-        label: 'Frequency (Hz)',
+        label: 'Frequency',
         kind: 'select',
         default: 1,
         options: CLOCK_RATES.map((v) => ({ value: v, label: clockLabel(v) })),

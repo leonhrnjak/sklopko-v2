@@ -55,7 +55,7 @@ test('waveforms: a probe on a clock opens the panel and draws its edges', async 
   await freshEmpty(page)
   await expect(page.getByTestId('waves')).toHaveCount(0)
   const clk = await place(page, 'clock', 120, 120)
-  await page.getByLabel('Frequency (Hz)').selectOption('16')
+  await page.getByLabel('Frequency').selectOption('16')
   const probe = await place(page, 'probe', 420, 130)
   // The first probe opens the panel by itself.
   await expect(page.getByTestId('waves')).toBeVisible()
@@ -167,7 +167,7 @@ test('Step-back history can be switched off: Back is disabled and says why, undo
 test('a CPU with a fast clock says how fast it really runs', async ({ page }) => {
   await page.goto('/6502-keypad', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Clock \\(Φ2\\)')
-  await page.getByLabel('Frequency (Hz)').selectOption({ label: '1 MHz' })
+  await page.getByLabel('Frequency').selectOption({ label: '1 MHz' })
   await pickByLabel(page, 'CPU')
   const rate = page.getByTestId('cpu-rate')
   await expect(rate).toContainText('cycles a second', { timeout: 15000 })

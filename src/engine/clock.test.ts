@@ -23,7 +23,9 @@ describe('the clock’s rates', () => {
     expect(rates).toContain(4096) // (the old top rate is still there)
     expect(rates).toEqual([...rates].sort((a, b) => a - b))
     expect(hzParam().options!.find((o) => o.value === 1_000_000)!.label).toBe('1 MHz')
-    expect(hzParam().options!.find((o) => o.value === 16384)!.label).toBe('16384 Hz')
+    // Hertz below a thousand, kilohertz from there (the rates are powers of two, so 1024 Hz is 1.024 kHz), then megahertz.
+    const label = (hz: number) => hzParam().options!.find((o) => o.value === hz)!.label
+    expect([0.25, 512, 1024, 4096, 16384, 524288].map(label)).toEqual(['0.25 Hz', '512 Hz', '1.024 kHz', '4.096 kHz', '16.384 kHz', '524.288 kHz'])
   })
 
   it('make a half period of half a microsecond at 1 MHz', () => {
