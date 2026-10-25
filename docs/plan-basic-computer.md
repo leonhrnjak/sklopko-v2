@@ -1,6 +1,6 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, waiting for approval; nothing built.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made; nothing built.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
@@ -319,11 +319,11 @@ every circuit with history faster, and they stay a good later step, but the BASI
    `$8000`, ROM `$C000–$FFFF`). His map is what people following his videos know (his addresses, his code, his wiring), it is the
    decoding our 6502 board already has (no new gates: the terminal's own chip-select pins do it), and 16 KB is plenty for typed
    programs (about 15,600 bytes free; a long listing from a 1970s book is a few KB). The plan's 32 KB would need a different decoder
-   and buys room nobody types in. *(Recommended; waiting for your yes.)*
+   and buys room nobody types in. *(Decided.)*
 3. **The start-up questions are a switch on the board**, off by default (see B1 and B6). *(Decided.)*
 4. **A 40 × 24 screen.** 80 columns would make the part about 600 px wide, twice any other part, and on a phone 80 columns are about 4 px
    a character, unreadable without zooming and scrolling; it would also make BASIC wrap at 80. Rows cost only height, so 24 rows (as a
-   real terminal) instead of 16 is free. *(Recommended; waiting for your yes.)*
+   real terminal) instead of 16 is free. *(Decided.)*
 5. **The receiver is off until a program switches it on**, as on the chip. *(Decided.)*
 6. **The BASIC computer runs without step-back history**; every other circuit keeps it. *(Decided.)*
 
