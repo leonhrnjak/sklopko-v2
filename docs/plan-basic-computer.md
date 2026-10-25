@@ -77,8 +77,8 @@ Status: bit 3 *receiver full*, bit 4 *transmitter empty* (always 1: a character 
 *interrupt*; bits 0–2 (errors) and 5 (carrier) read 0. `DSRB` is how a board passes a setting to its program: a switch wired to it can
 be read in the status register (the BASIC computer uses it for its start-up questions). Command bit 0 (DTR) switches the receiver on: **until a program sets it, typed characters
 wait in the keyboard buffer**, as a real 6551 ignores the line until it is switched on. Bit 1 = 0 enables the receive interrupt. The
-other command bits (transmit control, echo, parity) are kept and ignored. `RESB` low clears the command, control and status registers;
-the screen and the keyboard buffer stay.
+other command bits (transmit control, echo, parity) are kept and ignored. `RESB` low clears the command, control and status registers, and (the part's *Clear the screen on reset* setting, on by default) the screen
+and the keyboard buffer: see *After B7*.
 
 **IRQB** is low while status bit 7 is set. Bit 7 is set when a character arrives with the receiver on and its interrupt enabled, and
 cleared by reading the status register (as on the chip: an interrupt routine reads the status first).
@@ -548,3 +548,13 @@ every circuit with history faster, and they stay a good later step, but the BASI
 Per step, the `CLAUDE.md` checklist (all unit tests, lint, build with the bundle budget, the e2e specs for the area), plus screenshots in
 every PR with something to see (the board at desktop and phone width, the terminal with `OK`) and a look in light and dark. The numbers
 each step measures are written into this file in its PR.
+
+### After B7: the board's Reset button clears the screen
+Asked after the merge: *when I press the reset button, shouldn't the screen reset as well?* The toolbar's *Reset* did (it re-initialises every part,
+the terminal's screen too), but the board's own **Reset** button, which holds `RESB` low, restarted BASIC and left the old text above the new banner,
+because B4 had `RESB` keep the screen and the keyboard buffer (as a real terminal would, being a separate machine). On this board the terminal is
+part of the computer, so the part now has a setting **Clear the screen on reset** (on by default; old files get it, since a missing setting means on):
+while `RESB` is low the screen is blanked, the cursor goes to the top and what was typed ahead is thrown away (`aciaWipe` in `acia.ts`; holding the
+button does not keep counting changes). With the setting off, `RESB` keeps them as before. Tests: the part (both settings), `aciaWipe`, the board (Reset
+with a screen and typed-ahead text: empty, then the banner alone) and an e2e that holds the board's button and presses the toolbar's.
+

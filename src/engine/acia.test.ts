@@ -12,6 +12,7 @@ import {
   aciaRead,
   aciaReset,
   aciaType,
+  aciaWipe,
   aciaWrite,
   screenText,
 } from './acia'
@@ -101,7 +102,7 @@ describe('the 6551 registers', () => {
     expect(aciaRead(st, COMMAND, false)).toBe(0xe0)
   })
 
-  it('clears the registers on RES but keeps the screen and the keyboard buffer', () => {
+  it('clears the registers on RES but keeps the screen and the keyboard buffer (the part wipes them with aciaWipe)', () => {
     const st = on(0x01)
     aciaType(st, 'ab')
     aciaClock(st)
@@ -256,5 +257,23 @@ describe('the screen', () => {
     const st = aciaInit()
     aciaWrite(st, DATA, 0xc1) // bit 7 is dropped
     expect(screenText(st)).toBe('A')
+  })
+})
+
+describe('wiping the terminal', () => {
+  it('blanks the screen, puts the cursor at the top and throws away what waits on the keyboard', () => {
+    const st = aciaInit()
+    for (const c of 'HELLO\r\nWORLD') aciaPut(st, c.charCodeAt(0))
+    aciaType(st, 'abc')
+    aciaWipe(st)
+    expect(st.lines).toEqual([''])
+    expect([st.col, st.keys, st.next]).toEqual([0, '', 0])
+  })
+
+  it('counts no change when it was blank already', () => {
+    const st = aciaInit()
+    const rev = st.rev
+    aciaWipe(st)
+    expect(st.rev).toBe(rev)
   })
 })

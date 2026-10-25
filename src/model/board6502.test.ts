@@ -515,6 +515,19 @@ describe('the BASIC computer', () => {
     expect(m.screen()).toContain('    1   2   3   4   5   6   7   8   9')
   })
 
+  it('the board’s Reset button restarts BASIC on a blank screen: the old text and what was typed ahead are gone', { timeout: 120_000 }, () => {
+    const m = boot()
+    m.run(() => /OK$/.test(m.screen()))
+    expect(enter(m, 'PRINT 2+2')).toBe(true)
+    aciaType(m.st(), 'LEFT OVER') // typed, never read
+    m.sim.setState(find(m.c, 'button'), { pressed: true })
+    m.idle(40)
+    expect(m.screen()).toBe('')
+    m.sim.setState(find(m.c, 'button'), { pressed: false })
+    expect(m.run(() => /OK$/.test(m.screen()))).toBe(true)
+    expect(m.screen().trimStart()).toBe('15615 BYTES FREE\n\nSKLOPKO BASIC V1.1\nCOPYRIGHT 1978 MICROSOFT\n\nOK')
+  })
+
   it('left running keeps its memory flat: the screen and the keyboard buffer are bounded', { timeout: 300_000 }, () => {
     const m = boot()
     m.run(() => /OK$/.test(m.screen()))

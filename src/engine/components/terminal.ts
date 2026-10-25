@@ -1,4 +1,4 @@
-import { aciaClock, aciaInit, aciaIrq, aciaRead, aciaReset, aciaWrite, type AciaState } from '../acia'
+import { aciaClock, aciaInit, aciaIrq, aciaRead, aciaReset, aciaWipe, aciaWrite, type AciaState } from '../acia'
 import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type V } from '../types'
 
@@ -28,11 +28,19 @@ export const terminals: ComponentDef[] = [
       'A 6551-style serial chip with a terminal on the other end of the wire: a screen of 40 columns by 24 rows and a keyboard. ' +
       'Four registers, picked by RS1 RS0: 0 the character (read: the key that arrived, write: print it), 1 status, 2 command, 3 control. ' +
       'It answers while CS0 = 1 and CS1 = 0, at the rising edge of Φ2, like the other devices of a 6502 board. ' +
-      'Select it, click it and type. Until a program sets bit 0 of the command register, what you type waits in the keyboard buffer.',
+      'Select it, click it and type. Until a program sets bit 0 of the command register, what you type waits in the keyboard buffer. ' +
+      'While RES is low the registers are cleared, and so (unless you switch that off) are the screen and what was typed.',
     params: [
       {
         key: 'capitals',
         label: 'Capitals',
+        kind: 'bool',
+        default: true,
+        structural: false,
+      },
+      {
+        key: 'resetClears',
+        label: 'Clear the screen on reset',
         kind: 'bool',
         default: true,
         structural: false,
@@ -66,8 +74,10 @@ export const terminals: ComponentDef[] = [
       const rising = st.pc === 0 && phi2 === 1
       if (phi2 <= 1) st.pc = phi2
       if (ins[IN.RESB] === 0) {
-        // Held in reset: the registers are cleared (the screen and the keyboard buffer stay), and nothing is selected.
+        // Held in reset: the registers are cleared, and nothing is selected. The terminal is reset with the machine (a screen left over from
+        // the program that was running would be confusing), unless the part is set to keep it.
         aciaReset(st)
+        if (inst.params.resetClears !== false) aciaWipe(st)
         st.out = 0
       } else if (rising) {
         // The chip works while Φ2 is high: its inputs have been steady since the CPU's last falling edge. What a read returns is
