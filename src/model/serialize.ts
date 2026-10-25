@@ -105,11 +105,17 @@ export function serialize(circuit: Circuit): SavedCircuit {
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
+/**
+ * An id a file may use: wires name their ends as `part.pin`, so a part id has no dot, and an id that is a key of every object
+ * (`__proto__`) would change the prototype of the table it is stored in.
+ */
+const isId = (v: unknown): v is string => typeof v === 'string' && v !== '' && !v.includes('.') && v !== '__proto__'
+
 /** Does a saved value fit the parameter (type, allowed option, range, text pattern and length)? */
 function validParam(p: ParamDef, v: unknown): v is ParamValue {
   if (typeof v !== typeof p.default) return false
   if (p.kind === 'select') return !!p.options?.some((o) => o.value === v)
-  if (p.kind === 'number') return isNum(v) && (p.min === undefined || v >= p.min) && (p.max === undefined || v <= p.max)
+  if (p.kind === 'number') return isNum(v) && Number.isInteger(v) && (p.min === undefined || v >= p.min) && (p.max === undefined || v <= p.max)
   if (p.kind === 'text')
     return typeof v === 'string' && v.length <= (p.maxLength ?? 1000) && (!p.pattern || new RegExp(`^(?:${p.pattern})$`).test(v))
   return true
@@ -119,7 +125,7 @@ function validParam(p: ParamDef, v: unknown): v is ParamValue {
 function readBody(d: Partial<SavedBody>): Circuit {
   const c = emptyCircuit()
   for (const s of d.comps ?? []) {
-    if (!s || typeof s.id !== 'string' || !hasDef(s.type) || !isNum(s.x) || !isNum(s.y)) continue
+    if (!s || !isId(s.id) || !hasDef(s.type) || !isNum(s.x) || !isNum(s.y)) continue
     const def = getDef(s.type)
     // A param the file lacks means what it meant before the param existed (`legacy`), not what a part placed now gets.
     const params = { ...legacyDefaults(def) }
@@ -134,7 +140,7 @@ function readBody(d: Partial<SavedBody>): Circuit {
       type: s.type,
       x: s.x,
       y: s.y,
-      rot: (((s.rot ?? 0) % 4) + 4) % 4 as Rot,
+      rot: (Number.isInteger(s.rot) ? ((s.rot! % 4) + 4) % 4 : 0) as Rot,
       flip: !!s.flip,
       params,
       ...(typeof s.label === 'string' && s.label ? { label: s.label.slice(0, 40) } : {}),
@@ -143,7 +149,7 @@ function readBody(d: Partial<SavedBody>): Circuit {
   }
   const taken = new Set<string>()
   for (const s of d.wires ?? []) {
-    if (!s || typeof s.id !== 'string' || typeof s.from !== 'string' || typeof s.to !== 'string') continue
+    if (!s || !isId(s.id) || typeof s.from !== 'string' || typeof s.to !== 'string') continue
     const [fc, fp] = s.from.split('.')
     const [tc, tp] = s.to.split('.')
     if (taken.has(s.to)) continue // an input takes one wire
@@ -169,7 +175,7 @@ export function deserialize(data: unknown): Circuit {
   const c = readBody(d)
   const ics: Record<string, ICDef> = {}
   for (const s of Array.isArray(d.ics) ? d.ics : []) {
-    if (!s || typeof s.id !== 'string' || !s.id || ics[s.id] || !Array.isArray(s.comps) || !Array.isArray(s.wires)) continue
+    if (!s || !isId(s.id) || Object.hasOwn(ics, s.id) || !Array.isArray(s.comps) || !Array.isArray(s.wires)) continue
     ics[s.id] = { id: s.id, name: typeof s.name === 'string' && s.name ? s.name.slice(0, 40) : 'IC', circuit: readBody(s) }
   }
   if (findCycle(ics)) throw new Error('A custom IC in this file contains itself.')

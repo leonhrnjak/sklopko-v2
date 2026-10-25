@@ -262,7 +262,9 @@ export function Canvas() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
-      if (t.closest('input, select, textarea')) return
+      if (t.closest('input, select, textarea, [role="dialog"]')) return
+      // A dialog that is open owns the keyboard, wherever the focus is: Delete or R must not reach the circuit behind it.
+      if (document.querySelector('[aria-modal="true"]')) return
       const mod = e.metaKey || e.ctrlKey
       const k = e.key.toLowerCase()
       // A switch with this key flips (before any shortcut: a switch's key may be R, F or H).
