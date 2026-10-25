@@ -681,3 +681,32 @@ test('the BASIC computer: it starts by itself, and a program typed on its termin
   await page.keyboard.press('Enter')
   await expect(screen).toHaveText(/HELLO\s+OK\s*$/, { timeout: 60000 })
 })
+
+test('the BASIC reference: statements, functions and the programs to type in, from the Tools menu', async ({ page }) => {
+  await freshEmpty(page)
+  await chooseTool(page, 'BASIC…')
+  const dialog = page.getByRole('dialog', { name: 'BASIC reference' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('Microsoft BASIC')
+  await expect(dialog).toContainText('Syntax error')
+  await dialog.getByRole('tab', { name: 'Statements' }).click()
+  await expect(dialog.locator('[id="basic-PRINT"]')).toContainText('print zone')
+  await expect(dialog.locator('[id="basic-FOR"]')).toContainText('always runs once')
+  await dialog.getByRole('tab', { name: 'Functions and operators' }).click()
+  await expect(dialog.locator('[id="basic-SQR"]')).toContainText('1.41421356')
+  await dialog.getByRole('tab', { name: 'Programs to type in' }).click()
+  await expect(dialog.locator('[data-program]')).toHaveCount(4)
+  await expect(dialog.getByRole('button', { name: 'Type it in' })).toHaveCount(0) // no terminal in this circuit
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
+test('the BASIC computer: a program to type in is typed on the terminal and runs', async ({ page }) => {
+  await page.goto('/6502-basic', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  const screen = page.getByLabel('Screen text')
+  await expect(screen).toContainText('OK', { timeout: 60000 })
+  await page.getByText('Programs to type in', { exact: true }).click()
+  await page.locator('[data-program="table"]').getByRole('button', { name: 'Type it in' }).click()
+  await expect(screen).toContainText(/\n {4}1 {3}2 {3}3 {3}4 {3}5 {3}6 {3}7 {3}8 {3}9\n/, { timeout: 60000 })
+})

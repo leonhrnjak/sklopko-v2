@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { breakOnTerminal, typeOnTerminal } from '../app/terminal'
 import { sim } from '../app/sim'
-import { showToast } from '../app/store'
+import { showToast, useStore } from '../app/store'
 import { aciaPut, aciaStatus, interruptOn, receiverOn, screenText } from '../engine/acia'
 import type { TerminalState } from '../engine/components/terminal'
 import type { Comp } from '../model/circuit'
+import { hasBasic } from '../model/basic-programs'
+import { BasicPrograms } from './BasicPrograms'
 
 const hex = (n: number, digits = 2) => '$' + n.toString(16).toUpperCase().padStart(digits, '0')
 
@@ -52,6 +54,7 @@ export function TerminalSection({ comp }: { comp: Comp }) {
   const v = useTerminal(comp.id)
   const [typing, setTyping] = useState(false)
   const [text, setText] = useState('')
+  const basic = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'rom' && hasBasic(c.params.data)))
   if (!v) return null
 
   const copy = async () => {
@@ -135,6 +138,12 @@ export function TerminalSection({ comp }: { comp: Comp }) {
           </>
         )}
       </div>
+      {basic && (
+        <details className="field" data-testid="basic-programs">
+          <summary>Programs to type in</summary>
+          <BasicPrograms terminalId={comp.id} />
+        </details>
+      )}
     </>
   )
 }

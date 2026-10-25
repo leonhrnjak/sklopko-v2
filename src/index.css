@@ -3350,3 +3350,18 @@ button.linklike:hover {
   color: var(--accent-strong);
   font-weight: 600;
 }
+
+/* ---- BASIC programs to type in ---- */
+
+.basic-program {
+  margin: 10px 0 14px;
+}
+.basic-program h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+.basic-program .ref-code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
