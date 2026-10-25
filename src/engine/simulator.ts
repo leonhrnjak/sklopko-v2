@@ -160,6 +160,7 @@ export class Simulator {
     this.history = []
     this.cursor = -1
     this.moved = false
+    this.unstable = false // a different circuit: whether it oscillates is found out by the next settle
     const oldValues = new Map<string, V>()
     for (const [key, net] of this.netByOut) oldValues.set(key, this.values[net] as V)
     const oldState = new Map(this.comps.map((cc) => [cc.id, cc]))
@@ -179,13 +180,16 @@ export class Simulator {
       const ins = layout.pins.filter((p) => p.dir === 'in')
       const outs = layout.pins.filter((p) => p.dir === 'out')
       const prev = oldState.get(sc.id)
+      // A part keeps what it holds when it is edited, but not when its size changed (a 4-bit counter must not keep an 8-bit count).
+      // Memories adapt their contents to a new size themselves.
+      const sameShape = !!prev && prev.def === def && (!!def.memory || (def.params ?? []).every((p) => !p.structural || prev.inst.params[p.key] === sc.params[p.key]))
       return {
         id: sc.id,
         def,
         inst: {
           ins: ins.map(() => X),
           outs: outs.map(() => X),
-          state: prev && prev.def === def && prev.inst.state !== undefined ? prev.inst.state : def.init?.(sc.params),
+          state: sameShape && prev.inst.state !== undefined ? prev.inst.state : def.init?.(sc.params),
           params: sc.params,
         },
         inNames: ins.map((p) => p.name),
@@ -254,8 +258,12 @@ export class Simulator {
     this.dirty = true
   }
 
-  /** Evaluate a part again at the next tick (it was operated, edited or changed from outside). */
+  /**
+   * Evaluate a part again at the next tick (it was operated, edited or changed from outside). Whatever was oscillating may have
+   * stopped now, so the next settle gets its whole budget again: `unstable` is set again if the circuit still does not settle.
+   */
   private touch(cc: CComp) {
+    this.unstable = false
     if (cc.index >= 0) this.mark(cc.index)
   }
 

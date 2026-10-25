@@ -484,3 +484,57 @@ describe('editing memory from outside', () => {
     expect(calls).toBe(before + 1)
   })
 })
+
+describe('an oscillation that stops', () => {
+  /** A NAND feeding itself while the switch is on, and a clock running down a chain of buffers (deeper than the 2-tick budget of an unstable circuit). */
+  function oscillatorAndChain() {
+    const comps: Record<string, string | [string, Params]> = { clk: ['clock', { hz: 256 }], sw: ['switch', { on: false }], g: 'nand' }
+    const wires: [string, string][] = [['sw.Q', 'g.A'], ['g.Y', 'g.B']]
+    let from = 'clk.Q'
+    for (let i = 0; i < 8; i++) {
+      comps[`b${i}`] = 'buf'
+      wires.push([from, `b${i}.A`])
+      from = `b${i}.Y`
+    }
+    return sim(build(comps, wires))
+  }
+
+  it('gets its whole settle budget back once an input changes, so the rest of the circuit is not left half-way', () => {
+    const s = oscillatorAndChain()
+    set(s, 'sw', true)
+    expect(s.unstable).toBe(true)
+    s.setParams('sw', { on: false })
+    for (let i = 0; i < 5; i++) s.frame(16)
+    expect(s.unstable).toBe(false)
+    expect(s.pinValue('b7', 'Y')).toBe(s.pinValue('clk', 'Q'))
+  })
+
+  it('is found out again by the next settle if it has not stopped', () => {
+    const s = oscillatorAndChain()
+    set(s, 'sw', true)
+    s.setParams('sw', { on: true })
+    s.frame(16)
+    expect(s.unstable).toBe(true)
+  })
+})
+
+describe('reloading a circuit', () => {
+  const counter = (bits: number): SimCircuit => build({ k: ['busctr', { bits }] }, [])
+
+  it('keeps the state of a part that was only moved or edited', () => {
+    const s = new Simulator()
+    s.load(counter(8))
+    s.setState('k', { n: 200 })
+    s.load(counter(8))
+    expect(s.state('k').n).toBe(200)
+  })
+
+  it('starts a part again when its size changed', () => {
+    const s = new Simulator()
+    s.load(counter(8))
+    s.setState('k', { n: 200 })
+    s.load(counter(4))
+    s.settle()
+    expect(s.state('k').n).toBe(0)
+  })
+})

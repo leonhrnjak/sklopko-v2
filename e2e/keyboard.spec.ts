@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { freshEmpty, ledOn, place, wire } from './helpers'
+import { chooseFile, freshEmpty, ledOn, place, wire } from './helpers'
 
 test('a switch with a Key flips when that key is pressed, and shows the key under it', async ({ page }) => {
   await freshEmpty(page)
@@ -58,4 +58,22 @@ test('the keyboard presses the keys of a keypad', async ({ page }) => {
   await expect.poll(() => ledOn(page, k0)).toBe(false)
   await page.keyboard.press('b') // 1011: a hex digit
   await expect.poll(() => ledOn(page, k0)).toBe(true)
+})
+
+test('a dialog that is open keeps the shortcuts: Delete does not remove the parts behind it', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 160, 160)
+  await chooseFile(page, 'My circuits')
+  const dialog = page.getByRole('dialog', { name: 'My circuits' })
+  await dialog.locator('button').first().focus()
+  await page.keyboard.press('Delete')
+  await page.keyboard.press('Control+a')
+  await page.waitForTimeout(150)
+  await expect(page.locator(`.comp[data-id="${sw}"]`)).toHaveCount(1)
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await page.locator(`.comp[data-id="${sw}"] > g`).click()
+  await page.keyboard.press('Delete')
+  await expect(page.locator(`.comp[data-id="${sw}"]`)).toHaveCount(0)
 })
