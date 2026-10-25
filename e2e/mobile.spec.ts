@@ -266,3 +266,16 @@ test('the terminal takes typing on a phone: tap it, then the keyboard goes to it
   await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
   await expect(page.getByText('2 characters waiting on the keyboard.', { exact: true })).toBeVisible()
 })
+
+test('the BASIC computer on a phone: tap the terminal and run a program', async ({ page }) => {
+  await page.goto('/basic-computer', { waitUntil: 'networkidle' })
+  const term = page.locator('.comp', { has: page.locator('.screen-body') })
+  const id = (await term.getAttribute('data-id'))!
+  const keyboard = page.locator(`textarea[data-terminal-input="${id}"]`)
+  await term.locator('.screen-body').tap()
+  await expect(keyboard).toBeFocused()
+  await page.keyboard.type('print 6*7')
+  await page.keyboard.press('Enter')
+  await page.locator('.action-bar').getByRole('button', { name: 'Edit' }).tap()
+  await expect(page.getByLabel('Screen text')).toContainText(/PRINT 6\*7\s+42\s+OK/, { timeout: 60000 })
+})

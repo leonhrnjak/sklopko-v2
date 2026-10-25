@@ -7,6 +7,7 @@ export const BLURBS: Record<string, string> = {
   '6502-counter': 'A 6502 counts on its LEDs, calling a subroutine to wait: the ROM holds the program in 6502 assembly.',
   '6502-hello': 'A 6502 prints a greeting from a string in its ROM, one character at a time, on a text console.',
   '6502-keypad': 'Press a key on the keypad: the 6502 polls it, prints the key on the console and shows its code on the LEDs.',
+  'basic-computer': 'A 6502, RAM, ROM and a serial terminal, running Microsoft BASIC: type 10 PRINT "HELLO" and RUN on a computer you can follow wire by wire.',
   '6502-echo': 'A 6502 and a serial terminal: it prints HELLO, then sends back every key you type, polling the status register.',
   '6502-echo-irq': 'The same echo with the receive interrupt: the CPU counts until a key pulls IRQ low, and the interrupt routine echoes it.',
   '65c02-timer': 'A timer interrupts a 65C02 that sleeps in WAI: the interrupt routine counts on the LEDs and prints a star each time.',

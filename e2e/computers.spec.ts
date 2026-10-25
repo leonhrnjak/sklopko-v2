@@ -668,3 +668,16 @@ for (const [path, what] of [
     await expect(page.getByLabel('Registers of the terminal chip')).toContainText('receiver on')
   })
 }
+
+test('the BASIC computer: it starts by itself, and a program typed on its terminal runs', async ({ page }) => {
+  await page.goto('/basic-computer', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  const screen = page.getByLabel('Screen text')
+  await expect(screen).toContainText('SKLOPKO BASIC', { timeout: 60000 })
+  await expect(screen).toContainText('OK', { timeout: 60000 })
+  await page.keyboard.type('10 print "hello"')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('run')
+  await page.keyboard.press('Enter')
+  await expect(screen).toHaveText(/HELLO\s+OK\s*$/, { timeout: 60000 })
+})
