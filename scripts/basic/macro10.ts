@@ -407,6 +407,9 @@ class Translator {
     const terms: { sign: 1 | -1; text: string }[] = []
     let constant = 0
     let part = ''
+    // What the byte part itself holds, to tell it from what is added after it.
+    let partTerms = 0
+    let partConstant = 0
     const add = (m: Node, sign: 1 | -1) => {
       const v = this.fold(m)
       if (v !== undefined) constant += sign * v
@@ -422,6 +425,8 @@ class Translator {
         if (byte && sign === 1 && !terms.length && !constant && !part) {
           part = byte[0]
           add(byte[1], 1)
+          partTerms = terms.length
+          partConstant = constant
         } else if (m.t === 'op' && (m.op === '+' || m.op === '-')) {
           add(m.a, sign)
           add(m.b, m.op === '-' ? (sign === 1 ? -1 : 1) : sign)
@@ -429,6 +434,12 @@ class Translator {
       }
     }
     add(n, 1)
+    // The assembler takes `<` and `>` in front of a whole expression: x/256+1 would become the high byte of x+1, not the high byte of x
+    // plus 1. A number added to a low byte makes the same byte of the result once it is cut to eight bits (as an immediate is), so
+    // that is allowed; anything else is refused rather than assembled differently from what the source says.
+    if (part && (terms.length > partTerms || (part === '>' && constant !== partConstant))) {
+      this.fail(chunk, at, `Something is added to the ${part === '<' ? 'low' : 'high'} byte of a name, which the assembler would take as part of the name's value.`)
+    }
     let text = ''
     for (const t of terms) text += (t.sign === -1 ? '-' : text ? '+' : '') + t.text
     if (constant) text += (constant < 0 ? '-' : text ? '+' : '') + Math.abs(constant)

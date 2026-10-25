@@ -78,6 +78,20 @@ export const EDITS: Edit[] = [
     why: 'With the questions on, the memory test (an empty answer) stops at the end of the RAM instead of writing into the terminal.',
   },
   {
+    line: 6814,
+    was: 'USEDEC: LDWD LINNUM ;GET SIZE OF MEMORY INPUT.',
+    now: [
+      'USEDEC:\tLDWD\tLINNUM\t\t;GET SIZE OF MEMORY INPUT.',
+      '\tCPYI\tMEMTOP/^D256\t;OUR RAM ENDS AT MEMTOP: THE TERMINAL IS NEXT',
+      '\tBCC\tUSEDEF\t\t;BELOW IT: AS TYPED',
+      '\tBNE\tCAPMEM\t\t;ABOVE IT: TOO MUCH',
+      '\tCMPI\t0\t\t;IN ITS LAST PAGE: ONLY THE FIRST BYTE IS RAM',
+      '\tBEQ\tUSEDEF',
+      'CAPMEM:\tLDWDI\tMEMTOP',
+    ],
+    why: 'A memory size typed at MEMORY SIZE? (or found by the test) is held to MEMTOP: BASIC keeps its strings just below the top of memory, which must not be the terminal.',
+  },
+  {
     line: 6823,
     was: 'LDWDI TTYWID',
     now: ['\tJSR\tASKQS\t\t;OUR I/O (io.s): [Z]=1 IF THE START-UP QUESTIONS ARE SWITCHED OFF', '\tBEQ\tASKAGN\t\t;OFF: THE WIDTH STAYS AS ASSEMBLED', '\tLDWDI\tTTYWID'],

@@ -1,4 +1,4 @@
-import { aciaClock, aciaInit, aciaKey, aciaRead, aciaType, aciaWrite, screenText, type AciaState } from '../engine/acia'
+import { aciaBreak, aciaClock, aciaInit, aciaKey, aciaRead, aciaType, aciaWrite, screenText, type AciaState } from '../engine/acia'
 import { cycle, newCpu, reset, type Cpu6502 } from '../engine/cpu6502'
 
 /**
@@ -91,8 +91,14 @@ export class BasicMachine {
     aciaType(this.term, text)
   }
 
+  /** A key that is not text, such as Backspace (8). */
   key(code: number) {
     aciaKey(this.term, code)
+  }
+
+  /** Control+C: it goes to the front, and what was typed and not yet read is thrown away. */
+  interrupt() {
+    aciaBreak(this.term)
   }
 
   /** Is BASIC waiting for a key, with nothing typed left to read? (The program counter is in the terminal code's poll loop.) */
@@ -114,6 +120,22 @@ export class BasicMachine {
   command(line: string, max = 20_000_000): number {
     this.type(line + '\r')
     return this.settle(max)
+  }
+
+  /**
+   * What a command printed: not the echo of the line (it ends in CR, and BASIC adds a CR LF), not the `OK` after it, and not the one
+   * line break that ends the last thing printed. Line breaks are `\n`.
+   */
+  answer(line: string, max = 20_000_000): string {
+    const mark = this.sent.length
+    this.command(line, max)
+    const printed = this.since(mark)
+    return printed
+      .slice(printed.indexOf('\r\r\n') + 3)
+      .replace(/(\r\n)?OK\r\n$/, '')
+      .replace(/\r\n/g, '\n')
+      .replace(/^\n/, '')
+      .replace(/\n$/, '')
   }
 
   /** What was printed since `mark` (a length of `sent`), without the echo of the line that was typed. */
