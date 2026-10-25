@@ -1,11 +1,11 @@
 # A BASIC computer on the 6502 (spec)
 
-> **Status: spec, all decisions made; nothing built.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
+> **Status: spec, all decisions made. B1 is built (the BASIC ROM and its tests); B2 to B7 are not.** Read `CLAUDE.md` first (feature branch → PR → CI → merge; scoped tests; a PR
 > does not bump the version, but the first PR of a larger feature bumps the *minor* number in `package.json`: B1 does, `0.1.0` → `0.2.0`).
 > One PR per milestone, each stacked on the one before it (`b1-basic-image`, `b2-fast-clock`, `b3-big-memory`…); tick each box when
 > its PR merges and add a short *What it did, and where it differs from the spec* note under it, as `plan-cpu6502.md` does.
 >
-> - [ ] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
+> - [x] B1 Microsoft BASIC built from Microsoft's source, run on the bare core (no board, no UI)
 > - [ ] B2 A fast clock, and a switch to run a circuit without step-back history (the BASIC computer runs without it)
 > - [ ] B3 Big memory: RAM to 32 KB, ROM to 16 KB, and a board with them
 > - [ ] B4 The terminal part: a 6551 serial chip with a screen and a keyboard
@@ -208,6 +208,46 @@ The register model is written here, as `src/engine/acia.ts` (*The terminal part*
 build does not reach `OK` and pass the tests above, stop and report. The fallback is then Ben Eater's route (*Risks*): the same
 harness, tests and `io.s` ideas, only the image is built from `beneater/msbasic` with `ca65` instead of from our translation.
 Nothing else in the spec changes.
+
+**What B1 did, and where it differs from the spec.** It took a day, not a week, and the fallback was not needed. `scripts/basic/` holds
+Microsoft's file verbatim (its SHA-256 is pinned by a test), the translator `macro10.ts`, the edits and the build (`target.ts`), our I/O
+code (`io.s`) and a README; `src/engine/acia.ts` is the terminal's register model (20 tests) and `src/model/basic-harness.ts` the bare
+core around it. `npm run build:basic` writes `src/model/basic-rom.ts` (the 16 KB image: BASIC from `$C000` to `$E032`, 8,243 bytes, our code
+from `$F000`), and a test fails if the committed image is not what the source builds. The minor version is `0.2.0`.
+
+- **Measured**, on the bare core with the questions off: 16,813 cycles from reset to `OK`, with `15615 BYTES FREE`; typing `PRINT 2+2`
+  and its answer, 22,019 cycles, `PRINT "HELLO"` 11,143, `PRINT SQR(2)` 75,837; an empty 1,000-turn `FOR` loop
+  958,478 (about a million, as finding 4 said); the same loop with `A=A+1` in it 3,602,599. Typing in a program, as a paste feeds it:
+  20 lines 410,254 cycles (20,500 a line, growing with the size because BASIC relinks the whole program at each new line), 50 lines
+  1,586,429, 300 lines 14.7 million. At the targeted 60,000–100,000 cycles a second that is 4–7 s for 20 lines, so the programs to type
+  in (B7) stay short. A run of those 20 `PRINT` lines: 267,497.
+- **The maths agrees with the true values to 4.3 × 10⁻⁹** (relative, 91 results across `SQR LOG EXP SIN COS TAN ATN ^ / * -`; the
+  32-bit mantissa allows about that), and the same, to the last digit, with a second build of Microsoft BASIC: the **oracle** of
+  `src/model/basic-oracle.test.ts` (developer machine only) runs 68 numbers, 19 string and format cases, 15 programs and 400 seeded
+  random expressions on mist64's KIM-1 build (built with cc65) and on ours: identical output, and a single flipped bit in the sine
+  polynomial is caught by the random ones. **The byte-for-byte comparison with the KIM-1 binary that the spec asked for is not
+  possible:** that binary is the 1977 build and Microsoft's file the July 1978 source (the later one has a `GO TO` case, the earlier
+  the long error messages), so they differ in the keyword list, the error table and the addresses. Comparing what the programs print is
+  what is done instead. (The `eater` target of Ben Eater's fork is a different build again, `CONFIG_2A` with 7 digits, so it cannot be compared digit
+  for digit with a 9-digit one.)
+- **The target is the KIM-1 build (`REALIO=1`), not a new `REALIO=6`:** the KIM-1 block is the plainest, and its hooks are the ones
+  to point at the terminal anyway, so a new block would only have copied it. There are 24 edits to 6,954 lines, each in `target.ts` with
+  its reason: the switches (width 40, `RAMLOC=$0300`, `ROMLOC=$C000`, no LOAD/SAVE, the 6502's own ROR), the hooks (`JSR TERMIN`, the break
+  check, the banner), `MEMTOP`, the start-up switch, and two repairs of Microsoft's own code that our additions exposed: a branch that
+  became too long (`BEQ TYPAUT`, now a jump), and the comma-field cut-off, which the code computes as `width/14*14` when it asks the
+  width but which was assembled in one field short (at width 40 `PRINT 1,2,3` put the third item on a second line only when the
+  questions were off: the oracle found it).
+- **The switch** is the DSR pin as planned (`io.s` reads status bit 6 at reset). With the questions on, `MEMORY SIZE?` accepts a number
+  or Enter (the test stops at `$4000`: no stray `U`), then `TERMINAL WIDTH?`; `A` at the first prints the authors' names.
+- **Translator facts the spec did not have:** names are significant to six characters (the dispatch table says `RESTORE` where the routine
+  is `RESTOR`); `* / & !` bind tighter than `+ -` (not strictly left to right as assumed); a number with an 8 or 9 in it is decimal
+  even in base 8; `LDA zp,Y` does not exist, so a zero-page name with `,Y` is three bytes; the translator counts addresses itself (one
+  condition asks whether the input buffer straddles a page), and a test checks that it agrees with the assembler about every label (about 900)
+  for ours and for machines 1, 3 and 4 of the file. Machine 2 (OSI) has no `GET` routine in Microsoft's file and machine 0 is the PDP-10
+  simulator; neither is built.
+- **For the later milestones:** the terminal part has to behave as `acia.ts` does (its tests are the specification, B4 wraps it), the board
+  must give BASIC a command register of `$0B` at reset (`io.s` writes it: the receiver is on, its interrupt off), and Backspace reaches
+  BASIC as `$08` (`io.s` turns it into the `_` that BASIC takes for delete).
 
 ### B2. A fast clock, and history off for a circuit
 - **A per-circuit setting, *Step-back history*** (on by default). It is saved in the file (`history: false`, written only when off,
