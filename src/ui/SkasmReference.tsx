@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { closeReference, setReferenceTab, useReference, type ReferenceTab } from '../app/reference'
 import { showToast } from '../app/store'
 import { PORTS, SKASM, SKASM_ALIASES, SKASM_OPS, assemble, wordFields, type ArgKind, type Op, type OpCategory, type WordField } from '../engine/isa'
+import { SIGNAL_DOCS, SIGNAL_PRESETS, presetWords } from '../engine/signal-presets'
+import { describeWord, parseRows, type SignalLayout } from '../engine/signals'
 import { SKASM_EXAMPLES } from '../model/skasm-examples'
 
 const TABS: [ReferenceTab, string][] = [
@@ -9,6 +11,7 @@ const TABS: [ReferenceTab, string][] = [
   ['format', 'Instruction format'],
   ['instructions', 'Instructions'],
   ['ports', 'Ports'],
+  ['signals', 'Control signals'],
   ['examples', 'Examples'],
 ]
 
@@ -174,6 +177,138 @@ function WordBreakdown({ word }: { word: number }) {
       <p className="fmt-pins">
         The ROM’s pins that are 1: {ones.length ? ones.map((b) => <code key={b}>D{b}</code>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ' ', el] : [el]), []) : 'none'}. Bits that belong to no field are 0 and ignored.
       </p>
+    </div>
+  )
+}
+
+/** The pins of a signal on its control ROM: `D3`, or `D1–D3`. */
+const pinsOf = (from: number, width: number) => (width === 1 ? `D${from}` : `D${from}–D${from + width - 1}`)
+
+function SignalTable({ id, layout }: { id: string; layout: SignalLayout }) {
+  return (
+    <div className="ref-table-wrap">
+      <table className="ref-table">
+        <thead>
+          <tr>
+            <th>Signal</th>
+            <th>ROM pins</th>
+            <th>What it does</th>
+          </tr>
+        </thead>
+        <tbody>
+          {layout.signals.map((s) => (
+            <tr key={s.name}>
+              <td>
+                <code>{s.name}</code>
+              </td>
+              <td>
+                <code>{pinsOf(s.from, s.width)}</code>
+              </td>
+              <td>
+                {SIGNAL_DOCS[id]?.[s.name]}
+                {s.values.length > 0 && (
+                  <>
+                    {' '}
+                    Values: {s.values.map((v, i) => (
+                      <span key={v}>
+                        {i > 0 && ', '}
+                        <code>
+                          {i} {v}
+                        </code>
+                      </span>
+                    ))}
+                    .
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** The three control ROMs of the SKASM computers and the Beginner computer's: what each signal does, and what each instruction switches on. */
+function ControlSignals() {
+  const skasm = SIGNAL_PRESETS.filter((x) => x.id.startsWith('skasm')).map((x) => ({ x, ...presetWords(x) }))
+  const beginner = SIGNAL_PRESETS.filter((x) => x.id === 'beginner').map((x) => ({ x, ...presetWords(x) }))
+  const instructions = Object.entries(SKASM_OPS)
+    .map(([name, op]) => ({ name, at: op.code | ((op.sub ?? 0) << 4) }))
+    .sort((a, b) => a.at - b.at)
+  return (
+    <div className="ref-text">
+      <p>
+        An instruction is a number, and a <b>control ROM</b> turns it into <b>signals</b>: which parts switch on for it (load the accumulator, write the RAM, subtract, jump…). The
+        ROM is addressed by the instruction’s opcode, plus 16 times its sub-opcode, so each instruction has a row, and each data pin of the row is one signal (or a few pins together, a
+        field with named values). The SKASM computers have three control ROMs, so that each could stay small; the Beginner computer has one. Select a control ROM to see its rows by name,
+        click a row to edit it by its signals, or choose <b>Contents are → Control signals (text)</b> to write them as <code>LDI: LOAD_ACC SRC=CONST</code>.
+      </p>
+      {skasm.map(({ x, layout }, i) => (
+        <section key={x.id}>
+          <h3>
+            Control ROM {i + 1} of the SKASM computers ({x.dbits} bits)
+          </h3>
+          <SignalTable id={x.id} layout={layout} />
+        </section>
+      ))}
+      <h3>What each instruction switches on</h3>
+      <p>
+        What each ROM’s row for the instruction has switched on, read from the ROMs themselves. A blank place means that ROM has nothing to say for it (most instructions need only one or two of the
+        three ROMs).
+      </p>
+      <div className="ref-table-wrap">
+        <table className="ref-table" data-testid="signals-by-instruction">
+          <thead>
+            <tr>
+              <th>Instruction</th>
+              {skasm.map((_, i) => (
+                <th key={i}>ROM {i + 1}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {instructions.map(({ name, at }) => (
+              <tr key={name}>
+                <td>
+                  <code>{name}</code>
+                </td>
+                {skasm.map(({ x, layout, words }) => (
+                  <td key={x.id}>{describeWord(layout, words[at]).replace(/, /g, ' ')}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {beginner.map(({ x, layout, words }) => (
+        <section key={x.id}>
+          <h3>The Beginner computer’s control ROM ({x.dbits} bits, {2 ** x.abits} rows)</h3>
+          <SignalTable id={x.id} layout={layout} />
+          <div className="ref-table-wrap">
+            <table className="ref-table">
+              <thead>
+                <tr>
+                  <th>Instruction</th>
+                  <th>Switches on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(parseRows(x.rows).rows.names)
+                  .filter(([at]) => words[Number(at)] !== 0)
+                  .map(([at, name]) => (
+                    <tr key={name}>
+                      <td>
+                        <code>{name}</code>
+                      </td>
+                      <td>{describeWord(layout, words[Number(at)]).replace(/, /g, ' ')}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
@@ -499,7 +634,7 @@ export function SkasmReference() {
             ✕
           </button>
         </header>
-        <div className="modal-body">{tab === 'start' ? <Start /> : tab === 'format' ? <Format /> : tab === 'instructions' ? <Instructions /> : tab === 'ports' ? <Ports /> : <Examples />}</div>
+        <div className="modal-body">{tab === 'start' ? <Start /> : tab === 'format' ? <Format /> : tab === 'instructions' ? <Instructions /> : tab === 'ports' ? <Ports /> : tab === 'signals' ? <ControlSignals /> : <Examples />}</div>
       </div>
     </div>
   )

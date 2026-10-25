@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getDef } from './registry'
 import { pinLabels } from './pinlabels'
-import { SIGNAL_PRESETS, presetParams } from './signal-presets'
+import { SIGNAL_DOCS, SIGNAL_PRESETS, presetParams, presetWords } from './signal-presets'
 import { assembleSignals, describeWord, parseRows, parseSignals, signalParts, signalValue, signalsToText, splitPlan, valueName, withSignal } from './signals'
 
 const LAYOUT = `LOAD
@@ -218,6 +218,16 @@ describe('ready-made control ROMs', () => {
       const params = presetParams(x)
       expect(params.data.split(' '), x.name).toHaveLength(2 ** x.abits)
       expect(parseSignals(x.signals).layout.bits, x.name).toBeLessThanOrEqual(x.dbits)
+    }
+  })
+})
+
+describe('the ready-made control ROMs', () => {
+  it('have a sentence for every signal of their layout, and none for a signal that does not exist', () => {
+    for (const x of SIGNAL_PRESETS) {
+      const names = presetWords(x).layout.signals.map((s) => s.name)
+      expect(Object.keys(SIGNAL_DOCS[x.id] ?? {}).sort(), x.id).toEqual([...names].sort())
+      for (const text of Object.values(SIGNAL_DOCS[x.id])) expect(text.endsWith('.'), text).toBe(true)
     }
   })
 })

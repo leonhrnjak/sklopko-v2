@@ -1,5 +1,5 @@
 import { SKASM_OPS, toHexWords } from './isa'
-import { assembleSignals, parseRows, parseSignals } from './signals'
+import { assembleSignals, parseRows, parseSignals, type SignalLayout } from './signals'
 
 /**
  * The names of the control bits of the computers that ship with the app (see `engine/signals.ts` for the syntax). The
@@ -154,4 +154,54 @@ export function presetParams(x: SignalPreset): { abits: number; dbits: number; s
   const r = assembleSignals(parseSignals(x.signals).layout, parseRows(x.rows).rows, x.control, 2 ** x.abits, x.dbits)
   if (r.errors.length) throw new Error(`${x.name} does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
   return { abits: x.abits, dbits: x.dbits, signals: x.signals, rows: x.rows, data: toHexWords(r.words, x.dbits) }
+}
+
+/** The words of a ready-made control ROM, as numbers (an error if its text does not assemble). */
+export function presetWords(x: SignalPreset): { layout: SignalLayout; words: number[] } {
+  const layout = parseSignals(x.signals).layout
+  const r = assembleSignals(layout, parseRows(x.rows).rows, x.control, 2 ** x.abits, x.dbits)
+  if (r.errors.length) throw new Error(`${x.name} does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
+  return { layout, words: r.words }
+}
+
+/** What each signal does, by the id of the preset and the name of the signal: for the language reference. Every signal has one (a test checks). */
+export const SIGNAL_DOCS: Record<string, Record<string, string>> = {
+  'skasm-1': {
+    LOAD_ACC: 'The accumulator takes a new value at the next clock edge.',
+    SRC: 'Where that value comes from: CONST the number in the instruction, ALU the adder’s or the logic unit’s answer, RAM a word of RAM, SHL and SHR the accumulator shifted by one bit, PORT an input port, X the index register, TABLE the lookup ROM.',
+    WRITE_RAM: 'The accumulator is written into the RAM.',
+    SAVE_FLAGS: 'The carry and zero flags take the ALU’s result.',
+    JUMP: 'The program counter loads the target in the instruction: an unconditional jump.',
+    JNC: 'Jump if the carry flag is 0.',
+    JZ: 'Jump if the zero flag is 1.',
+    HALT: 'The program counter stops: the program is over.',
+    SUBTRACT: 'The adder subtracts: the second operand is flipped bit by bit and 1 is added.',
+    B_IS_NUM: 'The second operand is the number in the instruction, not a word of RAM.',
+    LOGIC: 'The ALU’s answer is the logic unit’s, not the adder’s.',
+    LOGIC_OP: 'Which logic operation: AND, OR or XOR.',
+    CARRY_IN: 'The adder takes the carry flag as its carry in (ADC and SBC).',
+  },
+  'skasm-2': {
+    JNZ: 'Jump if the zero flag is 0.',
+    JC: 'Jump if the carry flag is 1.',
+    PORT_WRITE: 'The accumulator is sent to the output port the instruction names.',
+    INDIRECT: 'The RAM’s address is the index register X, not the address in the instruction.',
+    X_FROM_ACC: 'X takes the accumulator (TAX).',
+    X_FROM_CONST: 'X takes the number in the instruction (LDXI).',
+    X_UP: 'X counts up by one (INX).',
+    X_DOWN: 'X counts down by one (DEX).',
+  },
+  'skasm-3': {
+    CALL: 'The return address is pushed on the return stack and the program counter loads the target.',
+    RET: 'The return address is popped from the return stack into the program counter.',
+  },
+  beginner: {
+    LOAD_ACC: 'The accumulator takes a new value at the next clock edge.',
+    ACC_SRC: 'Where that value comes from: NUM the number in the instruction, ADDER the adder’s answer, RAM a word of RAM.',
+    WRITE_RAM: 'The accumulator is written into the RAM.',
+    SUBTRACT: 'The adder subtracts: the RAM word is flipped bit by bit and 1 is added.',
+    JUMP: 'The program counter loads the target in the instruction.',
+    HALT: 'The program counter stops: the program is over.',
+    SAVE_CARRY: 'The carry flag takes the adder’s carry.',
+  },
 }
