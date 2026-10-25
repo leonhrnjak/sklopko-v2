@@ -67,6 +67,19 @@ describe('the MACRO-10 translator', () => {
     expect(tr('DEFINE LDWDI(WD),<LDAI <<WD>&^O377>\nLDYI <<WD>/^O400>>\nLDWDI ERR\nCMPI ERR-1-<ERR-1>/256*256\nLDAI <BUF&255>-1')).toEqual(['LDA #<ERR', 'LDY #>ERR', 'CMP #<ERR-1', 'LDA #<BUF-1'])
   })
 
+  it('refuses to add anything to the high byte of a name, or a name to either byte, instead of assembling it as another value', () => {
+    const fails = (text: string) => () => tr(text)
+    expect(fails('LDYI <<FOO>/^O400>+1')).toThrow(/line 2: Something is added to the high byte/)
+    expect(fails('LDYI <<FOO>/^O400>+BAR')).toThrow(/added to the high byte/)
+    expect(fails('LDAI <<FOO>&^O377>+BAR')).toThrow(/added to the low byte/)
+    expect(fails('LDAI <<FOO>&^O377>-BAR')).toThrow(/added to the low byte/)
+    // the pattern in Microsoft's source: a number taken from a low byte, cut to eight bits as an immediate is
+    expect(tr('LDAI <BUF&255>-1')).toEqual(['LDA #<BUF-1'])
+    // and a byte of a sum is fine, it is the whole of the expression
+    expect(tr('LDYI <<FOO+1>/^O400>')).toEqual(['LDY #>FOO+1'])
+    expect(tr('LDAI <<FOO+BAR>&^O377>')).toEqual(['LDA #<FOO+BAR'])
+  })
+
   it('counts addresses for the conditions that depend on them', () => {
     const t = translate(linesOf('RADIX 10\nORG 0\nA: JMP X\nB: BLOCK 10\nC: LDA 5\nD: LDA 500\nE: 1\nF: ADR(A)\nG:'))
     expect(t.labels).toEqual({ A: 0, B: 3, C: 13, D: 15, E: 18, F: 19, G: 21 })

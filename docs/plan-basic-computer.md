@@ -88,13 +88,14 @@ the next character moves into the receive register. So a character is only deliv
 is lost, there is no overrun, and a pasted program goes in at the speed BASIC takes it.
 
 **The screen** is 40 columns by 24 rows (BASIC is told its width is 40), with 200 lines kept for scrolling back in the inspector.
-Codes: 32–126 print; CR (13) goes to column 0; LF (10) to the next line; BS (8) moves back one column and blanks it; FF (12) clears;
+Codes: 32–126 print; CR (13) goes to column 0; LF (10) to the next line; BS (8) moves back one column and blanks it (at the start of a line that the terminal wrapped it goes back onto the line above, so that the
+screen follows what BASIC deletes); FF (12) clears;
 BEL (7) flashes the screen frame; anything else is ignored. A line wraps when a character arrives at a full line (not when it fills),
 so a program that prints exactly 40 characters and then CR LF does not get a blank line.
 
 **The keyboard.** Click the screen to type: a hidden `<textarea>` over the part takes the focus, which also opens a phone's on-screen
 keyboard. Text is read from `input` events (phone keyboards send no usable `keydown`), Enter sends CR, Backspace sends BS ($08), Esc and
-Ctrl+C send $03 (BASIC's *break*). Pasting goes into the keyboard buffer: line breaks become CR, tabs a space, anything outside
+Ctrl+C send $03 (BASIC's *break*), which does not wait its turn: what was typed and not yet read is thrown away and the break is the next character. Pasting goes into the keyboard buffer: line breaks become CR, tabs a space, anything outside
 ASCII 32–126 is dropped. With **Capitals** on (a setting, on by default, since this BASIC knows its keywords only in capitals) letters
 are sent as capitals. Click elsewhere or press Tab to stop typing.
 
@@ -182,8 +183,9 @@ expansion, the conditionals, the number bases and the constant arithmetic itself
 - *Character in* (waits): a character kept by *break check* comes first; otherwise wait for *receiver full*, read it, strip bit 7.
   Backspace ($08) or Delete ($7F) echoes BS and returns `_` (BASIC's "delete a character"); anything else is echoed and returned.
 - *Get* (does not wait): the same without waiting and without echo; 0 if nothing is there.
-- *Break check*: if a character is waiting, read it; Ctrl-C ($03) means break; any other character is kept (one byte in zero page)
-  for *character in*, so typing ahead while a program runs is not lost.
+- *Break check*: if a character has arrived, read it; Ctrl-C ($03) means break (and the type-ahead is thrown away); any other character
+  goes into a queue of 16 in page 2 for *character in* and *get*, so typing ahead while a program runs is not lost, and a Control-C cannot
+  wait behind another key.
 - IRQ and NMI vectors point at an `RTI`.
 
 **The bare-core harness** (`src/model/basic.test.ts` with a small helper): the CPU core, a 64 KB array for the memory map above, and
@@ -211,7 +213,7 @@ Nothing else in the spec changes.
 
 **What B1 did, and where it differs from the spec.** It took a day, not a week, and the fallback was not needed. `scripts/basic/` holds
 Microsoft's file verbatim (its SHA-256 is pinned by a test), the translator `macro10.ts`, the edits and the build (`target.ts`), our I/O
-code (`io.s`) and a README; `src/engine/acia.ts` is the terminal's register model (20 tests) and `src/model/basic-harness.ts` the bare
+code (`io.s`) and a README; `src/engine/acia.ts` is the terminal's register model (24 tests) and `src/model/basic-harness.ts` the bare
 core around it. `npm run build:basic` writes `src/model/basic-rom.ts` (the 16 KB image: BASIC from `$C000` to `$E032`, 8,243 bytes, our code
 from `$F000`), and a test fails if the committed image is not what the source builds. The minor version is `0.2.0`.
 
@@ -231,7 +233,7 @@ from `$F000`), and a test fails if the committed image is not what the source bu
   what is done instead. (The `eater` target of Ben Eater's fork is a different build again, `CONFIG_2A` with 7 digits, so it cannot be compared digit
   for digit with a 9-digit one.)
 - **The target is the KIM-1 build (`REALIO=1`), not a new `REALIO=6`:** the KIM-1 block is the plainest, and its hooks are the ones
-  to point at the terminal anyway, so a new block would only have copied it. There are 24 edits to 6,954 lines, each in `target.ts` with
+  to point at the terminal anyway, so a new block would only have copied it. There are 25 edits to 6,954 lines, each in `target.ts` with
   its reason: the switches (width 40, `RAMLOC=$0300`, `ROMLOC=$C000`, no LOAD/SAVE, the 6502's own ROR), the hooks (`JSR TERMIN`, the break
   check, the banner), `MEMTOP`, the start-up switch, and two repairs of Microsoft's own code that our additions exposed: a branch that
   became too long (`BEQ TYPAUT`, now a jump), and the comma-field cut-off, which the code computes as `width/14*14` when it asks the
@@ -245,6 +247,14 @@ from `$F000`), and a test fails if the committed image is not what the source bu
   condition asks whether the input buffer straddles a page), and a test checks that it agrees with the assembler about every label (about 900)
   for ours and for machines 1, 3 and 4 of the file. Machine 2 (OSI) has no `GET` routine in Microsoft's file and machine 0 is the PDP-10
   simulator; neither is built.
+- **The review of #83 found, and the PR fixed:** after one key typed while a program ran, Control-C no longer stopped it (the break check
+  gave up while a key was kept; it now always reads what has arrived and keeps up to 16 keys), and a break waited behind everything typed
+  or pasted (it now jumps the queue and clears it); a memory size typed at `MEMORY SIZE?` above `$4000` put BASIC's strings on the
+  terminal's registers (it is cut to `MEMTOP`, one more edit); Backspace over a wrapped line left the screen one character behind BASIC
+  (the terminal goes back over its own wraps); the translator turned `<X/^O400>+1` into the high byte of `X+1` (it now refuses to add
+  anything to a high byte, or a name to either byte). The comma-field edit and these have tests that fail without them. Not changed: the
+  screen is still a new array for each character printed (1.2 µs a character on this machine with a full 200 lines, against about a
+  thousand 6502 cycles BASIC needs for one: well under 1% of the time).
 - **For the later milestones:** the terminal part has to behave as `acia.ts` does (its tests are the specification, B4 wraps it), the board
   must give BASIC a command register of `$0B` at reset (`io.s` writes it: the receiver is on, its interrupt off), and Backspace reaches
   BASIC as `$08` (`io.s` turns it into the `_` that BASIC takes for delete).

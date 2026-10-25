@@ -31,6 +31,8 @@ export interface AciaState {
   lines: string[]
   /** The cursor's column. */
   col: number
+  /** The cursor's line goes on from the one above because the terminal wrapped it (not because of a line feed): Backspace can go back up. */
+  wrapped: boolean
   /** How many times BEL was sent (a view flashes when it changes). */
   bells: number
   /** Counts changes of the screen. */
@@ -38,7 +40,7 @@ export interface AciaState {
 }
 
 export function aciaInit(): AciaState {
-  return { command: 0, control: 0, rx: 0, full: false, interrupt: false, keys: '', next: 0, lines: [''], col: 0, bells: 0, rev: 0 }
+  return { command: 0, control: 0, rx: 0, full: false, interrupt: false, keys: '', next: 0, lines: [''], col: 0, wrapped: false, bells: 0, rev: 0 }
 }
 
 /** The receiver is on: command bit 0 (DTR). Until a program sets it, typed characters wait. */
@@ -125,9 +127,18 @@ export function aciaType(st: AciaState, text: string, capitals = true): number {
   return s.length
 }
 
-/** A key that is not a character: Backspace is $08, Ctrl+C (break) $03. */
+/** A key that is not a character, such as Backspace ($08). It waits its turn behind what was typed before it. */
 export function aciaKey(st: AciaState, code: number) {
   if (st.keys.length - st.next < KEYBOARD_MAX) st.keys += String.fromCharCode(code)
+}
+
+/**
+ * Control+C, the break: it does not wait its turn. What was typed or pasted and not yet read is thrown away (it was meant for the
+ * program that is being stopped) and the next character to arrive is the break.
+ */
+export function aciaBreak(st: AciaState) {
+  st.keys = '\x03'
+  st.next = 0
 }
 
 /**
@@ -141,12 +152,24 @@ export function aciaPut(st: AciaState, code: number) {
   if (code === 12) {
     st.lines = ['']
     st.col = 0
-  } else if (code === 13) st.col = 0
-  else if (code === 10) st.lines = scrolled([...lines, ''])
-  else if (code === 8) {
-    if (st.col === 0) return
-    st.col--
-    st.lines = [...lines.slice(0, last), put(lines[last], st.col, ' ')]
+    st.wrapped = false
+  } else if (code === 13) {
+    st.col = 0
+    st.wrapped = false
+  } else if (code === 10) {
+    st.lines = scrolled([...lines, ''])
+    st.wrapped = false
+  } else if (code === 8) {
+    if (st.col === 0) {
+      // Back over the wrap: onto the last column of the line above, blanking its last character, and the line below is gone.
+      if (!st.wrapped || last === 0 || lines[last].trim() !== '' || lines[last - 1].length < SCREEN_COLS) return
+      st.lines = [...lines.slice(0, last - 1), lines[last - 1].slice(0, SCREEN_COLS - 1)]
+      st.col = SCREEN_COLS - 1
+      st.wrapped = false
+    } else {
+      st.col--
+      st.lines = [...lines.slice(0, last), put(lines[last], st.col, ' ')]
+    }
   } else if (code === 7) st.bells++
   else if (code >= 32 && code <= 126) {
     let at = st.col
@@ -156,6 +179,7 @@ export function aciaPut(st: AciaState, code: number) {
       base = [...lines]
       line = ''
       at = 0
+      st.wrapped = true
     }
     st.lines = scrolled([...base, put(line, at, String.fromCharCode(code))])
     st.col = at + 1

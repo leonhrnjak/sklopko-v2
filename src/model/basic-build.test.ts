@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest'
 import io from '../../scripts/basic/io.s?raw'
 import source from '../../scripts/basic/m6502.asm?raw'
 import { buildBasic, ROM_BASE, ROM_SIZE } from '../../scripts/basic/target'
-import { BASIC_ROM } from './basic-rom'
-
-/** The committed image as bytes. */
-export const basicRomBytes = (): number[] => BASIC_ROM.split(/\s+/).filter(Boolean).map((h) => parseInt(h, 16))
+import { basicRomBytes } from './basic-rom'
 
 /** The image as the committed file writes it: hex bytes, 32 to a line, so that a change shows up in a diff. */
 function romFile(rom: number[]): string {
@@ -17,6 +14,9 @@ function romFile(rom: number[]): string {
     'export const BASIC_ROM = `',
     ...rows,
     '`',
+    '',
+    '/** The image as bytes. */',
+    "export const basicRomBytes = (): number[] => BASIC_ROM.split(/\\s+/).filter(Boolean).map((h) => parseInt(h, 16))",
     '',
   ].join('\n')
 }
@@ -35,10 +35,12 @@ describe('the BASIC ROM image', () => {
   })
 
   it('is the image that is committed', async () => {
-    if (import.meta.env.VITE_UPDATE_BASIC) {
-      // (the app's tsconfig has no Node types, so the module is loaded by a name the compiler does not look at)
-      const fs = (await import(/* @vite-ignore */ ['node', 'fs'].join(':'))) as { writeFileSync(path: string, text: string): void }
-      fs.writeFileSync(new URL('./basic-rom.ts', import.meta.url).pathname, romFile(build.rom))
+    if (import.meta.env.MODE === 'build-basic') {
+      // (`npm run build:basic`. The app's tsconfig has no Node types, so the modules are loaded by names the compiler does not look at)
+      const node = (name: string) => import(/* @vite-ignore */ ['node', name].join(':'))
+      const { writeFileSync } = (await node('fs')) as { writeFileSync(path: string, text: string): void }
+      const { fileURLToPath } = (await node('url')) as { fileURLToPath(url: URL): string }
+      writeFileSync(fileURLToPath(new URL('./basic-rom.ts', import.meta.url)), romFile(build.rom))
       return
     }
     expect(basicRomBytes()).toEqual(build.rom)

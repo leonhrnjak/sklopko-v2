@@ -12,7 +12,7 @@
     "e2e": "playwright test",
     "lint": "oxlint",
     "check:bundle": "node scripts/check-bundle.mjs",
-    "build:basic": "VITE_UPDATE_BASIC=1 vitest run src/model/basic-build"
+    "build:basic": "vitest run src/model/basic-build --mode build-basic"
   },
   "dependencies": {
     "immer": "^11.2.7",

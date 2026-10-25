@@ -48,19 +48,8 @@ class Kim1Machine extends BasicMachine {
   }
 }
 
-/** What a line printed, as in basic.test.ts but also leaving out the error texts. */
-function answer(m: BasicMachine, line: string): string {
-  const mark = m.sent.length
-  m.command(line)
-  const printed = m.since(mark)
-  return printed
-    .slice(printed.indexOf('\r\r\n') + 3)
-    .replace(/(\r\n)?OK\r\n$/, '')
-    .replace(/\r\n/g, '\n')
-    .replace(/^\n/, '')
-    .replace(/\n$/, '')
-    .replace(/\?[A-Z0-9/' ]+ERROR( IN \d+)?/, '?ERROR')
-}
+/** What a line printed (`BasicMachine.answer`), with the texts of the errors left out: the two builds word them differently. */
+const answer = (m: BasicMachine, line: string) => m.answer(line).replace(/\?[A-Z0-9/' ]+ERROR( IN \d+)?/, '?ERROR')
 
 describe.skipIf(!file)('against the KIM-1 build of the reconstruction of Microsoft BASIC', async () => {
   const fs = (await import(/* @vite-ignore */ ['node', 'fs'].join(':'))) as { readFileSync(path: string): Uint8Array }
@@ -157,14 +146,14 @@ describe.skipIf(!file)('against the KIM-1 build of the reconstruction of Microso
     expect(same(lines)).toBe(400)
   }, 120_000)
 
-  it('has the same speed to within the little the reconstructions differ', () => {
+  it('has about the same speed (ours is a little faster: it has the chip’s ROR, which the KIM-1 build emulates)', () => {
     const [a, k] = machines()
     for (const m of [a, k]) {
       m.command('10 FOR I=1 TO 1000:NEXT')
     }
     const ca = a.command('RUN')
     const ck = k.command('RUN')
-    expect(Math.abs(ca - ck) / ck).toBeLessThan(0.1)
+    expect(Math.abs(ca - ck) / ck).toBeLessThan(0.2)
   })
 })
 

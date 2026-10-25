@@ -14,7 +14,9 @@ ACIA_STATUS = $5001
 ACIA_COMMAND = $5002
 ACIA_CONTROL = $5003
 
-TKEEP = $0200      ; a character TRMBRK read while a program ran, for the next INCHR (0 = none)
+TQN = $0200        ; how many typed-ahead keys wait in TQ (0 to 16)
+TSAVX = $0201      ; X, while the queue is worked on
+TQ = $0210         ; the keys TRMBRK read while a program ran, oldest first, for INCHR and GET
 
 .org $F000
 
@@ -23,7 +25,7 @@ TRMRST:   CLD
           LDX #$FF
           TXS
           LDA #0
-          STA TKEEP
+          STA TQN
           STA ACIA_STATUS      ; programmed reset
           LDA #$0B             ; receiver on, receive interrupt off
           STA ACIA_COMMAND
@@ -42,12 +44,9 @@ OUTWAIT:  LDA ACIA_STATUS
 
 ; Read a character into A, waiting for one (BASIC's INCHR), and echo it, as a terminal does. Keeps X and Y.
 ; Backspace and Delete erase on the screen and are given to BASIC as "_", its delete-a-character.
-TERMIN:   LDA TKEEP
+TERMIN:   LDA TQN
           BEQ INWAIT
-          PHA
-          LDA #0
-          STA TKEEP
-          PLA
+          JSR TQGET
           JMP INGOT
 INWAIT:   LDA ACIA_STATUS
           AND #$08
@@ -69,13 +68,9 @@ INECHO:   PHA
           RTS
 
 ; GET: the character that is waiting, or 0 if none is. No echo.
-CZGETL:   LDA TKEEP
+CZGETL:   LDA TQN
           BEQ GETRX
-          PHA
-          LDA #0
-          STA TKEEP
-          PLA
-          RTS
+          JMP TQGET
 GETRX:    LDA ACIA_STATUS
           AND #$08
           BEQ GETNONE
@@ -85,21 +80,48 @@ GETRX:    LDA ACIA_STATUS
 GETNONE:  LDA #0
           RTS
 
-; Break check (BASIC's ISCNTC, called between statements): C = 1 if Control-C was typed. Any other character that is waiting is
-; kept for INCHR, so typing ahead while a program runs is not lost.
-TRMBRK:   LDA TKEEP
-          BNE BRKNO
-          LDA ACIA_STATUS
+; Break check (BASIC's ISCNTC, called between statements): C = 1 if Control-C was typed. A character that has arrived is always read,
+; so that a Control-C cannot wait behind another key; any other key is kept in the queue (16 at most, then it is dropped) for
+; INCHR and GET, so typing ahead while a program runs is not lost. A break throws the queue away: what was typed before it is
+; not meant for what runs next.
+TRMBRK:   LDA ACIA_STATUS
           AND #$08
           BEQ BRKNO
           LDA ACIA_DATA
           AND #$7F
           CMP #$03
           BEQ BRKYES
-          STA TKEEP
+          JSR TQPUT
 BRKNO:    CLC
           RTS
-BRKYES:   SEC
+BRKYES:   LDA #0
+          STA TQN
+          SEC
+          RTS
+
+; Put A in the type-ahead queue unless it is full. Keeps A, X and Y.
+TQPUT:    STX TSAVX
+          LDX TQN
+          CPX #16
+          BCS TQFULL
+          STA TQ,X
+          INC TQN
+TQFULL:   LDX TSAVX
+          RTS
+
+; Take the oldest key out of the type-ahead queue into A (the queue is not empty). Keeps X and Y.
+TQGET:    STX TSAVX
+          LDA TQ
+          PHA
+          LDX #0
+TQSHIFT:  LDA TQ+1,X
+          STA TQ,X
+          INX
+          CPX #15
+          BCC TQSHIFT
+          DEC TQN
+          PLA
+          LDX TSAVX
           RTS
 
 ; Does the start-up ask its questions (memory size, terminal width)? Z = 1: no.

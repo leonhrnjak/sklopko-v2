@@ -16,22 +16,6 @@ const boot = (dsr = false) => {
   return m
 }
 
-/**
- * What a command printed: not the echo of the line (it ends in CR, and BASIC adds a CR LF), not the `OK` after it, and not the one
- * line break that ends the last thing printed. Line breaks are `\n`.
- */
-function answer(m: BasicMachine, line: string): string {
-  const mark = m.sent.length
-  m.command(line)
-  const printed = m.since(mark)
-  return printed
-    .slice(printed.indexOf('\r\r\n') + 3)
-    .replace(/(\r\n)?OK\r\n$/, '')
-    .replace(/\r\n/g, '\n')
-    .replace(/^\n/, '')
-    .replace(/\n$/, '')
-}
-
 /** The screen without the empty lines at its end. */
 const shown = (m: BasicMachine) => m.screen.trimEnd()
 
@@ -44,7 +28,7 @@ describe('Microsoft BASIC on the bare core', () => {
   })
 
   it('adds', () => {
-    expect(answer(boot(), 'PRINT 2+2')).toBe(' 4 ')
+    expect(boot().answer('PRINT 2+2')).toBe(' 4 ')
   })
 
   it('prints numbers the way Microsoft BASIC does', () => {
@@ -66,14 +50,14 @@ describe('Microsoft BASIC on the bare core', () => {
       ['10^2', ' 100 '],
       ['2^0.5', ' 1.41421356 '],
     ]
-    for (const [expr, printed] of cases) expect(answer(m, `PRINT ${expr}`), expr).toBe(printed)
+    for (const [expr, printed] of cases) expect(m.answer(`PRINT ${expr}`), expr).toBe(printed)
   })
 
   it('agrees with the maths of JavaScript to nine digits for the functions', () => {
     const m = boot()
     let worst = 0
     const check = (expr: string, expected: number) => {
-      const got = Number(answer(m, `PRINT ${expr}`).trim())
+      const got = Number(m.answer(`PRINT ${expr}`).trim())
       const error = Math.abs(got - expected) / Math.max(Math.abs(expected), 1e-3)
       worst = Math.max(worst, error)
       expect(error, `${expr} gave ${got}, expected ${expected}`).toBeLessThan(1e-8)
@@ -100,30 +84,30 @@ describe('Microsoft BASIC on the bare core', () => {
 
   it('gives the errors of Microsoft BASIC', () => {
     const m = boot()
-    expect(answer(m, 'PRINT 1/0')).toBe('?/0 ERROR')
-    expect(answer(m, 'PRINT SQR(-1)')).toBe('?FC ERROR')
-    expect(answer(m, 'PRINT LOG(0)')).toBe('?FC ERROR')
-    expect(answer(m, 'PRINT 1E38*10')).toBe('?OV ERROR')
-    expect(answer(m, 'PRINT +')).toBe('?SN ERROR')
-    expect(answer(m, 'GOTO 100')).toBe('?US ERROR')
-    expect(answer(m, 'PRINT "A"+1')).toBe('?TM ERROR')
-    expect(answer(m, 'NEXT')).toBe('?NF ERROR')
-    expect(answer(m, 'RETURN')).toBe('?RG ERROR')
-    expect(answer(m, 'READ A')).toBe('?OD ERROR')
-    expect(answer(m, 'PRINT A(11)')).toBe('?BS ERROR')
-    expect(answer(m, 'RUN')).toBe('')
+    expect(m.answer('PRINT 1/0')).toBe('?/0 ERROR')
+    expect(m.answer('PRINT SQR(-1)')).toBe('?FC ERROR')
+    expect(m.answer('PRINT LOG(0)')).toBe('?FC ERROR')
+    expect(m.answer('PRINT 1E38*10')).toBe('?OV ERROR')
+    expect(m.answer('PRINT +')).toBe('?SN ERROR')
+    expect(m.answer('GOTO 100')).toBe('?US ERROR')
+    expect(m.answer('PRINT "A"+1')).toBe('?TM ERROR')
+    expect(m.answer('NEXT')).toBe('?NF ERROR')
+    expect(m.answer('RETURN')).toBe('?RG ERROR')
+    expect(m.answer('READ A')).toBe('?OD ERROR')
+    expect(m.answer('PRINT A(11)')).toBe('?BS ERROR')
+    expect(m.answer('RUN')).toBe('')
   })
 
   it('does strings', () => {
     const m = boot()
-    expect(answer(m, 'PRINT "A"+"B"')).toBe('AB')
-    expect(answer(m, 'PRINT LEN("HELLO")')).toBe(' 5 ')
-    expect(answer(m, 'PRINT LEFT$("HELLO",2);RIGHT$("HELLO",3);MID$("HELLO",2,3)')).toBe('HELLO'.slice(0, 2) + 'LLO' + 'ELL')
-    expect(answer(m, 'PRINT ASC("A");CHR$(66)')).toBe(' 65 B')
-    expect(answer(m, 'PRINT VAL("12.5")+1')).toBe(' 13.5 ')
-    expect(answer(m, 'PRINT STR$(12.5)+"!"')).toBe(' 12.5!')
-    expect(answer(m, 'A$="TEST":PRINT A$;A$')).toBe('TESTTEST')
-    expect(answer(m, 'PRINT "A"<"B"')).toBe('-1 ')
+    expect(m.answer('PRINT "A"+"B"')).toBe('AB')
+    expect(m.answer('PRINT LEN("HELLO")')).toBe(' 5 ')
+    expect(m.answer('PRINT LEFT$("HELLO",2);RIGHT$("HELLO",3);MID$("HELLO",2,3)')).toBe('HELLO'.slice(0, 2) + 'LLO' + 'ELL')
+    expect(m.answer('PRINT ASC("A");CHR$(66)')).toBe(' 65 B')
+    expect(m.answer('PRINT VAL("12.5")+1')).toBe(' 13.5 ')
+    expect(m.answer('PRINT STR$(12.5)+"!"')).toBe(' 12.5!')
+    expect(m.answer('A$="TEST":PRINT A$;A$')).toBe('TESTTEST')
+    expect(m.answer('PRINT "A"<"B"')).toBe('-1 ')
   })
 
   it('runs a program with FOR, GOSUB, IF, GOTO, DATA, arrays and DEF FN', () => {
@@ -137,16 +121,16 @@ describe('Microsoft BASIC on the bare core', () => {
     m.command('70 END')
     m.command('80 PRINT "EIGHTY":END')
     m.command('100 S=0:FOR I=0 TO 5:S=S+A(I):NEXT:RETURN')
-    expect(answer(m, 'RUN')).toBe('BIG 55 \n 42 HELLO\n 10 \n 10  6  2 \nEIGHTY')
+    expect(m.answer('RUN')).toBe('BIG 55 \n 42 HELLO\n 10 \n 10  6  2 \nEIGHTY')
   })
 
   it('lists a program in line order, and forgets it with NEW', () => {
     const m = boot()
     m.command('20 PRINT "B"')
     m.command('10 PRINT "A"')
-    expect(answer(m, 'LIST')).toBe(' 10 PRINT "A"\n 20 PRINT "B"')
-    expect(answer(m, 'NEW')).toBe('')
-    expect(answer(m, 'LIST')).toBe('')
+    expect(m.answer('LIST')).toBe(' 10 PRINT "A"\n 20 PRINT "B"')
+    expect(m.answer('NEW')).toBe('')
+    expect(m.answer('LIST')).toBe('')
   })
 
   it('takes input and GET from the keyboard', () => {
@@ -174,10 +158,27 @@ describe('Microsoft BASIC on the bare core', () => {
     m.type('3\r')
     m.settle()
     expect(shown(m)).toMatch(/PRINT 13\n 13\n\nOK$/)
-    expect(answer(m, 'PRINT 4_5')).toBe(' 5 ')
+    expect(m.answer('PRINT 4_5')).toBe(' 5 ')
     m.type('PRINT 99@PRINT 7\r')
     m.settle()
     expect(shown(m)).toMatch(/PRINT 99@\n?PRINT 7\n 7\n\nOK$/)
+  })
+
+  it('follows a wrapped line with Backspace: the screen erases what BASIC deletes', () => {
+    const m = boot()
+    const forty = '1234567890'.repeat(4)
+    m.type(forty + 'AB') // 42 characters: the 41st wraps on the screen
+    m.run(60_000)
+    expect(shown(m)).toMatch(new RegExp(`${forty}\\nAB$`))
+    m.key(8)
+    m.key(8)
+    m.key(8) // the third goes back over the wrap
+    m.run(60_000)
+    expect(shown(m)).toMatch(new RegExp(`${forty.slice(0, 39)}$`))
+    expect(shown(m)).not.toMatch(/AB$/)
+    m.type('9\r') // BASIC has 40 characters in its buffer; whatever it makes of them, the screen shows them as typed
+    m.settle()
+    expect(shown(m)).toContain(forty.slice(0, 39) + '9')
   })
 
   it('stops a running program with Control-C and goes on with CONT', () => {
@@ -185,15 +186,40 @@ describe('Microsoft BASIC on the bare core', () => {
     m.command('10 N=N+1:GOTO 10')
     m.type('RUN\r')
     m.run(300_000)
-    m.key(3)
+    m.interrupt()
     m.settle()
     expect(shown(m)).toMatch(/BREAK IN {2}10\nOK$/)
     m.type('CONT\r')
     m.run(200_000)
-    m.key(3)
+    m.interrupt()
     m.settle()
     expect(shown(m).match(/BREAK IN {2}10/g)).toHaveLength(2)
-    expect(Number(answer(m, 'PRINT N'))).toBeGreaterThan(100)
+    expect(Number(m.answer('PRINT N'))).toBeGreaterThan(100)
+  })
+
+  it('still stops on Control-C after a key was typed while the program ran (and gives the key to a later GET)', () => {
+    const m = boot()
+    m.command('10 N=N+1:GOTO 10')
+    m.type('RUN\r')
+    m.run(100_000)
+    m.type('x')
+    m.run(100_000)
+    m.interrupt()
+    m.settle(4_000_000)
+    expect(shown(m)).toMatch(/BREAK IN {2}10\nOK$/)
+  })
+
+  it('stops on Control-C however much was typed ahead of it, and forgets what was typed before it', () => {
+    const m = boot()
+    m.command('10 N=N+1:GOTO 10')
+    m.type('RUN\r')
+    m.run(100_000)
+    m.type('abcdefghijklmnopqrstuvwxyz0123456789') // more than the program's queue holds
+    m.run(100_000)
+    m.interrupt()
+    m.settle(4_000_000)
+    expect(shown(m)).toMatch(/BREAK IN {2}10\nOK$/)
+    expect(m.answer('PRINT 7')).toBe(' 7 ') // (none of the typed-ahead keys is left to spoil the next line)
   })
 
   it('keeps a key typed while a program runs, and does not take it for a break', () => {
@@ -214,23 +240,26 @@ describe('Microsoft BASIC on the bare core', () => {
     expect(shown(m).endsWith(`${text.slice(0, 40)}\n${text.slice(40)}\n\nOK`)).toBe(true)
   })
 
-  it('puts the second item of a PRINT with a comma in the next column of fourteen', () => {
+  it('puts the items of a PRINT with commas in columns of fourteen: three on a line of forty, the fourth on the next', () => {
     const m = boot()
-    expect(answer(m, 'PRINT 1,2')).toBe(' 1 ' + ' '.repeat(11) + ' 2 ')
+    expect(m.answer('PRINT 1,2')).toBe(' 1 ' + ' '.repeat(11) + ' 2 ')
+    // (the third item is where Microsoft's assembled-in default and its start-up code disagreed: it needs the NCMPOS edit)
+    expect(m.answer('PRINT 1,2,3')).toBe(' 1 ' + ' '.repeat(11) + ' 2 ' + ' '.repeat(11) + ' 3 ')
+    expect(m.answer('PRINT 1,2,3,4')).toBe(' 1 ' + ' '.repeat(11) + ' 2 ' + ' '.repeat(11) + ' 3 \n 4 ')
   })
 
   it('keeps a program of 300 lines typed in one go, as a paste feeds it', () => {
     const m = boot()
     for (let n = 1; n <= 300; n++) m.type(`${n * 10} PRINT ${n}\r`)
     m.settle(40_000_000)
-    expect(answer(m, 'LIST 2990-3000')).toBe(' 2990 PRINT 299\n 3000 PRINT 300')
+    expect(m.answer('LIST 2990-3000')).toBe(' 2990 PRINT 299\n 3000 PRINT 300')
     // (PEEK/FRE: about ten bytes a line)
-    expect(Number(answer(m, 'PRINT FRE(0)'))).toBeLessThan(15_615 - 300 * 8)
+    expect(Number(m.answer('PRINT FRE(0)'))).toBeLessThan(15_615 - 300 * 8)
   })
 
   it('does PEEK and POKE on the RAM', () => {
     const m = boot()
-    expect(answer(m, 'POKE 12000,77:PRINT PEEK(12000)')).toBe(' 77 ')
+    expect(m.answer('POKE 12000,77:PRINT PEEK(12000)')).toBe(' 77 ')
     expect(m.ram[12000]).toBe(77)
   })
 
@@ -256,6 +285,26 @@ describe('the start-up questions, when the switch on the DSR pin is on', () => {
     m.settle()
     expect(m.screen).toContain('15615 BYTES FREE')
     expect(m.sent).not.toMatch(/U/) // the memory test stops at the end of the RAM: it never writes into the terminal
+  })
+
+  it('holds a memory size that is too big to the end of the RAM, so that strings never land on the terminal', () => {
+    const m = new BasicMachine(build.rom, build.symbols.INWAIT, true)
+    m.runUntil(() => /MEMORY SIZE\? $/.test(m.sent), 300_000)
+    m.type('20000\r')
+    m.runUntil(() => /TERMINAL WIDTH\? $/.test(m.sent), 300_000)
+    m.type('\r')
+    m.settle()
+    expect(m.screen).toContain('15615 BYTES FREE') // the same as with no size typed
+    expect(m.answer('A$="HELLO":B$=A$+" WORLD":PRINT B$')).toBe('HELLO WORLD')
+    expect(m.term.command).toBe(0x0b) // (strings written into the terminal's registers would have changed it)
+    // a size exactly at the end is allowed, and one in the last page is cut to it
+    const exact = new BasicMachine(build.rom, build.symbols.INWAIT, true)
+    exact.runUntil(() => /MEMORY SIZE\? $/.test(exact.sent), 300_000)
+    exact.type('16384\r')
+    exact.runUntil(() => /TERMINAL WIDTH\? $/.test(exact.sent), 300_000)
+    exact.type('\r')
+    exact.settle()
+    expect(exact.screen).toContain('15615 BYTES FREE')
   })
 
   it('takes the answers: a smaller memory, a different width', () => {
