@@ -78,9 +78,8 @@ export interface IcGate {
 
 /**
  * The frame of a chip that is a gate (`null` when it is drawn as a box). The frame is the gate with 5 free on each side, or wider when
- * the name needs it (up to `maxW`); the gate is centred in it, and has the same room above it (under the tab) as below it: 6, or 12 for a
- * NOT or buffer, whose triangle reaches 4 beyond its body. The pin tips are 10 outside the frame, on the 10-grid, as a gate's are outside
- * its body (so the gate's top is 20 or 30 down).
+ * the name needs it (up to `maxW`); the gate is centred in it, 20 down (the tab is 14 and the room 6, above and below; 4 for a NOT's triangle,
+ * which reaches 2 beyond its body here). The pin tips are 10 outside the frame, on the 10-grid, as a gate's are outside its body.
  */
 export function icGate(p: Params): IcGate | null {
   const ins = icInputs(p)
@@ -91,7 +90,7 @@ export function icGate(p: Params): IcGate | null {
   const g = gateLayout(ins.length, shape, inverted)
   const name = String(p.name || 'IC')
   const { tab, glyph, charW } = IC_FRAME
-  const dy = shape === 'buf' ? 30 : 20
+  const dy = 20
   const reach = g.pins[g.pins.length - 1].x - 10
   const w = Math.min(IC_FRAME.maxW, Math.max(reach + 10, Math.ceil((name.length * charW + 6 + glyph) / 10) * 10))
   const dx = (w - reach) / 2

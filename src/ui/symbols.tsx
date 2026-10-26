@@ -158,7 +158,8 @@ function IecGateSym({ type, l }: { type: string; l: Layout }) {
   )
 }
 
-function GateSym({ type, l }: { type: string; l: Layout }) {
+/** `tight`: a triangle (NOT, buffer) that reaches 2 beyond its body instead of 4, so that it fits a frame with room to spare. */
+function GateSym({ type, l, tight }: { type: string; l: Layout; tight?: boolean }) {
   const iec = useSettings((s) => s.gateStyle === 'iec')
   if (iec) return <IecGateSym type={type} l={l} />
   const { w, h } = l
@@ -169,7 +170,8 @@ function GateSym({ type, l }: { type: string; l: Layout }) {
     const r = h / 2
     body = `M0,0 H${w - r} A${r},${r} 0 0 1 ${w - r},${h} H0 Z`
   } else if (shape === 'buf') {
-    body = `M0,-4 L${w},${h / 2} L0,${h + 4} Z`
+    const o = tight ? 2 : 4
+    body = `M0,${-o} L${w},${h / 2} L0,${h + o} Z`
   } else {
     const x0 = shape === 'xor' ? 10 : 0
     const c = h * 0.22
@@ -466,7 +468,7 @@ function IcChip({ comp, chip, live }: { comp: Comp; chip: IcGate; live: boolean 
         {tabName}
       </text>
       <g transform={`translate(${dx},${dy})`}>
-        <GateSym type={symbol} l={gate} />
+        <GateSym type={symbol} l={gate} tight />
       </g>
       {/* The glyph opens the chip (not in the parts list or on a ghost); it does not select or drag the part. */}
       <g
