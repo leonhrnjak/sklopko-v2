@@ -258,6 +258,7 @@ export function StepPanel() {
   // Pointing at a name belongs to the step it was in.
   useEffect(() => clearSpot, [id])
   const progress = usePath((s) => s.progress)
+  const folded = useSheet((s) => s.folded)
   const step = id ? getStep(id) : undefined
   if (!step) return null
   const chapter = getChapter(step.chapter)
@@ -266,7 +267,6 @@ export function StepPanel() {
   const before = stepBefore(step.id)
   const after = stepAfter(step.id)
   const done = progress.done[step.id]
-  const folded = useSheet((s) => s.folded)
   return (
     <section className={`wave-panel challenge-panel step-panel${folded ? ' folded' : ''}`} aria-label="Step" data-step={step.id}>
       <div className="wave-head">

@@ -108,7 +108,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   await panel(page).getByRole('button', { name: 'Close step' }).click()
   await expect(panel(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/$/)
-  expect(await page.locator('.palette-item').count()).toBeGreaterThan(20)
+  await expect.poll(() => page.locator('.palette-item').count()).toBeGreaterThan(20)
 })
 
 test('learn: /learn opens the map, and Forget my progress clears the steps and the kit', async ({ page }) => {
@@ -141,7 +141,7 @@ test('learn: another document ends the step, and the palette has every part agai
   await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'New', exact: true }).click()
   await expect(panel(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/$/)
-  expect(await page.locator('.palette-item').count()).toBeGreaterThan(20)
+  await expect.poll(() => page.locator('.palette-item').count()).toBeGreaterThan(20)
 })
 
 test('learn: after finishing a chapter the map opens on it, and a skipped step is offered as going back', async ({ page }) => {
