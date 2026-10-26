@@ -52,6 +52,7 @@ export const CH09: Step[] = [
     lesson: [
       { p: 'The circuit already has a [[Clock]] and a [[Program ROM]]. The ROM holds the program, one 16-bit instruction at each address, and shows the instruction at the address on its pins A0 to A3. Right now nothing gives it an address.' },
       { p: 'The part that does is the program counter, the PC: a register that counts. Your counter chip is the same as the built-in Counter with load, and that one is in the parts list now. Add it, give it the label PC (select it and type the label), and wire the clock to its CLK pin. Every tick it counts up by one, so the ROM shows instruction 0, then 1, then 2…' },
+      { p: 'One difference from your own chips: the built-in parts are tidier. A built-in register, counter or RAM starts at 0, not unknown, and some inputs have a default when you leave them unwired: on this counter, LD is off and EN is on. That is why you need no wire for them now.' },
       { p: 'Wire the counter’s outputs Q0 to Q3 to the ROM’s address pins A0 to A3. A hex display on the same outputs lets you see the PC. Then press Clock step to tick: it flips the clock level, so one full tick is two presses, and the PC moves on the first of them.' },
     ],
   },
