@@ -38,7 +38,7 @@ export const CH01: Step[] = [
     ordered: true,
     lesson: [
       { p: 'Everything in a computer is made of signals that are either 0 or 1. One such signal is a bit. A switch makes a bit: click it to flip it between 0 (off) and 1 (on). An LED shows one: lit for 1, dark for 0.' },
-      { p: 'The switch and the LED on the canvas are already joined by a wire. Wires are green when they carry a 1, red when they carry a 0, and grey when nothing is driving them yet. Make the LED light, then make it go dark again.' },
+      { p: 'The switch [[S]] and the LED [[Y]] on the canvas are already joined by a wire. Wires are green when they carry a 1, red when they carry a 0, and grey when nothing is driving them yet. Make the LED light, then make it go dark again.' },
     ],
   },
   {
@@ -98,7 +98,7 @@ export const CH01: Step[] = [
     ],
     ordered: true,
     lesson: [
-      { p: 'The part on the left is four bits in one: a 4-bit input. Click it to count up (Alt or Option-click counts down). Its four wires carry the bits to a display, which shows the number as one digit.' },
+      { p: 'The part on the left, [[N]], is four bits in one: a 4-bit input. Click it to count up (Alt or Option-click counts down). Its four wires carry the bits to the display [[Number]], which shows the number as one digit.' },
       { p: 'After 9 the display goes on with the letters A to F, because one digit can hold 16 values: that is hexadecimal. 15 is F, the biggest number four bits can make. For the same idea with more parts, open the Counter example from Examples.' },
     ],
   },

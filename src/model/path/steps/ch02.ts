@@ -106,7 +106,7 @@ export const CH02: Step[] = [
     task: 'Click the switches A and B until the LED Y goes dark.',
     goals: [{ led: 'Y', is: 0, text: 'Y is dark' }],
     lesson: [
-      { p: 'A gate is a part that takes some bits in and gives a bit out, by a fixed rule. The one you will use for everything is the NAND gate. Here it is, with two switches in and an LED out.' },
+      { p: 'A gate is a part that takes some bits in and gives a bit out, by a fixed rule. The one you will use for everything is the NAND gate. Here it is, with two switches in, [[A]] and [[B]], and an LED out, [[Y]].' },
       { p: 'Try all four settings of A and B and watch Y. There is exactly one setting that makes Y go dark: find it.' },
     ],
   },

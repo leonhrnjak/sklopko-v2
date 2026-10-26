@@ -42,7 +42,7 @@ describe('the path and its index', () => {
       expect(s.title, s.id).toBeTruthy()
       expect(s.summary, s.id).toBeTruthy()
       expect(s.lesson.length, s.id).toBeGreaterThan(0)
-      for (const b of s.lesson) if ('p' in b) expect(b.p, s.id).not.toMatch(/\[\[|TODO/)
+      for (const b of s.lesson) if ('p' in b) expect(b.p, s.id).not.toMatch(/TODO|\[\[(?![^\]]+\]\])/)
     }
   })
 
@@ -406,5 +406,25 @@ describe('chapter 3 and the lessons that came with it', () => {
     const r = checkStepCircuit(big, solutionOf(big))
     expect(r.check.passed).toBe(true)
     expect(r.parts).toBeGreaterThan(20)
+  })
+})
+
+describe('part names in lessons ([[label]])', () => {
+  const namesIn = (s: (typeof STEPS)[number]) => s.lesson.flatMap((b) => ('p' in b ? [...b.p.matchAll(/\[\[(.+?)\]\]/g)].map((m) => m[1]) : []))
+  const circuitOf = (s: (typeof STEPS)[number]) => (s.kind === 'explore' ? s.open.build() : s.kind === 'build' ? stepStarter(s, {}) : undefined)
+
+  it('only name parts that the step’s circuit has, and only in steps that have a circuit', () => {
+    let named = 0
+    for (const s of STEPS) {
+      const names = namesIn(s)
+      if (!names.length) continue
+      const c = circuitOf(s)
+      expect(c, `${s.id} names parts but has no circuit`).toBeDefined()
+      for (const n of names) {
+        expect(Object.values(c!.comps).some((k) => k.label === n), `${s.id}: [[${n}]]`).toBe(true)
+        named++
+      }
+    }
+    expect(named).toBeGreaterThan(4)
   })
 })

@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, merged as #105; L2b, explore steps, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -13,7 +13,7 @@
 > - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
 >   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (#105)
 >   - [x] L2b The goal evaluator and the explore steps of chapters 1–2 (own PR, `learn-l2-explore`)
->   - [ ] L2c The `[[label]]` spotlight
+>   - [x] L2c The `[[label]]` spotlight (own PR, `learn-l2-spotlight`)
 >   - [ ] L2d Chapters 4–6 (with their explore steps)
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
@@ -631,7 +631,16 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
   `show-nine` is a 4-bit input and a hex display built on the spot, not the Counter example (the lesson points at it in words); `PATH_STEP_COUNT` is 18.
 - `ordered` is new: `bits` has "Y is lit" and then "Y is dark again", and the second must not count while the LED has never been lit.
 - A step opened from its address was fitted to the canvas before the panel under it had taken its room, so the circuit ran under the panel; `pathWork`'s `fitSoon` now fits once more after 300 ms.
-- Left for later: the `[[label]]` spotlight (L2c; no lesson may hold `[[` until it exists), goals on examples, CPU registers, console text and RAM (they come with the chapters that need them).
+- Left for later: goals on examples, CPU registers, console text and RAM (they come with the chapters that need them).
+
+**What L2c did, and where it differs from the plan.**
+- A paragraph of a lesson names a part as `[[label]]` (`Paragraph` in `StepPanel.tsx`): pointing at the name (mouse or keyboard focus) outlines the part on the canvas, and
+  clicking it brings the part to the middle of the canvas and dims everything else for 1.8 s. The part is the one with that label in the circuit now on the canvas.
+- The overlay is not in `Canvas.tsx` (the startup chunk has no room): `ui/path/Spotlight.tsx` is a portal into `.stage-view`, an SVG laid over the canvas that follows the view
+  (outline, and a dim rectangle with a hole for each part, made with an SVG mask); its state is `app/pathSpot.ts` (`hover`, `focus`, `focusSpot`). It leaves with the step.
+- Used in the three explore steps so far. A test checks every `[[label]]` against the circuit of its step (explore: the circuit it opens; build: the starting circuit) and that
+  read steps, which have no circuit of their own, name nothing.
+- Pointing at the part of a *read* step's lesson, wires and pins are not done: only labelled parts.
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
