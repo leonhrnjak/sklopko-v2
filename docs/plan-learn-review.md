@@ -8,7 +8,7 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 - [x] 1. ch05 `binary-add`: the carry row of the table shows carries *out of* each column (`0 1 1 0`); it must be the carries *into* them (`1 1 0 0`).
 - [x] 2. ch09 `cpu-add`: "third input of each multiplexer" → the adder is input 1, the second.
 - [x] 3. ch14 `basic-boot`: the 6502 BASIC is by Weiland and Gates (`scripts/basic/m6502.asm`), not Gates and Allen.
-- [ ] 4. ch14 `basic-boot`: 1 MHz is a million clock cycles a second, not a million instructions.
+- [x] 4. ch14 `basic-boot`: 1 MHz is a million clock cycles a second, not a million instructions.
 - [ ] 5. ch12 `6502-map`: ADD/SUB are `CLC`+`ADC` / `SEC`+`SBC`; after SBC the carry means "no borrow", the opposite of the learner's flag, so JNC ≠ BCC after a subtract.
 - [ ] 6. ch09 `cpu-same`: the ACC becomes 3, then 4, then 7.
 - [ ] 7. ch14 `journey`: a gate feeding itself oscillated; two gates feeding each other remembered.
