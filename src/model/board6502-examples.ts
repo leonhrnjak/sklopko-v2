@@ -1,7 +1,7 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -148,3 +148,34 @@ export const via6502 = (): Circuit =>
       devices: VIA_DEVICES,
     },
   )
+
+const LCD_DEVICES =
+  'The LCD is Ben Eater\u2019s: port B of the VIA is its eight data pins, and PA5, PA6 and PA7 are RS, R/W and E. Because the program also reads the LCD (to see whether it is busy), the VIA and the LCD share the wires through a bus junction: when the VIA lets go of port B (DDRB = 0) the LCD drives it. Select the LCD to see what it was told and whether it is busy; the program waits for the busy flag before every byte.'
+
+/** Ben Eater's hello world: the 6502 writes to an LCD through the VIA. */
+export const lcd6502 = (): Circuit =>
+  boardExample(
+    { hz: 4096, memory: 'big', source: LCD_HELLO_SOURCE, devices: ['via', 'lcd'] },
+    {
+      intro:
+        'A 6502 writes Hello, world! on a character LCD, through a 6522 VIA, as in Ben Eater\u2019s videos. The LCD needs to be told how to work first: the program sends four instructions (8-bit interface and two lines, display on, entry mode, clear), then the characters of the message, one at a time. Every byte goes to port B, then RS and E go up and down on port A. Before each one the program reads the busy flag. Press Pause and Clock step to follow one write, and select the LCD to see what it understood.',
+      decode: VIA_DECODE,
+      devices: LCD_DEVICES,
+    },
+  )
+
+/** The BASIC computer with the VIA and the LCD: POKE the LCD from BASIC. */
+export const basicLcd6502 = (): Circuit => {
+  const c = boardExample(
+    { hz: 1_000_000, memory: 'big', rom: basicRomText(), devices: ['terminal', 'via', 'lcd'], dsrSwitch: { label: 'Ask the start-up questions (at Reset)' } },
+    {
+      intro:
+        'The BASIC computer with a 6522 VIA at $6000 and the LCD on it: BASIC has no statement for the LCD, but it can POKE. Port B is $6000 (24576), port A $6001, their direction registers $6002 and $6003. Select the terminal, open Programs to type in in its inspector, and type in \u201cHello on the LCD\u201d: the program sets the ports, sends the LCD its four set-up instructions, and writes two lines.',
+      decode: VIA_DECODE.replace('RAM is', 'The terminal is at $5000 (A13 = 0). RAM is'),
+      memory: BASIC_MEMORY,
+      devices: LCD_DEVICES,
+    },
+  )
+  c.history = false
+  return c
+}

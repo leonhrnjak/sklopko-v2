@@ -62,7 +62,7 @@ show:   STA $4000   ; show it on the LEDs
 export const BLINK_BYTES = [0xa9, 0x01, 0x8d, 0x00, 0x40, 0x0a, 0xd0, 0xfa, 0x4c, 0x00, 0xf0]
 
 /** What can be on the board, at its memory-mapped addresses (see `programs6502.ts`). */
-export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal' | 'via'
+export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal' | 'via' | 'lcd'
 
 export interface Board6502Options {
   /** Clock speed in Hz. */
@@ -121,7 +121,10 @@ export function board6502Builder(o: Board6502Options = {}) {
   const via = has.has('via')
   // The terminal and the VIA decode their own addresses (A13 as well, when both are there) and answer in $4000–$7FFF: they go on the big board, with no other device.
   const own = term || via
-  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via'))) throw new Error("The terminal and the VIA need memory: 'big' and can only have each other on their board.")
+  const lcd = has.has('lcd')
+  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via' || d === 'lcd'))) throw new Error("The terminal, the VIA and the LCD need memory: 'big' and can only have each other on their board.")
+  if (lcd && !via) throw new Error('The LCD is wired to the VIA\u2019s ports, so the board needs the VIA too.')
+  if (lcd && o.viaLeds) throw new Error('The LEDs and the LCD would share port B: pick one.')
   const wide = via // A13 is split off the address too: the VIA is at $6000–$7FFF and the terminal, with it, at $4000–$5FFF
   const simple = has.size === 1 && has.has('leds') // the first board: the LED register answers to the whole block
   const links: { from: string; to: string; name?: string }[] = []
@@ -290,6 +293,21 @@ export function board6502Builder(o: Board6502Options = {}) {
     if (o.viaLeds) {
       const bar = dev(INPUT, 'bar', 'bar', { params: { bus: true, n: 8 }, label: 'Port B: LEDs on PB0–PB7' })
       wire(`${v}.PB`, `${bar}.I`)
+    }
+    if (lcd) {
+      // Ben Eater's wiring: port B is the LCD's data bus (shared: the VIA drives it to write, the LCD to be read), PA5 is RS, PA6 is R/W and PA7 is E.
+      const join = dev(INPUT, 'lcdBus', 'busjoin', { params: { bits: 8, drivers: 2 }, label: 'Port B and the LCD share these wires' })
+      const screen = dev(INPUT, 'lcd', 'hd44780', { params: { bus: true }, label: 'LCD 16×2 on port B' })
+      const pa = dev(INPUT, 'paSplit', 'splitter', { params: { bits: 8, split: '5,1,1,1' }, label: 'PA5 RS, PA6 R/W, PA7 E' })
+      wire(`${v}.PB`, `${join}.A`)
+      wire(`${screen}.D`, `${join}.B`)
+      wire(`${join}.Y`, `${v}.PBIN`)
+      wire(`${join}.Y`, `${screen}.DIN`)
+      wire(`${v}.PA`, `${pa}.A`)
+      wire(`${pa}.Y1`, `${screen}.RS`)
+      wire(`${pa}.Y2`, `${screen}.RW`)
+      wire(`${pa}.Y3`, `${screen}.E`)
+      wire(`${clk}.Q`, `${screen}.CLK`)
     }
     // Its interrupt goes to the CPU; with the terminal's too, either pulls the line low (two active-low outputs ANDed).
     if (term && o.interrupt) {

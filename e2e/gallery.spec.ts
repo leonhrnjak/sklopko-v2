@@ -19,7 +19,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   expect(arithmetic).toBeLessThan(15)
   await expect(gallery(page).locator('.gallery-card b').first()).not.toHaveText('Basic gates')
   await tabs.getByRole('button', { name: /^All/ }).click()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(58)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(60)
   await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(12)
   await tabs.getByRole('button', { name: /^Start here/ }).click()
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
@@ -33,7 +33,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await search.fill('latch') // a search looks through every category
   await expect(tabs.getByRole('button', { pressed: true })).toHaveText(/^All/)
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(4) // the two latches, the flip-flop made of latches, the debouncer
-  await expect(gallery(page)).toContainText('4 of 58')
+  await expect(gallery(page)).toContainText('4 of 60')
   await search.fill('gamepad computers')
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(3) // pong, snake and the raycaster
   await search.fill('zzzz')
@@ -48,7 +48,7 @@ test('the BASIC computer has a category of its own, with the BASIC computer firs
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
   const tabs = gallery(page).getByRole('navigation', { name: 'Categories' })
   await tabs.getByRole('button', { name: /^BASIC computer/ }).click()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(3)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(4)
   await expect(gallery(page).locator('.gallery-card b').first()).toContainText('BASIC computer')
   await expect(gallery(page).getByTestId('example-6502-echo')).toBeVisible()
   // The 6502 category no longer holds them.

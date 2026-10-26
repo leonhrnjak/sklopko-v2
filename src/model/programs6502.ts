@@ -391,3 +391,88 @@ irq:    PHA
 .word $0000             ; NMI vector (not used)
 .word reset
 .word irq`
+
+
+/**
+ * Ben Eater's "hello, world" on the LCD, in 8-bit mode. The LCD's data pins are port B ($6000); its RS, R/W and E are PA5, PA6 and PA7 of port A ($6001),
+ * so a byte is written by putting it on port B, then RS (or not) on port A, then E up and down. Before every byte the program waits until the LCD says it
+ * is not busy: with E and R/W up it reads port B and looks at bit 7.
+ */
+export const LCD_HELLO_SOURCE = `.org $C000
+PORTB = $6000
+PORTA = $6001
+DDRB  = $6002
+DDRA  = $6003
+
+E  = $80            ; PA7: enable
+RW = $40            ; PA6: read (1) or write (0)
+RS = $20            ; PA5: register select (1 = a character, 0 = an instruction)
+
+reset:  LDX #$FF
+        TXS
+        LDA #$FF        ; port B: all eight pins are outputs
+        STA DDRB
+        LDA #$E0        ; port A: the top three pins are outputs
+        STA DDRA
+
+        LDA #$38        ; function set: 8 bits, two lines, 5x8 dots
+        JSR lcd_instruction
+        LDA #$0E        ; display on, cursor on, blink off
+        JSR lcd_instruction
+        LDA #$06        ; entry mode: the cursor moves right, the display stays
+        JSR lcd_instruction
+        LDA #$01        ; clear the display
+        JSR lcd_instruction
+
+        LDX #0
+print:  LDA message,X
+        BEQ done
+        JSR print_char
+        INX
+        JMP print
+done:   JMP done
+
+message: .byte "Hello, world!", 0
+
+lcd_wait:               ; wait until the LCD is not busy
+        PHA
+        LDA #$00        ; port B: input, so that the LCD can drive it
+        STA DDRB
+busy:   LDA #RW
+        STA PORTA       ; R/W up: a read
+        LDA #RW+E
+        STA PORTA       ; E up: the LCD puts the busy flag and the address on port B
+        LDA PORTB
+        AND #$80        ; bit 7 is the busy flag
+        BNE busy
+        LDA #RW
+        STA PORTA       ; E down
+        LDA #$FF        ; port B: outputs again
+        STA DDRB
+        PLA
+        RTS
+
+lcd_instruction:        ; send the byte in A as an instruction
+        JSR lcd_wait
+        STA PORTB
+        LDA #0          ; RS, R/W and E down
+        STA PORTA
+        LDA #E          ; E up: the LCD reads port B when E comes down again
+        STA PORTA
+        LDA #0
+        STA PORTA
+        RTS
+
+print_char:             ; send the byte in A as a character
+        JSR lcd_wait
+        STA PORTB
+        LDA #RS
+        STA PORTA
+        LDA #RS+E
+        STA PORTA
+        LDA #RS
+        STA PORTA
+        RTS
+
+.org $FFFC
+.word reset`

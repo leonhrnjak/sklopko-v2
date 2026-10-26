@@ -1,11 +1,11 @@
 # A 6522 VIA and a character LCD (plan)
 
-> **Status: V1 and V2 built, V3 not started.** Read `CLAUDE.md` first. Three PRs, stacked (`via-6522`, `lcd-hd44780`, `via-lcd-board`); V1 bumps the
+> **Status: V1, V2 and V3 built.** Read `CLAUDE.md` first. Three PRs, stacked (`via-6522`, `lcd-hd44780`, `via-lcd-board`); V1 bumps the
 > version to `0.3.0`. Tick each box when its PR merges and add a *What it did, and where it differs from the plan* note under it.
 >
 > - [x] V1 The 6522 VIA: ports, timers, interrupts, a board with it, and an example with its timer
 > - [x] V2 The HD44780 character LCD (16 × 2): the part, its inspector and its tests
-> - [ ] V3 The board with the terminal, the VIA and the LCD, Ben Eater's examples, and a BASIC variant
+> - [x] V3 The board with the terminal, the VIA and the LCD, Ben Eater's examples, and a BASIC variant
 
 ## Why
 The BASIC computer is a 6502, RAM, ROM and one serial chip. Ben Eater's breadboard computer goes on to a 6522 VIA (the chip that gives a
@@ -37,7 +37,7 @@ write and read data), 4-bit mode (two nibbles), the busy flag timed in clock cyc
 cursor and its blink, and an inspector with the contents. The font is written for this project (a plain 5 × 7 ASCII set), not copied from a data sheet.
 
 ## The board and the examples (V3)
-The LCD on the VIA as in Ben Eater's videos (PB0–PB7 are D0–D7, PA7 RS, PA6 R/W, PA5 E), with the terminal beside it. Examples: *6502 + VIA + LCD: hello* (his
+The LCD on the VIA as in Ben Eater's videos (PB0–PB7 are D0–D7, PA5 RS, PA6 R/W, PA7 E), with the terminal beside it. Examples: *6502 + VIA + LCD: hello* (his
 assembly program, with the busy-flag wait), and the BASIC computer with the VIA and the LCD, where `POKE 24578,255` sets the port and `POKE 24576,72` sends an
 "H"; programs to type in for the LCD join the other four in the BASIC reference.
 
@@ -70,3 +70,17 @@ Backlight and contrast, 20 × 4 and graphic displays, the VIA's shift register, 
   ignored and a pin below D4 that nothing drives reads 0 (the 4-bit interface leaves them unconnected). The busy time of a data read is the same as a write's.
 - **Bundle:** the startup chunk is 177.6 kB gzip (174.2 at V1; budget 180): the part, the model and the font are registered at startup. V3 adds only lazy code.
 - Not done yet, by design: nothing wires it to the VIA. V3 does that on the board; the busy-flag read through the shared port B is tested there.
+
+### V3 (stacked on V2)
+- **Board:** `devices: ['via', 'lcd']` (and `['terminal', 'via', 'lcd']`): port B and the LCD's `D` meet in a bus junction whose output goes to the VIA's `PBIN` and the LCD's
+  `DIN`, so the program can read the busy flag with DDRB = 0; a splitter takes PA5, PA6 and PA7 to RS, R/W and E (**Ben Eater's pins; the plan's text above had RS and E the
+  wrong way round and is corrected**), and the board's clock is the LCD's `CLK`. LEDs on port B and the LCD together are refused.
+- **Examples:** `6502-lcd` (the 6502 group): Ben Eater's hello-world in assembly (`LCD_HELLO_SOURCE`), with the busy-flag wait, at a 4,096 Hz clock; and `6502-basic-lcd`
+  (the BASIC computer category): the BASIC board with the terminal, the VIA and the LCD, whose *Programs to type in* (in the terminal's inspector, and the BASIC reference) has a fifth
+  program, *Hello on the LCD*, that POKEs the ports at 24576 to 24579 and the LCD's instructions and characters. That program is only offered where there is an LCD (on the
+  plain BASIC computer `$6000` is the terminal).
+- **Measured on the gate-level board:** the assembly program writes `Hello, world!` in under 6,000 cycles, with nothing written while the LCD was busy (the clear alone keeps it busy for
+  1,520); the same program with the wait taken out loses bytes (the LCD's *Ignored* count), as on the real thing; the BASIC program, with a short `FOR` delay after each
+  instruction and nothing waiting on the busy flag, writes both lines with none ignored.
+- Tests: the builder's refusals and wiring, both programs on the board, the three examples' notes within the part's 600 characters; e2e for both examples and the fifth program.
+- The VIA's palette icon is still a thin box; a drawn symbol is left for later.

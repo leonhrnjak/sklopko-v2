@@ -55,6 +55,7 @@ export function TerminalSection({ comp }: { comp: Comp }) {
   const [typing, setTyping] = useState(false)
   const [text, setText] = useState('')
   const basic = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'rom' && hasBasic(c.params.data)))
+  const hasLcd = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'hd44780'))
   if (!v) return null
 
   const copy = async () => {
@@ -141,7 +142,7 @@ export function TerminalSection({ comp }: { comp: Comp }) {
       {basic && (
         <details className="field" data-testid="basic-programs">
           <summary>Programs to type in</summary>
-          <BasicPrograms terminalId={comp.id} />
+          <BasicPrograms terminalId={comp.id} hasLcd={hasLcd} hideUnavailable />
         </details>
       )}
     </>

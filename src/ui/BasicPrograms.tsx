@@ -12,7 +12,7 @@ async function copy(text: string) {
 }
 
 /** Programs to type in on the BASIC computer, each to copy, or to type in through the terminal's keyboard buffer when there is a terminal. */
-export function BasicPrograms({ terminalId }: { terminalId?: string }) {
+export function BasicPrograms({ terminalId, hasLcd = false, hideUnavailable = false }: { terminalId?: string; hasLcd?: boolean; hideUnavailable?: boolean }) {
   const typeIn = (id: string) => {
     const p = BASIC_PROGRAMS.find((q) => q.id === id)!
     const text = programText(p)
@@ -21,14 +21,14 @@ export function BasicPrograms({ terminalId }: { terminalId?: string }) {
   }
   return (
     <div className="basic-programs">
-      {BASIC_PROGRAMS.map((p) => (
+      {BASIC_PROGRAMS.filter((p) => !(hideUnavailable && p.needs === 'lcd' && !hasLcd)).map((p) => (
         <div key={p.id} className="basic-program" data-program={p.id}>
           <h4>{p.title}</h4>
           <p className="desc">{p.about}</p>
           <pre className="ref-code">{p.lines.join('\n')}</pre>
           <div className="row">
             <button onClick={() => copy(programText(p))}>Copy</button>
-            {terminalId && (
+            {terminalId && (p.needs !== 'lcd' || hasLcd) && (
               <button onClick={() => typeIn(p.id)} title={`Types the lines and ${p.run} on the terminal, as if from the keyboard`}>
                 Type it in
               </button>

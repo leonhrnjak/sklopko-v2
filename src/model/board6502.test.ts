@@ -6,8 +6,11 @@ import { assemble6502 } from '../engine/asm6502'
 import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
 import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
 import { BALL_SOURCE, COUNTER_SOURCE, VIA_TIMER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
-import { basic6502, sweep65c02 } from './board6502-examples'
+import { basic6502, basicLcd6502, lcd6502, sweep65c02, via6502 } from './board6502-examples'
 import { BASIC_PROGRAMS, programText } from './basic-programs'
+import { lcdText } from '../engine/hd44780'
+import { LCD_HELLO_SOURCE } from './programs6502'
+import type { LcdState } from '../engine/hd44780'
 import { flatten } from './buses'
 import { basicRomBytes } from './basic-rom'
 import { deserialize, fromShareHash, serialize, toShareHash } from './serialize'
@@ -388,6 +391,78 @@ describe('the 6502 board with the VIA', () => {
     expect(wires.some((w) => w.from.comp === keys.irqAnd && w.to.comp === keys.cpu && w.to.pin === 'IRQB')).toBe(true)
     expect(keys.termOrVia).toBeDefined()
     expect(wires.some((w) => w.from.comp === keys.termOrVia && w.to.comp === keys.mux)).toBe(true)
+  })
+})
+
+describe('the 6502 board with the VIA and the LCD', () => {
+  const board = (source: string, o: Board6502Options = {}) => start({ memory: 'big', source, devices: ['via', 'lcd'], ...o })
+  const lines = (sim: Simulator, id: string) => lcdText(sim.state(id) as LcdState).map((l) => l.trimEnd())
+
+  it('explains itself: every note of the three boards fits the part (600 characters) and none was dropped', () => {
+    for (const c of [via6502(), lcd6502(), basicLcd6502()]) {
+      const notes = Object.values(c.comps).filter((p) => p.type === 'note')
+      expect(notes.length).toBeGreaterThanOrEqual(5)
+      for (const n of notes) expect(String(n.params.text).length, String(n.params.text).slice(0, 30)).toBeLessThanOrEqual(600)
+    }
+  })
+
+  it('needs the VIA, and the LEDs and the LCD cannot share port B', () => {
+    expect(() => board6502Builder({ memory: 'big', devices: ['lcd'] })).toThrow(/needs the VIA/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['via', 'lcd'], viaLeds: true })).toThrow(/share port B/)
+  })
+
+  it('is wired as Ben Eater wired it: port B is the data bus, shared through a junction; PA5 is RS, PA6 R/W, PA7 E', () => {
+    const { b, keys } = board6502Builder({ memory: 'big', source: LCD_HELLO_SOURCE, devices: ['via', 'lcd'] })
+    const wires = Object.values(b.build(false).wires)
+    const link = (fc: string, fp: string, tc: string, tp: string) => wires.some((w) => w.from.comp === fc && w.from.pin === fp && w.to.comp === tc && w.to.pin === tp)
+    expect(link(keys.via, 'PB', keys.lcdBus, 'A')).toBe(true)
+    expect(link(keys.lcd, 'D', keys.lcdBus, 'B')).toBe(true)
+    expect(link(keys.lcdBus, 'Y', keys.via, 'PBIN')).toBe(true)
+    expect(link(keys.lcdBus, 'Y', keys.lcd, 'DIN')).toBe(true)
+    expect(link(keys.paSplit, 'Y1', keys.lcd, 'RS')).toBe(true) // PA5
+    expect(link(keys.paSplit, 'Y2', keys.lcd, 'RW')).toBe(true) // PA6
+    expect(link(keys.paSplit, 'Y3', keys.lcd, 'E')).toBe(true) // PA7
+  })
+
+  it('hello, world: the program sets the LCD up, waits for its busy flag before each byte, and writes the message', { timeout: 300_000 }, () => {
+    const { sim, keys } = board(LCD_HELLO_SOURCE)
+    sim.setHistory(false)
+    let n = 0
+    for (; n < 40_000 && lines(sim, keys.lcd)[0] !== 'Hello, world!'; n++) oneCycle(sim)
+    expect(lines(sim, keys.lcd)).toEqual(['Hello, world!', ''])
+    const st = sim.state(keys.lcd) as LcdState
+    expect([st.display, st.cursor, st.blink, st.twoLine, st.dl8]).toEqual([true, true, false, true, true])
+    expect(st.dropped).toBe(0) // nothing was written while the LCD was busy: the program waited
+    expect(n).toBeGreaterThan(1500) // the clear alone keeps it busy for 1,520 cycles
+  })
+
+  it('a program that does not wait for the busy flag loses what it sends too soon, as on the real thing', { timeout: 300_000 }, () => {
+    const hasty = LCD_HELLO_SOURCE.replace('lcd_wait:               ; wait until the LCD is not busy', 'lcd_wait:\n        RTS\nlcd_wait_unused:')
+    const { sim, keys } = board(hasty)
+    sim.setHistory(false)
+    for (let n = 0; n < 20_000; n++) oneCycle(sim)
+    const st = sim.state(keys.lcd) as LcdState
+    expect(st.dropped).toBeGreaterThan(0)
+    expect(lines(sim, keys.lcd)[0]).not.toBe('Hello, world!')
+  })
+
+  it('the BASIC computer with the LCD: the program to type in POKEs two lines onto it', { timeout: 600_000 }, () => {
+    const c = basicLcd6502()
+    const sim = new Simulator()
+    sim.load(flatten(c))
+    sim.setHistory(false)
+    sim.settle()
+    const type = Object.values(c.comps).find((p) => p.type === 'acia6551')!.id
+    const lcd = Object.values(c.comps).find((p) => p.type === 'hd44780')!.id
+    const st = () => sim.state(type) as AciaState
+    for (let n = 0; n < 200_000 && !/OK$/.test(screenText(st())); n++) oneCycle(sim)
+    const program = BASIC_PROGRAMS.find((p) => p.id === 'lcd')!
+    expect(program.needs).toBe('lcd')
+    aciaType(st(), programText(program))
+    let cycles = 0
+    for (; cycles < 3_000_000 && lines(sim, lcd).join('|') !== 'HELLO FROM BASIC|ON A 6502'; cycles++) oneCycle(sim)
+    expect(lines(sim, lcd)).toEqual(['HELLO FROM BASIC', 'ON A 6502'])
+    expect((sim.state(lcd) as LcdState).dropped).toBe(0) // BASIC is slower than the LCD
   })
 })
 
