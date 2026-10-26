@@ -93,6 +93,8 @@ export type Goal = { text: string } & (
   /** A hex display (its four inputs) or a bus display, as a number. */
   | { display: string; is: number }
   | { oscillating: true }
+  /** Switches, by label, are set like this (the others do not matter). */
+  | { switches: Record<string, 0 | 1> }
 )
 
 export interface ExploreStep extends StepBase {

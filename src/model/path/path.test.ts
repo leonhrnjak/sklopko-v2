@@ -305,12 +305,13 @@ describe('chips drawn as gates', () => {
   const chipSteps = builds.filter((s) => s.chip)
 
   it('every chip of the kit says which gate it is, and its pins fit', () => {
-    expect(chipSteps.map((s) => [s.chip, s.symbol])).toEqual([['NOT', 'not'], ['AND', 'and'], ['OR', 'or'], ['NOR', 'nor'], ['XOR', 'xor']])
+    // The chips that are gates have their symbol; the others (a multiplexer, a decoder) are boxes.
+    expect(chipSteps.filter((s) => s.symbol).map((s) => [s.chip, s.symbol])).toEqual([['NOT', 'not'], ['AND', 'and'], ['OR', 'or'], ['NOR', 'nor'], ['XOR', 'xor']])
     const table = chipTable(chipSteps.map((s) => s.id), {})
     for (const s of chipSteps) {
       const def = table[chipId(s.id)]
       expect(def.symbol, s.id).toBe(s.symbol)
-      expect(icParams(def).symbol, `${s.id} pins fit`).toBe(s.symbol)
+      expect(icParams(def).symbol || undefined, `${s.id} pins fit`).toBe(s.symbol)
     }
   })
 

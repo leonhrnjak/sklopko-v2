@@ -30,6 +30,11 @@ export function displayValue(c: Circuit, label: string, r: Reader): number | nul
 /** Does the goal hold right now? */
 export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
   if ('oscillating' in g) return r.unstable
+  if ('switches' in g)
+    return Object.entries(g.switches).every(([label, is]) => {
+      const k = labelled(c, label)
+      return !!k && k.type === 'switch' && r.pinValue(k.id, 'Q') === is
+    })
   if ('led' in g) {
     const k = labelled(c, g.led)
     return !!k && k.type === 'led' && r.pinValue(k.id, 'A') === g.is
@@ -40,6 +45,7 @@ export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
 /** Do the parts the goals look at exist? A goal on a part that is not there can never be reached. */
 export const goalProblems = (goals: readonly Goal[], c: Circuit): string[] =>
   goals.flatMap((g) => {
+    if ('switches' in g) return Object.keys(g.switches).flatMap((l) => (labelled(c, l)?.type === 'switch' ? [] : [`${g.text}: there is no switch labelled “${l}”`]))
     const label = 'led' in g ? g.led : 'display' in g ? g.display : undefined
     if (label === undefined) return []
     const k = labelled(c, label)
