@@ -127,6 +127,8 @@ export class Simulator {
 
   /** True when the last settle hit its tick budget, i.e. the circuit keeps changing on its own. */
   unstable = false
+  /** Called after each clock edge has settled, inside `advance`: for a watcher that must see every cycle, not only the state at the end of a frame. */
+  edgeHook: (() => void) | null = null
   /** Total ticks simulated since the last reset. */
   ticks = 0
   /** Simulated time in ms since the last reset. Advances with the clocks while the simulation runs. */
@@ -515,6 +517,7 @@ export class Simulator {
       this.nextCause = 'clock'
       this.settle(this.budget())
       this.record()
+      this.edgeHook?.()
     }
     for (const c of this.clocks) {
       const st = c.inst.state

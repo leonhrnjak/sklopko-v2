@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -29,7 +29,7 @@
   - [x] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`, stacked on `learn-l5a-ch10`) (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
   - [x] L6a Chapter 12, meet the 6502 (own PR, `learn-l6a-ch12`)
-  - [ ] L6b Chapter 13, programming the 6502 (own PR, `learn-l6b-ch13`)
+  - [x] L6b Chapter 13, programming the 6502 (own PR, `learn-l6b-ch13`, stacked on `learn-l6a-ch12`)
   - [ ] L6c Chapter 14, a computer that runs BASIC, and *Your journey* (own PR, `learn-l6c-ch14`)
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
@@ -799,6 +799,17 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   **The check's first run is a program that writes the LEDs, then the RAM, then reads the RAM back to the LEDs**: with the wires cut, an unconnected gate input reads 1, so the LED register loads on every cycle and the blink program
   alone would pass. A new expectation `{ trace, is, exact? }` takes the numbers a part took in the run, in order (the LED register must take exactly 0, 1, 5).
 - Tests: the goal script (`{ cycles }`) reaches the three goals; the cut board fails and the example passes; with only “writing” wired back it still fails. e2e: the decoder, the 6502 goals ticked by *Clock step*, and the board.
+
+**What L6b (chapter 13, *Programming the 6502*) did, and where it differs from the plan.**
+- The six steps: five program steps on boards of the Computers examples (`ProgramStep.computer: 'board6502'`, `example`: the canvas is that example, with the step's starter in its ROM) and the explore step `asm-irq`. `asm-leds` (`/6502`),
+  `asm-count` (`/6502-counter`; must use INX, TXA and BNE), `asm-string` (`/6502-hello`; HELLO on the console), `asm-subroutine` (`/6502-counter` again; JSR and RTS, LEDs 1, 2, 4, 8) and `asm-lcd` (`/6502-lcd`: Ben Eater's program is the
+  starter, and the task is to change the message to SKLOPKO). `PATH_STEP_COUNT` is 74.
+- **The check runs the board** (`runProgram6502`) **up to `maxTicks` ticks and stops as soon as the test is met**, since a 6502 program ends in a loop and has no HALT: it reads the LED register's trace (`ledTrace`, found in a row, or `leds`, the end
+  value), the console text and the LCD's first line (`lcd`). The program is assembled for the board's ROM, and a `.org` that is not the ROM's first address says where it has to begin.
+- Not as in the plan: `asm-subroutine` does not read S (the stack pointer); the check is that the LEDs go 1, 2, 4, 8, which they cannot do unless every RTS returns, and that JSR and RTS are used. The lesson sends the learner to watch S and page $01.
+- **`asm-irq` needed the simulator to show it every clock edge**: a goal about the CPU's pins lasts one edge, and a running simulation publishes only at the end of each frame, so the vector read was usually missed. `Simulator.edgeHook`
+  (called after each settled edge in `advance`) is set by `watchGoals` for steps with a CPU goal. The goals are the push on the stack ($01FF written) and then the read of the vector ($FFFE).
+- Tests: every starter fails and every solution passes on its board (the LCD program in under 40,000 ticks); `asm-irq`'s script runs 1,100 cycles; a `.org` that is wrong, and a missing INX, TXA or BNE, are told. e2e: a wrong then right `asm-leds`, and `asm-irq` ticking while the board runs.
 
 ### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks

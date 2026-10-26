@@ -136,7 +136,7 @@ describe('the kit', () => {
       if (s.chip) kit[s.id] = snapshot(s.chip, solutionOf(s))
     }
     expect(Object.keys(kit)).toEqual(chipSteps.map((s) => s.id))
-  })
+  }, 60_000) // every build step is solved twice, and there are more of them each chapter
 
   it('stores a chip with just the chips it needs, and finds the chips inside it by id', () => {
     const and = getStep('and-from-nand') as BuildStep
@@ -421,7 +421,10 @@ describe('part names in lessons ([[label]])', () => {
   const circuitOf = (s: (typeof STEPS)[number]) => {
     if (s.kind === 'explore') return 'build' in s.open ? s.open.build() : EXAMPLES.find((e) => e.id === (s.open as { example: string }).example)!.build()
     if (s.kind === 'build') return stepStarter(s, {})
-    if (s.kind === 'program') return s.computer === 'cpu8' ? computer2Builder({ source: 'HALT', hz: 16, devices: ['console'] }).b.c : cpuStage(8)
+    if (s.kind === 'program') {
+      if (s.computer === 'board6502') return EXAMPLES.find((e) => e.id === s.example)!.build()
+      return s.computer === 'cpu8' ? computer2Builder({ source: 'HALT', hz: 16, devices: ['console'] }).b.c : cpuStage(8)
+    }
     if (s.kind !== 'project') return undefined
     if (s.board) return cutWires(EXAMPLES.find((e) => e.id === s.board!.example)!.build(), s.board.cut)
     const c = structuredClone(cpuStage(s.stage - 1))
@@ -442,7 +445,7 @@ describe('part names in lessons ([[label]])', () => {
       }
     }
     expect(named).toBeGreaterThan(4)
-  })
+  }, 60_000) // the circuits of the board steps are routed here, which takes seconds
 })
 
 describe('chapter 5, adding numbers', () => {

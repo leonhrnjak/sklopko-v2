@@ -23,6 +23,7 @@ export const useGoals = create<GoalsState>(() => ({ step: null, ticked: [] }))
 let stopWatching: (() => void) | null = null
 
 export function stopGoals() {
+  sim.edgeHook = null
   stopWatching?.()
   stopWatching = null
   useGoals.setState({ step: null, ticked: [] })
@@ -41,6 +42,8 @@ export function watchGoals(step: ExploreStep, alreadyDone: boolean) {
     if (ticked.every(Boolean)) commitProgress(markDone(usePath.getState().progress, step.id, 'solved', Date.now()))
   }
   stopWatching = sim.subscribe(look)
+  // A goal about the pins (which address the CPU has put out) lasts one clock edge, which a running simulation does not show between frames.
+  if (step.goals.some((g) => 'cpu' in g)) sim.edgeHook = look
 }
 
 // Closing the step, or going to another, ends the watching.

@@ -304,7 +304,7 @@ function ProgramBody({ step }: { step: ProgramStep }) {
         )}
         {result?.passed && (
           <div role="status" className="challenge-verdict">
-            <p className="verdict good">✔ Solved! {step.computer === 'cpu8' ? 'The program does what it should.' : 'It runs on both computers.'}</p>
+            <p className="verdict good">✔ Solved! {step.computer ? 'The program does what it should.' : 'It runs on both computers.'}</p>
             <div className="step-earned">
               <button className="primary-action" onClick={nextStep} data-testid="step-next">
                 {nextInfo ? `Next: ${nextInfo.title} →` : 'Back to the map'}
@@ -327,7 +327,7 @@ function ProgramBody({ step }: { step: ProgramStep }) {
             )
           })}
         </ul>
-        <small>{step.computer === 'cpu8' ? 'The program runs until HALT on the 8-bit computer.' : 'The program runs until HALT on your computer and on the reference one.'}</small>
+        <small>{step.computer === 'cpu8' ? 'The program runs until HALT on the 8-bit computer.' : step.computer === 'board6502' ? 'The program runs on the board until it has done what the test says.' : 'The program runs until HALT on your computer and on the reference one.'}</small>
       </div>
     </div>
   )

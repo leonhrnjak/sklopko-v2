@@ -45,6 +45,7 @@ const SCRIPTS: Record<string, ({ label: string; to: number } | { cycles: number 
     { label: 'Address', to: 5 },
   ],
   'one-bus': [{ cycles: 20 }],
+  'asm-irq': [{ cycles: 1100 }],
   feedback: [
     { label: 'Enable', to: 1 },
     { label: 'Enable', to: 0 },
