@@ -26,7 +26,7 @@ async function flipFlop(page: Page) {
 
 test('write steps for a circuit, run them, and see which fail and why; the steps are saved with the circuit', async ({ page }) => {
   await flipFlop(page)
-  await chooseTool(page, 'Tests…')
+  await chooseTool(page, 'Tests')
   await expect(dialog(page)).toBeVisible()
   await expect(dialog(page).getByTestId('test-inputs')).toHaveText('D, CLK')
   await expect(dialog(page).getByTestId('test-outputs')).toHaveText('Q')
@@ -63,7 +63,7 @@ test('write steps for a circuit, run them, and see which fail and why; the steps
   await page.getByRole('button', { name: 'Close' }).click()
   await page.waitForTimeout(700)
   await page.reload({ waitUntil: 'networkidle' })
-  await chooseTool(page, 'Tests…')
+  await chooseTool(page, 'Tests')
   await expect(dialog(page).getByLabel('Test steps')).toHaveValue('D=1; pulse CLK; expect Q=1')
   await dialog(page).getByRole('button', { name: 'Run tests' }).click()
   await expect(dialog(page).getByTestId('test-summary')).toHaveText('All 1 step passed.')

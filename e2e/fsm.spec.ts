@@ -4,7 +4,7 @@ import { fresh, freshEmpty, chooseTool, clickLabelled } from './helpers'
 const fsmPanel = (page: Page) => page.getByRole('dialog', { name: 'State machines' })
 
 async function openFsm(page: Page) {
-  await chooseTool(page, 'State machines…')
+  await chooseTool(page, 'State machines')
   await expect(fsmPanel(page)).toBeVisible()
 }
 

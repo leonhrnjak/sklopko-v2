@@ -166,8 +166,13 @@ function MenuItem({
   )
 }
 
-/** The "…" that says an entry opens a window. Shown in the drop-down menus; left out of the phone menu's buttons, where it only adds clutter. */
-const Dots = () => <span className="dots">…</span>
+/** The small window that says an entry opens a window. Shown in the drop-down menus; left out of the phone menu's buttons, where it only adds clutter. */
+const OpensWindow = () => (
+  <svg className="opens-window" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="2" y="3" width="12" height="10" rx="2" />
+    <path d="M2 6.5h12" />
+  </svg>
+)
 
 /** A heading inside a menu, for a group of entries. */
 const MenuLabel = ({ children }: { children: ReactNode }) => (
@@ -307,19 +312,19 @@ export function Toolbar() {
       <MenuLabel>Build and check</MenuLabel>
       <MenuItem onClick={() => openLogic()} title="Truth tables, Boolean expressions and Karnaugh maps: analyze this circuit, build one from an expression, or compare two">
         Logic
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuItem onClick={openFsm} title="Draw a state machine as states and arrows (or fill in a table), check it, and generate the circuit: gates and flip-flops">
         State machines
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuItem onClick={() => openMakeIc()} title="Make a part of your own from this circuit (or from the selected parts), to use like any other part">
         Make IC
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuItem onClick={openTestbench} title="Steps that set switches, pulse a clock and check LEDs, saved with the circuit: run them to see what passes">
         Tests
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuLabel>Learn</MenuLabel>
       <MenuItem onClick={openMap} title="From NAND to a computer: a path of short lessons, each with something to build, ending in a real 6502 running BASIC">
@@ -330,15 +335,15 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => openReference()} title="How to write programs for the computers: the SKASM assembly language, its instructions, ports and examples">
         SKASM
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuItem onClick={() => open6502Reference()} title="The 6502 assembly language">
         6502
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuItem onClick={() => openBasicReference()} title="The BASIC of the BASIC computer: its statements, functions and errors, and programs to type in">
         BASIC
-        <Dots />
+        <OpensWindow />
       </MenuItem>
       <MenuLabel>Show</MenuLabel>
       <MenuItem
@@ -390,7 +395,7 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={openPicture} title="Save the circuit as an SVG or PNG picture: all of it, or what is on screen">
         Save picture
-        <Dots />
+        <OpensWindow />
       </MenuItem>
     </>
   )

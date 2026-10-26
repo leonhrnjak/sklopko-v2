@@ -1510,7 +1510,7 @@ button.danger {
 .menu-section > * {
   flex: 1 1 auto;
 }
-.toolbar-menu .dots {
+.toolbar-menu .opens-window {
   display: none;
 }
 .menu-section > select {
@@ -1546,7 +1546,19 @@ button.danger {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
   z-index: 30;
 }
+.toolbar .drop-menu .opens-window {
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  padding-left: 18px;
+  box-sizing: content-box;
+  flex: none;
+  color: var(--muted);
+}
 .toolbar .drop-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   color: var(--text);
   border-color: transparent;

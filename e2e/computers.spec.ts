@@ -388,7 +388,7 @@ test('devices: a RAM of 16384 words has 64 pages, listed in four groups of 4 KB'
 
 test('the SKASM reference opens from the toolbar and from a program ROM, and has the instructions, ports and examples', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'SKASM…')
+  await chooseTool(page, 'SKASM')
   const dialog = page.getByRole('dialog', { name: 'SKASM language reference' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('the assembly language of every Sklopko computer')).toBeVisible()
@@ -532,7 +532,7 @@ test('the 6502 ROM holds a program in assembly: a listing of its bytes, errors b
   await expect(dialog.getByRole('cell', { name: 'BRK', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
-  await chooseTool(page, '6502…')
+  await chooseTool(page, '6502')
   await expect(dialog).toBeVisible()
 })
 
@@ -684,7 +684,7 @@ test('the BASIC computer: it starts by itself, and a program typed on its termin
 
 test('the BASIC reference: statements, functions and the programs to type in, from the Tools menu', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'BASIC…')
+  await chooseTool(page, 'BASIC')
   const dialog = page.getByRole('dialog', { name: 'BASIC reference' })
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText('Microsoft BASIC')
@@ -739,7 +739,7 @@ test('the BASIC computer: the board’s Reset button restarts it on a blank scre
 
 test('the SKASM reference has a Control signals tab: each signal of the ROMs, and what each instruction switches on', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'SKASM…')
+  await chooseTool(page, 'SKASM')
   const dialog = page.getByRole('dialog', { name: 'SKASM language reference' })
   await dialog.getByRole('tab', { name: 'Control signals' }).click()
   await expect(dialog).toContainText('Control ROM 1 of the SKASM computers (16 bits)')
