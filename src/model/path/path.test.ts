@@ -6,6 +6,8 @@ import type { Circuit } from '../circuit'
 import { expandICs, icParams } from '../ic'
 import { CHAPTERS } from './chapters'
 import { computer2Builder } from '../computer2'
+import { cutWires } from './board'
+import { EXAMPLES } from '../examples'
 import { cpuStage } from './cpu4'
 import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
@@ -417,10 +419,11 @@ describe('chapter 3 and the lessons that came with it', () => {
 describe('part names in lessons ([[label]])', () => {
   const namesIn = (s: (typeof STEPS)[number]) => s.lesson.flatMap((b) => ('p' in b ? [...b.p.matchAll(/\[\[(.+?)\]\]/g)].map((m) => m[1]) : []))
   const circuitOf = (s: (typeof STEPS)[number]) => {
-    if (s.kind === 'explore') return s.open.build()
+    if (s.kind === 'explore') return 'build' in s.open ? s.open.build() : EXAMPLES.find((e) => e.id === (s.open as { example: string }).example)!.build()
     if (s.kind === 'build') return stepStarter(s, {})
     if (s.kind === 'program') return s.computer === 'cpu8' ? computer2Builder({ source: 'HALT', hz: 16, devices: ['console'] }).b.c : cpuStage(8)
     if (s.kind !== 'project') return undefined
+    if (s.board) return cutWires(EXAMPLES.find((e) => e.id === s.board!.example)!.build(), s.board.cut)
     const c = structuredClone(cpuStage(s.stage - 1))
     s.give?.(c)
     return c

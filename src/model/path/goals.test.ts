@@ -3,13 +3,23 @@ import { Simulator } from '../../engine/simulator'
 import { flatten } from '../buses'
 import type { Circuit } from '../circuit'
 import { displayValue, goalHolds, goalProblems, labelled, tick } from './goals'
+import { EXAMPLES } from '../examples'
 import { STEPS } from './steps'
 import type { ExploreStep, Goal } from './types'
 
 const explores = STEPS.filter((s): s is ExploreStep => s.kind === 'explore')
 
+/** The circuit an explore step opens with: built on the spot, or an example (made once: routing the wires of a board takes seconds). */
+const made = new Map<string, Circuit>()
+const openOf = (s: ExploreStep): Circuit => {
+  if ('build' in s.open) return s.open.build()
+  const id = s.open.example
+  if (!made.has(id)) made.set(id, EXAMPLES.find((e) => e.id === id)!.build())
+  return structuredClone(made.get(id)!)
+}
+
 /** What a learner does to reach each explore step's goals: operate the parts with these labels, in order. */
-const SCRIPTS: Record<string, { label: string; to: number }[]> = {
+const SCRIPTS: Record<string, ({ label: string; to: number } | { cycles: number })[]> = {
   bits: [
     { label: 'S', to: 1 },
     { label: 'S', to: 0 },
@@ -34,6 +44,7 @@ const SCRIPTS: Record<string, { label: string; to: number }[]> = {
     { label: 'CLK', to: 1 },
     { label: 'Address', to: 5 },
   ],
+  'one-bus': [{ cycles: 20 }],
   feedback: [
     { label: 'Enable', to: 1 },
     { label: 'Enable', to: 0 },
@@ -66,17 +77,17 @@ describe('explore steps', () => {
     for (const s of explores) {
       expect(s.goals.length, s.id).toBeGreaterThan(0)
       expect(s.task, s.id).toBeTruthy()
-      expect(goalProblems(s.goals, s.open.build()), s.id).toEqual([])
+      expect(goalProblems(s.goals, openOf(s)), s.id).toEqual([])
     }
   })
 
   it('offer parts that the circuit they open is made of', () => {
-    for (const s of explores) for (const k of Object.values(s.open.build().comps)) expect(s.palette ?? [k.type], `${s.id}: ${k.type}`).toContain(k.type)
+    for (const s of explores) for (const k of Object.values(openOf(s).comps)) expect(s.palette ?? [k.type], `${s.id}: ${k.type}`).toContain(k.type)
   })
 
   for (const s of explores) {
     it(`${s.id}: no goal holds before the learner does anything, and a short script reaches every goal`, () => {
-      const c = s.open.build()
+      const c = openOf(s)
       const { sim, operate } = play(c)
       let ticked = s.goals.map(() => false)
       const look = () => (ticked = tick(s.goals, ticked, !!s.ordered, (g) => goalHolds(g, c, sim)))
@@ -84,8 +95,16 @@ describe('explore steps', () => {
       expect(ticked.every(Boolean), 'done before playing').toBe(false)
       expect(ticked[0], 'the first goal is not there from the start').toBe(false)
       for (const a of SCRIPTS[s.id]) {
-        operate(a.label, a.to)
-        look()
+        if ('cycles' in a) {
+          // Clock steps, looking after each: a goal about the pins is seen for a moment only.
+          for (let i = 0; i < a.cycles * 2; i++) {
+            sim.stepClock()
+            look()
+          }
+        } else {
+          operate(a.label, a.to)
+          look()
+        }
       }
       expect(ticked).toEqual(s.goals.map(() => true))
     })
@@ -93,7 +112,7 @@ describe('explore steps', () => {
 })
 
 describe('goals', () => {
-  const c = explores.find((s) => s.id === 'show-nine')!.open.build()
+  const c = openOf(explores.find((s) => s.id === 'show-nine')!)
 
   it('read a display as a number, and nothing while a bit is unknown', () => {
     const { sim, operate } = play(c)
@@ -132,7 +151,7 @@ describe('goals', () => {
 
 describe('goals on switches', () => {
   const step = explores.find((s) => s.id === 'mux4-tour')!
-  const c = step.open.build()
+  const c = openOf(step)
 
   it('hold when every named switch is as asked, whatever the others do', () => {
     const { sim, operate } = play(c)

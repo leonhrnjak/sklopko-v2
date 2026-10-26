@@ -103,12 +103,14 @@ export type Goal = { text: string } & (
   | { switches: Record<string, 0 | 1> }
   /** A word of a RAM (by label) holds this. */
   | { memory: string; at: number; is: number }
+  /** A 6502 (by label) has this address on its pins, reading or writing: seen in some cycle of the run. */
+  | { cpu: string; addr: number; rw: 'read' | 'write' }
 )
 
 export interface ExploreStep extends StepBase {
   kind: 'explore'
-  /** The circuit to play with. */
-  open: { build: () => Circuit }
+  /** The circuit to play with: built on the spot, or an example of the gallery (the build writes it routed, and the app fetches it). */
+  open: { build: () => Circuit } | { example: string }
   /** What to do, in one sentence. */
   task: string
   /** The parts the palette offers. */
@@ -118,8 +120,11 @@ export interface ExploreStep extends StepBase {
   ordered?: boolean
 }
 
-/** Something to find in a computer that is running, by the label of a part: a counter, register, display or ROM as a number, an LED, or a word of a RAM. */
-export type Expect = { value: string; is: number } | { led: string; is: 0 | 1 } | { ram: string; at: number; is: number }
+/**
+ * Something to find in a computer that is running, by the label of a part: a counter, register, display or ROM as a number, an LED, a word of a
+ * RAM, or the numbers a part took in the run so far (in order, each only when it changed; `is` has to be found among them, in a row, or be all of them with `exact`).
+ */
+export type Expect = { value: string; is: number } | { led: string; is: 0 | 1 } | { ram: string; at: number; is: number } | { trace: string; is: number[]; exact?: true }
 
 /** What the computer should show after `after` clock ticks (full cycles: up and down). `text` is the line of the checklist. */
 export interface CpuCheck {
@@ -142,13 +147,18 @@ export interface CpuRun {
 export interface ProjectStep extends StepBase {
   kind: 'project'
   /** The project it belongs to; every step of it shares one circuit. */
-  project: 'cpu4'
+  project: 'cpu4' | 'board6502'
   /** What the step asks for, in one sentence. */
   task: string
   /** The stage of the reference computer (`cpuStage`) this step ends with: its solution, and the next step's start when this one is skipped. */
   stage: number
   /** Parts given at the start of the step, on top of the circuit it starts from (the Control ROM, say). */
   give?: (c: Circuit) => void
+  /**
+   * A step on a board of an example instead of the learner's CPU: the example (its id) is the solution, and the step starts with the wires of
+   * the parts labelled in `cut` taken off, for the learner to put back. Its test programs are not put in a ROM: the board runs its own.
+   */
+  board?: { example: string; cut: string[] }
   /** Ids of build steps whose chips the palette offers (the learner's, or ours when they have not built them). */
   uses?: string[]
   /** The parts the palette offers. */

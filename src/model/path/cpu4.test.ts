@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Circuit } from '../circuit'
+import { EXAMPLES } from '../examples'
+import { cutWires } from './board'
 import { cpuStage, upgradeControlRom } from './cpu4'
 import { checkProject } from './run'
 import { STEPS, getStep } from './steps'
 import type { ProjectStep } from './types'
 
-const projects = STEPS.filter((s): s is ProjectStep => s.kind === 'project')
+const projects = STEPS.filter((s): s is ProjectStep => s.kind === 'project' && s.project === 'cpu4')
 
 /** What a learner is given at the start of a step: the stage before, and the step's own parts. */
 function start(s: ProjectStep): Circuit {
@@ -70,5 +72,33 @@ describe('the CPU project', () => {
     expect(rom.params.dbits).toBe(16)
     expect(String(rom.params.data).split(' ').length).toBe(16)
     expect(checkProject(getStep('cpu-jump') as ProjectStep, c).passed).toBe(true)
+  })
+})
+
+describe('the board project (step 12.4)', () => {
+  const step = getStep('wire-board') as ProjectStep
+  // Routing the wires of the board takes seconds: it is built once.
+  const board = EXAMPLES.find((e) => e.id === step.board!.example)!.build()
+
+  it('starts with the decoder’s gates in place and none of their wires, and does not light the LEDs', () => {
+    const start = cutWires(board, step.board!.cut)
+    for (const label of step.board!.cut) expect(Object.values(start.comps).some((k) => k.label === label), label).toBe(true)
+    expect(Object.keys(start.wires).length).toBeLessThan(Object.keys(board.wires).length)
+    const r = checkProject(step, start)
+    expect(r.passed).toBe(false)
+    expect(r.lines[0].got).toContain('LED register $4000')
+  })
+
+  it('is done by the board itself, which blinks the LEDs 1, 2, 4… 128 and 1 again', () => {
+    const r = checkProject(step, board)
+    expect(r.problems).toEqual([])
+    expect(r.passed).toBe(true)
+  })
+
+  it('is not done with just one of the wires put back: RAM writes alone do not light the LEDs', () => {
+    const start = cutWires(board, step.board!.cut)
+    const nrw = Object.values(board.comps).find((k) => k.label === 'writing')!.id
+    const back = Object.fromEntries(Object.entries(board.wires).filter(([, w]) => w.from.comp === nrw || w.to.comp === nrw))
+    expect(checkProject(step, { ...start, wires: { ...start.wires, ...back } }).passed).toBe(false)
   })
 })
