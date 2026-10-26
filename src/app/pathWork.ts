@@ -94,7 +94,8 @@ export async function startStep(id: string) {
  * when they skipped it, and the parts this step gives.
  */
 async function projectStarter(step: ProjectStep): Promise<Circuit> {
-  const before = STEPS.find((s): s is ProjectStep => s.kind === 'project' && s.project === step.project && s.stage === step.stage - 1)
+  const mine = STEPS.filter((s): s is ProjectStep => s.kind === 'project' && s.project === step.project)
+  const before = mine[mine.indexOf(step) - 1]
   flushSave() // what is on the canvas may be the circuit of the step before, not yet kept
   let c: Circuit | undefined
   try {
@@ -104,7 +105,7 @@ async function projectStarter(step: ProjectStep): Promise<Circuit> {
   } catch {
     // A circuit that no longer reads: the reference one is the way on.
   }
-  c ??= structuredClone(cpuStage(step.stage - 1))
+  c ??= structuredClone(cpuStage(before?.stage ?? 0))
   step.give?.(c)
   return c
 }

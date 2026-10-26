@@ -9,21 +9,23 @@ const projects = STEPS.filter((s): s is ProjectStep => s.kind === 'project')
 
 /** What a learner is given at the start of a step: the stage before, and the step's own parts. */
 function start(s: ProjectStep): Circuit {
-  const c = structuredClone(cpuStage(s.stage - 1))
+  const c = structuredClone(cpuStage(projects[projects.indexOf(s) - 1]?.stage ?? 0))
   s.give?.(c)
   return c
 }
 
 describe('the CPU project', () => {
   it('has the stages in order, one step for each', () => {
-    expect(projects.map((s) => s.stage)).toEqual(projects.map((_, i) => i + 1))
-    expect(projects.map((s) => s.id).slice(0, 4)).toEqual(['cpu-fetch', 'cpu-decode', 'cpu-ldi'])
+    expect(projects.map((s) => s.stage)).toEqual([1, 2, 3, 4, 5, 6, 6])
+    expect(projects.map((s) => s.id)).toEqual(['cpu-fetch', 'cpu-decode', 'cpu-ldi', 'cpu-ram', 'cpu-add', 'cpu-jump', 'cpu-same'])
   })
 
   for (const s of projects) {
     describe(s.id, () => {
-      it('is not done by the circuit it starts from', () => {
-        expect(checkProject(s, start(s)).passed).toBe(false)
+      // A step that only confirms what the one before built (the same stage) is done as soon as it starts.
+      it('is not done by the circuit it starts from, unless it only confirms the step before', () => {
+        const before = projects[projects.indexOf(s) - 1]
+        expect(checkProject(s, start(s)).passed).toBe(before?.stage === s.stage)
       })
 
       it('is done by its stage of the reference computer, whose every line is ok', () => {
@@ -35,7 +37,7 @@ describe('the CPU project', () => {
       })
 
       it('is also done by the stages after it, so a learner who goes on keeps what they had', () => {
-        for (let k = s.stage + 1; k <= projects.length; k++) {
+        for (let k = s.stage + 1; k <= 6; k++) {
           const later = checkProject(s, cpuStage(k))
           expect(later.lines.filter((l) => !l.ok), `${s.id} at stage ${k}`).toEqual([])
         }

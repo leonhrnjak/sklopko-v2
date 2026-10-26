@@ -118,8 +118,8 @@ export interface ExploreStep extends StepBase {
   ordered?: boolean
 }
 
-/** Something to find in a computer that is running, by the label of a part: a counter, register, display or ROM as a number, or an LED. */
-export type Expect = { value: string; is: number } | { led: string; is: 0 | 1 }
+/** Something to find in a computer that is running, by the label of a part: a counter, register, display or ROM as a number, an LED, or a word of a RAM. */
+export type Expect = { value: string; is: number } | { led: string; is: 0 | 1 } | { ram: string; at: number; is: number }
 
 /** What the computer should show after `after` clock ticks (full cycles: up and down). `text` is the line of the checklist. */
 export interface CpuCheck {

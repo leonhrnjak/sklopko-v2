@@ -463,3 +463,25 @@ test('learn: chapter 9 shows an instruction word to click, and the CPU project i
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('There is no part labelled “LOAD_ACC”')
 })
+
+test('learn: the later steps of the CPU project check RAM, the carry and jumps, and the last one confirms the whole computer', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/cpu-add', { waitUntil: 'networkidle' })
+  // Started from the reference computer of the stage before it, because nothing before it was built here.
+  await expect(page.locator('.comp .comp-label', { hasText: /^RAM$/ })).toHaveCount(1)
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('There is no part labelled “Carry”')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page).getByTestId('project-lines').last()).toContainText('☑ 12 + 7 is 19')
+
+  await page.goto('/learn/cpu-jump', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await panel(page).getByTestId('step-next').click()
+  await expect(panel(page)).toContainText('It is the beginner computer')
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+})

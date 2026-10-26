@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -22,7 +22,7 @@
   - [x] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`, stacked on `learn-l3-ch7`)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
   - [x] L4a The project framework and steps 9.1 to 9.4 (own PR, `learn-l4a-cpu-1`)
-  - [ ] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`)
+  - [x] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`, stacked on `learn-l4a-cpu-1`)
   - [ ] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
@@ -739,6 +739,15 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   instruction (bits 0–3 are unused by LDI), so the quiz asks about `0300` and `0040`.
 - `PATH_STEP_COUNT` is 49. Chips are not used in chapter 9: the steps use the built-in Counter with load, register and ROM, which the palette offers whatever the learner has unlocked.
 - Tests: every stage passes its step's runs and is also passed by every later stage; the starting circuit of each step fails; a missing clock or opcode wire fails 9.4; e2e: the word figure, 9.2 solved by *Show a solution*, and 9.3 starting from it.
+
+**What L4b (steps 9.5 to 9.8) did, and where it differs from the plan.**
+- The four steps: `cpu-ram` (a RAM labelled RAM, the 4:1 multiplexer of each ACC input, the rows STA and LDA), `cpu-add` (the adder, the XORs that flip RAM's bits for SUB, the carry flag and a Carry LED, the rows ADD and SUB),
+  `cpu-jump` (the PC loads the address in the instruction on JUMP and stops on HALT; a Halted LED; the rows JMP and HALT) and `cpu-same` (run 3 + 4 on it; it only confirms the stage before). `PATH_STEP_COUNT` is 53.
+- `cpuStage(4..6)` in `cpu4.ts` is the beginner computer part for part, with its named wires (`ADDR0`, `ACC_SRC0`, `SUBTRACT`…); the Control ROM's rows grow with the stage (`controlTextFor`). The ACC's number inputs go through the
+  multiplexers from stage 4 on, so step 9.5 asks the learner to take them off the ROM and send them through.
+- A new expectation `{ ram, at, is }` reads a word of a RAM by label. A step starts from **the step before it in the project**, not stage − 1, so `cpu-same` (the same stage as `cpu-jump`) starts from the learner's circuit and
+  is done as soon as it runs: the tests say a step is not done by its start *unless it only confirms the step before*.
+- Tests: the stages and runs as in L4a for all seven steps; e2e: 9.6 and 9.7 by *Show a solution*, and 9.8 next.
 
 ### L5 Program steps: chapters 10–11
 - Program steps on `cpu4` (the learner's from 9.10, or the reference) and on the 8-bit computer. *Edit the program* selects the ROM. The verdict

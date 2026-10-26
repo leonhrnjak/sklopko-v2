@@ -37,7 +37,7 @@ export function partValue(c: Circuit, sim: Simulator, label: string): number | n
   return n
 }
 
-const labels = (e: Expect) => ('value' in e ? e.value : e.led)
+const labels = (e: Expect) => ('value' in e ? e.value : 'ram' in e ? e.ram : e.led)
 
 /** Parts a run needs, by label. */
 const wanted = (runs: readonly CpuRun[]) => [...new Set(runs.flatMap((r) => r.checks.flatMap((k) => k.expect.map(labels))).concat('Program ROM'))]
@@ -72,6 +72,10 @@ export function checkProject(step: ProjectStep, circuit: Circuit): ProjectResult
           if ('value' in e) {
             const got = partValue(c, sim, e.value)
             if (got !== e.is) wrong.push(`${e.value} is ${got === null ? 'unknown' : got}, not ${e.is}`)
+          } else if ('ram' in e) {
+            const mem = sim.state(labelled(c, e.ram)!.id)?.mem as ArrayLike<number> | undefined
+            const got = mem?.[e.at]
+            if (got !== e.is) wrong.push(`${e.ram} word ${e.at} is ${got ?? 'unknown'}, not ${e.is}`)
           } else {
             const k = labelled(c, e.led)!
             const got = sim.pinValue(k.id, 'A')
