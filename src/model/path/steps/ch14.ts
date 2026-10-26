@@ -20,7 +20,7 @@ export const CH14: Step[] = [
     hint: 'It starts by itself. If it is paused, press Run at the top. The screen is on the right of the board.',
     lesson: [
       { p: 'This is the board you wired in chapter 12, with more on it: a 6502, a RAM of 16 KB at the bottom of the memory, a ROM of 16 KB at the top, and a serial chip, a 6551, at $5000, with a screen and a keyboard at its other end: the [[Terminal (6551) $5000–$5003]]. It is Ben Eater’s breadboard computer.' },
-      { p: 'In the ROM is a program: Microsoft BASIC, the language of the first microcomputers, in the version that Bill Gates and Paul Allen wrote for the 6502. It starts at reset, works out how much RAM there is, prints its banner, and says OK. That is a prompt: it is waiting for you.' },
+      { p: 'In the ROM is a program: Microsoft BASIC, the language of the first microcomputers, in the version that Ric Weiland and Bill Gates wrote for the 6502 (it says so in the ROM: BY WEILAND & GATES). It starts at reset, works out how much RAM there is, prints its banner, and says OK. That is a prompt: it is waiting for you.' },
       { p: 'What you see took the whole path to build. The 6502 runs BASIC the way your computer ran its little programs: fetch, decode, execute, 1,000,000 times a second.' },
     ],
   },
