@@ -306,3 +306,31 @@ test('a control ROM on a phone: the listing fits, and a row is edited by its sig
   await expect(row('ADD')).not.toContainText('SAVE_CARRY')
   await expect(row('ADD')).toContainText('LOAD_ACC, ACC_SRC=ADDER')
 })
+
+test('a step of Learn can be folded to its bar to use the parts list, and unfolded again', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/and-from-nand', { waitUntil: 'networkidle' })
+  const panel = page.getByRole('region', { name: 'Step' })
+  const fold = panel.getByTestId('sheet-fold')
+  await expect(panel).toContainText('AND gives 1 only when both inputs are 1')
+  await expect(fold).toHaveText('Parts ▾')
+  const full = (await panel.boundingBox())!
+
+  // Folded: only the bar is left, the step goes on, and the parts of the step (and the kit) can be reached.
+  await fold.tap()
+  await expect(fold).toHaveText('Lesson ▴')
+  await expect(panel.locator('.challenge-body')).toBeHidden()
+  const bar = (await panel.boundingBox())!
+  expect(bar.height).toBeLessThan(full.height / 3)
+  const chip = page.locator('.palette-item[data-type="ic:kit:not-from-nand"]')
+  await expect(chip).toBeVisible()
+  const c = (await chip.boundingBox())!
+  expect(c.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1) // the bar is above the list, not over it
+  await expect(panel).toContainText('2.3 AND, from NAND and your NOT')
+
+  // One tap brings the lesson back; the step has not been closed or restarted in between.
+  await fold.tap()
+  await expect(fold).toHaveText('Parts ▾')
+  await expect(panel).toContainText('AND gives 1 only when both inputs are 1')
+  await expect(page).toHaveURL(/\/learn\/and-from-nand$/)
+})

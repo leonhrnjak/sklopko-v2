@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import type { Cell } from '../../logic/table'
 import { closeStep, openMap, showStepHint, usePath } from '../../app/path'
 import { useGoals } from '../../app/pathGoals'
+import { toggleSheet, useSheet } from '../../app/pathSheet'
 import { clearSpot, focusSpot, hoverSpot } from '../../app/pathSpot'
 import { checkStep, markRead, nextStep, restartStep, showStepSolution, startStep } from '../../app/pathWork'
 import { useStore } from '../../app/store'
@@ -265,16 +266,17 @@ export function StepPanel() {
   const before = stepBefore(step.id)
   const after = stepAfter(step.id)
   const done = progress.done[step.id]
+  const folded = useSheet((s) => s.folded)
   return (
-    <section className="wave-panel challenge-panel step-panel" aria-label="Step" data-step={step.id}>
+    <section className={`wave-panel challenge-panel step-panel${folded ? ' folded' : ''}`} aria-label="Step" data-step={step.id}>
       <div className="wave-head">
-        <button onClick={() => before && startStep(before)} disabled={!before} aria-label="Previous step" title="Previous step">
+        <button className="step-nav" onClick={() => before && startStep(before)} disabled={!before} aria-label="Previous step" title="Previous step">
           ◀
         </button>
         <span className="step-where">
           {chapter?.title} · step {at + 1} of {inChapter.length}
         </span>
-        <button onClick={() => after && startStep(after)} disabled={!after} aria-label="Next step" title="Next step">
+        <button className="step-nav" onClick={() => after && startStep(after)} disabled={!after} aria-label="Next step" title="Next step">
           ▶
         </button>
         <strong>
@@ -287,6 +289,9 @@ export function StepPanel() {
             </span>
           )}
         </strong>
+        <button className="sheet-fold" onClick={toggleSheet} aria-expanded={!folded} data-testid="sheet-fold" title={folded ? 'Show the lesson' : 'Fold the lesson away to use the parts list'}>
+          {folded ? 'Lesson ▴' : 'Parts ▾'}
+        </button>
         <button onClick={openMap}>Map</button>
         <button onClick={closeStep} aria-label="Close step">
           ✕
