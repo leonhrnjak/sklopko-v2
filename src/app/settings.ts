@@ -12,11 +12,13 @@ export interface Settings {
   wireColors: WireColors
   /** The help panel on the right shows when nothing is selected. Open until the visitor hides it. */
   helpOpen: boolean
+  /** While the simulation runs, the circuit cannot be changed (switches and memories can still be operated). Off until the visitor asks. */
+  lockEdits: boolean
 }
 
 const KEY = 'sklopko.settings.v1'
 
-const DEFAULTS: Settings = { gateStyle: 'us', hops: true, wireColors: 'classic', helpOpen: true }
+const DEFAULTS: Settings = { gateStyle: 'us', hops: true, wireColors: 'classic', helpOpen: true, lockEdits: false }
 
 function load(): Settings {
   try {
@@ -27,6 +29,7 @@ function load(): Settings {
         hops: typeof raw.hops === 'boolean' ? raw.hops : DEFAULTS.hops,
         wireColors: raw.wireColors === 'blue-orange' ? 'blue-orange' : 'classic',
         helpOpen: typeof raw.helpOpen === 'boolean' ? raw.helpOpen : DEFAULTS.helpOpen,
+        lockEdits: raw.lockEdits === true,
       }
   } catch {
     // Storage unavailable or corrupt: use the defaults.
@@ -44,10 +47,10 @@ applyWireColors(useSettings.getState().wireColors)
 
 export function updateSettings(patch: Partial<Settings>) {
   useSettings.setState(patch)
-  const { gateStyle, hops, wireColors, helpOpen } = useSettings.getState()
+  const { gateStyle, hops, wireColors, helpOpen, lockEdits } = useSettings.getState()
   applyWireColors(wireColors)
   try {
-    localStorage.setItem(KEY, JSON.stringify({ gateStyle, hops, wireColors, helpOpen }))
+    localStorage.setItem(KEY, JSON.stringify({ gateStyle, hops, wireColors, helpOpen, lockEdits }))
   } catch {
     // Not persisted; the setting still applies for this visit.
   }

@@ -30,6 +30,7 @@ import { IC, levelsOf, placedICs, placementOf, wouldLoop } from '../model/ic'
 import { autoConnect, pruneWires, reroute, rerouteAround, updateWiresAfterMove } from '../model/ops'
 import { normalize } from '../routing/path'
 import { isEmbed } from './embed'
+import { useSettings } from './settings'
 import { sim } from './sim'
 
 export interface View {
@@ -78,9 +79,23 @@ const get = useStore.getState
 const set = useStore.setState
 const HISTORY = 200
 
+/** Editing is switched off while the simulation runs (Tools → Lock editing while running). Operating a control is not editing. */
+export const editsLocked = () => get().running && useSettings.getState().lockEdits
+
+let toldLocked = 0
+
+/** Is editing locked? If so, say why (at most every second and a half: a drag asks again and again). */
+export function lockedOut(): boolean {
+  if (!editsLocked()) return false
+  const now = Date.now()
+  if (now - toldLocked > 1500) showToast('Editing is locked while the simulation runs. Pause it to change the circuit.')
+  toldLocked = now
+  return true
+}
+
 /** Save the current circuit on the undo stack. Call once before each user action. */
 export function checkpoint() {
-  if (isEmbed()) return
+  if (isEmbed() || lockedOut()) return
   const { circuit, past } = get()
   set({ past: [...past.slice(-HISTORY + 1), circuit], future: [] })
 }
@@ -91,7 +106,7 @@ export function checkpoint() {
  */
 export function edit(fn: (c: Circuit) => boolean | void, structural = true, operating = false) {
   // Embedded circuits can't be edited. Operating a control (flipping a switch) is not editing.
-  if (isEmbed() && !operating) return
+  if (!operating && (isEmbed() || editsLocked())) return
   const s = get()
   let changedNets = false
   const circuit = produce(s.circuit, (d) => {
@@ -101,7 +116,7 @@ export function edit(fn: (c: Circuit) => boolean | void, structural = true, oper
 }
 
 export function undo() {
-  if (isEmbed()) return
+  if (isEmbed() || lockedOut()) return
   const { past, future, circuit, structVersion } = get()
   if (!past.length) return
   set({
@@ -114,7 +129,7 @@ export function undo() {
 }
 
 export function redo() {
-  if (isEmbed()) return
+  if (isEmbed() || lockedOut()) return
   const { past, future, circuit, structVersion } = get()
   if (!future.length) return
   set({
@@ -161,6 +176,7 @@ export const selectAll = () => {
 
 /** `type` is a part type, or `ic:<id>` for a custom IC of this circuit (see `placementOf`). */
 export function addComp(type: string, x: number, y: number): string {
+  if (lockedOut()) return ''
   const placement = placementOf(get().circuit, type)
   if (!placement) return ''
   if (placement.type === IC && placesLoop(get().circuit, String(placement.params.ic))) {
@@ -204,7 +220,7 @@ export function moveComps(ids: string[], d: Point, final: boolean) {
 
 export function deleteSelection() {
   const sel = get().selection
-  if (!sel.length) return
+  if (!sel.length || lockedOut()) return
   checkpoint()
   edit((c) => {
     for (const id of sel) {
@@ -475,7 +491,7 @@ export function copySelection() {
 export const hasClipboard = () => clipboard !== null
 
 export function paste() {
-  if (!clipboard) return
+  if (!clipboard || lockedOut()) return
   pasteCount++
   const off = 40 * pasteCount
   const map = new Map<string, string>()
@@ -517,6 +533,7 @@ export function paste() {
  * left edge, or at the top left of an empty canvas. The new parts are selected. Returns their ids.
  */
 export function insertCircuit(sub: Circuit): string[] {
+  if (lockedOut()) return []
   const cur = get().circuit
   const occupied = Object.keys(cur.comps).length > 0
   const mine = circuitRect(sub, 0)

@@ -243,6 +243,7 @@ export function Toolbar() {
 
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
   const historyOn = useHistoryOn()
+  const lockEdits = useSettings((s) => s.lockEdits)
   const step = () => {
     sim.tick()
     sim.publish()
@@ -348,6 +349,14 @@ export function Toolbar() {
         testid="history-toggle"
       >
         Step-back history
+      </MenuItem>
+      <MenuItem
+        checked={lockEdits}
+        onClick={() => updateSettings({ lockEdits: !lockEdits })}
+        title="While the simulation runs, the circuit cannot be changed: no stray drag can disturb a run. Switches, buttons and memories can still be operated. Pause to edit."
+        testid="lock-toggle"
+      >
+        Lock editing while running
       </MenuItem>
       <MenuItem
         checked={waveOpen}
@@ -575,6 +584,7 @@ export function StatusBar() {
   const toast = useStore((s) => s.toast)
   const toastAction = useStore((s) => s.toastAction)
   const empty = useStore((s) => Object.keys(s.circuit.comps).length === 0)
+  const locked = useSettings((s) => s.lockEdits) && running
   return (
     <>
       <div className="status">
@@ -584,6 +594,11 @@ export function StatusBar() {
         <Suspense fallback={null}>
           <ClockBadge />
         </Suspense>
+        {locked && (
+          <span className="badge locked" title="Editing is locked while the simulation runs. Pause it to change the circuit, or switch the lock off in Tools." data-testid="locked-badge">
+            🔒 Editing locked
+          </span>
+        )}
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
             Oscillating

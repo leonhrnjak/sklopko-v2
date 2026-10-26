@@ -1424,6 +1424,9 @@ button.danger {
 .badge.paused {
   color: var(--muted);
 }
+.badge.locked {
+  color: var(--trace);
+}
 .version {
   position: absolute;
   top: 8px;
