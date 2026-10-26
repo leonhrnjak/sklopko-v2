@@ -34,8 +34,10 @@ test('lock editing while running: nothing can be changed until it is paused, but
   const lock = page.getByTestId('lock-toggle')
   await expect(lock).toHaveAttribute('aria-pressed', 'false')
 
+  await expect(lock).toHaveText('🔓 Editing enabled') // a status in the footer that is also the switch
   await lock.click()
   await expect(lock).toHaveAttribute('aria-pressed', 'true')
+  await expect(lock).toHaveText('🔒 Editing locked')
   const parts = page.locator('.comp')
   await expect(parts).toHaveCount(2)
   // Dropping a part does nothing and says why; deleting does nothing either.

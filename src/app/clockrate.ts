@@ -42,3 +42,11 @@ export function describeClock(askedHz: number, share: number | null): { asked: s
   const slow = share < KEEPING_UP
   return { asked, actual: formatHz(askedHz * (slow ? share : 1)), percent: slow ? Math.max(1, Math.round(share * 100)) : null, slow }
 }
+
+/** Simulated time, short: "340 ms", "12.5 s", "2 min 5 s". */
+export function formatTime(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`
+  const s = Math.floor(ms / 1000)
+  return `${Math.floor(s / 60)} min ${s % 60} s`
+}

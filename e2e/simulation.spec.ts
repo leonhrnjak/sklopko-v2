@@ -185,6 +185,7 @@ test('the footer names the fastest clock and what it reaches, and says when the 
   const clock = page.getByTestId('clock-rate')
   await expect(page.getByTestId('run-state')).toHaveText('Running')
   await expect(clock).toHaveText('Clock 2 Hz · actual 2 Hz', { timeout: 5000 })
+  await expect(page.getByTestId('run-time')).toContainText('t = ') // the simulated time
   await page.selectOption('select[aria-label="Simulation speed"]', '4')
   await expect(clock).toContainText('Clock 8 Hz')
   await page.getByTestId('run').click() // paused: the asked rate stays, nothing is measured

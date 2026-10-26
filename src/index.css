@@ -1442,15 +1442,12 @@ button.danger {
 .badge.paused {
   color: var(--muted);
 }
-.lock-btn.on {
-  background: var(--accent-ink);
-  color: var(--accent-strong);
-}
 .run-footer {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 5px 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 12px;
   background: var(--panel);
   border-top: 1px solid var(--panel-border);
   font-size: 13px;
@@ -1458,7 +1455,23 @@ button.danger {
   white-space: nowrap;
   overflow: hidden;
 }
-.run-footer > * + *:not(.run-state) {
+.run-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+.run-footer .zoom-controls {
+  position: static;
+  flex: none;
+  box-shadow: none;
+}
+.run-footer .zoom-controls button {
+  padding: 2px 10px;
+  font-size: 15px;
+}
+.run-left > * + *:not(.run-state) {
   padding-left: 14px;
   border-left: 1px solid var(--panel-border);
 }
@@ -1500,9 +1513,24 @@ button.danger {
   font-size: 12px;
   color: inherit;
 }
-.run-footer > .run-pill {
+.run-left > .run-pill {
   border-left: 1px solid var(--panel-border);
   padding-left: 9px;
+}
+.run-pill.warn {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.run-pill.lock {
+  cursor: pointer;
+}
+.run-left > .run-pill.locked {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fbbf24;
+}
+.run-time b {
+  font-variant-numeric: tabular-nums;
 }
 .run-pill.held {
   border-color: var(--trace);
@@ -1998,11 +2026,6 @@ button.danger {
   .action-bar {
     gap: 4px;
     padding: 5px;
-  }
-  /* Above the selection bar, which sits along the bottom edge. */
-  .zoom-controls {
-    right: 8px;
-    bottom: 64px;
   }
   .action-bar button {
     padding: 8px 10px;
