@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { aciaType, type AciaState } from '../../engine/acia'
 import { Simulator } from '../../engine/simulator'
 import { flatten } from '../buses'
 import type { Circuit } from '../circuit'
@@ -19,7 +20,7 @@ const openOf = (s: ExploreStep): Circuit => {
 }
 
 /** What a learner does to reach each explore step's goals: operate the parts with these labels, in order. */
-const SCRIPTS: Record<string, ({ label: string; to: number } | { cycles: number })[]> = {
+const SCRIPTS: Record<string, ({ label: string; to: number } | { cycles: number; every?: number } | { type: string })[]> = {
   bits: [
     { label: 'S', to: 1 },
     { label: 'S', to: 0 },
@@ -46,6 +47,21 @@ const SCRIPTS: Record<string, ({ label: string; to: number } | { cycles: number 
   ],
   'one-bus': [{ cycles: 20 }],
   'asm-irq': [{ cycles: 1100 }],
+  'basic-boot': [{ cycles: 25_000, every: 250 }],
+  'basic-print': [
+    { cycles: 25_000, every: 250 },
+    { type: 'PRINT 2+3\r' },
+    { cycles: 30_000, every: 250 },
+    { type: '10 PRINT "HELLO"\r' },
+    { cycles: 40_000, every: 250 },
+    { type: 'RUN\r' },
+    { cycles: 20_000, every: 250 },
+  ],
+  'basic-loop': [
+    { cycles: 25_000, every: 250 },
+    { type: 'FOR I=1 TO 10: PRINT I: NEXT\r' },
+    { cycles: 150_000, every: 250 },
+  ],
   feedback: [
     { label: 'Enable', to: 1 },
     { label: 'Enable', to: 0 },
@@ -73,7 +89,7 @@ function play(c: Circuit) {
 }
 
 describe('explore steps', () => {
-  it('have at least one goal, a task, and goals on parts that exist', () => {
+  it('have at least one goal, a task, and goals on parts that exist', { timeout: 120_000 }, () => {
     expect(explores.length).toBeGreaterThanOrEqual(3)
     for (const s of explores) {
       expect(s.goals.length, s.id).toBeGreaterThan(0)
@@ -82,7 +98,7 @@ describe('explore steps', () => {
     }
   })
 
-  it('offer parts that the circuit they open is made of', () => {
+  it('offer parts that the circuit they open is made of', { timeout: 120_000 }, () => {
     for (const s of explores) for (const k of Object.values(openOf(s).comps)) expect(s.palette ?? [k.type], `${s.id}: ${k.type}`).toContain(k.type)
   })
 
@@ -100,15 +116,18 @@ describe('explore steps', () => {
           // Clock steps, looking after each: a goal about the pins is seen for a moment only.
           for (let i = 0; i < a.cycles * 2; i++) {
             sim.stepClock()
-            look()
+            if (i % (a.every ?? 1) === 0) look()
           }
+        } else if ('type' in a) {
+          // Keys typed on a terminal (the only one on the board).
+          aciaType(sim.state(Object.values(c.comps).find((k) => k.type === 'acia6551')!.id) as AciaState, a.type)
         } else {
           operate(a.label, a.to)
           look()
         }
       }
       expect(ticked).toEqual(s.goals.map(() => true))
-    })
+    }, 120_000) // a board runs hundreds of thousands of cycles here (BASIC starting up)
   }
 })
 

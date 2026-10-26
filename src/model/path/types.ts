@@ -48,6 +48,8 @@ export type Block =
   | { quiz: Question[] }
   /** An instruction word of the computer, as 16 bits to click, with its fields and what it means. */
   | { word: { value: number } }
+  /** What the learner has done on the path: the chips in their kit, and the steps of each chapter. */
+  | { journey: true }
 
 export interface StepBase {
   /** Permanent: progress, the kit and the step's document are stored by it. */
@@ -103,6 +105,8 @@ export type Goal = { text: string } & (
   | { switches: Record<string, 0 | 1> }
   /** A word of a RAM (by label) holds this. */
   | { memory: string; at: number; is: number }
+  /** The screen of a terminal (by label) has a line that says this (spaces at the ends do not count). */
+  | { terminal: string; line: string }
   /** A 6502 (by label) has this address on its pins, reading or writing: seen in some cycle of the run. */
   | { cpu: string; addr: number; rw: 'read' | 'write' }
 )

@@ -21,6 +21,7 @@ import { numberOf } from './numbers'
 import { Mark } from './Mark'
 import { Quiz } from './Quiz'
 import { Spotlight } from './Spotlight'
+import { Journey } from './Journey'
 import { InstructionWord } from './Word'
 
 /** The values of a map's output over its inputs: 1 on the listed rows, 0 elsewhere. */
@@ -52,6 +53,7 @@ export function Lesson({ blocks, stepId }: { blocks: Block[]; stepId: string }) 
         if ('p' in b) return <Paragraph key={i} text={b.p} />
         if ('quiz' in b) return <Quiz key={i} stepId={stepId} questions={b.quiz} />
         if ('word' in b) return <InstructionWord key={i} initial={b.word.value} />
+        if ('journey' in b) return <Journey key={i} />
         if ('kmap' in b) return <KarnaughMap key={i} values={mapValues(b.kmap.inputs, b.kmap.ones)} names={b.kmap.inputs} output={b.kmap.output} />
         return (
           <div key={i} className="truth-wrap">

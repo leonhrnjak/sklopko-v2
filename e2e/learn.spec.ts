@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { PATH_STEPS } from '../src/model/path/steps'
-import { clickLabelled, fresh, pinCenter, place, wire } from './helpers'
+import { clickLabelled, fresh, pickByLabel, pinCenter, place, wire } from './helpers'
 
 const panel = (page: Page) => page.getByRole('region', { name: 'Step' })
 const map = (page: Page) => page.getByRole('dialog', { name: 'Learn' })
@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-basic')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-basic')).toContainText('0/4')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -525,6 +525,7 @@ test('learn: a program is written in the Program ROM’s inspector and checked o
 })
 
 test('learn: chapter 11 builds a shared bus from tri-state buffers, and programs the 8-bit computer', async ({ page }) => {
+  test.setTimeout(180_000) // a board or a computer is simulated for a while: more so on a busy machine
   await fresh(page)
   await page.goto('/learn/shared-bus', { waitUntil: 'networkidle' })
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
@@ -551,6 +552,7 @@ test('learn: chapter 11 builds a shared bus from tri-state buffers, and programs
 })
 
 test('learn: chapter 12 builds the address decoder, ticks the 6502 goals as it runs, and checks the board with its wires cut', async ({ page }) => {
+  test.setTimeout(180_000) // a board or a computer is simulated for a while: more so on a busy machine
   await fresh(page)
   await page.goto('/learn/address-decoder', { waitUntil: 'networkidle' })
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
@@ -578,6 +580,7 @@ test('learn: chapter 12 builds the address decoder, ticks the 6502 goals as it r
 })
 
 test('learn: chapter 13 checks a 6502 program on its board, and the timer interrupt ticks its goals', async ({ page }) => {
+  test.setTimeout(180_000) // a board or a computer is simulated for a while: more so on a busy machine
   await fresh(page)
   await page.goto('/learn/asm-leds', { waitUntil: 'networkidle' })
   await expect(page.locator('.comp .comp-label', { hasText: /^CPU$/ })).toHaveCount(1, { timeout: 30_000 })
@@ -596,4 +599,32 @@ test('learn: chapter 13 checks a 6502 program on its board, and the timer interr
   await expect(goals.getByRole('listitem')).toHaveCount(2)
   await expect(goals).toContainText('☑ It reads the interrupt vector', { timeout: 60_000 })
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+})
+
+test('learn: chapter 14 ticks its goals as the BASIC computer starts and answers what is typed on its terminal, and the journey shows what was made', async ({ page }) => {
+  test.setTimeout(180_000) // a board or a computer is simulated for a while: more so on a busy machine
+  await fresh(page)
+  await page.goto('/learn/basic-boot', { waitUntil: 'networkidle' })
+  await expect(panel(page).getByTestId('goals')).toContainText('☑ The terminal says OK', { timeout: 90_000 })
+  await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+
+  await page.goto('/learn/basic-print', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp .comp-label', { hasText: /^Terminal \(6551\)/ })).toHaveCount(1, { timeout: 60_000 })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  await expect(page.getByLabel('Screen text')).toContainText('OK', { timeout: 90_000 })
+  await page.keyboard.type('print 2+3')
+  await page.keyboard.press('Enter')
+  await expect(panel(page).getByTestId('goals')).toContainText('☑ BASIC answers 5', { timeout: 90_000 })
+  await page.keyboard.type('10 print "hello"')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('run')
+  await page.keyboard.press('Enter')
+  await expect(panel(page).getByTestId('goals')).toContainText('☑ The program prints HELLO', { timeout: 90_000 })
+
+  // The last step shows what the learner has made: here, chapters 1 to 6 done and the kit's chips.
+  const done = Object.fromEntries(PATH_STEPS.filter((id) => !['journey'].includes(id)).slice(0, 10).map((id) => [id, { at: 1, how: 'solved' }]))
+  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, quiz: {} })), done)
+  await page.goto('/learn/journey', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('journey')).toContainText('You have done 10 of the 78 steps')
+  await expect(page.getByTestId('journey')).toContainText('1 Signals and wires')
 })

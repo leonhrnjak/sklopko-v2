@@ -3924,3 +3924,15 @@ button.linklike:hover {
 .project-line.ok {
   color: var(--wire-1);
 }
+.journey-chapters {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  columns: 2 22em;
+}
+.journey-chapters li {
+  padding: 1px 0;
+}
+.journey-chapters li.on {
+  color: var(--wire-1);
+}

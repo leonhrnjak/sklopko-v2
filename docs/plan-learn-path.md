@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, built; all 78 steps exist).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -27,10 +27,10 @@
 > - [x] L5 Program steps: chapters 10–11
   - [x] L5a Chapter 10, programming your computer (own PR, `learn-l5a-ch10`)
   - [x] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`, stacked on `learn-l5a-ch10`) (programming your computer; a bigger computer)
-> - [ ] L6 The 6502 and BASIC: chapters 12–14
+> - [x] L6 The 6502 and BASIC: chapters 12–14
   - [x] L6a Chapter 12, meet the 6502 (own PR, `learn-l6a-ch12`)
   - [x] L6b Chapter 13, programming the 6502 (own PR, `learn-l6b-ch13`, stacked on `learn-l6a-ch12`)
-  - [ ] L6c Chapter 14, a computer that runs BASIC, and *Your journey* (own PR, `learn-l6c-ch14`)
+  - [x] L6c Chapter 14, a computer that runs BASIC, and *Your journey* (own PR, `learn-l6c-ch14`, stacked on `learn-l6b-ch13`)
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
 > The mockup of every screen is `docs/mockups/learn-path.html` (open it in a browser; it has no dependencies; a published copy is at
@@ -810,6 +810,15 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - **`asm-irq` needed the simulator to show it every clock edge**: a goal about the CPU's pins lasts one edge, and a running simulation publishes only at the end of each frame, so the vector read was usually missed. `Simulator.edgeHook`
   (called after each settled edge in `advance`) is set by `watchGoals` for steps with a CPU goal. The goals are the push on the stack ($01FF written) and then the read of the vector ($FFFE).
 - Tests: every starter fails and every solution passes on its board (the LCD program in under 40,000 ticks); `asm-irq`'s script runs 1,100 cycles; a `.org` that is wrong, and a missing INX, TXA or BNE, are told. e2e: a wrong then right `asm-leds`, and `asm-irq` ticking while the board runs.
+
+**What L6c (chapter 14, *A computer that runs BASIC*, and *Your journey*) did, and where it differs from the plan.**
+- The four steps as in the table: `basic-boot`, `basic-print` and `basic-loop` (explore steps on the `/6502-basic` example) and `journey`. **`PATH_STEP_COUNT` is 78: every step of the plan exists.**
+- A new goal `{ terminal, line }`: the terminal's screen has a line that says this (spaces at the ends do not count): `OK`, `5` (BASIC prints ` 5`), `HELLO` (the listing of `10 PRINT "HELLO"` is not a line that says HELLO, so it only
+  ticks after RUN) and `10`. The learner types on the real terminal (click its screen, as in the example); the explore script of the unit test types with `aciaType` and runs the board: BASIC says OK after 16,000 cycles.
+- *Your journey* is a read step with a lesson block `{ journey: true }` (`ui/path/Journey.tsx`): how many steps are done and how (solved, or read or shown), how many programs were written, a line for each chapter with a way to *Start* or *Continue*, and
+  the chips of the kit by name. It is not a score; the plan's “every chip you built, your CPU, your programs” is what it counts (the CPU and the programs are the chapters 9 and 10 lines).
+- Tests: the three scripts reach their goals (the slowest, a FOR loop printing to ten, takes about 9 s); e2e: BASIC starting, `PRINT 2+3`, a program and RUN typed on the terminal, and the journey with ten steps done.
+- Left for L7: the phone sheet, links from the welcome example and *How to*, progress in *Download all* and *Import*, the README and `CLAUDE.md`.
 
 ### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks
