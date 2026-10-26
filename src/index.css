@@ -1403,7 +1403,9 @@ button.danger {
   position: absolute;
   top: 10px;
   left: 12px;
+  right: 64px; /* leaves the version in the corner clear */
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   pointer-events: none;
 }
