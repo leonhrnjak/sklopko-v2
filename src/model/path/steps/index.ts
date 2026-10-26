@@ -36,3 +36,15 @@ export function recommended(p: Progress): string | undefined {
   const from = p.current && hasStep(p.current) ? PATH_STEPS.indexOf(p.current) : 0
   return [...PATH_STEPS.slice(from), ...PATH_STEPS.slice(0, from)].find((id) => !isDone(p, id))
 }
+
+/** Is this step before the one the learner was last on? Then it is one they skipped, and not the way on. */
+export const isBehind = (p: Progress, id: string): boolean => !!p.current && hasStep(p.current) && PATH_STEPS.indexOf(id) < PATH_STEPS.indexOf(p.current)
+
+/**
+ * The chapter the map opens on: the one of the step the learner was last on, so that finishing a chapter shows that chapter (and
+ * not an earlier one with a step skipped); else the one of the recommended step.
+ */
+export function mapChapter(p: Progress): string | undefined {
+  const id = p.current && hasStep(p.current) ? p.current : recommended(p)
+  return id ? getStep(id)?.chapter : undefined
+}

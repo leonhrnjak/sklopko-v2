@@ -140,3 +140,16 @@ test('learn: another document ends the step, and the palette has every part agai
   await expect(page).toHaveURL(/\/$/)
   expect(await page.locator('.palette-item').count()).toBeGreaterThan(20)
 })
+
+test('learn: after finishing a chapter the map opens on it, and a skipped step is offered as going back', async ({ page }) => {
+  await fresh(page)
+  const done = Object.fromEntries(['wire', 'not-from-nand', 'and-from-nand', 'or-from-nand', 'nor-from-kit', 'xor-from-kit', 'nand-recap'].map((id) => [id, { at: 1, how: 'solved' }]))
+  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, current: 'nand-recap', quiz: {} })), done)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.getByTestId('learn-button').click()
+  // Chapter 2 is the one on show, not chapter 1 where the skipped step is.
+  await expect(map(page).getByTestId('learn-step-nand-recap')).toBeVisible()
+  await expect(map(page).getByTestId('learn-continue')).toContainText('Go back to a step you skipped: 1.2 Counting with four bits')
+  await map(page).getByTestId('learn-chapter-signals').click()
+  await expect(map(page).getByTestId('learn-step-binary')).toContainText('skipped')
+})

@@ -4,7 +4,7 @@ import { forgetAll, startStep } from '../../app/pathWork'
 import { useKit } from '../../app/pathKit'
 import { CHAPTERS } from '../../model/path/chapters'
 import { countDone, type Progress } from '../../model/path/progress'
-import { PATH_STEPS, getStep, recommended, stepIdsOf, stepsOf } from '../../model/path/steps'
+import { PATH_STEPS, getStep, isBehind, mapChapter, recommended, stepIdsOf, stepsOf } from '../../model/path/steps'
 import type { Step, StepKind } from '../../model/path/types'
 import { Mark } from './Mark'
 import { numberOf } from './numbers'
@@ -25,7 +25,7 @@ function chapterState(id: string, p: Progress): { done: number; total: number; m
   return { done, total: ids.length, mark }
 }
 
-function StepRow({ step, progress, next, onOpen }: { step: Step; progress: Progress; next: boolean; onOpen: () => void }) {
+function StepRow({ step, progress, next, behind, onOpen }: { step: Step; progress: Progress; next: boolean; behind: boolean; onOpen: () => void }) {
   const done = progress.done[step.id]
   const kind = KIND[step.kind]
   return (
@@ -41,7 +41,7 @@ function StepRow({ step, progress, next, onOpen }: { step: Step; progress: Progr
           <b>
             {numberOf(step)} {step.title}
             {done?.star && ' ⭐'}
-            {next && <span className="learn-next-tag"> ← next</span>}
+            {next && <span className="learn-next-tag">{behind ? ' ← skipped' : ' ← next'}</span>}
           </b>
           <small>{step.summary}</small>
         </span>
@@ -69,7 +69,9 @@ function MapView() {
     return () => window.removeEventListener('keydown', key)
   }, [])
   const nextStepInfo = next ? getStep(next) : undefined
-  const chapterId = picked ?? (nextStepInfo?.chapter ?? CHAPTERS[0].id)
+  // A step before the one the learner was last on is one they skipped: everything after it is done.
+  const behind = next ? isBehind(progress, next) : false
+  const chapterId = picked ?? mapChapter(progress) ?? CHAPTERS[0].id
   const chapter = CHAPTERS.find((c) => c.id === chapterId) ?? CHAPTERS[0]
   const steps = stepsOf(chapter.id)
   const done = countDone(progress, PATH_STEPS)
@@ -92,9 +94,12 @@ function MapView() {
         </header>
         <div className="learn-continue">
           {nextStepInfo ? (
-            <button className="primary-action" onClick={() => startStep(nextStepInfo.id)} data-testid="learn-continue">
-              {done > 0 ? 'Continue' : 'Start'}: {numberOf(nextStepInfo)} {nextStepInfo.title} →
-            </button>
+            <>
+              <button className="primary-action" onClick={() => startStep(nextStepInfo.id)} data-testid="learn-continue">
+                {behind ? 'Go back to a step you skipped' : done > 0 ? 'Continue' : 'Start'}: {numberOf(nextStepInfo)} {nextStepInfo.title} →
+              </button>
+              {behind && <span className="learn-muted"> You have done everything that comes after it so far; more chapters are on their way.</span>}
+            </>
           ) : (
             <p className="verdict good">You have done every step there is so far. More chapters are on their way.</p>
           )}
@@ -128,7 +133,7 @@ function MapView() {
             {steps.length ? (
               <ul>
                 {steps.map((s) => (
-                  <StepRow key={s.id} step={s} progress={progress} next={s.id === next} onOpen={() => startStep(s.id)} />
+                  <StepRow key={s.id} step={s} progress={progress} next={s.id === next} behind={behind} onOpen={() => startStep(s.id)} />
                 ))}
               </ul>
             ) : (

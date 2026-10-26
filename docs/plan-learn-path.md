@@ -9,15 +9,16 @@
 > locally, the rest in CI" until CI runs again.
 >
 > - [x] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
-> - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–5 (choosing, adding numbers, the ALU)
-> - [ ] L3 Clocked builds and chapters 6–7 (memory; counting, ROM and RAM)
-> - [ ] L4 The CPU project: chapter 8 (build a computer, and its two upgrades)
-> - [ ] L5 Program steps: chapters 9–10 (programming your computer; a bigger computer)
-> - [ ] L6 The 6502 and BASIC: chapters 11–13
+> - [ ] L1.5 Kit chips look like the gates they are: gate symbols for ICs that are known gates, and smaller boxes for the rest (own PR, `ic-gate-symbols`)
+> - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
+> - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
+> - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
+> - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
+> - [ ] L6 The 6502 and BASIC: chapters 12–14
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
 > The mockup of every screen is `docs/mockups/learn-path.html` (open it in a browser; it has no dependencies; a published copy is at
-> https://claude.ai/artifact/RKVpcszUh8wGNZyLrQBqwk). The ASCII wireframes below are the same screens.
+> https://claude.ai/artifact/RKVpcszUh8wGNZyLrQBqwk). The ASCII wireframes below are the same screens. (The mockup was drawn before chapter 3, *From a truth table to gates*, was added: its chapters from 3 on are one lower than here.)
 
 ## Why
 Everything a course needs is in the app already, in separate places. There are 17 challenges (`src/model/challenges.ts`) and 60 examples
@@ -32,15 +33,15 @@ next to a live circuit. Sklopko can do both, and it goes further than either: th
 browser, with nothing to install. **The path is what ties together everything built so far.**
 
 ## What a learner does
-1. Opens **Learn** (a toolbar button, or `/learn`). A map shows 13 chapters, from *Signals and wires* to *A computer that runs BASIC*, with
+1. Opens **Learn** (a toolbar button, or `/learn`). A map shows 14 chapters, from *Signals and wires* to *A computer that runs BASIC*, with
    **Continue** at the top.
 2. Each step is short: a few paragraphs with live links into the circuit, and one thing to do. That can be build a gate, play with an
    example until some goals tick, answer a question, or write a program. The step is checked automatically.
 3. Every gate and block they build goes into **Your kit** as a chip, and the next steps use it. AND is built from *your* NOT, the 4-bit adder
    from *your* full adders. When a chapter is done, the matching built-in parts unlock, which are the same thing, only faster.
-4. In chapter 8 they build a 4-bit CPU in one circuit that grows step by step: fetch, decode, the accumulator, RAM, the adder, jumps.
+4. In chapter 9 they build a 4-bit CPU in one circuit that grows step by step: fetch, decode, the accumulator, RAM, the adder, jumps.
    Then they give it decisions (a zero flag and conditional jumps) and a way to talk to the world (an output at a memory address). In
-   chapter 9 they program it.
+   chapter 10 they program it.
 5. They tour the 8-bit computer and program it for the ideas the 6502 needs: an index register and subroutines. Then they meet the 6502
    and see that it is the same machine on one chip. They wire its address decoder, program it in assembly, and finish by typing
    `PRINT "HELLO"` into Microsoft BASIC.
@@ -53,7 +54,7 @@ browser, with nothing to install. **The path is what ties together everything bu
   6502 needs that the beginner computer lacks are taught one at a time instead, in four steps (see *The bridge to the 6502*).
 - **Chips carry forward, then built-ins take over** (Nand2Tetris and Turing Complete). A build step with a `chip` turns the learner's passing
   circuit into a custom IC in their kit, and later steps that `use` it get it. When a chapter is done, the built-in parts that do the same thing
-  unlock. From chapter 8 on, the steps use built-ins, so the CPU runs at full speed and a slip in an early chip cannot break it.
+  unlock. From chapter 9 on, the steps use built-ins, so the CPU runs at full speed and a slip in an early chip cannot break it.
 - **Soft gating.** Any step can be opened, from the map or a link. The map always recommends the next step. A step whose chips the learner
   has not built uses the reference chips and says so: "You haven't built XOR yet, so this step uses ours. *Build it* →".
 - **Show a solution** marks the step *shown* (◐), not *solved* (✔). It counts for unlocking, so nobody is stuck, and the kit gets the
@@ -62,9 +63,17 @@ browser, with nothing to install. **The path is what ties together everything bu
   Complete's scores do. A star never blocks progress.
 - **Existing challenges are reused, not copied.** A step can be an existing challenge (`challenge: 'half-adder'`). It shares that
   challenge's solved state (`sklopko.challenges.v1`) and its library document (`origin.challenge`). The Challenges list marks those *In the
-  path: chapter 4*. Challenges stay as they are: free practice.
+  path: chapter 5*. Challenges stay as they are: free practice.
 - **All progress is local.** Small state goes in `localStorage`, circuits in the IndexedDB library (as challenges do now). *Download all* and
   *Import* in *My circuits* carry the path's progress as well, so it can move to another computer.
+- **Chips look like the gates they are** (L1.5, from a review of L1). A custom IC used to be a labelled box, at least 80 × 60 against 40 × 40 for an
+  AND gate, so a learner's AND never looked like an AND. Now an IC that behaves as a known gate (NOT, buffer, AND, OR, NAND, NOR, XOR, XNOR) is drawn with
+  that gate's symbol at the gate's own size (US or IEC, as the setting says), in the chip colour with its name under it, so it still reads as *yours*.
+  Every other IC stays a box but is smaller (at least 60 wide, 40 tall for one input and one output). The gate is a field of the definition
+  (`ICDef.symbol`), set by the kit steps (they know what they build) and, for chips made by hand, found from the truth table when the IC is made. The
+  pins keep the IC's own names, so nothing wired changes.
+- **The map opens where you were.** On the chapter of the step last visited, not on the one *Continue* recommends, so finishing a chapter and opening the
+  map shows that chapter. A skipped earlier step is offered as "Go back to a step you skipped", not as the way on.
 - **No new engine, no new editor.** Checks use `checkChallenge` and `runSteps` (testbench) and `Simulator`. Programs are edited in the
   ROM inspector that already edits SKASM and 6502 assembly. Control ROM rows are edited with the C2 editor (by signal). Live state is read the
   way the inspectors read it (`sim.state`, `sim.subscribe`).
@@ -78,14 +87,14 @@ has more ideas than that, but not many. Each one gets one step, built from what 
 
 | Idea the 6502 needs | Where the path teaches it | What it becomes on the 6502 |
 |---|---|---|
-| Flags and conditional jumps | 8.9 *Decisions*, on **their own CPU**: their ZERO chip, a Z flag register, and the JZ and JNC rows of the control ROM (SKASM opcodes 8 and 6, which fit the 4-bit opcode field) | the P register, `BEQ`, `BNE`, `BCC`, `BCS` |
-| Memory-mapped I/O and address decoding | 8.10 *Talking to the world*, on **their own CPU**: an AND of the address bits makes `STA 15` write an output register (a display) instead of RAM | `STA $4000` lights the board's LEDs; its decoder is three gates (11.3) |
-| Wider data and a shared bus | 10.2, one small build: two registers on one bus through tri-state buffers | the 8-bit data bus |
-| An index register | 10.4, a program on the 8-bit computer: add up a table with X | X and Y, `LDA table,X` |
-| Subroutines and a stack | 10.5, a program with `CALL` and `RET` | `JSR` and `RTS`, the stack in page `$01` |
-| One memory for program and data | 11.2, explore: step the 6502 cycle by cycle and watch it read the opcode, then the operand, then write `$4000` | why one instruction takes 2–7 cycles |
+| Flags and conditional jumps | 9.9 *Decisions*, on **their own CPU**: their ZERO chip, a Z flag register, and the JZ and JNC rows of the control ROM (SKASM opcodes 8 and 6, which fit the 4-bit opcode field) | the P register, `BEQ`, `BNE`, `BCC`, `BCS` |
+| Memory-mapped I/O and address decoding | 9.10 *Talking to the world*, on **their own CPU**: an AND of the address bits makes `STA 15` write an output register (a display) instead of RAM | `STA $4000` lights the board's LEDs; its decoder is three gates (12.3) |
+| Wider data and a shared bus | 11.2, one small build: two registers on one bus through tri-state buffers | the 8-bit data bus |
+| An index register | 11.4, a program on the 8-bit computer: add up a table with X | X and Y, `LDA table,X` |
+| Subroutines and a stack | 11.5, a program with `CALL` and `RET` | `JSR` and `RTS`, the stack in page `$01` |
+| One memory for program and data | 12.2, explore: step the 6502 cycle by cycle and watch it read the opcode, then the operand, then write `$4000` | why one instruction takes 2–7 cycles |
 
-Chapter 11 opens with this map, from *your* computer to the 6502:
+Chapter 12 opens with this map, from *your* computer to the 6502:
 
 | Your 4-bit computer | The 6502 |
 |---|---|
@@ -104,7 +113,7 @@ Kinds: 📖 **read** (text, with an optional quiz), 🔍 **explore** (an example
 **program** (SKASM or 6502 assembly, checked by running it). *Chip* is what goes into the kit. *Unlocks* lists the built-in parts that unlock
 when the chapter is done.
 
-Step ids are permanent (progress is stored by them). Numbers like 4.3 are only for reading.
+Step ids are permanent (progress is stored by them). Numbers like 5.3 are only for reading.
 
 ### 1. Signals and wires
 | # | id | Kind | What | Check | Links |
@@ -127,125 +136,146 @@ Palette: NAND, switches, LEDs, and your kit. Everything is built from NAND.
 | 2.7 | `nand-recap` | 📖 | Why chips are made of NAND; De Morgan's two rules | quiz (2 questions) | |
 Unlocks: the built-in NOT, AND, OR, NOR, XOR, XNOR (2–8 inputs).
 
-### 3. Choosing
+### 3. From a truth table to gates
+The step most courses skip, and the one that makes the rest of the path usable: given *any* truth table, how do you get gates? Sum of products, then
+making it smaller, then doing it with NAND only. Palette: NAND, switches, LEDs and your kit. Built on what exists: `minimizeExpr` and `kmapOf`
+(`src/logic/minimize.ts`, `kmap.ts`) and the `KarnaughMap` figure already do the minimising and the picture; the existing challenges `majority` and
+`valid-bcd` are two of the steps. Majority moved here from *Choosing*, where it was one line about "sum of products".
+| # | id | Kind | What | Check | Links |
+|---|---|---|---|---|---|
+| 3.1 | `table-to-sop` | 📖 | Each 1-row of a table is an AND of the inputs, inverted where the row has a 0; OR them: sum of products. Worked on 3-input majority, its 1-rows highlighted in the table | quiz: the term for row 101; how many terms for a table with five 1-rows | |
+| 3.2 | `sop-majority` | 🔧 | Build majority from its four 1-rows, with your NOT, AND and OR | challenge `majority`, with the rule *only NAND* added by the step | *Logic → Build circuit* shown as a way to check |
+| 3.3 | `combine-terms` | 📖 | Two terms that differ in one variable merge: `X·Y + X·¬Y = X`. Majority's four terms become `A·B + A·C + B·C` | quiz: simplify `A·B·C + A·B·¬C` | |
+| 3.4 | `kmap` | 📖 | The Karnaugh map as a picture of that merging: rectangles of 1, 2, 4 or 8 ones, each rectangle one term, rectangles wrap round the edges. The majority map | quiz: how many terms for these groups | the figure |
+| 3.5 | `sop-bcd` | 🔧 | Four inputs: "is it a decimal digit?" Read the groups off the map, build the small circuit; ⭐ for the fewest gates | challenge `valid-bcd`, with the rule *only NAND* added by the step; star at ≤ 4 gates (three NANDs make the OR, one more finishes it) | |
+| 3.6 | `nand-nand` | 📖 | AND-OR becomes NAND-NAND (the De Morgan of 2.7): each term a NAND, the OR a NAND of those; an inverted input is a NAND with its inputs tied | quiz: the NAND-NAND form of `A·B + C` | |
+| 3.7 | `sop-nand` | 🔧 | Majority again, with NAND only: three 2-input NANDs and one 3-input NAND, no inverters; ⭐ at 4 gates | `Y = A·B + A·C + B·C`, only NAND; star at ≤ 4 | |
+The done-card of 3.7 links back to the XOR step: "Now you can get the star on 2.6: `A⊕B = A·¬(A·B) + B·¬(A·B)` is a NAND-NAND form with one NAND shared: 4 gates."
+(`BuildStep.after`, a step id and a sentence, shown as a link in the done-card; the XOR step's hint also says to come back after this chapter. The star is still
+awarded on the XOR step, by its own check, so there is no second XOR step.)
+A `BuildStep` can carry its own `rules`, which replace the challenge's: that is how an existing challenge (`majority`, `valid-bcd`) is made NAND-only here.
+Reference solutions for NAND-NAND are written with a small builder, `nandNandSolution(inputs, output, terms)` (the library's `synthesize` has no NAND-only
+mode); a test checks each against its goal. New lesson blocks: a Karnaugh map (`{ kmap }`, rendered with `KarnaughMap.tsx`) and a `highlight` list of rows for
+`{ table }`. Chip: none (these are circuits, not parts to keep).
+
+### 4. Choosing
 | # | id | Kind | What | Check | Chip / links |
 |---|---|---|---|---|---|
-| 3.1 | `majority` | 🔧 | Sum of products: AND each 1-row, OR them. *Logic → Build circuit* shown as a way to check | challenge `majority` | |
-| 3.2 | `mux` | 🔧 | Choose one of two | challenge `mux` | MUX |
-| 3.3 | `demux` | 🔧 | Send D to Y0 or Y1 | `Y0 = ¬S·D`, `Y1 = S·D` | DEMUX |
-| 3.4 | `decoder` | 🔧 | 2:4 decoder: one line for each number | four outputs, one-hot | DEC2 |
-| 3.5 | `mux4-tour` | 🔍 | A 4:1 multiplexer | goals: select input 2; Y follows it | `/mux` |
+| 4.1 | `mux` | 🔧 | Choose one of two | challenge `mux` | MUX |
+| 4.2 | `demux` | 🔧 | Send D to Y0 or Y1 | `Y0 = ¬S·D`, `Y1 = S·D` | DEMUX |
+| 4.3 | `decoder` | 🔧 | 2:4 decoder: one line for each number | four outputs, one-hot | DEC2 |
+| 4.4 | `mux4-tour` | 🔍 | A 4:1 multiplexer | goals: select input 2; Y follows it | `/mux` |
 Unlocks: MUX 2:1 / 4:1 / 8:1, DEMUX, binary decoder.
 
-### 4. Adding numbers
+### 5. Adding numbers
 | # | id | Kind | What | Check | Chip / links |
 |---|---|---|---|---|---|
-| 4.1 | `binary-add` | 📖 | Adding in binary, column by column, with a carry | quiz: 0110 + 0011 | |
-| 4.2 | `half-adder` | 🔧 | Two bits: Sum and Carry | challenge `half-adder` | HA |
-| 4.3 | `full-adder` | 🔧 | Three bits, from two of your HAs and an OR | challenge `full-adder` | FA |
-| 4.4 | `adder4` | 🔧 | A 4-bit adder from four of your FAs (A3–A0, B3–B0, Cin; S3–S0, Cout) | goal table, 512 rows | ADD4 |
-| 4.5 | `ripple-tour` | 🔍 | The carry ripples: watch it with slow gates | goals: add 15 + 1; see Cout | `/ripple` |
-| 4.6 | `negative` | 📖 | Two's complement: −n is "flip the bits, add 1" | quiz: −3 in 4 bits | |
-| 4.7 | `addsub` | 🔧 | Adder/subtractor: your ADD4 with four XORs, SUB into Cin | goal table | ADDSUB |
+| 5.1 | `binary-add` | 📖 | Adding in binary, column by column, with a carry | quiz: 0110 + 0011 | |
+| 5.2 | `half-adder` | 🔧 | Two bits: Sum and Carry | challenge `half-adder` | HA |
+| 5.3 | `full-adder` | 🔧 | Three bits, from two of your HAs and an OR | challenge `full-adder` | FA |
+| 5.4 | `adder4` | 🔧 | A 4-bit adder from four of your FAs (A3–A0, B3–B0, Cin; S3–S0, Cout) | goal table, 512 rows | ADD4 |
+| 5.5 | `ripple-tour` | 🔍 | The carry ripples: watch it with slow gates | goals: add 15 + 1; see Cout | `/ripple` |
+| 5.6 | `negative` | 📖 | Two's complement: −n is "flip the bits, add 1" | quiz: −3 in 4 bits | |
+| 5.7 | `addsub` | 🔧 | Adder/subtractor: your ADD4 with four XORs, SUB into Cin | goal table | ADDSUB |
 Unlocks: half and full adder, 4-bit adder, 4-bit adder/subtractor.
 
-### 5. The ALU
+### 6. The ALU
 | # | id | Kind | What | Check | Chip / links |
 |---|---|---|---|---|---|
-| 5.1 | `is-zero` | 🔧 | Z = 1 when all four bits are 0 | `Z = ¬(A3+A2+A1+A0)` | ZERO |
-| 5.2 | `compare` | 🔧 | Compare two 2-bit numbers | challenge `compare` | |
-| 5.3 | `alu4` | 🔧 | ADD, SUB, AND, OR by two select bits; outputs Y3–Y0, Z, C | goal table, 1024 rows | ALU |
-| 5.4 | `alu-tour` | 🔍 | The built-in ALU with flags | goals: make Z light; make C light | `/alu-flags` |
+| 6.1 | `is-zero` | 🔧 | Z = 1 when all four bits are 0 | `Z = ¬(A3+A2+A1+A0)` | ZERO |
+| 6.2 | `compare` | 🔧 | Compare two 2-bit numbers | challenge `compare` | |
+| 6.3 | `alu4` | 🔧 | ADD, SUB, AND, OR by two select bits; outputs Y3–Y0, Z, C | goal table, 1024 rows | ALU |
+| 6.4 | `alu-tour` | 🔍 | The built-in ALU with flags | goals: make Z light; make C light | `/alu-flags` |
 Unlocks: 4-bit ALU, 4-bit comparator.
 
-### 6. Memory
+### 7. Memory
 Clocked steps: the step list can `pulse CLK` (one rising and one falling edge), which the testbench already does.
 | # | id | Kind | What | Check | Chip / links |
 |---|---|---|---|---|---|
-| 6.1 | `feedback` | 🔍 | A gate fed by itself: it never settles | goal: see *Oscillating* | `/oscillator` |
-| 6.2 | `sr-latch` | 🔧 | Two NORs that remember | challenge `sr-latch` | SR |
-| 6.3 | `d-latch` | 🔧 | A latch with an enable | challenge `d-latch` | DLATCH |
-| 6.4 | `dff` | 🔧 | Edge-triggered D flip-flop: two of your latches, master and slave | steps with `pulse CLK` | DFF |
-| 6.5 | `reg1` | 🔧 | One bit with load: your DFF and MUX; LD = 0 keeps the bit | steps | REG1 |
-| 6.6 | `reg4` | 🔧 | Four bits with one CLK and one LD | steps | REG4 |
+| 7.1 | `feedback` | 🔍 | A gate fed by itself: it never settles | goal: see *Oscillating* | `/oscillator` |
+| 7.2 | `sr-latch` | 🔧 | Two NORs that remember | challenge `sr-latch` | SR |
+| 7.3 | `d-latch` | 🔧 | A latch with an enable | challenge `d-latch` | DLATCH |
+| 7.4 | `dff` | 🔧 | Edge-triggered D flip-flop: two of your latches, master and slave | steps with `pulse CLK` | DFF |
+| 7.5 | `reg1` | 🔧 | One bit with load: your DFF and MUX; LD = 0 keeps the bit | steps | REG1 |
+| 7.6 | `reg4` | 🔧 | Four bits with one CLK and one LD | steps | REG4 |
 Unlocks: SR latch, D latch, D / JK / T flip-flops, 4-bit register.
 
-### 7. Counting and memories
+### 8. Counting and memories
 | # | id | Kind | What | Check | Chip / links |
 |---|---|---|---|---|---|
-| 7.1 | `tff` | 🔧 | T flip-flop: your DFF and an XOR | steps | TFF |
-| 7.2 | `counter4` | 🔧 | Count 0–15: your REG4 and ADD4 adding 1 | 17 pulses | COUNT4 |
-| 7.3 | `pc` | 🔧 | A program counter: count (EN), or load D (LD) | steps | PC |
-| 7.4 | `rom-gates` | 🔧 | A ROM is a decoder and ORs: four words, contents given | goal table | |
-| 7.5 | `ram4x4` | 🔧 | Four words of four bits: four REG4, a DEC2 for WE, a 4:1 MUX per bit | steps: write two words, read both | RAM4 |
-| 7.6 | `rom-ram-tour` | 🔍 | The built-in ROM and RAM; write a word in the inspector while paused | goals: RAM[3] = 9 | `/beginner` (its RAM) |
+| 8.1 | `tff` | 🔧 | T flip-flop: your DFF and an XOR | steps | TFF |
+| 8.2 | `counter4` | 🔧 | Count 0–15: your REG4 and ADD4 adding 1 | 17 pulses | COUNT4 |
+| 8.3 | `pc` | 🔧 | A program counter: count (EN), or load D (LD) | steps | PC |
+| 8.4 | `rom-gates` | 🔧 | A ROM is a decoder and ORs: four words, contents given | goal table | |
+| 8.5 | `ram4x4` | 🔧 | Four words of four bits: four REG4, a DEC2 for WE, a 4:1 MUX per bit | steps: write two words, read both | RAM4 |
+| 8.6 | `rom-ram-tour` | 🔍 | The built-in ROM and RAM; write a word in the inspector while paused | goals: RAM[3] = 9 | `/beginner` (its RAM) |
 Unlocks: counters, counter with load, ROM, RAM.
 
-### 8. Build a computer
+### 9. Build a computer
 One project document, `cpu4`, that grows: each step starts from the learner's circuit at the end of the step before (or, after *Show a
 solution*, from the reference). The parts are built-ins, labelled as the beginner computer labels them (`Clock`, `PC`, `Program ROM`, `Control
 ROM`, `ACC`, `RAM`, `Adder`). The checks run test programs (see *Clock-run checks*).
 | # | id | Kind | What the learner adds | Check (test programs, run on their circuit) |
 |---|---|---|---|---|
-| 8.1 | `cpu-plan` | 📖 | Fetch, decode, execute. An instruction is a number: opcode, number, address (an interactive word: click bits, see the fields) | quiz: decode `0x0302` |
-| 8.2 | `cpu-fetch` | 🏗 | Clock → PC → Program ROM addresses; a hex display on the PC | after 5 ticks the PC is 5; ROM shows word 5 |
-| 8.3 | `cpu-decode` | 🏗 | Opcode bits → Control ROM; LEDs on its signals; fill the LDI row (LOAD_ACC) with the row editor | at an LDI, LOAD_ACC is lit; at others, dark |
-| 8.4 | `cpu-ldi` | 🏗 | ACC: loads the number when LOAD_ACC | `LDI 3; LDI 5` → ACC = 5; `LDI 9` → 9 |
-| 8.5 | `cpu-ram` | 🏗 | RAM and the ACC multiplexer (ACC_SRC); rows STA and LDA | `LDI 6; STA 2; LDI 0; LDA 2` → ACC = 6, RAM[2] = 6 |
-| 8.6 | `cpu-add` | 🏗 | Adder, the XOR flip and SUBTRACT, the carry flag; rows ADD and SUB | 3 + 4 → RAM[1] = 7; 9 − 2 → 7; 12 + 7 → carry |
-| 8.7 | `cpu-jump` | 🏗 | JMP (load the PC from the instruction), HALT (stop the PC) | a loop counts on the ACC; HALT stops the PC |
-| 8.8 | `cpu-same` | 🔍 | "It is the beginner computer": theirs next to `/beginner` | goal: run the 3 + 4 program on theirs |
-| 8.9 | `cpu-decide` | 🏗 | **Decisions:** their ZERO chip on the adder's output, a Z flag, rows JZ and JNC; PC load = JUMP + JZ·Z + JNC·¬C | count down from 5 and HALT at 0; JNC loops until a carry |
-| 8.10 | `cpu-output` | 🏗 | **Talking to the world:** an AND of the four address bits and WRITE_RAM loads an output register at address 15, shown on a display | `LDI 7; STA 15` → display 7, RAM unchanged |
+| 9.1 | `cpu-plan` | 📖 | Fetch, decode, execute. An instruction is a number: opcode, number, address (an interactive word: click bits, see the fields) | quiz: decode `0x0302` |
+| 9.2 | `cpu-fetch` | 🏗 | Clock → PC → Program ROM addresses; a hex display on the PC | after 5 ticks the PC is 5; ROM shows word 5 |
+| 9.3 | `cpu-decode` | 🏗 | Opcode bits → Control ROM; LEDs on its signals; fill the LDI row (LOAD_ACC) with the row editor | at an LDI, LOAD_ACC is lit; at others, dark |
+| 9.4 | `cpu-ldi` | 🏗 | ACC: loads the number when LOAD_ACC | `LDI 3; LDI 5` → ACC = 5; `LDI 9` → 9 |
+| 9.5 | `cpu-ram` | 🏗 | RAM and the ACC multiplexer (ACC_SRC); rows STA and LDA | `LDI 6; STA 2; LDI 0; LDA 2` → ACC = 6, RAM[2] = 6 |
+| 9.6 | `cpu-add` | 🏗 | Adder, the XOR flip and SUBTRACT, the carry flag; rows ADD and SUB | 3 + 4 → RAM[1] = 7; 9 − 2 → 7; 12 + 7 → carry |
+| 9.7 | `cpu-jump` | 🏗 | JMP (load the PC from the instruction), HALT (stop the PC) | a loop counts on the ACC; HALT stops the PC |
+| 9.8 | `cpu-same` | 🔍 | "It is the beginner computer": theirs next to `/beginner` | goal: run the 3 + 4 program on theirs |
+| 9.9 | `cpu-decide` | 🏗 | **Decisions:** their ZERO chip on the adder's output, a Z flag, rows JZ and JNC; PC load = JUMP + JZ·Z + JNC·¬C | count down from 5 and HALT at 0; JNC loops until a carry |
+| 9.10 | `cpu-output` | 🏗 | **Talking to the world:** an AND of the four address bits and WRITE_RAM loads an output register at address 15, shown on a display | `LDI 7; STA 15` → display 7, RAM unchanged |
 
-### 9. Programming your computer
-The program is written in the Program ROM's inspector (SKASM, the instructions their CPU has). It runs on their own CPU from chapter 8,
+### 10. Programming your computer
+The program is written in the Program ROM's inspector (SKASM, the instructions their CPU has). It runs on their own CPU from chapter 9,
 and the check also runs it on the reference CPU. When the two disagree, the verdict says which one is wrong: "Your program is right, but
-your computer gives 6 at RAM[2]. Open step 8.6." When there is no chapter-8 circuit, it runs on the reference.
+your computer gives 6 at RAM[2]. Open step 9.6." When there is no chapter-9 circuit, it runs on the reference.
 | # | id | Kind | Task | Check |
 |---|---|---|---|---|
-| 9.1 | `prog-add` | ⌨ | Put 2 + 5 into RAM[2] | RAM[2] = 7, halted |
-| 9.2 | `prog-countdown` | ⌨ | Count down from 9 to 0 on the output, then stop | output shows 9…0 in order, halted |
-| 9.3 | `prog-multiply` | ⌨ | 3 × 4 by adding, into RAM[0] (and with other numbers: the check changes them) | RAM[0] = a × b for three pairs |
-| 9.4 | `prog-fib` | ⌨ | Fibonacci on the output until the next one would not fit in 4 bits | 1 1 2 3 5 8 13, halted |
+| 10.1 | `prog-add` | ⌨ | Put 2 + 5 into RAM[2] | RAM[2] = 7, halted |
+| 10.2 | `prog-countdown` | ⌨ | Count down from 9 to 0 on the output, then stop | output shows 9…0 in order, halted |
+| 10.3 | `prog-multiply` | ⌨ | 3 × 4 by adding, into RAM[0] (and with other numbers: the check changes them) | RAM[0] = a × b for three pairs |
+| 10.4 | `prog-fib` | ⌨ | Fibonacci on the output until the next one would not fit in 4 bits | 1 1 2 3 5 8 13, halted |
 
-### 10. A bigger computer
+### 11. A bigger computer
 | # | id | Kind | What | Check | Links |
 |---|---|---|---|---|---|
-| 10.1 | `meet-8bit` | 🔍 | The 8-bit computer as blocks: the same fetch, decode and execute, 8 bits wide, on buses | goals: open the ALU block; step until PC = 4 | `/computer-blocks` |
-| 10.2 | `shared-bus` | 🔧 | Two registers, one bus: tri-state buffers decide who drives it | steps | `/tristate`, `/databus` |
-| 10.3 | `prog-console` | ⌨ | Write `HI` on the console with `OUT CHAR` | console text = `HI` | `/computer-sieve` |
-| 10.4 | `prog-table-sum` | ⌨ | Add up five numbers from a `.byte` table with X and `LDT` | output = the sum | |
-| 10.5 | `prog-call` | ⌨ | A subroutine that doubles ACC, called three times with `CALL` and `RET` | output = 8 from 1 | |
+| 11.1 | `meet-8bit` | 🔍 | The 8-bit computer as blocks: the same fetch, decode and execute, 8 bits wide, on buses | goals: open the ALU block; step until PC = 4 | `/computer-blocks` |
+| 11.2 | `shared-bus` | 🔧 | Two registers, one bus: tri-state buffers decide who drives it | steps | `/tristate`, `/databus` |
+| 11.3 | `prog-console` | ⌨ | Write `HI` on the console with `OUT CHAR` | console text = `HI` | `/computer-sieve` |
+| 11.4 | `prog-table-sum` | ⌨ | Add up five numbers from a `.byte` table with X and `LDT` | output = the sum | |
+| 11.5 | `prog-call` | ⌨ | A subroutine that doubles ACC, called three times with `CALL` and `RET` | output = 8 from 1 | |
 
-### 11. Meet the 6502
+### 12. Meet the 6502
 | # | id | Kind | What | Check | Links |
 |---|---|---|---|---|---|
-| 11.1 | `6502-map` | 📖 | Your computer → the 6502 (the table above) | quiz: which register is ACC; where the program lives | *Tools → 6502* |
-| 11.2 | `one-bus` | 🔍 | Step the CPU cycle by cycle with the CPU inspector open | goals: see it read `$F000` (the opcode); see the operand read; see it write to `$4000` | `/6502` |
-| 11.3 | `address-decoder` | 🔧 | From A15, A14 and R/W: RAM_SEL (`$0000–$3FFF`), LED_WE (`$4000–$7FFF`, writing), ROM_SEL (`$8000–$FFFF`) | goal table | |
-| 11.4 | `wire-board` | 🏗 | The board with its decoder's wires removed: wire the chip selects | runs the blink program 400 cycles; LEDs show 1, 2, 4… | `/6502` |
+| 12.1 | `6502-map` | 📖 | Your computer → the 6502 (the table above) | quiz: which register is ACC; where the program lives | *Tools → 6502* |
+| 12.2 | `one-bus` | 🔍 | Step the CPU cycle by cycle with the CPU inspector open | goals: see it read `$F000` (the opcode); see the operand read; see it write to `$4000` | `/6502` |
+| 12.3 | `address-decoder` | 🔧 | From A15, A14 and R/W: RAM_SEL (`$0000–$3FFF`), LED_WE (`$4000–$7FFF`, writing), ROM_SEL (`$8000–$FFFF`) | goal table | |
+| 12.4 | `wire-board` | 🏗 | The board with its decoder's wires removed: wire the chip selects | runs the blink program 400 cycles; LEDs show 1, 2, 4… | `/6502` |
 
-### 12. Programming the 6502
+### 13. Programming the 6502
 Programs are 6502 assembly in the ROM inspector (*Tools → 6502* is the reference). They are checked on the board by running it.
 | # | id | Kind | Task | Check | Links |
 |---|---|---|---|---|---|
-| 12.1 | `asm-leds` | ⌨ | `LDA #$55` / `STA $4000` | LEDs = `$55` | `/6502` |
-| 12.2 | `asm-count` | ⌨ | Count on the LEDs with `INX`, `TXA` and `BNE` | the LEDs take 1, 2, 3, … in order | `/6502-counter` |
-| 12.3 | `asm-string` | ⌨ | Write `HELLO` on the console with `LDA msg,X` | console text = `HELLO` | `/6502-hello` |
-| 12.4 | `asm-subroutine` | ⌨ | A `JSR` delay routine between LED changes; watch S and page `$01` | LEDs change; S is back after each `RTS` | |
-| 12.5 | `asm-lcd` | 🔍⌨ | Ben Eater's hello world on the LCD; then change the message | LCD line 1 = their text | `/6502-lcd` |
-| 12.6 | `asm-irq` | 🔍 | A timer interrupts the CPU | goals: see an interrupt; LEDs count | `/6502-via` |
+| 13.1 | `asm-leds` | ⌨ | `LDA #$55` / `STA $4000` | LEDs = `$55` | `/6502` |
+| 13.2 | `asm-count` | ⌨ | Count on the LEDs with `INX`, `TXA` and `BNE` | the LEDs take 1, 2, 3, … in order | `/6502-counter` |
+| 13.3 | `asm-string` | ⌨ | Write `HELLO` on the console with `LDA msg,X` | console text = `HELLO` | `/6502-hello` |
+| 13.4 | `asm-subroutine` | ⌨ | A `JSR` delay routine between LED changes; watch S and page `$01` | LEDs change; S is back after each `RTS` | |
+| 13.5 | `asm-lcd` | 🔍⌨ | Ben Eater's hello world on the LCD; then change the message | LCD line 1 = their text | `/6502-lcd` |
+| 13.6 | `asm-irq` | 🔍 | A timer interrupts the CPU | goals: see an interrupt; LEDs count | `/6502-via` |
 
-### 13. A computer that runs BASIC
+### 14. A computer that runs BASIC
 | # | id | Kind | What | Check | Links |
 |---|---|---|---|---|---|
-| 13.1 | `basic-boot` | 🔍 | The BASIC computer: a 6502, 16 KB RAM, 16 KB ROM, a terminal | goal: the terminal shows `OK` | `/6502-basic` |
-| 13.2 | `basic-print` | 🔍 | `PRINT 2+3`, then `10 PRINT "HELLO"` and `RUN` | goals: `5` appears; `HELLO` after `RUN` | |
-| 13.3 | `basic-loop` | 🔍 | `FOR I=1 TO 10: PRINT I: NEXT` | goal: `10` appears | *Tools → BASIC* |
-| 13.4 | `journey` | 📖 | **Your journey:** every chip you built, your CPU, your programs, from NAND to BASIC | — | |
+| 14.1 | `basic-boot` | 🔍 | The BASIC computer: a 6502, 16 KB RAM, 16 KB ROM, a terminal | goal: the terminal shows `OK` | `/6502-basic` |
+| 14.2 | `basic-print` | 🔍 | `PRINT 2+3`, then `10 PRINT "HELLO"` and `RUN` | goals: `5` appears; `HELLO` after `RUN` | |
+| 14.3 | `basic-loop` | 🔍 | `FOR I=1 TO 10: PRINT I: NEXT` | goal: `10` appears | *Tools → BASIC* |
+| 14.4 | `journey` | 📖 | **Your journey:** every chip you built, your CPU, your programs, from NAND to BASIC | — | |
 
-72 steps. Nine are existing challenges as they are, and most explore steps open an existing example.
+78 steps. Ten are existing challenges as they are, and most explore steps open an existing example.
 
 ## The model
 New files under `src/model/path/` (pure, tested in Node) and `src/app/path*.ts` (the store and the work). The UI goes under `src/ui/path/`.
@@ -349,7 +379,7 @@ type Expect =
   `ruleProblems` (`src/model/challengecheck.ts`) expands ICs before counting, so `only: ['nand']` holds for an AND built from your NOT.
 - **Documents:** each step's work is a library document, as each challenge's is now (`startChallenge` in `src/app/challengeWork.ts`). Its
   `origin` gets a third field, `path: stepId` (`DocMeta.origin` in `src/app/library.ts` and its read-back check, `library.ts:370`). A project's
-  steps share one document per step, each started from the one before (`start: 'previous'`), so going back to 8.4 still shows 8.4.
+  steps share one document per step, each started from the one before (`start: 'previous'`), so going back to 9.4 still shows 9.4.
 - **Backup:** *Download all* adds `{ path: progress, kit }` to the file, and *Import* merges them in. A step done in either copy counts as
   done, and a kit chip is kept from the newer copy.
 
@@ -399,28 +429,29 @@ A modal like the example gallery (full screen on a phone). The chapters are on t
 right, as a track. *Your kit* is underneath.
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│ Learn · From NAND to a computer          23 of 72 steps ███████░░░░░░░░░   [ ✕ ]     │
-│                                     [ Continue: 4.4 A 4-bit adder → ]                │
+│ Learn · From NAND to a computer          25 of 78 steps ███████░░░░░░░░░   [ ✕ ]     │
+│                                     [ Continue: 5.4 A 4-bit adder → ]                │
 ├────────────────────────────┬─────────────────────────────────────────────────────────┤
-│ ✔ 1 Signals and wires   4/4│ 4  Adding numbers                                       │
-│ ✔ 2 NAND is all you need 7/7│    From a half adder to a 4-bit adder/subtractor.      │
-│ ✔ 3 Choosing             5/5│                                                         │
-│ ◕ 4 Adding numbers       3/7│  ✔ 📖 4.1 Adding in binary                              │
-│ ○ 5 The ALU              0/4│  ✔ 🔧 4.2 Half adder                    chip: HA        │
-│ ○ 6 Memory               0/6│  ◐ 🔧 4.3 Full adder (solution shown)    chip: FA        │
-│ ○ 7 Counting, ROM, RAM   0/6│  ● 🔧 4.4 A 4-bit adder  ← next          chip: ADD4      │
-│ ○ 8 Build a computer    0/10│  ○ 🔍 4.5 Watch the carry ripple                         │
-│ ○ 9 Programming it       0/4│  ○ 📖 4.6 Negative numbers                               │
-│ ○ 10 A bigger computer   0/5│  ○ 🔧 4.7 Adder/subtractor               chip: ADDSUB    │
-│ ○ 11 Meet the 6502       0/4│                                                         │
-│ ○ 12 Programming the 6502 0/6│  Unlocks: half adder · full adder · 4-bit adder · …   │
-│ ○ 13 BASIC               0/4│                                                         │
+│ ✔ 1 Signals and wires   4/4│ 5  Adding numbers                                       │
+│ ✔ 2 NAND is all you need 7/7│    From a half adder to a 4-bit adder/subtractor.       │
+│ ✔ 3 From a truth table  7/7│                                                         │
+│ ✔ 4 Choosing             4/4│ ✔ 📖 5.1 Adding in binary                                │
+│ ◕ 5 Adding numbers       3/7│ ✔ 🔧 5.2 Half adder                    chip: HA          │
+│ ○ 6 The ALU              0/4│ ◐ 🔧 5.3 Full adder (solution shown)    chip: FA         │
+│ ○ 7 Memory               0/6│ ● 🔧 5.4 A 4-bit adder  ← next          chip: ADD4       │
+│ ○ 8 Counting, ROM, RAM   0/6│ ○ 🔍 5.5 Watch the carry ripple                          │
+│ ○ 9 Build a computer    0/10│ ○ 📖 5.6 Negative numbers                                │
+│ ○ 10 Programming it      0/4│ ○ 🔧 5.7 Adder/subtractor               chip: ADDSUB     │
+│ ○ 11 A bigger computer   0/5│                                                         │
+│ ○ 12 Meet the 6502       0/4│   Unlocks: half adder · full adder · 4-bit adder · …    │
+│ ○ 13 Programming the 6502 0/6│                                                         │
+│ ○ 14 BASIC               0/4│                                                         │
 ├────────────────────────────┴─────────────────────────────────────────────────────────┤
 │ Your kit  [NOT] [AND] [OR] [NOR] [XOR⭐] [MUX] [DEMUX] [DEC2] [HA] [FA◐]  · 10 chips   │
 │                                                              Forget my progress     │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
-✔ solved, ◐ solution shown, ● next, ○ not yet. ◕ is a chapter in progress. A step can always be clicked.
+✔ solved, ◐ solution shown, ● next, ○ not yet. ◕ is a chapter in progress. A step can always be clicked. The map opens on the chapter of the step you were last on (so finishing a chapter shows it, not an earlier one with a step skipped); *Continue* goes to the next step not done after it, and when only earlier steps are left it says so: "Go back to a step you skipped".
 
 ### A build step
 The panel under the canvas, where the challenge panel is now (its layout, grown up). The palette shows the step's parts and *Your kit*.
@@ -453,7 +484,7 @@ The goals are a checklist that ticks while the learner plays. `[[Program ROM]]` 
 clicking it centres the canvas on it and dims everything else for a moment (the *spotlight*, drawn like the trace rings).
 ```
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ◀  11 · Meet the 6502 · step 2 of 4  ▶   11.2 One bus for everything      [Map] [✕]      │
+│ ◀  12 · Meet the 6502 · step 2 of 4  ▶   12.2 One bus for everything      [Map] [✕]      │
 ├──────────────────────────────────────────────────────┬───────────────────────────────────┤
 │ Your computer read its program from a ROM of its own. │ Goals                             │
 │ The 6502 has one address bus for everything: the      │  ☑ Pause, and open the CPU        │
@@ -470,7 +501,7 @@ The step names the machine and the expected result. *Edit the program* selects t
 editor, the one that already lists errors line by line and shows the listing. The check runs it.
 ```
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ◀  9 · Programming your computer · step 3 of 4  ▶   9.3 Multiply by adding   [Map] [✕]   │
+│ ◀  10 · Programming your computer · step 3 of 4  ▶   10.3 Multiply by adding   [Map] [✕]   │
 ├──────────────────────────────────────────────────────┬───────────────────────────────────┤
 │ Your computer has no multiply instruction, but it can │ The check                         │
 │ add in a loop. RAM[1] and RAM[2] hold two numbers:    │  run 1: RAM[1]=3, RAM[2]=4        │
@@ -478,7 +509,7 @@ editor, the one that already lists errors line by line and shows the listing. Th
 │ You have: LDI LDA STA ADD SUB JMP JZ JNC HALT         │  run 2: RAM[1]=5, RAM[2]=3        │
 │                                                       │     → RAM[0] = 10 ✘ wanted 15     │
 │ [ Edit the program ] [ Check ] [Hint] [Show a solution]│  run 3: not run                  │
-│ ✘ Not yet: run 2 is wrong. The loop stops one round    │ Runs on your computer (8.10) and  │
+│ ✘ Not yet: run 2 is wrong. The loop stops one round    │ Runs on your computer (9.10) and  │
 │   early: is the counter checked before or after ADD?  │ on ours: both agree.              │
 └──────────────────────────────────────────────────────┴───────────────────────────────────┘
 ```
@@ -500,7 +531,7 @@ opens the lesson. The parts handle and the zoom controls stay where they are.
       ↑ drag up: the lesson, the table, Hint, Show a solution
 ```
 
-### Your journey (13.4)
+### Your journey (14.4)
 A page in the map window: the chips in the order they were built, a thumbnail of their CPU (the thumbnails of the gallery), the
 programs they wrote, the dates, and *Download my work* (*Download all*).
 ```
@@ -550,39 +581,56 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
   unchanged solution keeps it *shown*: any change by the learner makes the next passing check *solved*.
 - A step's circuit ends when another document is put on the canvas (File → New, an example, My circuits, a challenge): `onCircuitOpened` in
   `documents.ts`. A circuit opened again with an older kit gets the learner's chips swapped in (`refreshChips`).
+- After review: the map opens on the chapter of the step last visited, and a skipped earlier step is offered as "Go back to a step you skipped"
+  (before, finishing chapter 2 with chapter 1's reading step skipped opened the map on chapter 1, which looked like the next section).
 - The star is counted in L1 (step 2.6 has one): `logicParts` in `challengecheck.ts` after IC expansion, the same count as the `maxParts` rule.
 
-### L2 Explore steps, quizzes, the spotlight, and chapters 3–5
+### L1.5 Kit chips look like the gates they are (own PR, `ic-gate-symbols`, stacked on L1)
+- `ICDef.symbol` (`'not' | 'buf' | 'and' | 'or' | 'nand' | 'nor' | 'xor' | 'xnor'`), saved with the IC (`serialize.ts`; an optional field, the format
+  version stays) and written into the instance's params by `icParams`, only while the pins fit it (one output, single wires, one input for NOT and buffer,
+  two to eight for the rest); otherwise the IC is a box.
+- Layout (`engine/components/ic.ts`): with a symbol, the gate's own layout (`gateLayout`) with the IC's pin names; without, the box shrinks (minimum width
+  60, `minRows: 1`, so one input and one output is 40 tall). Drawing (`ui/symbols.tsx`): `GateSym` in the chip colour with the name under it, so both gate
+  styles work; the parts list and the thumbnails follow.
+- Who sets it: the kit steps (`BuildStep.symbol`, passed on by `chips.ts`), and Make IC and collapse (`model/icsymbol.ts`, `detectSymbol`: one output, one to
+  four inputs, the truth table of the body, `analyzeCircuit`). Existing saved ICs have none and stay boxes, only smaller.
+- Tests: layout and drawing of a symbol IC, a symbol that no longer fits falls back to the box, save and read back (a bad value is ignored), `detectSymbol`
+  on each gate and on an adder, kit chips carry their symbol; `e2e/ics.spec.ts` and `learn.spec.ts` still pass.
+- The startup chunk has about 0.6 kB of room: measure, and if this goes over, ask before raising the budget.
+
+### L2 Explore steps, quizzes, the spotlight, and chapters 3–6
 - `src/app/pathGoals.ts` (the live-goal evaluator), quiz blocks, the `[[label]]` spotlight (a canvas overlay from a small store, drawn like the
   trace rings), stars.
-- Chapters 3–5. The Challenges list marks the steps that are in the path.
-- Tests: explore scripts reach their goals; the spotlight names real parts; e2e: an explore step ticks its goals, a quiz, a star.
+- Chapters 3–6. Chapter 3 (*From a truth table to gates*, above) is the first: the lesson blocks it needs (`{ kmap }`, `highlight` on `{ table }`), `BuildStep.rules`
+  and `BuildStep.after`, `nandNandSolution`, and the chapter's id `tables` in `chapters.ts` (14 chapters now) and `PATH_STEP_COUNT`. *Choosing* loses `majority`.
+  The Challenges list marks the steps that are in the path.
+- Tests: explore scripts reach their goals; the spotlight names real parts; `nandNandSolution` against each goal; every `after` names a step; e2e: an explore step ticks its goals, a quiz, a star, a NAND-NAND build, and the link from 3.7 back to the XOR step.
 
-### L3 Clocked builds, and chapters 6–7
+### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
   shows pulses.
-- Chapters 6–7. Unlocking built-ins in the palette when a chapter is done, with a toast: "Chapter 6 done: the D flip-flop and the register are
+- Chapters 7–8. Unlocking built-ins in the palette when a chapter is done, with a toast: "Chapter 7 done: the D flip-flop and the register are
   in the parts list".
 - Tests: every clocked solution passes and its starter fails; the gate-level DFF holds through 16 pulses; e2e: the DFF step.
 
-### L4 The CPU project: chapter 8
+### L4 The CPU project: chapter 9
 - `src/model/path/run.ts` (clock-run checks), `withoutWires`, project documents with `start: 'previous'`, and the reference CPU built step by
   step from `beginnerBuilder`'s parts (`src/model/beginner.ts`), with the control ROM text from `signal-presets.ts`.
-- The two upgrades: the Z flag and JZ/JNC rows (8.9), and the output register at address 15 (8.10).
+- The two upgrades: the Z flag and JZ/JNC rows (9.9), and the output register at address 15 (9.10).
 - The instruction-word figure (bits → opcode, number, address), using `wordFields` (`src/engine/isa.ts`).
-- Tests: every step's solution passes all the earlier runs of the project; e2e: 8.2 and 8.4 by hand, and *Show a solution* followed by the next step.
+- Tests: every step's solution passes all the earlier runs of the project; e2e: 9.2 and 9.4 by hand, and *Show a solution* followed by the next step.
 
-### L5 Program steps: chapters 9–10
-- Program steps on `cpu4` (the learner's from 8.10, or the reference) and on the 8-bit computer. *Edit the program* selects the ROM. The verdict
+### L5 Program steps: chapters 10–11
+- Program steps on `cpu4` (the learner's from 9.10, or the reference) and on the 8-bit computer. *Edit the program* selects the ROM. The verdict
   shows each run.
-- Chapter 10, with the shared-bus build.
-- Tests: the solutions pass and the starters fail; the learner's CPU and the reference agree on every solution; e2e: 9.1 typed in the inspector and checked.
+- Chapter 11, with the shared-bus build.
+- Tests: the solutions pass and the starters fail; the learner's CPU and the reference agree on every solution; e2e: 10.1 typed in the inspector and checked.
 
-### L6 The 6502 and BASIC: chapters 11–13
+### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks
   (LEDs, RAM, console, LCD text), the terminal goals for BASIC (typing in the terminal is the learner's; the explore script types for the test).
 - *Your journey*.
-- Tests: `wire-board`'s solution blinks and its starter does not; the BASIC goals are reached by a script within a time budget; e2e: 11.3 and 13.1.
+- Tests: `wire-board`'s solution blinks and its starter does not; the BASIC goals are reached by a script within a time budget; e2e: 12.3 and 14.1.
 
 ### L7 Polish
 - The phone bottom sheet, the welcome example's and *How to*'s links, progress and kit in *Download all* / *Import*, README (*Learn*), and

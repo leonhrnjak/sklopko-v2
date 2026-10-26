@@ -8,7 +8,7 @@ import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
 import { PATH_STEP_COUNT, learnFromPath, learnUrl } from './index'
 import { countDone, emptyProgress, markDone, parseProgress } from './progress'
-import { PATH_STEPS, STEPS, getStep, hasStep, recommended, stepAfter, stepBefore, stepIdsOf, stepsOf } from './steps'
+import { PATH_STEPS, STEPS, getStep, hasStep, isBehind, mapChapter, recommended, stepAfter, stepBefore, stepIdsOf, stepsOf } from './steps'
 import type { BuildStep } from './types'
 
 const builds = STEPS.filter((s): s is BuildStep => s.kind === 'build')
@@ -275,5 +275,28 @@ describe('progress', () => {
     expect(recommended({ ...skipped, current: PATH_STEPS[PATH_STEPS.length - 1] })).toBe(a)
     expect(recommended(PATH_STEPS.reduce((q, id) => markDone(q, id, 'solved', 1), emptyProgress()))).toBeUndefined()
     expect(recommended({ ...emptyProgress(), current: 'gone' })).toBe(a)
+  })
+})
+
+describe('where the map opens', () => {
+  const last = PATH_STEPS[PATH_STEPS.length - 1]
+
+  it('is the chapter of the step the learner was last on, also when an earlier step was skipped', () => {
+    // Everything but the second step done, and the learner ended on the last one: the map shows its chapter, not the skipped step's.
+    const skipped = PATH_STEPS.filter((id) => id !== PATH_STEPS[1]).reduce((q, id) => markDone(q, id, 'solved', 1), emptyProgress())
+    const p = { ...skipped, current: last }
+    expect(recommended(p)).toBe(PATH_STEPS[1])
+    expect(isBehind(p, PATH_STEPS[1])).toBe(true)
+    expect(mapChapter(p)).toBe(getStep(last)!.chapter)
+    expect(getStep(last)!.chapter).not.toBe(getStep(PATH_STEPS[1])!.chapter)
+  })
+
+  it('is not behind when the way on is ahead, and falls back to the recommended step with nothing remembered', () => {
+    expect(isBehind(emptyProgress(), PATH_STEPS[0])).toBe(false)
+    const p = { ...markDone(emptyProgress(), PATH_STEPS[0], 'solved', 1), current: PATH_STEPS[0] }
+    expect(recommended(p)).toBe(PATH_STEPS[1])
+    expect(isBehind(p, PATH_STEPS[1])).toBe(false)
+    expect(mapChapter(emptyProgress())).toBe(getStep(PATH_STEPS[0])!.chapter)
+    expect(mapChapter({ ...emptyProgress(), current: 'gone' })).toBe(getStep(PATH_STEPS[0])!.chapter)
   })
 })
