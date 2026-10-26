@@ -1442,12 +1442,6 @@ button.danger {
 .badge.paused {
   color: var(--muted);
 }
-.lock-btn.on {
-  background: #fbbf24;
-  border-color: #fbbf24;
-  color: #3a2a00;
-  font-weight: 600;
-}
 .run-footer {
   display: flex;
   align-items: center;
@@ -1527,13 +1521,15 @@ button.danger {
   color: var(--danger);
   border-color: var(--danger);
 }
-.run-pill.locked {
+.run-pill.lock {
+  cursor: pointer;
+}
+.run-left > .run-pill.locked {
   color: #92400e;
   background: #fef3c7;
   border-color: #fbbf24;
 }
-.run-time b,
-.run-back {
+.run-time b {
   font-variant-numeric: tabular-nums;
 }
 .run-pill.held {

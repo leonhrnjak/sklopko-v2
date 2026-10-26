@@ -11,8 +11,7 @@ import { useLogic } from './app/logic'
 import { useReference } from './app/reference'
 import { useOpenOnFirstProbe, useWave } from './app/waveform'
 import { usePartsDrawer } from './app/parts'
-import { useSettings } from './app/settings'
-import { useStore } from './app/store'
+import { updateSettings, useSettings } from './app/settings'
 import { Canvas } from './ui/canvas/Canvas'
 import { ContextMenu } from './ui/canvas/ContextMenu'
 import { EmbedBar } from './ui/EmbedBar'
@@ -54,8 +53,6 @@ export default function App() {
   const testsOpen = useTestbench((s) => s.open)
   const partsOpen = usePartsDrawer((s) => s.open)
   const lockEdits = useSettings((s) => s.lockEdits)
-  const running = useStore((s) => s.running)
-  const locked = lockEdits && running
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
     requestAnimationFrame(fitView)
@@ -83,7 +80,7 @@ export default function App() {
             <ContextMenu />
           </div>
           <OnDemand open>
-            <RunFooter locked={locked} />
+            <RunFooter lockEdits={lockEdits} onToggleLock={() => updateSettings({ lockEdits: !lockEdits })} />
           </OnDemand>
           <OnDemand open={waveOpen}>
             <WaveformPanel />

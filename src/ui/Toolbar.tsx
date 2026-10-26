@@ -242,7 +242,6 @@ export function Toolbar() {
 
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
   const historyOn = useHistoryOn()
-  const lockEdits = useSettings((s) => s.lockEdits)
   const step = () => {
     sim.tick()
     sim.publish()
@@ -286,16 +285,6 @@ export function Toolbar() {
       </button>
       <button onClick={reset} title="Power-cycle: all signals and memories return to their initial state">
         Reset
-      </button>
-      <button
-        className={`lock-btn${lockEdits ? ' on' : ''}`}
-        onClick={() => updateSettings({ lockEdits: !lockEdits })}
-        aria-pressed={lockEdits}
-        aria-label="Lock editing while running"
-        title={lockEdits ? 'Locked: nothing can be edited while the simulation runs. Pause to edit, or click to unlock.' : 'Editable. Click to lock editing while the simulation runs, so nothing is changed by accident. Switches and memories still work.'}
-        data-testid="lock-toggle"
-      >
-        {lockEdits ? '🔒 Locked' : '✎ Edit'}
       </button>
       <select
         value={speed}
