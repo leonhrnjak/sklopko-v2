@@ -5,7 +5,7 @@
  */
 
 /** How many steps the path has. */
-export const PATH_STEP_COUNT = 18
+export const PATH_STEP_COUNT = 22
 
 /** `/learn` is the map, `/learn/<id>` a step: a link a teacher can hand out. */
 export const LEARN_ROOT = '/learn'

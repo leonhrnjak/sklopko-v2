@@ -192,16 +192,6 @@ function ExploreBody({ step }: { step: ExploreStep }) {
           </button>
         </div>
         {hintShown && step.hint && <p className="challenge-hint">💡 {step.hint}</p>}
-        {done && (
-          <div className="step-earned">
-            <p className="step-done" data-testid="explore-done">
-              ✔ Done.
-            </p>
-            <button className="primary-action" onClick={nextStep} data-testid="step-next">
-              {nextInfo ? `Next: ${nextInfo.title} →` : 'Back to the map'}
-            </button>
-          </div>
-        )}
       </div>
       <div className="challenge-goal">
         <h4>Goals</h4>
@@ -219,6 +209,16 @@ function ExploreBody({ step }: { step: ExploreStep }) {
           {count} of {step.goals.length}
           {count < step.goals.length && ' · keep playing'}
         </small>
+        {done && (
+          <div className="step-earned">
+            <p className="step-done" data-testid="explore-done">
+              ✔ Done.
+            </p>
+            <button className="primary-action" onClick={nextStep} data-testid="step-next">
+              {nextInfo ? `Next: ${nextInfo.title} →` : 'Back to the map'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

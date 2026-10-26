@@ -8,7 +8,7 @@ import type { Step } from '../types'
 const PALETTE = ['nand', 'switch', 'led']
 
 /** A starting layout with the chips of these steps in its table, for a solution built from them. */
-function withChips(inputs: string[], outputs: string[], uses: string[]) {
+export function withChips(inputs: string[], outputs: string[], uses: string[]) {
   const s = startOf(inputs, outputs)
   s.b.c.ics = chipTable(uses, {})
   return s

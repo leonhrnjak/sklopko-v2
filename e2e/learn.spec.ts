@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { PATH_STEPS } from '../src/model/path/steps'
 import { clickLabelled, fresh, place, wire } from './helpers'
 
 const panel = (page: Page) => page.getByRole('region', { name: 'Step' })
@@ -14,7 +15,7 @@ async function openStep(page: Page, chapter: string, step: string) {
 test('learn: the map, a gate built by hand goes into the kit, and the next step uses it', async ({ page }) => {
   await fresh(page)
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('0 of 18 steps')
+  await expect(map(page)).toContainText('0 of 22 steps')
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
   await expect(map(page).getByTestId('learn-chapter-memory')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
@@ -67,7 +68,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await expect(panel(page)).toContainText('2.3 AND, from NAND and your NOT')
   await expect(page.locator('.comp')).toHaveCount(5) // two switches, the LED, the NAND and the NOT
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 18 steps')
+  await expect(map(page)).toContainText('2 of 22 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(2)
   await expect(map(page).getByTestId('learn-step-and-from-nand')).toContainText('chip: AND')
 })
@@ -90,7 +91,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   const row = map(page).getByTestId('learn-step-and-from-nand')
   await expect(row.getByLabel('Solution shown')).toBeVisible()
   await expect(map(page).getByTestId('kit-chip')).toContainText('AND')
-  await expect(map(page)).toContainText('1 of 18 steps')
+  await expect(map(page)).toContainText('1 of 22 steps')
 
   // A read step is done when the learner says so, and leads on.
   await page.getByTestId('learn-chapter-signals').click()
@@ -100,7 +101,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   await panel(page).getByTestId('step-next').click()
   await expect(panel(page)).toContainText('Making numbers')
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 18 steps')
+  await expect(map(page)).toContainText('2 of 22 steps')
 
   // Closing the step takes the panel away and the parts list is whole again.
   await map(page).getByRole('button', { name: 'Close' }).click()
@@ -121,15 +122,15 @@ test('learn: /learn opens the map, and Forget my progress clears the steps and t
   await openStep(page, 'nand', 'not-from-nand')
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByRole('button', { name: 'Map' }).click()
-  await expect(map(page)).toContainText('1 of 18 steps')
+  await expect(map(page)).toContainText('1 of 22 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(1)
   await map(page).getByTestId('learn-forget').click()
   await map(page).getByTestId('learn-forget-yes').click()
-  await expect(map(page)).toContainText('0 of 18 steps')
+  await expect(map(page)).toContainText('0 of 22 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(0)
   // The address is /learn while the map is open, so a reload opens it again.
   await page.reload({ waitUntil: 'networkidle' })
-  await expect(map(page)).toContainText('0 of 18 steps')
+  await expect(map(page)).toContainText('0 of 22 steps')
 })
 
 test('learn: another document ends the step, and the palette has every part again', async ({ page }) => {
@@ -145,12 +146,14 @@ test('learn: another document ends the step, and the palette has every part agai
 
 test('learn: after finishing a chapter the map opens on it, and a skipped step is offered as going back', async ({ page }) => {
   await fresh(page)
-  const done = Object.fromEntries(['bits', 'show-nine', 'meet-nand', 'wire', 'not-from-nand', 'and-from-nand', 'or-from-nand', 'nor-from-kit', 'xor-from-kit', 'nand-recap', 'table-to-sop', 'sop-majority', 'combine-terms', 'kmap', 'sop-bcd', 'nand-nand', 'sop-nand'].map((id) => [id, { at: 1, how: 'solved' }]))
-  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, current: 'sop-nand', quiz: {} })), done)
+  // Everything is done but step 1.3, and the learner was last on the last step of the path.
+  const last = PATH_STEPS[PATH_STEPS.length - 1]
+  const done = Object.fromEntries(PATH_STEPS.filter((id) => id !== 'binary').map((id) => [id, { at: 1, how: 'solved' }]))
+  await page.evaluate(({ d, current }) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, current, quiz: {} })), { d: done, current: last })
   await page.reload({ waitUntil: 'networkidle' })
   await page.getByTestId('learn-button').click()
-  // Chapter 3 is the one on show, not chapter 1 where the skipped step is.
-  await expect(map(page).getByTestId('learn-step-sop-nand')).toBeVisible()
+  // The chapter of the last step is the one on show, not chapter 1 where the skipped step is.
+  await expect(map(page).getByTestId(`learn-step-${last}`)).toBeVisible()
   await expect(map(page).getByTestId('learn-continue')).toContainText('Go back to a step you skipped: 1.3 Counting with four bits')
   await map(page).getByTestId('learn-chapter-signals').click()
   await expect(map(page).getByTestId('learn-step-binary')).toContainText('skipped')
@@ -174,7 +177,7 @@ test('learn: a quiz says at once what is right, chapter 3 shows the map, and the
   await page.reload({ waitUntil: 'networkidle' })
   await expect(panel(page).getByTestId('quiz-0').getByLabel('A·¬B·C')).toBeChecked()
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('1 of 18 steps')
+  await expect(map(page)).toContainText('1 of 22 steps')
   await map(page).getByRole('button', { name: 'Close' }).click()
 
   // The Karnaugh map of the lesson: three groups for majority.
@@ -219,7 +222,7 @@ test('learn: an explore step ticks its goals while you play, and is done when th
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
   await expect(goals).toContainText('☑ Y is lit')
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('1 of 18 steps')
+  await expect(map(page)).toContainText('1 of 22 steps')
   await map(page).getByRole('button', { name: 'Close' }).click()
 
   // Next goes on to the step after it.
@@ -265,4 +268,25 @@ test('learn: a part named in a lesson is outlined when pointed at, and brought f
   await expect(spot.locator('.spot-dim')).toHaveCount(1)
   await page.mouse.move(5, 5)
   await expect(spot).toHaveCount(0, { timeout: 5000 })
+})
+
+test('learn: chapter 4 builds a decoder from the kit, and the 4-way multiplexer to play with ticks three goals in order', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/decoder', { waitUntil: 'networkidle' })
+  await expect(panel(page)).toContainText('A line for each number')
+  await expect(panel(page)).toContainText('You haven’t built NOT or AND yet')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page).getByTestId('chip-earned')).toContainText('DEC2 is in your kit')
+
+  await page.goto('/learn/mux4-tour', { waitUntil: 'networkidle' })
+  const goals = panel(page).getByTestId('goals')
+  await expect(goals.getByRole('listitem')).toHaveCount(3)
+  await clickLabelled(page, 'D2')
+  await expect(goals).toContainText('☐ Choose input 2')
+  await clickLabelled(page, 'S1')
+  await expect(goals).toContainText('☑ Choose input 2')
+  await expect(goals).toContainText('☑ Turn D2 on while it is chosen')
+  await expect(panel(page).getByTestId('explore-done')).toBeVisible()
 })

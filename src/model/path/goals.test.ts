@@ -22,6 +22,10 @@ const SCRIPTS: Record<string, { label: string; to: number }[]> = {
     { label: 'A', to: 1 },
     { label: 'B', to: 1 },
   ],
+  'mux4-tour': [
+    { label: 'S1', to: 1 },
+    { label: 'D2', to: 1 },
+  ],
 }
 
 /** A simulator holding the circuit, with a way to operate its switches and 4-bit inputs by label. */
@@ -106,5 +110,27 @@ describe('goals', () => {
   it('report a goal on a part that is not there, or not an LED', () => {
     expect(goalProblems([{ led: 'Nope', is: 1, text: 'x' }], c)).toHaveLength(1)
     expect(goalProblems([{ led: 'Number', is: 1, text: 'x' }], c)).toHaveLength(1)
+  })
+})
+
+describe('goals on switches', () => {
+  const step = explores.find((s) => s.id === 'mux4-tour')!
+  const c = step.open.build()
+
+  it('hold when every named switch is as asked, whatever the others do', () => {
+    const { sim, operate } = play(c)
+    const goal: Goal = { switches: { S1: 1, S0: 0 }, text: '' }
+    expect(goalHolds(goal, c, sim)).toBe(false)
+    operate('S1', 1)
+    expect(goalHolds(goal, c, sim)).toBe(true)
+    operate('D0', 1)
+    expect(goalHolds(goal, c, sim)).toBe(true)
+    operate('S0', 1)
+    expect(goalHolds(goal, c, sim)).toBe(false)
+  })
+
+  it('are reported when a switch is not there, or is not a switch', () => {
+    expect(goalProblems([{ switches: { S1: 1, Nope: 0 }, text: 'x' }], c)).toHaveLength(1)
+    expect(goalProblems([{ switches: { Y: 1 }, text: 'x' }], c)).toHaveLength(1)
   })
 })

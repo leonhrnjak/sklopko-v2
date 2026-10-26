@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -14,7 +14,9 @@
 >   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (#105)
 >   - [x] L2b The goal evaluator and the explore steps of chapters 1–2 (own PR, `learn-l2-explore`)
 >   - [x] L2c The `[[label]]` spotlight (own PR, `learn-l2-spotlight`)
->   - [ ] L2d Chapters 4–6 (with their explore steps)
+>   - [x] L2d-1 Chapter 4, choosing (own PR, `learn-l2-ch4`)
+>   - [ ] L2d-2 Chapter 5, adding numbers
+>   - [ ] L2d-3 Chapter 6, the ALU
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
@@ -641,6 +643,15 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
 - Used in the three explore steps so far. A test checks every `[[label]]` against the circuit of its step (explore: the circuit it opens; build: the starting circuit) and that
   read steps, which have no circuit of their own, name nothing.
 - Pointing at the part of a *read* step's lesson, wires and pins are not done: only labelled parts.
+
+**What L2d-1 (chapter 4, *Choosing*) did, and where it differs from the plan.**
+- The four steps as in the table: `mux` (the existing challenge, NAND-only by the step's `rules`, chip MUX), `demux` (chip DEMUX) and `decoder` (chip DEC2), which are
+  new challenges written in `steps/ch04.ts` (`path-demux`, `path-decoder`) because the plan's goals have no existing challenge, and the explore step `mux4-tour`.
+  The three chips are made of the learner's NOT, AND and OR and are drawn as boxes (they are not gates: no `symbol`).
+- `mux4-tour` plays with the built-in 4:1 multiplexer, built on the spot (four switches, two select switches, an LED) rather than the `/mux` example. For its goals a new
+  `{ switches: { label: 0 | 1 } }` goal says "the switches are like this" (S1 = 1, S0 = 0), so the plan's "select input 2" is a goal, and the three goals are ordered.
+- *Unlocks* is not done: it is L3's (the toast and the built-ins that unlock). `PATH_STEP_COUNT` is 22.
+- The e2e that finishes the path now takes its last step from `PATH_STEPS`, so adding steps no longer breaks it.
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
