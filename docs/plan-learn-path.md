@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -18,6 +18,8 @@
 >   - [x] L2d-2 Chapter 5, adding numbers (own PR, `learn-l2-ch5`)
 >   - [x] L2d-3 Chapter 6, the ALU (own PR, `learn-l2-ch6`)
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
+  - [x] L3a Clocked steps (`pulse`) and chapter 7, memory (own PR, `learn-l3-ch7`)
+  - [ ] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
@@ -691,6 +693,16 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - Chapters 7–8. Unlocking built-ins in the palette when a chapter is done, with a toast: "Chapter 7 done: the D flip-flop and the register are
   in the parts list".
 - Tests: every clocked solution passes and its starter fails; the gate-level DFF holds through 16 pulses; e2e: the DFF step.
+
+**What L3a (chapter 7, *Memory*) did, and where it differs from the plan.**
+- `Step` (the steps of a memory challenge) gains `pulse` (a switch name): after `set` the switch is raised and lowered, then the LEDs are read. It is run by the testbench's own `pulse`
+  action; the steps table of the panel and the failure table show a pulsed switch as ⏉. `seq` is exported so a step can write its own memory challenge.
+- The six steps as in the table: `feedback` (explore: a NAND fed by itself, with an Enable switch; goals "never settles" then "Enable off again", ordered), `sr-latch` and `d-latch` (the
+  existing challenges, NAND-only by `rules` since the kit's chips are NAND inside; chips SR and DLATCH), and the new seq challenges `path-dff`, `path-reg1`, `path-reg4` (chips DFF, REG1,
+  REG4, all boxes). The flip-flop is a master and a slave D latch with NOT CLK between; REG1 is a MUX in front of a DFF fed back from its own Q.
+- **A flip-flop powers up knowing nothing** (its pins read unknown until written), so the first step of each clocked check loads a 0 with a pulse before it expects anything.
+- The e2e specs that wrote the step count as a number (`0 of 33 steps`) now use `PATH_STEPS.length`; `PATH_STEP_COUNT` is 39.
+- *Unlocks* is still L3b's.
 
 ### L4 The CPU project: chapter 9
 - `src/model/path/run.ts` (clock-run checks), `withoutWires`, project documents with `start: 'previous'`, and the reference CPU built step by
