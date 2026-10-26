@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CircuitBuilder } from '../model/builder'
 import { type Circuit } from '../model/circuit'
 import { icParams } from '../model/ic'
+import { detectSymbol } from '../model/icsymbol'
 import { serialize } from '../model/serialize'
 import { deleteIC, enterDefinitionById, enterInstance, expandInstance, leaveLevels, makeIC, renameIC } from './ics'
 import { addComp, copySelection, deleteSelection, loadCircuit, paste, select, setLabel, undo, useStore } from './store'
@@ -33,6 +34,24 @@ describe('making ICs in the store', () => {
     expect(circuit().comps).toEqual(before.comps)
     undo()
     expect(circuit().ics).toBeUndefined()
+  })
+
+  it('gives an IC that behaves as a gate its symbol, and one that does not none', () => {
+    const b = new CircuitBuilder()
+    const a = b.add('switch', 0, 0, { label: 'A' })
+    const c = b.add('switch', 0, 60, { label: 'B' })
+    const g = b.add('nand', 120, 0)
+    const y = b.add('led', 260, 0, { label: 'Y' })
+    b.wire(`${a}.Q`, `${g}.A`)
+    b.wire(`${c}.Q`, `${g}.B`)
+    b.wire(`${g}.Y`, `${y}.A`)
+    loadCircuit(b.build(), false)
+    const gateId = makeIC('Gate', null, false, detectSymbol)
+    expect(circuit().ics![gateId].symbol).toBe('nand')
+    // Two parts of it are not a gate (no LED, no switches).
+    select([g])
+    const partId = makeIC('Part', [g], false, detectSymbol)
+    expect(circuit().ics![partId].symbol).toBeUndefined()
   })
 
   it('makes one from the selected parts only, and gives a second IC of the same name another id', () => {

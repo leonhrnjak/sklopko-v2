@@ -3,6 +3,7 @@ import { produce } from 'immer'
 import { closeMakeIc, makeIC, setMakeIcReplace, useMakeIc } from '../app/ics'
 import { useStore } from '../app/store'
 import { newId } from '../model/circuit'
+import { detectSymbol } from '../model/icsymbol'
 import { IC, collapseSelection, deriveInterface, icProblems, operableInside, subCircuit } from '../model/ic'
 
 /** Asks for a name and shows the pins an IC made from the selection (or the whole circuit) would have. */
@@ -36,7 +37,7 @@ function Dialog() {
   const parts = Object.keys(doc.comps).length
   const submit = () => {
     if (problems.length) return
-    makeIC(name, from, replace)
+    makeIC(name, from, replace, detectSymbol)
     closeMakeIc()
   }
   const list = (items: { name: string; bits: number }[]) => (items.length ? items.map((p) => (p.bits > 1 ? `${p.name} (${p.bits} bits)` : p.name)).join(', ') : 'none')

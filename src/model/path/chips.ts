@@ -1,6 +1,6 @@
 import { getChallenge, type Challenge } from '../challenges'
 import type { Circuit, ICDef } from '../circuit'
-import { placedICs } from '../ic'
+import { placedICs, settleCircuit } from '../ic'
 import { deserialize, serialize, type SavedCircuit } from '../serialize'
 import type { BuildStep, Step } from './types'
 
@@ -68,7 +68,7 @@ export const snapshot = (name: string, c: Circuit): KitEntry => {
 }
 
 /** A kit entry as the IC it is (its body; the chips inside come from `chipTable`). */
-export const defOf = (stepId: string, e: KitEntry): ICDef => ({ id: chipId(stepId), name: e.name, circuit: chipBody(deserialize(e.circuit)) })
+export const defOf = (stepId: string, e: KitEntry): ICDef => ({ id: chipId(stepId), name: e.name, circuit: chipBody(deserialize(e.circuit)), ...symbolOfStep(stepId) })
 
 // ---- The reference chips ----------------------------------------------------------------------------------
 
@@ -96,10 +96,16 @@ export function challengeOf(s: BuildStep): Challenge {
 /** A circuit that solves the step, with the chips it uses in its table of ICs. */
 export const solutionOf = (s: BuildStep): Circuit => (s.solution ? s.solution() : challengeOf(s).solution())
 
+/** The symbol a step's chip is drawn with, as the part of a def it belongs in. */
+function symbolOfStep(stepId: string): Pick<ICDef, 'symbol'> {
+  const symbol = chipStep(stepId)?.symbol
+  return symbol ? { symbol } : {}
+}
+
 /** Our own chip for a step: the body of the step's reference solution. */
 export function referenceDef(stepId: string): ICDef | undefined {
   const s = chipStep(stepId)
-  return s ? { id: chipId(stepId), name: s.chip, circuit: chipBody(solutionOf(s)) } : undefined
+  return s ? { id: chipId(stepId), name: s.chip, circuit: chipBody(solutionOf(s)), ...symbolOfStep(stepId) } : undefined
 }
 
 /** The ids of the chips a circuit places directly. */
@@ -120,6 +126,8 @@ export function chipTable(uses: readonly string[], kit: Kit): Record<string, ICD
     for (const inner of placedChipSteps(def.circuit)) add(inner)
   }
   for (const id of uses) add(id)
+  // A chip made of other chips places them as the table has them now (their pins, their symbol), whoever made them.
+  for (const def of Object.values(table)) settleCircuit(def.circuit, table)
   return table
 }
 
@@ -132,5 +140,8 @@ export const notBuilt = (uses: readonly string[], kit: Kit) => uses.filter((id) 
  */
 export function refreshChips(c: Circuit, uses: readonly string[], kit: Kit): Circuit {
   if (!uses.length) return c
-  return { ...c, ics: { ...c.ics, ...chipTable(uses, kit) } }
+  const next: Circuit = { ...c, ics: { ...c.ics, ...chipTable(uses, kit) } }
+  // The instances take the pins and the symbol of the chips now in the table.
+  settleCircuit(next, next.ics!)
+  return next
 }

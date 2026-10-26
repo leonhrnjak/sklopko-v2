@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { DEFS } from '../engine/registry'
+import { icParams } from '../model/ic'
 import { paramDefaults, type Params } from '../engine/types'
 import { viewLayoutOf } from '../engine/viewlayout'
 import type { Comp } from '../model/circuit'
@@ -33,3 +34,28 @@ describe('symbols', () => {
       }
   })
 })
+
+describe('a custom IC', () => {
+  const draw = (symbol?: 'and' | 'not', live = false) => {
+    const circuit = { comps: {}, wires: {} }
+    const params = icParams({ id: 'c', name: 'Chip', circuit, symbol })
+    const inputs = symbol === 'not' ? 'A:1' : 'A:1,B:1'
+    const p = { ...params, ins: inputs, outs: 'Y:1', ...(symbol ? { symbol } : {}) }
+    const comp: Comp = { id: 'c', type: 'ic', x: 0, y: 0, rot: 0, flip: false, params: p }
+    return renderToStaticMarkup(createElement('svg', null, createElement(CompSymbol, { comp, layout: viewLayoutOf('ic', p), live })))
+  }
+
+  it('is drawn as the gate it is, with its name under it, when it has a symbol; else as a box', () => {
+    const gate = draw('and', true)
+    expect(gate).toContain('ic-gate')
+    expect(gate).toContain('Chip')
+    expect(draw('and')).not.toContain('Chip') // a thumbnail in the parts list: the list has the name
+    expect(gate).toContain('<path')
+    expect(gate).not.toContain('NaN')
+    expect(draw('not')).toContain('ic-gate')
+    const box = draw()
+    expect(box).not.toContain('ic-gate')
+    expect(box).toContain('<rect')
+  })
+})
+

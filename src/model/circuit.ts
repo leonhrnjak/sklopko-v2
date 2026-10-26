@@ -1,3 +1,4 @@
+import type { IcSymbol } from '../engine/components/ic'
 import { getDef, hasDef } from '../engine/registry'
 import { viewLayoutOf } from '../engine/viewlayout'
 import type { PinRef, SimComp } from '../engine/simulator'
@@ -76,6 +77,8 @@ export interface ICDef {
   id: string
   name: string
   circuit: Circuit
+  /** The gate it behaves as, when it is one: its instances are drawn with that gate's symbol instead of as a box. */
+  symbol?: IcSymbol
 }
 
 /** The parts of a circuit as the simulator wants them. */
