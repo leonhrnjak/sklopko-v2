@@ -13,7 +13,7 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 - [x] 6. ch09 `cpu-same`: the ACC becomes 3, then 4, then 7.
 - [x] 7. ch14 `journey`: a gate feeding itself oscillated; two gates feeding each other remembered.
 - [x] 8. ch14 `basic-boot`: it is a bigger version of the chapter 12 board (different memory map), not that board.
-- [ ] 9. ch09 `cpu-fetch`, `cpu-same`: one tick is two presses of Clock step (the chapter 12 hint already says so).
+- [x] 9. ch09 `cpu-fetch`, `cpu-same`: one tick is two presses of Clock step (the chapter 12 hint already says so).
 
 ## B. Gaps: used before taught
 - [ ] 10. Boolean notation (`·`, `+`, `¬`, `⊕`) is never defined.
