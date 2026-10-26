@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { Cell } from '../../logic/table'
 import { closeStep, openMap, showStepHint, usePath } from '../../app/path'
 import { useGoals } from '../../app/pathGoals'
+import { clearSpot, focusSpot, hoverSpot } from '../../app/pathSpot'
 import { checkStep, markRead, nextStep, restartStep, showStepSolution, startStep } from '../../app/pathWork'
 import { useStore } from '../../app/store'
 import { circuitShape, logicParts, ruleProblems } from '../../model/challengecheck'
@@ -17,21 +18,35 @@ import { TruthTableView } from '../logic/TruthTableView'
 import { numberOf } from './numbers'
 import { Mark } from './Mark'
 import { Quiz } from './Quiz'
+import { Spotlight } from './Spotlight'
 
 /** The values of a map's output over its inputs: 1 on the listed rows, 0 elsewhere. */
 const mapValues = (inputs: string[], ones: number[]): Cell[] => Array.from({ length: 2 ** inputs.length }, (_, row) => (ones.includes(row) ? 1 : 0))
+
+/** A paragraph, in which [[label]] names a part of the circuit on the canvas: pointing at it outlines the part, clicking brings it forward. */
+function Paragraph({ text }: { text: string }) {
+  const parts = text.split(/\[\[(.+?)\]\]/)
+  return (
+    <p className="step-lesson">
+      {parts.map((t, i) =>
+        i % 2 === 0 ? (
+          t
+        ) : (
+          <button key={i} className="spot-name" onMouseEnter={() => hoverSpot(t)} onMouseLeave={() => hoverSpot(null)} onFocus={() => hoverSpot(t)} onBlur={() => hoverSpot(null)} onClick={() => focusSpot(t)} title="Show it on the canvas">
+            {t}
+          </button>
+        ),
+      )}
+    </p>
+  )
+}
 
 /** A lesson: paragraphs, small tables (some rows marked), Karnaugh maps and questions. */
 export function Lesson({ blocks, stepId }: { blocks: Block[]; stepId: string }) {
   return (
     <>
       {blocks.map((b, i) => {
-        if ('p' in b)
-          return (
-            <p key={i} className="step-lesson">
-              {b.p}
-            </p>
-          )
+        if ('p' in b) return <Paragraph key={i} text={b.p} />
         if ('quiz' in b) return <Quiz key={i} stepId={stepId} questions={b.quiz} />
         if ('kmap' in b) return <KarnaughMap key={i} values={mapValues(b.kmap.inputs, b.kmap.ones)} names={b.kmap.inputs} output={b.kmap.output} />
         return (
@@ -239,6 +254,8 @@ function ReadBody({ step }: { step: Step }) {
 /** The panel under the canvas while a step of the learning path is open: where you are, the lesson, and what to do. */
 export function StepPanel() {
   const id = usePath((s) => s.step)
+  // Pointing at a name belongs to the step it was in.
+  useEffect(() => clearSpot, [id])
   const progress = usePath((s) => s.progress)
   const step = id ? getStep(id) : undefined
   if (!step) return null
@@ -275,6 +292,7 @@ export function StepPanel() {
           ✕
         </button>
       </div>
+      <Spotlight />
       {step.kind === 'build' ? <BuildBody step={step} /> : step.kind === 'explore' ? <ExploreBody step={step} /> : <ReadBody step={step} />}
     </section>
   )

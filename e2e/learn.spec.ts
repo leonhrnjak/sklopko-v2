@@ -239,3 +239,30 @@ test('learn: the NAND gate to play with has one setting that makes it dark', asy
   await panel(page).getByRole('button', { name: 'Start over' }).click()
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
 })
+
+test('learn: a part named in a lesson is outlined when pointed at, and brought forward and dimmed round when clicked', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/meet-nand', { waitUntil: 'networkidle' })
+  const names = panel(page).locator('.spot-name')
+  await expect(names).toHaveText(['A', 'B', 'Y'])
+  const spot = page.getByTestId('spotlight')
+  await expect(spot).toHaveCount(0)
+  await names.nth(0).hover()
+  await expect(spot).toHaveAttribute('data-label', 'A')
+  await expect(spot).toHaveAttribute('data-dim', 'off')
+  await expect(spot.locator('.spot-ring')).toHaveCount(1)
+  // The ring is on the switch A.
+  const ring = (await spot.locator('.spot-ring').boundingBox())!
+  const sw = (await page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^A$/ }) }).boundingBox())!
+  expect(ring.x).toBeLessThan(sw.x)
+  expect(ring.x + ring.width).toBeGreaterThan(sw.x + sw.width)
+  await page.mouse.move(5, 5)
+  await expect(spot).toHaveCount(0)
+  // A click dims the rest of the canvas for a moment, then lets go.
+  await names.nth(2).click()
+  await expect(spot).toHaveAttribute('data-label', 'Y')
+  await expect(spot).toHaveAttribute('data-dim', 'on')
+  await expect(spot.locator('.spot-dim')).toHaveCount(1)
+  await page.mouse.move(5, 5)
+  await expect(spot).toHaveCount(0, { timeout: 5000 })
+})
