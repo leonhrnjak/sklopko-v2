@@ -87,7 +87,7 @@ export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onT
           }
           data-testid="lock-toggle"
         >
-          {lockEdits ? '🔒 Locked while running' : '🔓 Editing open'}
+          {lockEdits ? '🔒 Editing locked' : '🔓 Editing enabled'}
         </button>
         {oscillating && (
           <span className="run-pill warn" title="Some signals keep changing on their own (a feedback loop without memory)" data-testid="oscillating">
