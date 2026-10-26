@@ -8,7 +8,7 @@ import type { Circuit } from '../circuit'
  * `index.ts`.
  */
 
-/** What a step asks of the learner. L1 has `read` and `build`; the others come with the milestones that need them. */
+/** What a step asks of the learner. `read`, `build` and `explore` exist; the others come with the milestones that need them. */
 export type StepKind = 'read' | 'explore' | 'build' | 'project' | 'program'
 
 export interface Chapter {
@@ -84,4 +84,28 @@ export interface BuildStep extends StepBase {
   after?: { step: string; text: string }
 }
 
-export type Step = ReadStep | BuildStep
+/**
+ * Something to reach while playing with a prepared circuit, found by label. `text` is the line of the checklist. A goal that has held
+ * once stays ticked.
+ */
+export type Goal = { text: string } & (
+  | { led: string; is: 0 | 1 }
+  /** A hex display (its four inputs) or a bus display, as a number. */
+  | { display: string; is: number }
+  | { oscillating: true }
+)
+
+export interface ExploreStep extends StepBase {
+  kind: 'explore'
+  /** The circuit to play with. */
+  open: { build: () => Circuit }
+  /** What to do, in one sentence. */
+  task: string
+  /** The parts the palette offers. */
+  palette?: string[]
+  goals: Goal[]
+  /** The goals tick one after the other: a later one does not count until the ones before it have. */
+  ordered?: boolean
+}
+
+export type Step = ReadStep | BuildStep | ExploreStep

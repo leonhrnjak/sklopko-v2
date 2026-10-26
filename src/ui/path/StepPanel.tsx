@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Cell } from '../../logic/table'
 import { closeStep, openMap, showStepHint, usePath } from '../../app/path'
+import { useGoals } from '../../app/pathGoals'
 import { checkStep, markRead, nextStep, restartStep, showStepSolution, startStep } from '../../app/pathWork'
 import { useStore } from '../../app/store'
 import { circuitShape, logicParts, ruleProblems } from '../../model/challengecheck'
@@ -8,7 +9,7 @@ import { goalTable } from '../../model/challenges'
 import { challengeOf } from '../../model/path/chips'
 import { getChapter } from '../../model/path/chapters'
 import { getStep, stepAfter, stepBefore, stepsOf } from '../../model/path/steps'
-import type { Block, BuildStep, Step } from '../../model/path/types'
+import type { Block, BuildStep, ExploreStep, Step } from '../../model/path/types'
 import { CheckVerdict, StepsTable } from '../challenges/CheckVerdict'
 import { rulesText } from '../challenges/rulesText'
 import { KarnaughMap } from '../logic/KarnaughMap'
@@ -150,6 +151,64 @@ function BuildBody({ step }: { step: BuildStep }) {
   )
 }
 
+const NONE: boolean[] = []
+
+/** An explore step: the lesson and what to do, and the goals as a checklist that ticks while the learner plays. */
+function ExploreBody({ step }: { step: ExploreStep }) {
+  const hintShown = usePath((s) => s.hintShown)
+  const done = usePath((s) => step.id in s.progress.done)
+  const ticked = useGoals((s) => (s.step === step.id ? s.ticked : NONE))
+  const count = step.goals.filter((_, i) => done || ticked[i]).length
+  const next = stepAfter(step.id)
+  const nextInfo = next ? getStep(next) : undefined
+  return (
+    <div className="challenge-body">
+      <div className="challenge-text">
+        <Lesson blocks={step.lesson} stepId={step.id} />
+        <p className="task">
+          <b>Your task:</b> {step.task}
+        </p>
+        <div className="row">
+          <button onClick={showStepHint} disabled={hintShown || !step.hint}>
+            Hint
+          </button>
+          <button onClick={restartStep} title="Go back to the starting circuit (undo brings your work back)">
+            Start over
+          </button>
+        </div>
+        {hintShown && step.hint && <p className="challenge-hint">💡 {step.hint}</p>}
+        {done && (
+          <div className="step-earned">
+            <p className="step-done" data-testid="explore-done">
+              ✔ Done.
+            </p>
+            <button className="primary-action" onClick={nextStep} data-testid="step-next">
+              {nextInfo ? `Next: ${nextInfo.title} →` : 'Back to the map'}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="challenge-goal">
+        <h4>Goals</h4>
+        <ul className="goals" data-testid="goals">
+          {step.goals.map((g, i) => {
+            const on = done || ticked[i]
+            return (
+              <li key={i} className={on ? 'goal on' : 'goal'} aria-label={`${g.text}: ${on ? 'reached' : 'not yet'}`}>
+                <span aria-hidden>{on ? '☑' : '☐'}</span> {g.text}
+              </li>
+            )
+          })}
+        </ul>
+        <small>
+          {count} of {step.goals.length}
+          {count < step.goals.length && ' · keep playing'}
+        </small>
+      </div>
+    </div>
+  )
+}
+
 function ReadBody({ step }: { step: Step }) {
   const progress = usePath((s) => s.progress)
   const next = stepAfter(step.id)
@@ -216,7 +275,7 @@ export function StepPanel() {
           ✕
         </button>
       </div>
-      {step.kind === 'build' ? <BuildBody step={step} /> : <ReadBody step={step} />}
+      {step.kind === 'build' ? <BuildBody step={step} /> : step.kind === 'explore' ? <ExploreBody step={step} /> : <ReadBody step={step} />}
     </section>
   )
 }
