@@ -330,6 +330,8 @@ export interface Backup {
   app: 'sklopko-library'
   version: 1
   docs: DocRecord[]
+  /** What *Learn* keeps in this browser (`app/pathBackup.ts`): the steps done and the kit. */
+  learn?: unknown
 }
 
 /** Every document with its data, for a file the visitor keeps. */

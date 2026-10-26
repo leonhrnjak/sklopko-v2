@@ -27,6 +27,9 @@ import { InstructionWord } from './Word'
 /** The values of a map's output over its inputs: 1 on the listed rows, 0 elsewhere. */
 const mapValues = (inputs: string[], ones: number[]): Cell[] => Array.from({ length: 2 ** inputs.length }, (_, row) => (ones.includes(row) ? 1 : 0))
 
+/** Text with `code` between backticks: instructions and addresses, as code. */
+const withCode = (text: string) => text.split(/`(.+?)`/).map((t, i) => (i % 2 === 0 ? t : <code key={i}>{t}</code>))
+
 /** A paragraph, in which [[label]] names a part of the circuit on the canvas: pointing at it outlines the part, clicking brings it forward. */
 function Paragraph({ text }: { text: string }) {
   const parts = text.split(/\[\[(.+?)\]\]/)
@@ -34,7 +37,7 @@ function Paragraph({ text }: { text: string }) {
     <p className="step-lesson">
       {parts.map((t, i) =>
         i % 2 === 0 ? (
-          t
+          withCode(t)
         ) : (
           <button key={i} className="spot-name" onMouseEnter={() => hoverSpot(t)} onMouseLeave={() => hoverSpot(null)} onFocus={() => hoverSpot(t)} onBlur={() => hoverSpot(null)} onClick={() => focusSpot(t)} title="Show it on the canvas">
             {t}
@@ -248,7 +251,7 @@ function ProjectBody({ step }: { step: ProjectStep }) {
               {run.checks.map((k) => {
                 const line = lineOf(run.title, k.text)
                 return (
-                  <li key={k.text} className={line ? (line.ok ? 'project-line ok' : 'project-line bad') : 'project-line'}>
+                  <li key={k.text} className={line ? (line.ok ? 'goal on' : 'project-line bad') : 'goal'}>
                     <span aria-hidden>{line ? (line.ok ? '☑' : '☒') : '☐'}</span> {k.text}
                     {line?.got && <small> ({line.got})</small>}
                   </li>
@@ -322,7 +325,7 @@ function ProgramBody({ step }: { step: ProgramStep }) {
           {step.tests.map((t) => {
             const line = result?.lines.find((l) => l.text === t.title)
             return (
-              <li key={t.title} className={line ? (line.ok ? 'project-line ok' : 'project-line bad') : 'project-line'}>
+              <li key={t.title} className={line ? (line.ok ? 'goal on' : 'project-line bad') : 'goal'}>
                 <span aria-hidden>{line ? (line.ok ? '☑' : '☒') : '☐'}</span> {t.title}
                 {line?.got && <small> ({line.got})</small>}
               </li>

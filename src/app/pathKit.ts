@@ -29,6 +29,9 @@ function save(kit: Kit) {
 /** Put a step's chip into the kit; a chip already there for that step is replaced. */
 export const putChip = (stepId: string, entry: KitEntry) => save({ ...useKit.getState().kit, [stepId]: entry })
 
+/** Add chips (from a backup) to the kit. */
+export const addChips = (chips: Kit) => save({ ...useKit.getState().kit, ...chips })
+
 export function clearKit() {
   useKit.setState({ kit: {} })
   try {

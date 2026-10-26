@@ -334,3 +334,43 @@ test('a step of Learn can be folded to its bar to use the parts list, and unfold
   await expect(panel).toContainText('AND gives 1 only when both inputs are 1')
   await expect(page).toHaveURL(/\/learn\/and-from-nand$/)
 })
+
+test('on a phone a step of Learn is checked and its verdict is on screen, a project step too, and nothing overflows sideways', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/not-from-nand', { waitUntil: 'networkidle' })
+  const panel = page.getByRole('region', { name: 'Step' })
+  await panel.getByRole('button', { name: 'Show a solution' }).tap()
+  await panel.getByTestId('step-check').tap()
+  await expect(panel).toContainText('Solved!')
+  await expect(panel.getByTestId('chip-earned')).toBeVisible()
+  const overflow = () =>
+    page.evaluate(() => ({ scrollW: document.documentElement.scrollWidth, width: window.innerWidth, panelRight: document.querySelector('.step-panel')!.getBoundingClientRect().right }))
+  let o = await overflow()
+  expect(o.scrollW).toBeLessThanOrEqual(o.width)
+  expect(o.panelRight).toBeLessThanOrEqual(o.width + 0.5)
+
+  // The CPU project: its test programs are listed under the lesson, and a check ticks them.
+  await page.goto('/learn/cpu-fetch', { waitUntil: 'networkidle' })
+  await panel.getByRole('button', { name: 'Show a solution' }).tap()
+  await panel.getByTestId('step-check').tap()
+  await expect(panel).toContainText('Solved!')
+  await expect(panel.getByTestId('project-lines')).toContainText('☑ after 5 ticks the PC is 5')
+  o = await overflow()
+  expect(o.scrollW).toBeLessThanOrEqual(o.width)
+  expect(o.panelRight).toBeLessThanOrEqual(o.width + 0.5)
+})
+
+test('on a phone every chapter of the Learn map is on screen, with no sideways scrolling', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.locator('.toolbar-menu').getByText('Learn: from NAND to a computer').tap()
+  const map = page.getByRole('dialog', { name: 'Learn' })
+  await expect(map.getByTestId('learn-chapter-basic')).toBeVisible()
+  const width = page.viewportSize()!.width
+  const boxes = await map.locator('[data-testid^="learn-chapter-"]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ l: r.left, r: r.right })))
+  expect(boxes).toHaveLength(14)
+  for (const b of boxes) {
+    expect(b.l).toBeGreaterThanOrEqual(0)
+    expect(b.r).toBeLessThanOrEqual(width + 0.5)
+  }
+})

@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, built; all 78 steps exist).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, #122; L7, polish, built).** **The path is complete: 78 steps.** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -31,7 +31,7 @@
   - [x] L6a Chapter 12, meet the 6502 (own PR, `learn-l6a-ch12`)
   - [x] L6b Chapter 13, programming the 6502 (own PR, `learn-l6b-ch13`, stacked on `learn-l6a-ch12`)
   - [x] L6c Chapter 14, a computer that runs BASIC, and *Your journey* (own PR, `learn-l6c-ch14`, stacked on `learn-l6b-ch13`)
-> - [ ] L7 Polish: the phone sheet, backup, entry points, README
+> - [x] L7 Polish: the phone sheet, backup, entry points, README
 >
 > The mockup of every screen is `docs/mockups/learn-path.html` (open it in a browser; it has no dependencies; a published copy is at
 > https://claude.ai/artifact/RKVpcszUh8wGNZyLrQBqwk). The ASCII wireframes below are the same screens. (The mockup was drawn before chapter 3, *From a truth table to gates*, was added: its chapters from 3 on are one lower than here.)
@@ -831,6 +831,17 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   `CLAUDE.md`'s *Current work*.
 - A check of the whole path for wording and length (each lesson fits the panel at 1280 × 800 without scrolling the canvas away).
 - e2e `mobile.spec.ts`: the sheet folds and opens; a step is checked on a phone.
+
+**What L7 (polish) did, and where it differs from the plan.**
+- *Progress and kit in the backup:* *My circuits → Download all* writes `learn: { progress, kit }` into the library file (`app/pathBackup.ts`, loaded on demand; the toast says so) and *Import* merges them: a step done in either is done
+  (`mergeProgress`: solving beats being shown, a star stays, the quiz answers of a step with none come along, where the learner was stays), and a chip built here is not replaced (`newChips`). The circuits built in the steps are documents, so they were
+  in the file already. An older file has no `learn` and imports as before.
+- *Where to find it:* the How to panel starts with “New here? Learn teaches this step by step” (a button). **The welcome example is not changed** (it is in the startup chunk, which has no room; the *Learn* button is next to *Examples* already).
+- *Wording:* backticks in a lesson are shown as code (`withCode` in `StepPanel.tsx`; they were shown as backticks); a test reads the whole path: 78 steps, 14 chapters, no lesson over five paragraphs or 1,500 characters (the longest is 1,208), short
+  titles and summaries, no double spaces, whole sentences, backticks and `[[ ]]` in pairs. Lessons are not measured against the panel's height: the panel scrolls, and the lesson sits beside the circuit.
+- *The phone:* the sheet's fold was done after L2d-1; an e2e test checks, on a phone, a build step and a CPU-project step (the verdict is on screen and nothing overflows sideways).
+- A step that opens a board of an example closes the waveform panel (the board's probes open it, and it left a strip of canvas above the step's panel); the toolbar's Waveforms brings it back.
+- The startup chunk is at 181.0 kB of 181: there is no room left. `README.md` has a *Learn* paragraph, and `CLAUDE.md`'s *Current work* describes the path as built.
 
 ## Not doing
 Accounts, class lists and server-side progress. Paths written by teachers (milestone 15c stays dropped). A 6502 built from gates. Building

@@ -148,3 +148,8 @@ export function refreshChips(c: Circuit, uses: readonly string[], kit: Kit): Cir
   settleCircuit(next, next.ics!)
   return next
 }
+
+/** The chips of a backup that this kit does not have yet, as `parseKit` reads them: a chip the learner built here is not replaced. */
+export function newChips(mine: Kit, theirs: unknown): Kit {
+  return Object.fromEntries(Object.entries(parseKit(theirs)).filter(([id]) => !(id in mine)))
+}

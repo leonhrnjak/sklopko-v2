@@ -506,9 +506,12 @@ test('learn: the last steps of the CPU project make decisions and write to the o
 test('learn: a program is written in the Program ROM’s inspector and checked on both computers, and the verdict names the wrong one', async ({ page }) => {
   await fresh(page)
   await page.goto('/learn/prog-add', { waitUntil: 'networkidle' })
-  await panel(page).getByTestId('edit-program').click()
   const source = page.getByLabel('Program source')
-  await expect(source).toBeVisible()
+  // On a busy machine the click can come before the computer is in place: try again until the inspector shows the program.
+  await expect(async () => {
+    await panel(page).getByTestId('edit-program').click()
+    await expect(source).toBeVisible({ timeout: 3_000 })
+  }).toPass({ timeout: 60_000 })
   // A program that is wrong: 2 + 4.
   await source.fill('LDI 2\nSTA 0\nLDI 4\nADD 0\nSTA 2\nHALT')
   await panel(page).getByTestId('step-check').click()
@@ -535,9 +538,12 @@ test('learn: chapter 11 builds a shared bus from tri-state buffers, and programs
   // The 8-bit computer opens with a program of its own to write; the text console is the check for the first.
   await page.goto('/learn/prog-console', { waitUntil: 'networkidle' })
   await expect(page.locator('.comp .comp-label', { hasText: /^Program$/ })).toHaveCount(1, { timeout: 90_000 })
-  await panel(page).getByTestId('edit-program').click()
   const source = page.getByLabel('Program source')
-  await expect(source).toBeVisible()
+  // On a busy machine the click can come before the computer is in place: try again until the inspector shows the program.
+  await expect(async () => {
+    await panel(page).getByTestId('edit-program').click()
+    await expect(source).toBeVisible({ timeout: 3_000 })
+  }).toPass({ timeout: 60_000 })
   await source.fill('LDI 72\nOUT CHAR\nLDI 74\nOUT CHAR\nHALT')
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('the console shows “HJ”, not “HI”', { timeout: 90_000 })
@@ -584,9 +590,12 @@ test('learn: chapter 13 checks a 6502 program on its board, and the timer interr
   await fresh(page)
   await page.goto('/learn/asm-leds', { waitUntil: 'networkidle' })
   await expect(page.locator('.comp .comp-label', { hasText: /^CPU$/ })).toHaveCount(1, { timeout: 30_000 })
-  await panel(page).getByTestId('edit-program').click()
   const source = page.getByLabel('Program source')
-  await expect(source).toBeVisible()
+  // On a busy machine the click can come before the computer is in place: try again until the inspector shows the program.
+  await expect(async () => {
+    await panel(page).getByTestId('edit-program').click()
+    await expect(source).toBeVisible({ timeout: 3_000 })
+  }).toPass({ timeout: 60_000 })
   await source.fill('.org $F000\nstart: LDA #$05\n STA $4000\ndone: JMP done\n.org $FFFC\n.word start')
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('the LEDs show 5, not 85', { timeout: 90_000 })
