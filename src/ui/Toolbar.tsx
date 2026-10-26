@@ -167,12 +167,7 @@ function MenuItem({
 }
 
 /** The small window that says an entry opens a window. Shown in the drop-down menus; left out of the phone menu's buttons, where it only adds clutter. */
-const OpensWindow = () => (
-  <svg className="opens-window" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="2" y="3" width="12" height="10" rx="2" />
-    <path d="M2 6.5h12" />
-  </svg>
-)
+const OpensWindow = () => <span className="opens-window" aria-hidden="true" />
 
 /** A heading inside a menu, for a group of entries. */
 const MenuLabel = ({ children }: { children: ReactNode }) => (

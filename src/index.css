@@ -1550,10 +1550,15 @@ button.danger {
   width: 13px;
   height: 13px;
   margin-left: auto;
-  padding-left: 18px;
-  box-sizing: content-box;
   flex: none;
-  color: var(--muted);
+  /* A small window (a frame with a title bar), drawn in the muted text colour. */
+  background: var(--muted);
+  --window: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='12' height='10' rx='2'/%3E%3Cpath d='M2 6.5h12'/%3E%3C/svg%3E");
+  -webkit-mask: var(--window) center / contain no-repeat;
+  mask: var(--window) center / contain no-repeat;
+}
+.toolbar .drop-menu button:has(.opens-window) {
+  gap: 18px;
 }
 .toolbar .drop-menu button {
   display: flex;
