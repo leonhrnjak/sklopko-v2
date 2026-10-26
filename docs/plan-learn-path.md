@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 built.** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (its first PR, chapter 3, is built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -9,8 +9,11 @@
 > locally, the rest in CI" until CI runs again.
 >
 > - [x] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
-> - [ ] L1.5 Kit chips look like the gates they are: gate symbols for ICs that are known gates, and smaller boxes for the rest (own PR, `ic-gate-symbols`)
+> - [x] L1.5 Kit chips look like the gates they are: gate symbols for ICs that are known gates, and smaller boxes for the rest (own PR, `ic-gate-symbols`)
 > - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
+>   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (own PR, `learn-l2-chapter3`)
+>   - [ ] L2b The goal evaluator, the spotlight and the explore steps of chapters 1–2
+>   - [ ] L2c Chapters 4–6
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
@@ -605,6 +608,18 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
   and `BuildStep.after`, `nandNandSolution`, and the chapter's id `tables` in `chapters.ts` (14 chapters now) and `PATH_STEP_COUNT`. *Choosing* loses `majority`.
   The Challenges list marks the steps that are in the path.
 - Tests: explore scripts reach their goals; the spotlight names real parts; `nandNandSolution` against each goal; every `after` names a step; e2e: an explore step ticks its goals, a quiz, a star, a NAND-NAND build, and the link from 3.7 back to the XOR step.
+
+**What L2a did, and where it differs from the plan.**
+- Built as planned: `Block` gains `{ quiz }` (a `Question` is `{ q, options, answer, why }`), `{ kmap }` (inputs, output name, the rows that are 1; drawn with
+  the existing `KarnaughMap`) and `highlight` on `{ table }`; `BuildStep` gains `rules` (replaces the challenge's, applied in `challengeOf`, so the panel, the
+  check and the tests agree and `challenges.ts` is untouched) and `after` (a sentence and a link in the done-card); the chapter `tables` (14 chapters, 15 steps,
+  `PATH_STEP_COUNT` 15); `model/path/sop.ts` with `nandNandSolution` and `sopFromKit` (the big sum of products from the kit's NOT, AND and OR for 3.2).
+- A quiz is practice: answers are kept in `progress.quiz[stepId]` (`answerQuiz` in `pathWork.ts`, -1 for an unanswered question), a wrong choice shows
+  "Not quite" and can be changed, a right one shows why, and a read step with every question right counts as read. *Next* is never blocked. Chapters 1 (`binary`)
+  and 2 (`nand-recap`) got the quizzes L1 left out.
+- Majority is solved twice (3.2 from the kit, 3.7 in NAND-NAND) and both mark the `majority` challenge solved in the Challenges list, as `valid-bcd` does for 3.5.
+- **Not done here:** the Challenges list does not yet say "In the path: chapter 3" (the startup chunk is at 179.9 of 180 kB; it needs a lazy import) and
+  *Choosing* has no `majority` to lose yet (chapter 4 is L2c). The explore steps, the goal evaluator and the spotlight are L2b.
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel

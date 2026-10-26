@@ -202,9 +202,26 @@ describe('going on', () => {
     m.nextStep()
     await m.flush()
     expect(m.usePath.getState().step).toBe('not-from-nand')
-    await m.startStep('nand-recap')
+    await m.startStep(m.steps.PATH_STEPS[m.steps.PATH_STEPS.length - 1])
     m.nextStep()
     expect(m.usePath.getState()).toMatchObject({ step: null, mapOpen: true })
+  })
+
+  it('keeps the answers to a quiz, and a read step with every answer right is read', async () => {
+    const m = await load()
+    const step = m.steps.getStep('binary')!
+    const questions = step.lesson.flatMap((b) => ('quiz' in b ? b.quiz : []))
+    expect(questions.length).toBeGreaterThan(1)
+    await m.startStep('binary')
+    m.answerQuiz('binary', 0, (questions[0].answer + 1) % questions[0].options.length, questions)
+    expect(m.usePath.getState().progress.quiz.binary).toEqual([(questions[0].answer + 1) % questions[0].options.length, ...questions.slice(1).map(() => -1)])
+    expect(done(m, 'binary')).toBeUndefined()
+    questions.forEach((q, i) => m.answerQuiz('binary', i, q.answer, questions))
+    expect(done(m, 'binary')).toMatchObject({ how: 'read' })
+    // Remembered after a reload.
+    vi.resetModules()
+    const again = await load()
+    expect(again.usePath.getState().progress.quiz.binary).toEqual(questions.map((q) => q.answer))
   })
 
   it('marking a build step as read does nothing', async () => {

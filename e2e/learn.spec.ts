@@ -14,7 +14,7 @@ async function openStep(page: Page, chapter: string, step: string) {
 test('learn: the map, a gate built by hand goes into the kit, and the next step uses it', async ({ page }) => {
   await fresh(page)
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('0 of 8 steps')
+  await expect(map(page)).toContainText('0 of 15 steps')
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 Make the light follow the switch')
   await expect(map(page).getByTestId('learn-chapter-memory')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
@@ -67,7 +67,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await expect(panel(page)).toContainText('2.2 AND, from NAND and your NOT')
   await expect(page.locator('.comp')).toHaveCount(5) // two switches, the LED, the NAND and the NOT
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 8 steps')
+  await expect(map(page)).toContainText('2 of 15 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(2)
   await expect(map(page).getByTestId('learn-step-and-from-nand')).toContainText('chip: AND')
 })
@@ -90,7 +90,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   const row = map(page).getByTestId('learn-step-and-from-nand')
   await expect(row.getByLabel('Solution shown')).toBeVisible()
   await expect(map(page).getByTestId('kit-chip')).toContainText('AND')
-  await expect(map(page)).toContainText('1 of 8 steps')
+  await expect(map(page)).toContainText('1 of 15 steps')
 
   // A read step is done when the learner says so, and leads on.
   await page.getByTestId('learn-chapter-signals').click()
@@ -100,7 +100,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   await panel(page).getByTestId('step-next').click()
   await expect(panel(page)).toContainText('NOT, from one NAND')
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 8 steps')
+  await expect(map(page)).toContainText('2 of 15 steps')
 
   // Closing the step takes the panel away and the parts list is whole again.
   await map(page).getByRole('button', { name: 'Close' }).click()
@@ -121,15 +121,15 @@ test('learn: /learn opens the map, and Forget my progress clears the steps and t
   await openStep(page, 'nand', 'not-from-nand')
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByRole('button', { name: 'Map' }).click()
-  await expect(map(page)).toContainText('1 of 8 steps')
+  await expect(map(page)).toContainText('1 of 15 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(1)
   await map(page).getByTestId('learn-forget').click()
   await map(page).getByTestId('learn-forget-yes').click()
-  await expect(map(page)).toContainText('0 of 8 steps')
+  await expect(map(page)).toContainText('0 of 15 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(0)
   // The address is /learn while the map is open, so a reload opens it again.
   await page.reload({ waitUntil: 'networkidle' })
-  await expect(map(page)).toContainText('0 of 8 steps')
+  await expect(map(page)).toContainText('0 of 15 steps')
 })
 
 test('learn: another document ends the step, and the palette has every part again', async ({ page }) => {
@@ -145,13 +145,53 @@ test('learn: another document ends the step, and the palette has every part agai
 
 test('learn: after finishing a chapter the map opens on it, and a skipped step is offered as going back', async ({ page }) => {
   await fresh(page)
-  const done = Object.fromEntries(['wire', 'not-from-nand', 'and-from-nand', 'or-from-nand', 'nor-from-kit', 'xor-from-kit', 'nand-recap'].map((id) => [id, { at: 1, how: 'solved' }]))
-  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, current: 'nand-recap', quiz: {} })), done)
+  const done = Object.fromEntries(['wire', 'not-from-nand', 'and-from-nand', 'or-from-nand', 'nor-from-kit', 'xor-from-kit', 'nand-recap', 'table-to-sop', 'sop-majority', 'combine-terms', 'kmap', 'sop-bcd', 'nand-nand', 'sop-nand'].map((id) => [id, { at: 1, how: 'solved' }]))
+  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, current: 'sop-nand', quiz: {} })), done)
   await page.reload({ waitUntil: 'networkidle' })
   await page.getByTestId('learn-button').click()
-  // Chapter 2 is the one on show, not chapter 1 where the skipped step is.
-  await expect(map(page).getByTestId('learn-step-nand-recap')).toBeVisible()
+  // Chapter 3 is the one on show, not chapter 1 where the skipped step is.
+  await expect(map(page).getByTestId('learn-step-sop-nand')).toBeVisible()
   await expect(map(page).getByTestId('learn-continue')).toContainText('Go back to a step you skipped: 1.2 Counting with four bits')
   await map(page).getByTestId('learn-chapter-signals').click()
   await expect(map(page).getByTestId('learn-step-binary')).toContainText('skipped')
+})
+
+test('learn: a quiz says at once what is right, chapter 3 shows the map, and the NAND-NAND step earns a star and leads back to XOR', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/table-to-sop', { waitUntil: 'networkidle' })
+  await expect(panel(page)).toContainText('Every truth table is a circuit')
+  // The 1-rows of the table are marked.
+  await expect(panel(page).locator('table.truth tr.hl')).toHaveCount(4)
+
+  const first = panel(page).getByTestId('quiz-0')
+  await first.getByLabel('A·B·C').check()
+  await expect(first.getByRole('status')).toContainText('Not quite')
+  await first.getByLabel('A·¬B·C').check()
+  await expect(first.getByRole('status')).toContainText('✔')
+  // Reading is never blocked; all answers right marks the step read.
+  await panel(page).getByTestId('quiz-1').getByLabel('Five').check()
+  await page.waitForTimeout(200)
+  await page.reload({ waitUntil: 'networkidle' })
+  await expect(panel(page).getByTestId('quiz-0').getByLabel('A·¬B·C')).toBeChecked()
+  await page.getByTestId('learn-button').click()
+  await expect(map(page)).toContainText('1 of 15 steps')
+  await map(page).getByRole('button', { name: 'Close' }).click()
+
+  // The Karnaugh map of the lesson: three groups for majority.
+  await page.goto('/learn/kmap', { waitUntil: 'networkidle' })
+  await expect(panel(page).locator('.kmap')).toBeVisible()
+  await expect(panel(page).locator('.klegend li')).toHaveCount(3)
+
+  // NAND-NAND: only NAND gates, so the plain AND-OR circuit is refused; the solution is four gates and earns the star.
+  await page.goto('/learn/sop-nand', { waitUntil: 'networkidle' })
+  await expect(panel(page)).toContainText('Majority in four NANDs')
+  await expect(panel(page)).toContainText('Only these gates: NAND')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page)).toContainText('par of 4')
+  await expect(panel(page).getByTestId('step-after')).toContainText('A⊕B')
+  await panel(page).getByTestId('step-after').getByRole('button').click()
+  await expect(panel(page)).toContainText('XOR, from your kit')
+  await expect(page).toHaveURL(/\/learn\/xor-from-kit$/)
 })

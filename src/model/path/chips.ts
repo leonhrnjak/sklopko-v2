@@ -87,10 +87,13 @@ export const chipStep = (id: string): (BuildStep & { chip: string }) | undefined
 
 /** The challenge a build step is checked against: one of the existing ones, or the one written for the step. */
 export function challengeOf(s: BuildStep): Challenge {
-  if (typeof s.challenge !== 'string') return s.challenge
-  const ch = getChallenge(s.challenge)
-  if (!ch) throw new Error(`Step ${s.id}: no challenge ${s.challenge}`)
-  return ch
+  let ch: Challenge | undefined
+  if (typeof s.challenge !== 'string') ch = s.challenge
+  else {
+    ch = getChallenge(s.challenge)
+    if (!ch) throw new Error(`Step ${s.id}: no challenge ${s.challenge}`)
+  }
+  return s.rules ? { ...ch, rules: s.rules } : ch
 }
 
 /** A circuit that solves the step, with the chips it uses in its table of ICs. */
