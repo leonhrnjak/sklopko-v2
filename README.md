@@ -85,7 +85,7 @@ security headers.
   solution* help when stuck, and *Start over* puts the starting circuit back (undoable); solved challenges are ticked and
   remembered in your browser. Each challenge keeps a circuit of its own, so leaving one and coming back brings back what
   you built.
-- **Learn:** the *Learn* button (left of *Examples*) opens *From NAND to a computer*: 14 chapters and 78 short steps, each with
+- **Learn:** the *Learn* button (left of *Examples*) opens *From NAND to a computer*: 14 chapters and 79 short steps, each with
   something to do. You start with a switch, a wire and an LED; build every gate from NAND, then a multiplexer, an adder and an
   ALU; make a latch, a flip-flop, a register, a counter and a RAM; and put them together into a 4-bit CPU, one circuit that
   grows step by step, checked by running small programs on it. You then program it, meet an 8-bit computer and a real MOS

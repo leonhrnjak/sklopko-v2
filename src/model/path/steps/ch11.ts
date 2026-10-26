@@ -31,6 +31,35 @@ function sharedBusSolution(): Circuit {
 
 export const CH11: Step[] = [
   {
+    id: 'bytes-hex',
+    chapter: 'bigger',
+    title: 'Bytes and bigger numbers',
+    kind: 'read',
+    summary: 'A byte is 8 bits, two hex digits: 0 to 255. What $F000 and 64 KB mean.',
+    lesson: [
+      { p: 'Your computer works with 4 bits at a time. Real computers work with 8: a byte. Eight bits make 2⁸ = 256 numbers, 0 to 255. A hexadecimal digit writes exactly four bits, so a byte is two hex digits: 1011 0110 is B6. The first digit counts the 16s and the second the 1s, so B6 is 11 × 16 + 6 = 182.' },
+      {
+        table: {
+          head: ['Place', 'Worth', 'Example: $F000'],
+          rows: [
+            ['4th digit from the right', '4096', 'F = 15 × 4096 = 61440'],
+            ['3rd digit', '256', '0'],
+            ['2nd digit', '16', '0'],
+            ['1st digit', '1', '0'],
+          ],
+        },
+      },
+      { p: 'Programmers write a hex number with a $ in front ($F000) or 0x (0xF000). Four hex digits are 16 bits, the numbers 0 to 65535. That is the size of an address on the 6502: each of its 65536 addresses holds one byte, and a memory with that many bytes is 64 KB. A kilobyte, KB, is 1024 bytes (2¹⁰), so 16 KB is 16384 bytes, which is $4000 of them.' },
+      {
+        quiz: [
+          { q: 'What number is $FF?', options: ['15', '255', '256'], answer: 1, why: 'F is 15, so $FF is 15 × 16 + 15 = 255: the biggest number a byte can hold.' },
+          { q: 'How many bytes is 1 KB?', options: ['1000', '1024', '256'], answer: 1, why: '2¹⁰ = 1024: ten address wires reach that many bytes.' },
+          { q: 'An address has 16 bits. How many bytes can it reach?', options: ['16 KB', '64 KB', '256 KB'], answer: 1, why: '2¹⁶ = 65536 bytes, which is 64 KB.' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'meet-8bit',
     chapter: 'bigger',
     title: 'The 8-bit computer',
