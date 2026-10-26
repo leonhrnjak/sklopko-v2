@@ -1,10 +1,10 @@
 # A 6522 VIA and a character LCD (plan)
 
-> **Status: V1 built, V2 and V3 not started.** Read `CLAUDE.md` first. Three PRs, stacked (`via-6522`, `lcd-hd44780`, `via-lcd-board`); V1 bumps the
+> **Status: V1 and V2 built, V3 not started.** Read `CLAUDE.md` first. Three PRs, stacked (`via-6522`, `lcd-hd44780`, `via-lcd-board`); V1 bumps the
 > version to `0.3.0`. Tick each box when its PR merges and add a *What it did, and where it differs from the plan* note under it.
 >
 > - [x] V1 The 6522 VIA: ports, timers, interrupts, a board with it, and an example with its timer
-> - [ ] V2 The HD44780 character LCD (16 × 2): the part, its inspector and its tests
+> - [x] V2 The HD44780 character LCD (16 × 2): the part, its inspector and its tests
 > - [ ] V3 The board with the terminal, the VIA and the LCD, Ben Eater's examples, and a BASIC variant
 
 ## Why
@@ -58,3 +58,15 @@ Backlight and contrast, 20 × 4 and graphic displays, the VIA's shift register, 
   - The startup bundle grew from 171.3 to 174.2 kB gzip (the part is registered at startup); V2 has to fit in the 180 kB budget, so its font and
     state machine go in a chunk of their own if they would not.
   - The palette icon of the VIA is a thin empty box (the generic symbol of a very tall part); a drawn symbol would be a nicety for V3.
+
+### V2 (stacked on V1)
+- As in the plan: `hd44780` (the model in `engine/hd44780.ts` with 16 tests: every instruction, the busy flag in cycles, 4-bit mode for writes and reads, the
+  cursor in the window, the CGRAM; the part in `engine/components/lcd.ts` with 8 pin-level tests), the font (`engine/lcdfont.ts`, drawn for this project, with the
+  ROM's yen sign at `\` and arrows at `~` and 0x7F, and a box above 0x7F), a symbol that draws the dots (one path for all lit dots, the cursor and a CSS-blinking block),
+  and an inspector (the text, the modes, the address counter, the busy flag with what was ignored, the eight custom characters).
+- **Pins:** `CLK` (Φ2, only to time the busy flag), `RS`, `RW`, `E`, `DIN0–7` (what it reads) and `D0–7` (what it drives, Z unless it is read), as the VIA's
+  ports. A write is taken when E falls and a read starts when E rises, as on the chip.
+- **Differs from the plan:** a *Busy time* setting (as in the data sheet taking the clock for 1 MHz, short, or never busy); a write whose D7–D4 are unknown is
+  ignored and a pin below D4 that nothing drives reads 0 (the 4-bit interface leaves them unconnected). The busy time of a data read is the same as a write's.
+- **Bundle:** the startup chunk is 177.6 kB gzip (174.2 at V1; budget 180): the part, the model and the font are registered at startup. V3 adds only lazy code.
+- Not done yet, by design: nothing wires it to the VIA. V3 does that on the board; the busy-flag read through the shared port B is tested there.

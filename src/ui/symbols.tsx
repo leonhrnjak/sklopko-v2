@@ -4,6 +4,9 @@ import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, sp
 import { SEG_HEX } from '../engine/components/io'
 import { SCREEN_COLS, SCREEN_ROWS } from '../engine/acia'
 import type { TerminalState } from '../engine/components/terminal'
+import type { LcdPartState } from '../engine/components/lcd'
+import { LCD_COLS, LCD_ROWS, lcdCode, lcdCursorAt } from '../engine/hd44780'
+import { romGlyph } from '../engine/lcdfont'
 import { inputOnTerminal, keyOnTerminal, typeOnTerminal } from '../app/terminal'
 import { NOTE_LINE_H, NOTE_PAD, wrapText } from '../engine/components/annotation'
 import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../engine/components/memory'
@@ -17,6 +20,53 @@ import type { Comp } from '../model/circuit'
 /** The terminal's screen: the height of a line and the width of a character, in the symbol's own units. */
 const TERM_LINE_H = 11
 const TERM_CHAR_W = 6
+
+// The LCD: a dot is 2.4 px on a 3 px grid, a character 5 dots wide with a dot of space, and 8 rows high (the eighth is the cursor's).
+const LCD_DOT = 3
+const LCD_CELL_W = 6 * LCD_DOT
+const LCD_CELL_H = 8 * LCD_DOT + LCD_DOT
+const LCD_X = 44
+const LCD_Y = 12
+const LCD_PAD = 6
+const LCD_W = LCD_COLS * LCD_CELL_W + 2 * LCD_PAD
+const LCD_H = LCD_ROWS * LCD_CELL_H + 2 * LCD_PAD
+
+/** The dots of the characters on the display, as one path (a square for each lit dot). */
+function lcdDots(st: LcdPartState): { d: string; cursor: { x: number; y: number } | null; blink: { x: number; y: number } | null } {
+  let d = ''
+  const dot = (x: number, y: number) => {
+    d += `M${x} ${y}h${LCD_DOT - 0.6}v${LCD_DOT - 0.6}h${-(LCD_DOT - 0.6)}z`
+  }
+  const at = (row: number, col: number) => ({ x: LCD_X + LCD_PAD + col * LCD_CELL_W, y: LCD_Y + LCD_PAD + row * LCD_CELL_H })
+  for (let row = 0; row < LCD_ROWS; row++) {
+    for (let col = 0; col < LCD_COLS; col++) {
+      const code = lcdCode(st, row, col)
+      const rows = code < 16 ? Array.from({ length: 8 }, (_, r) => st.cgram[(code & 7) * 8 + r] & 31) : romGlyph(code)
+      const o = at(row, col)
+      rows.forEach((bits, r) => {
+        for (let b = 0; b < 5; b++) if ((bits >> (4 - b)) & 1) dot(o.x + b * LCD_DOT, o.y + r * LCD_DOT)
+      })
+    }
+  }
+  const c = lcdCursorAt(st)
+  return { d, cursor: c && st.cursor ? at(c.row, c.col) : null, blink: c && st.blink ? at(c.row, c.col) : null }
+}
+
+/** The character display: the dots of what is in the display memory (when the display is on), the cursor and its blink. */
+function LcdSym({ l, st }: { l: Layout; st: LcdPartState | undefined }) {
+  const on = !!st?.display
+  const { d, cursor, blink } = st && on ? lcdDots(st) : { d: '', cursor: null, blink: null }
+  return (
+    <BoxSym l={l}>
+      <rect className={on ? 'lcd-body' : 'lcd-body off'} x={LCD_X} y={LCD_Y} width={LCD_W} height={LCD_H} rx={4} />
+      <path className="lcd-dots" d={d} />
+      {cursor && <rect className="lcd-cursor" x={cursor.x} y={cursor.y + 7 * LCD_DOT} width={5 * LCD_DOT - 0.6} height={LCD_DOT - 0.6} />}
+      {blink && <rect className="lcd-blink" x={blink.x - 1} y={blink.y - 1} width={5 * LCD_DOT + 1.4} height={8 * LCD_DOT + 1.4} />}
+      {st && st.busy > 0 && <circle className="lcd-busy" cx={LCD_X + LCD_W - 7} cy={LCD_Y + 7} r={2.5} />}
+      <Title text={on ? 'LCD 16×2' : 'LCD 16×2 (display off)'} x={LCD_X + LCD_W / 2} y={LCD_Y + LCD_H + 16} />
+    </BoxSym>
+  )
+}
 
 /** Rotation/flip of the enclosing component, so text can stay upright. */
 const Orient = createContext({ rot: 0, flip: false })
@@ -747,6 +797,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'hd44780':
+      content = <LcdSym l={l} st={live ? (sim.state(comp.id) as LcdPartState | undefined) : undefined} />
+      break
     case 'console': {
       const st: ConsoleState | undefined = live ? sim.state(comp.id) : undefined
       const lines = (st?.lines ?? ['']).slice(-CONSOLE_ROWS)
