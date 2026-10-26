@@ -20,7 +20,11 @@ import { fitToScreen } from './view'
  */
 
 /** Fit the circuit to the canvas once the panel below it has taken its space. */
-const fitSoon = () => requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
+const fitSoon = () => {
+  requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
+  // The panel under the canvas has not always taken its room by then (a step opened from its address): once more when it has.
+  window.setTimeout(fitToScreen, 300)
+}
 
 export const currentStep = (): Step | undefined => {
   const id = usePath.getState().step

@@ -630,6 +630,7 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
 - The three steps of chapters 1–2: `bits` (1.1), `show-nine` (1.4) and `meet-nand` (2.1). Step numbers shift as the plan said (`wire` is 1.2, NOT is 2.2), ids do not.
   `show-nine` is a 4-bit input and a hex display built on the spot, not the Counter example (the lesson points at it in words); `PATH_STEP_COUNT` is 18.
 - `ordered` is new: `bits` has "Y is lit" and then "Y is dark again", and the second must not count while the LED has never been lit.
+- A step opened from its address was fitted to the canvas before the panel under it had taken its room, so the circuit ran under the panel; `pathWork`'s `fitSoon` now fits once more after 300 ms.
 - Left for later: the `[[label]]` spotlight (L2c; no lesson may hold `[[` until it exists), goals on examples, CPU registers, console text and RAM (they come with the chapters that need them).
 
 ### L3 Clocked builds, and chapters 7–8
