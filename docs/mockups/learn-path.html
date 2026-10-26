@@ -1,0 +1,764 @@
+<title>Sklopko Learn Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: the real app's frame (teal bar, parts list, dotted canvas, inspector, a panel under the canvas), one screen per tab. */
+:root {
+  --bar: #2c8a6f;
+  --accent: #3fa98a;
+  --accent-strong: #2c8a6f;
+  --accent-ink: #ffffff;
+  --bg: #f4f5f3;
+  --panel: #ffffff;
+  --panel-border: #e2e5e1;
+  --text: #1d2321;
+  --muted: #69736f;
+  --canvas: #fafaf8;
+  --grid-dot: #d5d9d4;
+  --ink: #26302c;
+  --body: #ffffff;
+  --wire-1: #16a34a;
+  --wire-0: #dc2626;
+  --wire-x: #9aa5a1;
+  --wire-bus: #2563eb;
+  --select: #2563eb;
+  --select-soft: rgba(37, 99, 235, 0.14);
+  --trace: #d97706;
+  --good: #15803d;
+  --good-soft: #dcfce7;
+  --bad: #c2410c;
+  --bad-soft: #ffedd5;
+  --star: #d4a017;
+  --chip: #eef6f2;
+  --primary: #2c8a6f;
+  --chip-edge: #9cc9b8;
+  --shade: rgba(20, 25, 23, 0.45);
+  --display-bg: #18191b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.05);
+  --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bar: #1f5e4c; --accent: #3fa98a; --accent-strong: #57c3a2; --accent-ink: #ffffff;
+    --bg: #111413; --panel: #181c1b; --panel-border: #2a302e; --text: #e6ebe9; --muted: #93a09b;
+    --canvas: #141716; --grid-dot: #2b312f; --ink: #d9e0dd; --body: #1e2322;
+    --wire-1: #4ade80; --wire-0: #f87171; --wire-x: #6b7672; --wire-bus: #60a5fa; --select: #60a5fa;
+    --select-soft: rgba(96, 165, 250, 0.16); --trace: #fbbf24; --good: #4ade80; --good-soft: #14321f;
+    --bad: #fb923c; --bad-soft: #3a2214; --star: #fbbf24; --chip: #1c2a25; --chip-edge: #2f6b56;
+    --shade: rgba(0, 0, 0, 0.6); --display-bg: #0b0b0c; --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); --primary: #23775f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bar: #1f5e4c; --accent: #3fa98a; --accent-strong: #57c3a2; --accent-ink: #ffffff;
+  --bg: #111413; --panel: #181c1b; --panel-border: #2a302e; --text: #e6ebe9; --muted: #93a09b;
+  --canvas: #141716; --grid-dot: #2b312f; --ink: #d9e0dd; --body: #1e2322;
+  --wire-1: #4ade80; --wire-0: #f87171; --wire-x: #6b7672; --wire-bus: #60a5fa; --select: #60a5fa;
+  --select-soft: rgba(96, 165, 250, 0.16); --trace: #fbbf24; --good: #4ade80; --good-soft: #14321f;
+  --bad: #fb923c; --bad-soft: #3a2214; --star: #fbbf24; --chip: #1c2a25; --chip-edge: #2f6b56;
+  --shade: rgba(0, 0, 0, 0.6); --display-bg: #0b0b0c; --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); --primary: #23775f;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text); font: 14px/1.45 var(--ui); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--select); outline-offset: 2px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
+
+/* ---- The mockup's own header ---- */
+.intro { display: grid; gap: 6px; }
+.intro h1 { margin: 0; font-size: 22px; text-wrap: balance; }
+.intro p { margin: 0; color: var(--muted); max-width: 72ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { border: 1px solid var(--panel-border); background: var(--panel); border-radius: 999px; padding: 5px 12px; }
+.tabs button[aria-selected="true"] { background: var(--primary); border-color: var(--primary); color: var(--accent-ink); }
+.caption { margin: 0; color: var(--muted); font-size: 13px; max-width: 90ch; }
+
+/* ---- The app frame ---- */
+.app { border: 1px solid var(--panel-border); border-radius: 10px; overflow: hidden; background: var(--bg); box-shadow: var(--shadow); position: relative; }
+.bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--bar); color: var(--accent-ink); }
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+.bar .grp { display: flex; gap: 4px; flex-wrap: wrap; }
+.bar .b { border: 1px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.08); border-radius: 6px; padding: 3px 9px; font-size: 13px; color: var(--accent-ink); }
+.bar .learn { background: var(--accent-ink); color: var(--accent-strong); border-color: var(--accent-ink); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.bar .ver { margin-left: auto; opacity: 0.8; font-size: 12px; font-family: var(--mono); }
+.ring { width: 14px; height: 14px; border-radius: 50%; background: conic-gradient(var(--accent-strong) var(--p, 30%), color-mix(in srgb, var(--accent-strong) 22%, transparent) 0); display: inline-block; }
+.work { display: grid; grid-template-columns: 170px minmax(0, 1fr) 210px; min-height: 330px; }
+.parts { background: var(--panel); border-right: 1px solid var(--panel-border); padding: 10px; display: grid; align-content: start; gap: 10px; font-size: 13px; }
+.parts h4 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.parts .items { display: flex; flex-wrap: wrap; gap: 4px; }
+.parts .it { border: 1px solid var(--panel-border); border-radius: 5px; padding: 2px 7px; background: var(--body); }
+.parts .kit { background: var(--chip); border-color: var(--chip-edge); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+.parts .locked { color: var(--muted); font-size: 12px; }
+.canvas { background-color: var(--canvas); background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.2px); background-size: 20px 20px; position: relative; min-width: 0; overflow: hidden; }
+.canvas svg { display: block; width: 100%; height: 100%; min-height: 300px; }
+.insp { background: var(--panel); border-left: 1px solid var(--panel-border); padding: 10px; font-size: 13px; display: grid; align-content: start; gap: 8px; min-width: 0; }
+.insp h4 { margin: 0; font-size: 13px; }
+.insp .muted { color: var(--muted); font-size: 12px; }
+.insp textarea { white-space: pre; overflow-x: auto; width: 100%; min-height: 168px; font: 12px/1.5 var(--mono); background: var(--body); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px; resize: vertical; }
+.insp .errs { color: var(--bad); font-size: 12px; margin: 0; padding-left: 16px; }
+
+/* ---- The step panel under the canvas ---- */
+.step { background: var(--panel); border-top: 1px solid var(--panel-border); }
+.step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 12px; border-bottom: 1px solid var(--panel-border); }
+.step-head .where { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.step-head .where button { border: 1px solid var(--panel-border); background: var(--body); border-radius: 5px; padding: 0 7px; }
+.step-head strong { font-size: 14px; }
+.step-head .end { margin-left: auto; display: flex; gap: 6px; }
+.step-head .end button, .row button { border: 1px solid var(--panel-border); background: var(--body); border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+.kind { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--accent-strong); border: 1px solid var(--chip-edge); }
+.step-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; padding: 12px; }
+.step-body p { margin: 0 0 8px; max-width: 66ch; }
+.task b { color: var(--accent-strong); }
+.rules { font-size: 13px; color: var(--muted); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin-block: 8px; }
+.row .primary, .primary { background: var(--primary); color: var(--accent-ink); font-weight: 600; border: 1px solid var(--primary); border-radius: 6px; padding: 4px 12px; }
+.ref { color: var(--select); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; font-weight: 600; background: none; border: 0; padding: 0; }
+.goal h5 { margin: 0 0 6px; font-size: 13px; }
+table.truth { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+table.truth th, table.truth td { border: 1px solid var(--panel-border); padding: 2px 9px; text-align: center; }
+table.truth th.out, table.truth td.out { background: var(--chip); }
+table.truth td.v1 { color: var(--good); font-weight: 700; }
+table.truth td.v0 { color: var(--wire-0); }
+table.truth tr.wrong td { background: var(--bad-soft); }
+.verdict { display: grid; gap: 8px; margin-top: 4px; }
+.v-good { color: var(--good); font-weight: 600; margin: 0; }
+.v-bad { color: var(--bad); font-weight: 600; margin: 0; }
+.earned { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px solid var(--chip-edge); background: var(--chip); border-radius: 8px; padding: 8px 10px; }
+.chipicon { font-family: var(--mono); font-weight: 700; border: 2px solid var(--accent-strong); border-radius: 4px; padding: 3px 8px; background: var(--body); position: relative; }
+.chipicon::before, .chipicon::after { content: ""; position: absolute; top: 4px; bottom: 4px; width: 5px; border-block: 2px solid var(--accent-strong); }
+.chipicon::before { left: -7px; } .chipicon::after { right: -7px; }
+.hint { background: color-mix(in srgb, var(--star) 14%, var(--panel)); border-radius: 6px; padding: 6px 9px; font-size: 13px; }
+.goals { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.goals li { display: flex; gap: 8px; align-items: baseline; }
+.box { width: 15px; height: 15px; border: 1.5px solid var(--muted); border-radius: 3px; display: inline-grid; place-items: center; font-size: 11px; flex: none; transform: translateY(2px); }
+.goals li.ok .box { background: var(--good); border-color: var(--good); color: var(--accent-ink); }
+.goals li.ok span:last-child { color: var(--muted); }
+.runs { display: grid; gap: 6px; font-family: var(--mono); font-size: 12px; }
+.runs div { border: 1px solid var(--panel-border); border-radius: 6px; padding: 5px 8px; }
+.runs .ok { border-color: color-mix(in srgb, var(--good) 50%, transparent); }
+.runs .no { border-color: color-mix(in srgb, var(--bad) 60%, transparent); background: var(--bad-soft); }
+
+/* ---- The map (a modal like the example gallery) ---- */
+.shade { position: absolute; inset: 0; background: var(--shade); display: grid; place-items: center; padding: 18px; }
+.modal { background: var(--panel); border-radius: 10px; width: min(980px, 100%); max-height: 100%; overflow: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.25); border: 1px solid var(--panel-border); }
+.m-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--panel-border); }
+.m-head h2 { margin: 0; font-size: 17px; }
+.m-head h2 small { font-weight: 400; color: var(--muted); }
+.progress { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.meter { width: 140px; height: 7px; border-radius: 4px; background: var(--panel-border); overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--accent); }
+.m-head .end { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.m-body { display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.chapters { border-right: 1px solid var(--panel-border); padding: 8px; display: grid; gap: 2px; align-content: start; }
+.chapters button { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 8px; align-items: center; text-align: left; border: 0; background: none; border-radius: 6px; padding: 5px 8px; }
+.chapters button[aria-current="true"] { background: var(--select-soft); }
+.chapters .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.mark { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; border: 1.5px solid var(--muted); color: var(--muted); }
+.mark.done { background: var(--good); border-color: var(--good); color: var(--accent-ink); }
+.mark.part { border-color: var(--accent); background: conic-gradient(var(--accent) var(--p), transparent 0); }
+.track { padding: 14px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.track h3 { margin: 0; font-size: 16px; }
+.track > p { margin: 0; color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; position: relative; }
+.steps::before { content: ""; position: absolute; left: 10px; top: 12px; bottom: 12px; width: 2px; background: var(--panel-border); }
+.steps li { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; gap: 10px; align-items: start; padding: 6px 0; position: relative; }
+.dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--panel); border: 2px solid var(--panel-border); color: var(--muted); z-index: 1; }
+.dot.solved { background: var(--good); border-color: var(--good); color: var(--accent-ink); }
+.dot.shown { border-color: var(--good); background: linear-gradient(90deg, var(--good) 50%, var(--panel) 50%); }
+.dot.next { border-color: var(--accent-strong); box-shadow: 0 0 0 4px var(--select-soft); color: var(--accent-strong); }
+.steps .t { display: grid; gap: 1px; min-width: 0; }
+.steps .t b { font-weight: 600; }
+.steps .t small { color: var(--muted); }
+.steps .next-tag { color: var(--accent-strong); font-weight: 600; font-size: 12px; margin-left: 6px; }
+.tag { font-family: var(--mono); font-size: 11px; border: 1px solid var(--chip-edge); background: var(--chip); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.unlocks { font-size: 13px; color: var(--muted); }
+.kitbar { border-top: 1px solid var(--panel-border); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.kitbar strong { margin-right: 4px; }
+.kitbar .chipicon { font-size: 12px; padding: 1px 7px; }
+.kitbar .chipicon.ghost { opacity: 0.6; border-style: dashed; }
+.kitbar .forget { margin-left: auto; border: 0; background: none; color: var(--muted); text-decoration: underline; font-size: 12px; }
+.kitbar .star { color: var(--star); }
+
+/* ---- Phone ---- */
+.phones { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone { width: 300px; max-width: 100%; height: 600px; border: 10px solid var(--ink); border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; background: var(--canvas); position: relative; }
+.phone .bar { padding: 8px 10px; gap: 8px; }
+.phone .canvas { flex: 1; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--panel-border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 18px rgba(0,0,0,0.12); padding: 6px 12px 12px; display: grid; gap: 6px; transition: max-height 0.25s ease; max-height: 92px; overflow: hidden; }
+.sheet.open { max-height: 440px; overflow: auto; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--panel-border); margin: 0 auto; border: 0; padding: 0; }
+.sheet .top { display: flex; align-items: center; gap: 8px; }
+.sheet .top strong { font-size: 14px; flex: 1; min-width: 0; }
+.sheet .sub { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+.phone-cap { text-align: center; color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+/* ---- Your journey ---- */
+.journey { padding: 18px; display: grid; gap: 14px; }
+.journey h2 { margin: 0; font-size: 22px; text-wrap: balance; }
+.chain { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.chain .chipicon { font-size: 12px; padding: 1px 7px; }
+.chain .arrow { color: var(--muted); }
+.chain .big { background: var(--accent-strong); color: var(--accent-ink); }
+.jgrid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.thumb { border: 1px solid var(--panel-border); border-radius: 8px; background-color: var(--canvas); background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.2px); background-size: 14px 14px; aspect-ratio: 4 / 3; max-width: 100%; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stats div { border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; }
+.stats b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.stats span { color: var(--muted); font-size: 12px; }
+
+/* ---- SVG drawing ---- */
+svg text { font-family: var(--ui); fill: var(--ink); }
+svg .lbl { font-size: 12px; font-weight: 600; }
+svg .small { font-size: 10px; fill: var(--muted); }
+svg .mono { font-family: var(--mono); font-size: 11px; paint-order: stroke; stroke: var(--canvas); stroke-width: 6px; stroke-linejoin: round; }
+svg .body { fill: var(--body); stroke: var(--ink); stroke-width: 1.6; }
+svg .chipbody { fill: var(--chip); stroke: var(--accent-strong); stroke-width: 1.8; }
+svg .w1 { stroke: var(--wire-1); stroke-width: 2.4; fill: none; }
+svg .w0 { stroke: var(--wire-0); stroke-width: 2.4; fill: none; }
+svg .wx { stroke: var(--wire-x); stroke-width: 2; fill: none; stroke-dasharray: 4 4; }
+svg .bus { stroke: var(--wire-bus); stroke-width: 5; fill: none; }
+svg .ledon { fill: var(--wire-1); stroke: var(--ink); }
+svg .ledoff { fill: var(--body); stroke: var(--ink); }
+svg .sw { fill: var(--body); stroke: var(--ink); stroke-width: 1.5; }
+svg .knob1 { fill: var(--wire-1); } svg .knob0 { fill: var(--wire-0); }
+svg .spot { fill: none; stroke: var(--trace); stroke-width: 3; opacity: 0; transition: opacity 0.2s; }
+svg .spot.on { opacity: 1; }
+svg .dim { transition: opacity 0.2s; }
+svg.spotting .dim:not(.lit) { opacity: 0.28; }
+svg .disp { fill: var(--display-bg); }
+svg .dtext { fill: #ff5a4e; font-family: var(--mono); font-size: 15px; font-weight: 700; }
+
+@media (max-width: 860px) {
+  .work { grid-template-columns: minmax(0, 1fr); }
+  .parts { border-right: 0; border-bottom: 1px solid var(--panel-border); }
+  .insp { border-left: 0; border-top: 1px solid var(--panel-border); }
+  .step-body { grid-template-columns: minmax(0, 1fr); }
+  .m-body { grid-template-columns: minmax(0, 1fr); }
+  .chapters { border-right: 0; border-bottom: 1px solid var(--panel-border); grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .jgrid { grid-template-columns: minmax(0, 1fr); }
+  .shade { position: static; padding: 0; background: none; }
+  .app.has-modal .work, .app.has-modal .step { display: none; }
+}
+@media (max-width: 520px) { .stats { grid-template-columns: minmax(0, 1fr); } .bar .ver { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Learn: From NAND to a computer (mockup)</h1>
+    <p>The screens of the guided path in <code>docs/plan-learn-path.md</code>, drawn in the app's own colours. The buttons work: check a circuit, step the clock, run a program, fold the phone sheet.</p>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Screens">
+    <button role="tab" id="t-map" data-tab="map">The map</button>
+    <button role="tab" id="t-build" data-tab="build">A build step</button>
+    <button role="tab" id="t-explore" data-tab="explore">An explore step</button>
+    <button role="tab" id="t-program" data-tab="program">A program step</button>
+    <button role="tab" id="t-phone" data-tab="phone">Phone</button>
+    <button role="tab" id="t-journey" data-tab="journey">Your journey</button>
+  </nav>
+  <p class="caption" id="caption"></p>
+
+  <!-- ============ THE MAP ============ -->
+  <section data-screen="map" hidden>
+    <div class="app has-modal">
+      <div class="bar"><span class="brand">Sklopko</span>
+        <span class="grp"><span class="b">▶ Run</span><span class="b">Step</span><span class="b">⟲ Back</span><span class="b">Clock step</span></span>
+        <span class="grp"><span class="b learn"><i class="ring" style="--p:32%"></i>Learn</span><span class="b">Examples</span><span class="b">Tools ▾</span><span class="b">File ▾</span></span>
+        <span class="ver">v0.4.0</span></div>
+      <div class="work" aria-hidden="true"><div class="parts"></div><div class="canvas"><svg viewBox="0 0 10 10"></svg></div><div class="insp"></div></div>
+      <div class="step" aria-hidden="true" style="height:110px"></div>
+      <div class="shade">
+        <div class="modal" role="dialog" aria-label="Learn">
+          <div class="m-head">
+            <h2>Learn <small>· From NAND to a computer</small></h2>
+            <div class="progress"><span id="count">23 of 72 steps</span><span class="meter"><span id="meterbar" style="width:32%"></span></span></div>
+            <div class="end"><button class="primary" id="continue">Continue: 4.4 A 4-bit adder →</button><button class="b0" aria-label="Close" style="border:0;background:none;font-size:16px">✕</button></div>
+          </div>
+          <div class="m-body">
+            <div class="chapters" id="chapters"></div>
+            <div class="track" id="track"></div>
+          </div>
+          <div class="kitbar" id="kitbar"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ A BUILD STEP ============ -->
+  <section data-screen="build" hidden>
+    <div class="app">
+      <div class="bar"><span class="brand">Sklopko</span>
+        <span class="grp"><span class="b">▶ Run</span><span class="b">Step</span><span class="b">⟲ Back</span><span class="b">Clock step</span></span>
+        <span class="grp"><span class="b learn"><i class="ring" style="--p:12%"></i>Learn</span><span class="b">Examples</span><span class="b">Tools ▾</span><span class="b">File ▾</span></span>
+        <span class="ver">Challenge: XOR, from the kit</span></div>
+      <div class="work">
+        <div class="parts">
+          <h4>For this step</h4><div class="items"><span class="it">NAND</span><span class="it">Switch</span><span class="it">LED</span></div>
+          <h4>Your kit</h4><div class="items"><span class="it kit">NOT</span><span class="it kit">AND</span><span class="it kit">OR</span><span class="it kit">NOR</span></div>
+          <span class="locked">The other gates unlock when chapter 2 is done.</span>
+        </div>
+        <div class="canvas"><svg id="xorsvg" viewBox="0 0 560 300" role="img" aria-label="XOR built from the OR, AND and NOT chips"></svg></div>
+        <div class="insp"><h4>OR <span class="muted">· your chip</span></h4><span class="muted">Built in step 2.4 from 3 NAND gates.</span>
+          <span class="muted">Pins: A, B (in) · Y (out)</span><button style="border:1px solid var(--panel-border);background:var(--body);border-radius:6px;padding:4px 8px;justify-self:start">Open the chip</button></div>
+      </div>
+      <div class="step">
+        <div class="step-head">
+          <span class="where"><button aria-label="Previous step">◀</button>2 · NAND is all you need · step 6 of 7<button aria-label="Next step">▶</button></span>
+          <span class="kind">Build</span><strong>2.6 XOR, from the kit</strong>
+          <span class="end"><button>Map</button><button aria-label="Close step">✕</button></span>
+        </div>
+        <div class="step-body">
+          <div>
+            <p>XOR is 1 when A and B are different: "A or B, but not both". You already have <button class="ref" data-spot="or">OR</button>, <button class="ref" data-spot="and">AND</button> and <button class="ref" data-spot="not">NOT</button> in your kit, and each is made of NAND gates inside.</p>
+            <p class="task"><b>Your task:</b> make <button class="ref" data-spot="y">Y</button> = A XOR B.</p>
+            <p class="rules">Only NAND (your chips count as the NANDs they are made of). ⭐ Par: 4 NANDs.</p>
+            <div class="row"><button class="primary" id="check-build">Check my circuit</button><button id="hint-build">Hint</button><button id="wire-build" title="In the mockup: finish the wiring">Show a solution</button><button id="reset-build">Start over</button></div>
+            <div id="hint-box" class="hint" hidden>💡 OR gives "at least one", NOT AND gives "not both". AND them together.</div>
+            <div class="verdict" id="verdict-build" role="status" aria-live="polite"></div>
+          </div>
+          <div class="goal"><h5>What it should do</h5>
+            <table class="truth" id="truth-build"><thead><tr><th>A</th><th>B</th><th class="out">Y</th></tr></thead><tbody></tbody></table>
+            <p class="rules" style="margin-top:6px">Every combination of the switches, counting up in binary.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ AN EXPLORE STEP ============ -->
+  <section data-screen="explore" hidden>
+    <div class="app">
+      <div class="bar"><span class="brand">Sklopko</span>
+        <span class="grp"><span class="b">▶ Run</span><span class="b">Step</span><span class="b">⟲ Back</span><button class="b" id="clockstep" style="background:rgba(255,255,255,0.22)">Clock step</button></span>
+        <span class="grp"><span class="b learn"><i class="ring" style="--p:78%"></i>Learn</span><span class="b">Examples</span><span class="b">Tools ▾</span><span class="b">File ▾</span></span>
+        <span class="ver">/6502</span></div>
+      <div class="work">
+        <div class="parts"><h4>Parts</h4><span class="locked">Everything is unlocked from chapter 8 on.</span></div>
+        <div class="canvas"><svg id="bussvg" viewBox="0 0 560 300" role="img" aria-label="The 6502 board: CPU, ROM, RAM and LEDs on one address bus"></svg></div>
+        <div class="insp" id="cpuinsp"></div>
+      </div>
+      <div class="step">
+        <div class="step-head">
+          <span class="where"><button aria-label="Previous step">◀</button>11 · Meet the 6502 · step 2 of 4<button aria-label="Next step">▶</button></span>
+          <span class="kind">Explore</span><strong>11.2 One bus for everything</strong>
+          <span class="end"><button>Map</button><button aria-label="Close step">✕</button></span>
+        </div>
+        <div class="step-body">
+          <div>
+            <p>Your computer read its program from a ROM of its own. The 6502 has one address bus for everything: the program in the <button class="ref" data-spot="rom">ROM</button>, data in the <button class="ref" data-spot="ram">RAM</button>, and the <button class="ref" data-spot="leds">LEDs</button>. So one instruction takes several cycles: read the opcode, read the operand, then read or write.</p>
+            <p class="task"><b>Try it:</b> press <b>Clock step</b> (in the bar above) and watch the address on the bus and the CPU's R/W.</p>
+            <div class="row"><button class="primary" id="clockstep2">Clock step</button><button id="restart-ex">Start over</button></div>
+          </div>
+          <div class="goal"><h5>Goals</h5><ul class="goals" id="goals"></ul><p class="rules" id="goalcount" style="margin-top:6px"></p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ A PROGRAM STEP ============ -->
+  <section data-screen="program" hidden>
+    <div class="app">
+      <div class="bar"><span class="brand">Sklopko</span>
+        <span class="grp"><span class="b">▶ Run</span><span class="b">Step</span><span class="b">⟲ Back</span><span class="b">Clock step</span></span>
+        <span class="grp"><span class="b learn"><i class="ring" style="--p:58%"></i>Learn</span><span class="b">Examples</span><span class="b">Tools ▾</span><span class="b">File ▾</span></span>
+        <span class="ver">Your computer (8.10)</span></div>
+      <div class="work">
+        <div class="parts"><h4>Your computer</h4><span class="locked">The CPU you built in chapter 8, with its decisions and its output at address 15.</span></div>
+        <div class="canvas"><svg id="cpusvg" viewBox="0 0 560 300" role="img" aria-label="The learner's 4-bit computer as blocks"></svg></div>
+        <div class="insp"><h4>Program ROM <span class="muted">· SKASM</span></h4>
+          <label for="prog" class="muted">RAM[1] × RAM[2] → RAM[0]. Edit it, then press Check.</label>
+          <textarea id="prog" spellcheck="false" wrap="off"></textarea>
+          <ul class="errs" id="progerr" hidden></ul>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-head">
+          <span class="where"><button aria-label="Previous step">◀</button>9 · Programming your computer · step 3 of 4<button aria-label="Next step">▶</button></span>
+          <span class="kind">Program</span><strong>9.3 Multiply by adding</strong>
+          <span class="end"><button>Map</button><button aria-label="Close step">✕</button></span>
+        </div>
+        <div class="step-body">
+          <div>
+            <p>Your computer has no multiply instruction, but it can add in a loop. <button class="ref" data-spot="ram">RAM</button>[1] and RAM[2] hold two numbers: put their product in RAM[0], then HALT.</p>
+            <p class="rules">You have: LDI LDA STA ADD SUB JMP JZ JNC HALT. The check runs your program three times, with different numbers.</p>
+            <div class="row"><button id="editprog">Edit the program</button><button class="primary" id="check-prog">Check</button><button id="fix-prog" title="In the mockup: load a working program">Show a solution</button></div>
+            <div class="verdict" id="verdict-prog" role="status" aria-live="polite"></div>
+          </div>
+          <div class="goal"><h5>The check</h5><div class="runs" id="runs"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PHONE ============ -->
+  <section data-screen="phone" hidden>
+    <div class="phones">
+      <div>
+        <div class="phone">
+          <div class="bar"><span class="brand">☰ Sklopko</span><span class="b learn" style="margin-left:auto"><i class="ring" style="--p:12%"></i>Learn</span></div>
+          <div class="canvas"><svg id="phonesvg" viewBox="0 0 280 330" aria-hidden="true"></svg></div>
+          <div class="sheet" id="sheet">
+            <button class="grab" id="grab" aria-label="Open the lesson" aria-expanded="false"></button>
+            <div class="top"><strong>2.6 XOR, from the kit</strong><button class="primary" id="phonecheck">Check</button></div>
+            <div class="sub"><span>◀ step 6 of 7 ▶</span><span id="phonestate">Not checked yet</span></div>
+            <p style="margin:4px 0 0">XOR is 1 when A and B are different: "A or B, but not both". Use OR, AND and NOT from your kit.</p>
+            <table class="truth"><thead><tr><th>A</th><th>B</th><th class="out">Y</th></tr></thead><tbody><tr><td>0</td><td>0</td><td class="out v0">0</td></tr><tr><td>0</td><td>1</td><td class="out v1">1</td></tr><tr><td>1</td><td>0</td><td class="out v1">1</td></tr><tr><td>1</td><td>1</td><td class="out v0">0</td></tr></tbody></table>
+            <div class="row"><button>Hint</button><button>Show a solution</button><button>Start over</button></div>
+          </div>
+        </div>
+        <p class="phone-cap">Tap the handle: the sheet opens to the lesson.</p>
+      </div>
+      <div>
+        <div class="phone">
+          <div class="bar"><span class="brand">Learn</span><span class="b" style="margin-left:auto">✕</span></div>
+          <div style="background:var(--panel);flex:1;overflow:auto;padding:12px;display:grid;gap:10px;align-content:start">
+            <div class="progress"><span>23 of 72</span><span class="meter" style="flex:1"><span style="width:32%"></span></span></div>
+            <button class="primary">Continue: 4.4 A 4-bit adder →</button>
+            <ul class="steps" id="phonesteps"></ul>
+          </div>
+        </div>
+        <p class="phone-cap">On a phone the map is full screen, one chapter at a time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ YOUR JOURNEY ============ -->
+  <section data-screen="journey" hidden>
+    <div class="app" style="background:var(--panel)">
+      <div class="journey">
+        <span class="kind" style="justify-self:start">13.4 · Your journey</span>
+        <h2>From NAND to BASIC</h2>
+        <div class="chain" id="chain"></div>
+        <div class="jgrid">
+          <div><div class="thumb"><svg viewBox="0 0 240 180" id="thumbsvg" aria-label="Your CPU" role="img"></svg></div><p class="rules" style="margin:6px 0 0">Your computer, from chapter 8.</p></div>
+          <div style="display:grid;gap:12px">
+            <div class="stats"><div><b>31</b><span>chips you built</span></div><div><b>14</b><span>programs you wrote</span></div><div><b>72</b><span>steps, 3 Oct to 26 Oct</span></div></div>
+            <p style="margin:0;max-width:66ch">You started with one NAND gate. You built every gate from it, then an adder, an ALU, a flip-flop and a register, a RAM, and a computer that runs your programs. Then you met the 6502, wired its address decoder, programmed it, and typed <code>PRINT "HELLO"</code> into Microsoft BASIC.</p>
+            <div class="row"><button class="primary">Download my work</button><button>Back to the map</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s)
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)]
+  const NS = 'http://www.w3.org/2000/svg'
+  const el = (tag, attrs = {}, parent) => {
+    const e = document.createElementNS(NS, tag)
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v)
+    if (parent) parent.appendChild(e)
+    return e
+  }
+  const text = (parent, x, y, s, cls = 'lbl', anchor = 'middle') => { const t = el('text', { x, y, class: cls, 'text-anchor': anchor }, parent); t.textContent = s; return t }
+
+  /* ---------- Tabs ---------- */
+  const CAPTIONS = {
+    map: 'The map: chapters on the left, the chosen chapter as a track of steps, Your kit underneath. ✔ solved, half-filled: solution shown, ringed: next. Click a chapter.',
+    build: 'A build step. The palette has only this step\'s parts and your kit. Click a blue word in the text to spotlight that part. Check, then Show a solution (here it finishes the wiring), then Check again.',
+    explore: 'An explore step. Goals tick while you play: press Clock step and watch the 6502 read its program and write to the LEDs over one bus.',
+    program: 'A program step. The program is edited in the Program ROM\'s inspector, as now. The check runs it three times with different numbers. The starting program has a bug: it stops one round early.',
+    phone: 'Phone: the step panel is a bottom sheet that folds to the title and Check; the map is full screen.',
+    journey: 'The last step: every chip you built, your CPU, and how far it went.',
+  }
+  const TABS = Object.keys(CAPTIONS)
+  function show(tab) {
+    if (!TABS.includes(tab)) tab = 'map'
+    $$('[data-screen]').forEach((s) => (s.hidden = s.dataset.screen !== tab))
+    $$('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)))
+    $('#caption').textContent = CAPTIONS[tab]
+    try { history.replaceState(null, '', '#' + tab) } catch (e) {}
+  }
+  $$('[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)))
+
+  /* ---------- The curriculum (as in the spec) ---------- */
+  const CH = [
+    ['Signals and wires', 'Bits, switches, LEDs and binary numbers.', [['explore','1.1 What a bit is'],['build','1.2 Make the light follow the switch'],['read','1.3 Binary numbers'],['explore','1.4 Show 9 on a display']], [], ''],
+    ['NAND is all you need', 'Every gate, built from one.', [['explore','2.1 Meet NAND'],['build','2.2 NOT from NAND','NOT'],['build','2.3 AND from NAND','AND'],['build','2.4 OR from NAND','OR'],['build','2.5 NOR from the kit','NOR'],['build','2.6 XOR from the kit ⭐','XOR'],['read','2.7 Why chips are made of NAND']], ['NOT','AND','OR','NOR','XOR','XNOR'], ''],
+    ['Choosing', 'Sums of products, multiplexers and decoders.', [['build','3.1 Majority vote'],['build','3.2 Choose one of two','MUX'],['build','3.3 Send it one of two ways','DEMUX'],['build','3.4 A 2:4 decoder','DEC2'],['explore','3.5 A 4:1 multiplexer']], ['MUX','DEMUX','decoder'], ''],
+    ['Adding numbers', 'From a half adder to a 4-bit adder/subtractor.', [['read','4.1 Adding in binary'],['build','4.2 Half adder','HA'],['build','4.3 Full adder','FA'],['build','4.4 A 4-bit adder','ADD4'],['explore','4.5 Watch the carry ripple'],['read','4.6 Negative numbers'],['build','4.7 Adder/subtractor','ADDSUB']], ['half adder','full adder','4-bit adder','adder/subtractor'], ''],
+    ['The ALU', 'One block that adds, subtracts, ANDs and ORs.', [['build','5.1 Is it zero?','ZERO'],['build','5.2 Compare two numbers'],['build','5.3 A 4-bit ALU','ALU'],['explore','5.4 The ALU and its flags']], ['ALU','comparator'], ''],
+    ['Memory', 'Feedback, latches, flip-flops and registers.', [['explore','6.1 A gate fed by itself'],['build','6.2 SR latch','SR'],['build','6.3 D latch','DLATCH'],['build','6.4 D flip-flop','DFF'],['build','6.5 One bit with load','REG1'],['build','6.6 A 4-bit register','REG4']], ['latches','flip-flops','register'], ''],
+    ['Counting, ROM and RAM', 'A program counter and memories from your registers.', [['build','7.1 T flip-flop','TFF'],['build','7.2 Count to 15','COUNT4'],['build','7.3 A program counter','PC'],['build','7.4 A ROM from gates'],['build','7.5 Four words of RAM','RAM4'],['explore','7.6 The built-in ROM and RAM']], ['counters','ROM','RAM'], ''],
+    ['Build a computer', 'One circuit that grows into a 4-bit CPU.', [['read','8.1 Fetch, decode, execute'],['project','8.2 Fetch'],['project','8.3 Decode'],['project','8.4 LDI'],['project','8.5 RAM'],['project','8.6 ADD and SUB'],['project','8.7 JMP and HALT'],['explore','8.8 It is the beginner computer'],['project','8.9 Decisions: Z, JZ, JNC'],['project','8.10 Talking to the world']], [], ''],
+    ['Programming your computer', 'Your programs, on your CPU.', [['program','9.1 Add two numbers'],['program','9.2 Count down'],['program','9.3 Multiply by adding'],['program','9.4 Fibonacci']], [], ''],
+    ['A bigger computer', 'Buses, an index register and subroutines.', [['explore','10.1 The 8-bit computer as blocks'],['build','10.2 A shared bus'],['program','10.3 HI on the console'],['program','10.4 Add up a table with X'],['program','10.5 CALL and RET']], [], ''],
+    ['Meet the 6502', 'The same machine, on one chip.', [['read','11.1 Your computer and the 6502'],['explore','11.2 One bus for everything'],['build','11.3 An address decoder'],['project','11.4 Wire the board']], [], ''],
+    ['Programming the 6502', 'Assembly, from LEDs to an LCD.', [['program','12.1 LEDs'],['program','12.2 Count with BNE'],['program','12.3 HELLO with X'],['program','12.4 JSR and the stack'],['program','12.5 Hello on the LCD'],['explore','12.6 An interrupt']], [], ''],
+    ['A computer that runs BASIC', 'Microsoft BASIC on your 6502.', [['explore','13.1 Boot to OK'],['explore','13.2 PRINT'],['explore','13.3 A FOR loop'],['read','13.4 Your journey']], [], ''],
+  ]
+  const KIND = { read: '📖', explore: '🔍', build: '🔧', project: '🏗', program: '⌨' }
+  // Progress in the mockup: chapters 1–3 done (4.3's solution shown), 4.4 next.
+  const state = (ci, si) => (ci < 3 ? 'solved' : ci === 3 ? (si < 2 ? 'solved' : si === 2 ? 'shown' : si === 3 ? 'next' : '') : '')
+  let chapter = 3
+  function renderMap() {
+    const cs = $('#chapters'); cs.innerHTML = ''
+    CH.forEach(([title, , steps], ci) => {
+      const done = steps.filter((_, si) => ['solved', 'shown'].includes(state(ci, si))).length
+      const b = document.createElement('button')
+      b.setAttribute('aria-current', String(ci === chapter))
+      const cls = done === steps.length ? 'mark done' : done ? 'mark part' : 'mark'
+      b.innerHTML = `<span class="${cls}" style="--p:${Math.round((done / steps.length) * 100)}%">${done === steps.length ? '✔' : ''}</span><span>${ci + 1} ${title}</span><span class="n">${done}/${steps.length}</span>`
+      b.addEventListener('click', () => { chapter = ci; renderMap() })
+      cs.appendChild(b)
+    })
+    const [title, blurb, steps, unlocks] = CH[chapter]
+    const tr = $('#track')
+    tr.innerHTML = `<h3>${chapter + 1} · ${title}</h3><p>${blurb}</p>`
+    tr.appendChild(stepList(chapter))
+    if (unlocks.length) { const u = document.createElement('p'); u.className = 'unlocks'; u.textContent = 'When this chapter is done, these built-in parts unlock: ' + unlocks.join(' · ') + '.'; tr.appendChild(u) }
+  }
+  function stepList(ci) {
+    const ul = document.createElement('ul'); ul.className = 'steps'
+    CH[ci][2].forEach(([kind, title, chip], si) => {
+      const st = state(ci, si)
+      const li = document.createElement('li')
+      const mark = st === 'solved' ? '✔' : st === 'next' ? '●' : ''
+      const sub = { read: 'Read, then a short quiz', explore: 'Play until the goals tick', build: 'Build it; it is checked for you', project: 'Add to your computer', program: 'Write a program; it is run to check it' }[kind]
+      li.innerHTML = `<span class="dot ${st}" aria-label="${st || 'not yet'}">${mark}</span><span class="t"><b>${KIND[kind]} ${title}${st === 'next' ? '<span class="next-tag">← next</span>' : ''}${st === 'shown' ? ' <small>(solution shown)</small>' : ''}</b><small>${sub}</small></span>${chip ? `<span class="tag">chip: ${chip}</span>` : '<span></span>'}`
+      ul.appendChild(li)
+    })
+    return ul
+  }
+  const kb = $('#kitbar')
+  kb.innerHTML = '<strong>Your kit</strong>' + ['NOT','AND','OR','NOR','XOR ⭐','MUX','DEMUX','DEC2','HA'].map((n) => `<span class="chipicon">${n.replace('⭐', '<span class="star">⭐</span>')}</span>`).join('') + '<span class="chipicon ghost" title="Solution shown: the reference chip">FA</span><span class="rules">10 chips</span><button class="forget">Forget my progress</button>'
+  $('#continue').addEventListener('click', () => show('build'))
+  renderMap()
+  $('#phonesteps').replaceWith(Object.assign(stepList(3), { id: 'phonesteps' }))
+
+  /* ---------- Drawing helpers ---------- */
+  function sw(svg, x, y, label, on) {
+    const g = el('g', { class: 'dim' }, svg)
+    el('rect', { x, y, width: 34, height: 22, rx: 5, class: 'sw' }, g)
+    el('rect', { x: on ? x + 17 : x + 3, y: y + 3, width: 14, height: 16, rx: 3, class: on ? 'knob1' : 'knob0' }, g)
+    text(g, x - 10, y + 15, label, 'lbl', 'end')
+    return g
+  }
+  function chip(svg, x, y, w, h, name, sub, id) {
+    const g = el('g', { class: 'dim', 'data-id': id || '' }, svg)
+    el('rect', { x, y, width: w, height: h, rx: 4, class: 'chipbody' }, g)
+    text(g, x + w / 2, y + h / 2 + (sub ? -1 : 4), name, 'lbl')
+    if (sub) text(g, x + w / 2, y + h / 2 + 13, sub, 'small')
+    el('rect', { x: x - 6, y: y - 6, width: w + 12, height: h + 12, rx: 8, class: 'spot', 'data-spot': id || '' }, g)
+    return g
+  }
+  function box(svg, x, y, w, h, name, sub, id) {
+    const g = el('g', { class: 'dim', 'data-id': id || '' }, svg)
+    el('rect', { x, y, width: w, height: h, rx: 3, class: 'body' }, g)
+    text(g, x + w / 2, y + 18, name, 'lbl')
+    if (sub) text(g, x + w / 2, y + 33, sub, 'small')
+    el('rect', { x: x - 6, y: y - 6, width: w + 12, height: h + 12, rx: 8, class: 'spot', 'data-spot': id || '' }, g)
+    return g
+  }
+  function led(svg, x, y, label, on, id) {
+    const g = el('g', { class: 'dim', 'data-id': id || '' }, svg)
+    el('circle', { cx: x, cy: y, r: 11, class: on ? 'ledon' : 'ledoff' }, g)
+    text(g, x + 18, y + 4, label, 'lbl', 'start')
+    el('circle', { cx: x, cy: y, r: 19, class: 'spot', 'data-spot': id || '' }, g)
+    return g
+  }
+  const wire = (svg, d, cls) => el('path', { d, class: cls + ' dim' }, svg)
+  function spotlight(svg, id) {
+    svg.classList.add('spotting')
+    $$('[data-id]', svg).forEach((g) => g.classList.toggle('lit', g.dataset.id === id))
+    $$('.spot', svg).forEach((s) => s.classList.toggle('on', s.dataset.spot === id))
+    clearTimeout(svg._t)
+    svg._t = setTimeout(() => { svg.classList.remove('spotting'); $$('.spot', svg).forEach((s) => s.classList.remove('on')) }, 1600)
+  }
+  function hookRefs(section, svg) {
+    $$('.ref', section).forEach((r) => {
+      r.addEventListener('click', () => spotlight(svg, r.dataset.spot))
+      r.addEventListener('mouseenter', () => $$('.spot', svg).forEach((s) => s.classList.toggle('on', s.dataset.spot === r.dataset.spot)))
+      r.addEventListener('mouseleave', () => { if (!svg.classList.contains('spotting')) $$('.spot', svg).forEach((s) => s.classList.remove('on')) })
+    })
+  }
+
+  /* ---------- Build step: XOR from the kit ---------- */
+  const xs = $('#xorsvg')
+  let wired = false, A = 1, B = 0
+  function drawXor() {
+    xs.innerHTML = ''
+    const or = A || B, and = A && B, nand = !and, y = wired ? (or && nand) : 0
+    const c = (v) => (v ? 'w1' : 'w0')
+    // A and B to OR and AND
+    wire(xs, 'M 84 81 H 120 V 70 H 170', c(A)); wire(xs, 'M 120 81 V 190 H 170', c(A))
+    wire(xs, 'M 84 151 H 140 V 92 H 170', c(B)); wire(xs, 'M 140 151 V 212 H 170', c(B))
+    wire(xs, 'M 250 200 H 290', c(and))
+    if (wired) { wire(xs, 'M 250 80 H 380 V 120 H 400', c(or)); wire(xs, 'M 350 200 H 380 V 150 H 400', c(nand)); wire(xs, 'M 470 135 H 494', c(y)) }
+    else { wire(xs, 'M 250 80 H 300', c(or)); wire(xs, 'M 350 200 H 362', 'wx') }
+    sw(xs, 50, 70, 'A', A).addEventListener('click', () => { A = 1 - A; drawXor() })
+    sw(xs, 50, 140, 'B', B).addEventListener('click', () => { B = 1 - B; drawXor() })
+    chip(xs, 170, 56, 80, 48, 'OR', 'your chip', 'or')
+    chip(xs, 170, 176, 80, 48, 'AND', 'your chip', 'and')
+    chip(xs, 290, 182, 60, 36, 'NOT', '', 'not')
+    chip(xs, 400, 110, 70, 50, 'AND', 'your chip', 'and2')
+    led(xs, 505, 135, 'Y', y, 'y')
+    text(xs, 280, 290, wired ? 'Click A and B to try it.' : 'Two wires are still missing. Click A and B to try it.', 'small')
+  }
+  const rows = [[0,0,0],[0,1,1],[1,0,1],[1,1,0]]
+  function truth(wrong = []) {
+    $('#truth-build tbody').innerHTML = rows.map(([a, b, y], i) => `<tr class="${wrong.includes(i) ? 'wrong' : ''}"><td>${a}</td><td>${b}</td><td class="out v${y}">${y}</td></tr>`).join('')
+  }
+  truth(); drawXor(); hookRefs($('[data-screen="build"]'), xs)
+  $('#hint-build').addEventListener('click', () => ($('#hint-box').hidden = false))
+  $('#wire-build').addEventListener('click', () => { wired = true; drawXor(); $('#verdict-build').innerHTML = '<p class="rules">This is one way to solve it. Undo (⌘Z) brings your circuit back.</p>'; truth() })
+  $('#reset-build').addEventListener('click', () => { wired = false; drawXor(); $('#verdict-build').innerHTML = ''; truth(); $('#hint-box').hidden = true })
+  $('#check-build').addEventListener('click', () => {
+    const v = $('#verdict-build')
+    if (!wired) {
+      truth([1, 2])
+      v.innerHTML = '<p class="v-bad">✘ Not yet: 2 wrong answers in the table.</p><table class="truth"><thead><tr><th>A</th><th>B</th><th>wanted</th><th>yours</th></tr></thead><tbody><tr><td>0</td><td>1</td><td class="v1">1</td><td class="v0">0</td></tr><tr><td>1</td><td>0</td><td class="v1">1</td><td class="v0">0</td></tr></tbody></table>'
+    } else {
+      truth()
+      v.innerHTML = '<p class="v-good">✔ Solved! Every combination of the switches gives the right answer.</p><div class="earned"><span class="chipicon">XOR</span><span><b>XOR is in your kit.</b><br><span class="rules">9 NANDs inside. Do it in 4 for a ⭐.</span></span><button class="primary" style="margin-left:auto">Next: 2.7 Why chips are made of NAND →</button></div>'
+    }
+  })
+
+  /* ---------- Explore step: one bus for everything ---------- */
+  const bs = $('#bussvg')
+  // The blink program: LDA #$01 at $F000 (2 cycles), STA $4000 (4 cycles: opcode, low, high, write), ASL A, BNE...
+  const CYCLES = [
+    ['$F000', 'read', '$A9', 'opcode: LDA #'], ['$F001', 'read', '$01', 'the operand: 1'],
+    ['$F002', 'read', '$8D', 'opcode: STA abs'], ['$F003', 'read', '$00', 'address, low byte'], ['$F004', 'read', '$40', 'address, high byte'],
+    ['$4000', 'write', '$01', 'the LEDs take A'],
+    ['$F005', 'read', '$0A', 'opcode: ASL A'], ['$F006', 'read', '$D0', 'opcode: BNE'],
+  ]
+  let cyc = -1
+  const GOALS = [
+    ['Pause, and open the CPU (select it)', () => true],
+    ['See it read $F000: an opcode', () => cyc >= 0],
+    ['See it read the operand, $F001', () => cyc >= 1],
+    ['See it write to $4000, the LEDs', () => cyc >= 5],
+  ]
+  const ticked = new Set([0])
+  function drawBus() {
+    bs.innerHTML = ''
+    const c = CYCLES[cyc] || ['$????', '—', '', 'press Clock step']
+    const target = c[0] === '$4000' ? 'leds' : c[0].startsWith('$F') ? 'rom' : ''
+    el('path', { d: 'M 140 150 H 530', class: 'bus dim' }, bs)
+    el('path', { d: 'M 140 240 H 530', class: 'bus dim' }, bs)
+    box(bs, 30, 110, 110, 150, 'MOS 6502', 'one chip', 'cpu')
+    const sel = (id) => (target === id ? 'w1' : 'wx')
+    ;[['rom', 200, 'ROM', '$8000–$FFFF'], ['ram', 320, 'RAM', '$0000–$3FFF'], ['leds', 440, 'LEDs', '$4000']].forEach(([id, x, n, r]) => {
+      wire(bs, `M ${x + 40} 150 V 92`, sel(id)); wire(bs, `M ${x + 40} 240 V 212`, sel(id))
+      box(bs, x, 40, 80, 52, n, r, id)
+      if (id === 'leds') { for (let i = 0; i < 8; i++) el('circle', { cx: x + 8 + i * 9, cy: 82, r: 3.2, class: (cyc >= 5 && i === 7) ? 'ledon' : 'ledoff' }, bs) }
+    })
+    box(bs, 300, 172, 120, 44, 'decoder', 'A15, A14, R/W', 'dec')
+    text(bs, 340, 140, 'address bus  A = ' + c[0] + '   ' + (c[1] === 'write' ? 'R/W = write' : c[1] === 'read' ? 'R/W = read' : ''), 'mono', 'middle')
+    text(bs, 340, 262, 'data bus  D = ' + (c[2] || '—'), 'mono', 'middle')
+    text(bs, 85, 290, c[3], 'small')
+  }
+  function renderGoals() {
+    GOALS.forEach(([, ok], i) => { if (ok()) ticked.add(i) })
+    $('#goals').innerHTML = GOALS.map(([g], i) => `<li class="${ticked.has(i) ? 'ok' : ''}"><span class="box">${ticked.has(i) ? '✓' : ''}</span><span>${g}</span></li>`).join('')
+    $('#goalcount').textContent = ticked.size === GOALS.length ? '✔ All 4 goals: step done. Next: 11.3 An address decoder →' : `${ticked.size} of ${GOALS.length} · keep stepping`
+    const c = CYCLES[cyc]
+    $('#cpuinsp').innerHTML = `<h4>MOS 6502 <span class="muted">· the CPU</span></h4><table class="truth"><tbody>
+      <tr><th>PC</th><td>${c ? '$F00' + Math.min(7, cyc + 1) : '$F000'}</td></tr><tr><th>A</th><td>${cyc >= 1 ? '$01' : '$00'}</td></tr>
+      <tr><th>X</th><td>$00</td></tr><tr><th>S</th><td>$FD</td></tr><tr><th>P</th><td>nv-bdIzc</td></tr></tbody></table>
+      <span class="muted">Cycle ${cyc + 1}: ${c ? c[3] : 'waiting for the clock'}</span>`
+  }
+  function tick() { cyc = Math.min(CYCLES.length - 1, cyc + 1); drawBus(); renderGoals() }
+  $('#clockstep').addEventListener('click', tick); $('#clockstep2').addEventListener('click', tick)
+  $('#restart-ex').addEventListener('click', () => { cyc = -1; ticked.clear(); ticked.add(0); drawBus(); renderGoals() })
+  drawBus(); renderGoals(); hookRefs($('[data-screen="explore"]'), bs)
+
+  /* ---------- Program step: multiply on the learner's CPU ---------- */
+  const cs = $('#cpusvg')
+  ;(function drawCpu() {
+    box(cs, 20, 30, 90, 56, 'PC', 'counter', 'pc')
+    box(cs, 140, 30, 110, 56, 'Program ROM', '16 words', 'rom')
+    box(cs, 280, 30, 110, 56, 'Control ROM', 'your rows', 'ctl')
+    box(cs, 140, 150, 90, 56, 'RAM', '16 words', 'ram')
+    box(cs, 260, 150, 80, 56, 'Adder', '+ XOR flip', 'add')
+    box(cs, 370, 150, 80, 56, 'ACC', 'register', 'acc')
+    box(cs, 370, 236, 80, 44, 'Z  C', 'flags', 'flags')
+    box(cs, 470, 30, 70, 56, 'Output', 'address 15', 'out')
+    el('rect', { x: 476, y: 64, width: 58, height: 18, rx: 2, class: 'disp' }, cs)
+    const d = text(cs, 505, 78, '12', 'dtext'); d.id = 'outdisp'
+    ;['M 110 58 H 140', 'M 250 58 H 280', 'M 195 86 V 150', 'M 230 178 H 260', 'M 340 178 H 370', 'M 410 150 V 120 H 505 V 86', 'M 410 206 V 236', 'M 335 86 V 130 H 470'].forEach((p) => wire(cs, p, 'w1'))
+    text(cs, 280, 290, 'Your computer from step 8.10 (simplified)', 'small')
+  })()
+  hookRefs($('[data-screen="program"]'), cs)
+  const BUGGY = `; RAM[0] = RAM[1] × RAM[2]
+        LDI 0
+        STA 0        ; product = 0
+loop:   LDA 2
+        SUBI 1       ; count down first...
+        STA 2
+        JZ done      ; ...so the last round is lost
+        LDA 0
+        ADD 1
+        STA 0
+        JMP loop
+done:   HALT`
+  const GOOD = `; RAM[0] = RAM[1] × RAM[2]
+        LDI 0
+        STA 0        ; product = 0
+loop:   LDA 2
+        JZ done      ; nothing left to add
+        LDA 0
+        ADD 1
+        STA 0        ; product += RAM[1]
+        LDA 2
+        SUBI 1
+        STA 2        ; one round less
+        JMP loop
+done:   HALT`
+  const prog = $('#prog'); prog.value = BUGGY
+  const RUNS = [[3, 4], [5, 3], [2, 6]]
+  function runOnce(src, a, b) {
+    // Not an assembler: the mockup only tells the two shapes of the loop apart (decrement before or after the check).
+    const early = /SUBI 1[\s\S]*JZ done[\s\S]*ADD 1/.test(src)
+    return early ? a * Math.max(0, b - 1) : a * b
+  }
+  function renderRuns(done) {
+    $('#runs').innerHTML = RUNS.map(([a, b], i) => {
+      if (!done) return `<div>run ${i + 1}: RAM[1]=${a}, RAM[2]=${b}<br>→ not run yet</div>`
+      const got = runOnce(prog.value, a, b), ok = got === a * b
+      return `<div class="${ok ? 'ok' : 'no'}">run ${i + 1}: RAM[1]=${a}, RAM[2]=${b}<br>→ RAM[0] = ${got} ${ok ? '✔' : '✘ wanted ' + a * b}  · halted ✔</div>`
+    }).join('') + (done ? '<p class="rules" style="margin:0">Run on your computer (8.10) and on ours: both agree.</p>' : '')
+  }
+  renderRuns(false)
+  $('#editprog').addEventListener('click', () => prog.focus())
+  $('#fix-prog').addEventListener('click', () => { prog.value = GOOD; renderRuns(false); $('#verdict-prog').innerHTML = '<p class="rules">This is one way to solve it. Undo brings your program back.</p>' })
+  $('#check-prog').addEventListener('click', () => {
+    renderRuns(true)
+    const bad = RUNS.findIndex(([a, b]) => runOnce(prog.value, a, b) !== a * b)
+    $('#outdisp').textContent = String(runOnce(prog.value, 3, 4))
+    $('#verdict-prog').innerHTML = bad < 0
+      ? '<p class="v-good">✔ Solved! All three runs came out right.</p><div class="row"><button class="primary">Next: 9.4 Fibonacci →</button></div>'
+      : `<p class="v-bad">✘ Not yet: run ${bad + 1} is wrong.</p><p class="hint" style="margin:0">The loop stops one round early. Is the counter checked before or after the ADD?</p>`
+  })
+
+  /* ---------- Phone ---------- */
+  const ps = $('#phonesvg')
+  sw(ps, 46, 40, 'A', 1); sw(ps, 46, 100, 'B', 0)
+  wire(ps, 'M 80 51 H 110', 'w1'); wire(ps, 'M 80 111 H 110', 'w0')
+  chip(ps, 110, 36, 64, 40, 'OR', '', 'p1'); chip(ps, 110, 96, 64, 40, 'AND', '', 'p2')
+  wire(ps, 'M 174 56 H 200', 'w1'); led(ps, 220, 160, 'Y', 0, 'py')
+  const sheet = $('#sheet')
+  const toggle = () => { const o = sheet.classList.toggle('open'); $('#grab').setAttribute('aria-expanded', String(o)) }
+  $('#grab').addEventListener('click', toggle)
+  $('#phonecheck').addEventListener('click', () => ($('#phonestate').textContent = '✘ 2 wrong answers'))
+
+  /* ---------- Your journey ---------- */
+  const chain = ['NAND','NOT','AND','OR','XOR','MUX','HA','FA','ADD4','ALU','SR','DLATCH','DFF','REG4','PC','RAM4']
+  $('#chain').innerHTML = chain.map((n) => `<span class="chipicon">${n}</span>`).join('<span class="arrow">→</span>') + '<span class="arrow">→</span><span class="chipicon big">your CPU</span><span class="arrow">→</span><span class="chipicon big">6502</span><span class="arrow">→</span><span class="chipicon big">BASIC</span>'
+  const ts = $('#thumbsvg')
+  ;[[14,14,50,30],[80,14,60,30],[156,14,70,30],[80,90,50,30],[146,90,40,30],[196,90,34,30],[196,140,34,26]].forEach(([x,y,w,h]) => el('rect', { x, y, width: w, height: h, rx: 2, class: 'body' }, ts))
+  ;['M 64 29 H 80','M 140 29 H 156','M 105 44 V 90','M 130 105 H 146','M 186 105 H 196','M 213 120 V 140'].forEach((p) => el('path', { d: p, class: 'w1' }, ts))
+
+  /* ---------- Start ---------- */
+  const h = (location.hash || '').slice(1)
+  show(TABS.includes(h) ? h : 'map')
+})()
+</script>
