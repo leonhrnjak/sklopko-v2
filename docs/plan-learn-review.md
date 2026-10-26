@@ -5,7 +5,7 @@ One PR per item, stacked in order (`learn-fix-01-…` to `learn-fix-25-…`); ti
 each raise `PATH_STEP_COUNT` by one: 78 → 81.
 
 ## A. Errors and false claims
-- [ ] 1. ch05 `binary-add`: the carry row of the table shows carries *out of* each column (`0 1 1 0`); it must be the carries *into* them (`1 1 0 0`).
+- [x] 1. ch05 `binary-add`: the carry row of the table shows carries *out of* each column (`0 1 1 0`); it must be the carries *into* them (`1 1 0 0`).
 - [ ] 2. ch09 `cpu-add`: "third input of each multiplexer" → the adder is input 1, the second.
 - [ ] 3. ch14 `basic-boot`: the 6502 BASIC is by Weiland and Gates (`scripts/basic/m6502.asm`), not Gates and Allen.
 - [ ] 4. ch14 `basic-boot`: 1 MHz is a million clock cycles a second, not a million instructions.
