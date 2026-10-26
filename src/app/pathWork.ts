@@ -2,6 +2,7 @@ import { checkStepCircuit, stepStarter } from '../model/path/build'
 import { chipTable, snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chips'
 import { circuitShape } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
+import { cutWires } from '../model/path/board'
 import { cpuStage } from '../model/path/cpu4'
 import { markDone } from '../model/path/progress'
 import { checkProgram, checkProject, withSource, withSource8 } from '../model/path/run'
@@ -89,7 +90,7 @@ export async function startStep(id: string) {
   if (mine !== opening) return
   let start: Circuit
   try {
-    start = build ? stepStarter(build, kit) : explore ? explore.open.build() : program ? await programStarter(program) : await projectStarter(project!)
+    start = build ? stepStarter(build, kit) : explore ? await exploreStart(explore) : program ? await programStarter(program) : await projectStarter(project!)
   } catch {
     // The 8-bit computer is a file fetched from the site: it may not be there (offline, before the first visit).
     if (mine === opening) showToast('The computer for this step could not be loaded.')
@@ -100,6 +101,16 @@ export async function startStep(id: string) {
   fitSoon()
   watch()
 }
+
+/** An example of the gallery, routed: the build writes each one to `examples/<id>.json`. */
+async function fetchExample(id: string): Promise<Circuit> {
+  const res = await fetch(`${import.meta.env.BASE_URL}examples/${id}.json`)
+  if (!res.ok) throw new Error(`Example ${id}: ${res.status}`)
+  return deserialize(await res.json())
+}
+
+/** The circuit an explore step opens with. */
+const exploreStart = async (step: Extract<Step, { kind: 'explore' }>): Promise<Circuit> => ('build' in step.open ? step.open.build() : fetchExample(step.open.example))
 
 /** The circuit a step's document holds, if it has one and it reads. */
 async function storedCircuit(stepId: string): Promise<Circuit | undefined> {
@@ -117,13 +128,11 @@ async function storedCircuit(stepId: string): Promise<Circuit | undefined> {
 async function programStarter(step: ProgramStep): Promise<Circuit> {
   if (step.computer === 'cpu8') {
     // The 8-bit computer is the example's: the build writes it routed, so there is nothing to build here.
-    const res = await fetch(`${import.meta.env.BASE_URL}examples/computer-sieve.json`)
-    if (!res.ok) throw new Error(`The 8-bit computer: ${res.status}`)
-    const base = deserialize(await res.json())
+    const base = await fetchExample('computer-sieve')
     return withSource8(base, step.starter) ?? base
   }
   flushSave()
-  const last = [...STEPS].reverse().find((s): s is ProjectStep => s.kind === 'project')
+  const last = [...STEPS].reverse().find((s): s is ProjectStep => s.kind === 'project' && s.project === 'cpu4')
   const base = (last && (await storedCircuit(last.id))) ?? structuredClone(cpuStage(last?.stage ?? 8))
   return withSource(base, step.starter) ?? base
 }
@@ -165,6 +174,8 @@ function showProgramSolution(step: ProgramStep) {
  * when they skipped it, and the parts this step gives.
  */
 async function projectStarter(step: ProjectStep): Promise<Circuit> {
+  // A step on a board of an example starts from the board with its wires cut, whatever else was done.
+  if (step.board) return cutWires(await fetchExample(step.board.example), step.board.cut)
   const mine = STEPS.filter((s): s is ProjectStep => s.kind === 'project' && s.project === step.project)
   const before = mine[mine.indexOf(step) - 1]
   flushSave() // what is on the canvas may be the circuit of the step before, not yet kept
@@ -222,8 +233,14 @@ export function showStepSolution() {
 }
 
 /** Replace the canvas with the reference computer at the end of this step. The step counts as shown. */
-function showProjectSolution(step: ProjectStep) {
-  const solution = structuredClone(cpuStage(step.stage))
+async function showProjectSolution(step: ProjectStep) {
+  let solution: Circuit
+  try {
+    solution = step.board ? await fetchExample(step.board.example) : structuredClone(cpuStage(step.stage))
+  } catch {
+    showToast('The computer for this step could not be loaded.')
+    return
+  }
   loadCircuit(solution)
   fitSoon()
   shownShape = circuitShape(solution)
@@ -236,7 +253,12 @@ function showProjectSolution(step: ProjectStep) {
 export async function restartStep() {
   const step = currentStep()
   if (step?.kind !== 'build' && step?.kind !== 'explore' && step?.kind !== 'project' && step?.kind !== 'program') return
-  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.kind === 'explore' ? step.open.build() : step.kind === 'program' ? await programStarter(step) : await projectStarter(step))
+  try {
+    loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.kind === 'explore' ? await exploreStart(step) : step.kind === 'program' ? await programStarter(step) : await projectStarter(step))
+  } catch {
+    showToast('The computer for this step could not be loaded.')
+    return
+  }
   shownSource = null
   useProject.setState({ of: null, result: null })
   fitSoon()

@@ -32,6 +32,17 @@ export function displayValue(c: Circuit, label: string, r: Reader): number | nul
 /** Does the goal hold right now? */
 export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
   if ('oscillating' in g) return r.unstable
+  if ('cpu' in g) {
+    const k = labelled(c, g.cpu)
+    if (!k) return false
+    let addr = 0
+    for (let i = 0; i < 16; i++) {
+      const v = r.pinValue(k.id, `A${i}`)
+      if (v !== 0 && v !== 1) return false
+      addr |= v << i
+    }
+    return addr === g.addr && r.pinValue(k.id, 'RWB') === (g.rw === 'read' ? 1 : 0)
+  }
   if ('memory' in g) {
     const k = labelled(c, g.memory)
     const mem = k && (r.state?.(k.id) as { mem?: ArrayLike<number> } | undefined)?.mem
@@ -53,7 +64,7 @@ export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
 export const goalProblems = (goals: readonly Goal[], c: Circuit): string[] =>
   goals.flatMap((g) => {
     if ('switches' in g) return Object.keys(g.switches).flatMap((l) => (labelled(c, l)?.type === 'switch' ? [] : [`${g.text}: there is no switch labelled “${l}”`]))
-    const label = 'led' in g ? g.led : 'display' in g ? g.display : 'memory' in g ? g.memory : undefined
+    const label = 'led' in g ? g.led : 'display' in g ? g.display : 'memory' in g ? g.memory : 'cpu' in g ? g.cpu : undefined
     if (label === undefined) return []
     const k = labelled(c, label)
     if (!k) return [`${g.text}: there is no part labelled “${label}”`]

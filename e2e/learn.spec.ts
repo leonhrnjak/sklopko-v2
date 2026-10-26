@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-meet6502')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-asm6502')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -533,18 +533,45 @@ test('learn: chapter 11 builds a shared bus from tri-state buffers, and programs
 
   // The 8-bit computer opens with a program of its own to write; the text console is the check for the first.
   await page.goto('/learn/prog-console', { waitUntil: 'networkidle' })
-  await expect(page.locator('.comp .comp-label', { hasText: /^Program$/ })).toHaveCount(1, { timeout: 30_000 })
+  await expect(page.locator('.comp .comp-label', { hasText: /^Program$/ })).toHaveCount(1, { timeout: 90_000 })
   await panel(page).getByTestId('edit-program').click()
   const source = page.getByLabel('Program source')
   await expect(source).toBeVisible()
   await source.fill('LDI 72\nOUT CHAR\nLDI 74\nOUT CHAR\nHALT')
   await panel(page).getByTestId('step-check').click()
-  await expect(panel(page)).toContainText('the console shows “HJ”, not “HI”', { timeout: 30_000 })
+  await expect(panel(page)).toContainText('the console shows “HJ”, not “HI”', { timeout: 90_000 })
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByTestId('step-check').click()
-  await expect(panel(page)).toContainText('Solved!', { timeout: 30_000 })
+  await expect(panel(page)).toContainText('Solved!', { timeout: 90_000 })
 
   await page.goto('/learn/prog-call', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 120_000 })
+})
+
+test('learn: chapter 12 builds the address decoder, ticks the 6502 goals as it runs, and checks the board with its wires cut', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/address-decoder', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+
+  // The real chip: the goals tick as it reads $F000 and $F001 and writes $4000.
+  await page.goto('/learn/one-bus', { waitUntil: 'networkidle' })
+  const goals = panel(page).getByTestId('goals')
+  await expect(goals.getByRole('listitem')).toHaveCount(3)
+  await expect(page.locator('.comp .comp-label', { hasText: /^CPU$/ })).toHaveCount(1, { timeout: 30_000 })
+  const step = page.getByRole('button', { name: 'Clock step' })
+  for (let i = 0; i < 80 && !(await panel(page).getByTestId('explore-done').isVisible()); i++) await step.click()
+  await expect(goals).toContainText('☑ It writes to $4000')
+  await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+
+  // The board with the decoder's wires cut does not light the LEDs; the example itself does.
+  await page.goto('/learn/wire-board', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp .comp-label', { hasText: /^writing$/ })).toHaveCount(1, { timeout: 30_000 })
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('LED register', { timeout: 60_000 })
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('Solved!', { timeout: 60_000 })

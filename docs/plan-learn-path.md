@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -28,6 +28,9 @@
   - [x] L5a Chapter 10, programming your computer (own PR, `learn-l5a-ch10`)
   - [x] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`, stacked on `learn-l5a-ch10`) (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
+  - [x] L6a Chapter 12, meet the 6502 (own PR, `learn-l6a-ch12`)
+  - [ ] L6b Chapter 13, programming the 6502 (own PR, `learn-l6b-ch13`)
+  - [ ] L6c Chapter 14, a computer that runs BASIC, and *Your journey* (own PR, `learn-l6c-ch14`)
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
 > The mockup of every screen is `docs/mockups/learn-path.html` (open it in a browser; it has no dependencies; a published copy is at
@@ -785,6 +788,17 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - Where the plan had “output = the sum” (`OUT NUMBER`), the check reads **the ACC at HALT**: the number display is a device the console computer does not have, and the prebuilt example is not changed.
 - A test can change the numbers of the `.byte` table (`bytes`), so a program that adds the constants itself fails the second and third run; `ProgramStep.needs` lists instructions the program must use (CALL and RET), looked for outside comments.
 - Tests: starters fail and solutions pass on the 8-bit computer; the table and CALL checks catch cheating; `app/path.test.ts` stubs the example's fetch for the last step. e2e: the shared bus, a wrong then right console program (the verdict says “the console shows HJ, not HI”), and `prog-call`.
+
+**What L6a (chapter 12, *Meet the 6502*) did, and where it differs from the plan.**
+- The four steps as in the table: `6502-map` (a read step: the mapping as a table block, and two questions), `one-bus` (explore on the `/6502` example), `address-decoder` (a 3-input challenge `path-decoder6502`, NAND-only from the kit's NOR, NOT and AND; no
+  chip) and `wire-board`. `PATH_STEP_COUNT` is 68.
+- An explore step may open **an example of the gallery** (`open: { example }`): the app fetches the routed file the build writes (`examples/<id>.json`), as the gallery does, so no board is built or routed in the browser. A new goal
+  `{ cpu, addr, rw }` is true while the labelled 6502 has that address on its pins and R/W at that level; once seen it stays ticked (the goals are about three cycles of the board, ordered: $F000 read, $F001 read, $4000 written).
+- `wire-board` is a **`ProjectStep` with `board: { example, cut }`**: its start is the example with every wire that touches the gates labelled in `cut` taken off (`board.ts`, `cutWires`: the NOT for R/W, the NOR for the RAM, the RAM's write AND,
+  NOT A15 and the 3-input AND for the LEDs), *Show a solution* is the example itself, and its test programs run on the board: `run.program` is 6502 assembly put in the board's ROM (or empty: the board's own blink program).
+  **The check's first run is a program that writes the LEDs, then the RAM, then reads the RAM back to the LEDs**: with the wires cut, an unconnected gate input reads 1, so the LED register loads on every cycle and the blink program
+  alone would pass. A new expectation `{ trace, is, exact? }` takes the numbers a part took in the run, in order (the LED register must take exactly 0, 1, 5).
+- Tests: the goal script (`{ cycles }`) reaches the three goals; the cut board fails and the example passes; with only “writing” wired back it still fails. e2e: the decoder, the 6502 goals ticked by *Clock step*, and the board.
 
 ### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks

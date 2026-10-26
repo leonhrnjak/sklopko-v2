@@ -1,3 +1,4 @@
+import { assemble6502 } from '../../engine/asm6502'
 import { SKASM, assemble, toHexBytes, toHexWords } from '../../engine/isa'
 import { Simulator } from '../../engine/simulator'
 import { beginnerWords } from '../beginner'
@@ -19,6 +20,7 @@ function pinsOf(type: string, params: Record<string, unknown>): string[] | undef
   if (type === 'counterld' || type === 'counter') return [0, 1, 2, 3].map((i) => `Q${i}`)
   if (type === 'register') return ['QA', 'QB', 'QC', 'QD']
   if (type === 'rom') return Array.from({ length: Number(params.dbits) || 4 }, (_, i) => `D${i}`)
+  if (type === 'busreg') return Array.from({ length: Number(params.bits) || 8 }, (_, i) => `Q${i}`)
   return undefined
 }
 
@@ -38,10 +40,18 @@ export function partValue(c: Circuit, sim: Simulator, label: string): number | n
   return n
 }
 
-const labels = (e: Expect) => ('value' in e ? e.value : 'ram' in e ? e.ram : e.led)
+const labels = (e: Expect) => ('value' in e ? e.value : 'ram' in e ? e.ram : 'trace' in e ? e.trace : e.led)
 
 /** Parts a run needs, by label. */
-const wanted = (runs: readonly CpuRun[]) => [...new Set(runs.flatMap((r) => r.checks.flatMap((k) => k.expect.map(labels))).concat('Program ROM'))]
+const wanted = (runs: readonly CpuRun[], board: boolean) => [...new Set(runs.flatMap((r) => r.checks.flatMap((k) => k.expect.map(labels))).concat(board ? [] : ['Program ROM']))]
+
+/** The 6502 board with a test program (assembly, with its `.org` and reset vector) in its ROM. */
+function with6502Program(c: Circuit, source: string): Circuit | undefined {
+  const rom = Object.values(c.comps).find((k) => k.type === 'rom' && String(k.label).startsWith('ROM'))
+  const r = assemble6502(source, 0x1000)
+  if (!rom || r.errors.length) return undefined
+  return { ...c, comps: { ...c.comps, [rom.id]: { ...rom, params: { ...rom.params, isa: '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') } } } }
+}
 
 /** The circuit with a test program in its Program ROM. */
 function withProgram(c: Circuit, program: string): Circuit | undefined {
@@ -56,27 +66,38 @@ function withProgram(c: Circuit, program: string): Circuit | undefined {
  */
 export function checkProject(step: ProjectStep, circuit: Circuit): ProjectResult {
   const result: ProjectResult = { passed: false, problems: [], lines: [] }
-  for (const label of wanted(step.runs)) if (!labelled(circuit, label)) result.problems.push(`There is no part labelled “${label}”. Select the part and give it that label.`)
+  for (const label of wanted(step.runs, !!step.board)) if (!labelled(circuit, label)) result.problems.push(`There is no part labelled “${label}”. Select the part and give it that label.`)
   if (!Object.values(circuit.comps).some((k) => k.type === 'clock')) result.problems.push('There is no clock.')
   if (result.problems.length) return result
   let unstable = false
   for (const run of step.runs) {
-    const c = withProgram(circuit, run.program)!
+    // A step on a board runs the board's own program; the others put a test program in the Program ROM.
+    const c = step.board ? (run.program ? with6502Program(circuit, run.program)! : circuit) : withProgram(circuit, run.program)!
+    const traced = [...new Set(run.checks.flatMap((k) => k.expect.flatMap((e) => ('trace' in e ? [e.trace] : []))))]
+    const traces: Record<string, number[]> = Object.fromEntries(traced.map((l) => [l, []]))
     const sim = new Simulator()
     sim.load(flatten(c))
     sim.settle()
     const last = Math.max(...run.checks.map((k) => k.after))
     for (let t = 0; t <= last; t++) {
+      for (const l of traced) {
+        const v = partValue(c, sim, l)
+        if (v !== null && traces[l][traces[l].length - 1] !== v) traces[l].push(v)
+      }
       for (const check of run.checks.filter((k) => k.after === t)) {
         const wrong: string[] = []
         for (const e of check.expect) {
           if ('value' in e) {
             const got = partValue(c, sim, e.value)
             if (got !== e.is) wrong.push(`${e.value} is ${got === null ? 'unknown' : got}, not ${e.is}`)
+          } else if ('trace' in e) {
+            const seen = traces[e.trace]
+            const found = e.exact ? seen.length === e.is.length && e.is.every((n, j) => seen[j] === n) : seen.some((_, i) => e.is.every((n, j) => seen[i + j] === n))
+            if (!found) wrong.push(`${e.trace} took ${seen.length ? seen.join(', ') : 'no value'}, not ${e.is.join(', ')}`)
           } else if ('ram' in e) {
             const mem = sim.state(labelled(c, e.ram)!.id)?.mem as ArrayLike<number> | undefined
             const got = mem?.[e.at]
-            if (got !== e.is) wrong.push(`${e.ram} word ${e.at} is ${got ?? 'unknown'}, not ${e.is}`)
+            if (got !== e.is) wrong.push(`${e.ram} word ${e.at > 15 ? `$${e.at.toString(16).toUpperCase().padStart(4, '0')}` : e.at} is ${got ?? 'unknown'}, not ${e.is}`)
           } else {
             const k = labelled(c, e.led)!
             const got = sim.pinValue(k.id, 'A')
