@@ -1,16 +1,20 @@
 import { checkStepCircuit, stepStarter } from '../model/path/build'
 import { snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chips'
 import { circuitShape } from '../model/challengecheck'
+import type { Circuit } from '../model/circuit'
+import { cpuStage } from '../model/path/cpu4'
 import { markDone } from '../model/path/progress'
-import { getStep, stepAfter, unlockedParts } from '../model/path/steps'
-import type { Question, Step } from '../model/path/types'
+import { checkProject } from '../model/path/run'
+import { STEPS, getStep, stepAfter, unlockedParts } from '../model/path/steps'
+import type { ProjectStep, Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
 import { closeChallenge, closeChallengeList, markSolved } from './challenges'
-import { openCircuit } from './documents'
+import { flushSave, openCircuit } from './documents'
 import { stopGoals, watchGoals } from './pathGoals'
 import { getDoc, listDocs, metaOf } from './library'
 import { closeStep, forgetProgress, openMap, setProgress, usePath } from './path'
 import { clearKit, putChip, useKit } from './pathKit'
+import { clearProject, useProject } from './pathProject'
 import { commitProgress } from './pathUnlock'
 import { loadCircuit, showToast, useStore } from './store'
 import { fitToScreen } from './view'
@@ -52,15 +56,18 @@ export async function startStep(id: string) {
   const kit = useKit.getState().kit
   const build = step.kind === 'build' ? step : undefined
   const explore = step.kind === 'explore' ? step : undefined
+  const project = step.kind === 'project' ? step : undefined
   const uses = build?.uses ?? []
   // The challenge panel is the other way to work on a circuit: one at a time.
   closeChallenge()
   closeChallengeList()
   stopGoals()
+  clearProject()
   shownShape = null
-  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (explore?.palette && [...new Set([...explore.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
+  const playable = explore ?? project
+  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (playable?.palette && [...new Set([...playable.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
-  if (!build && !explore) return
+  if (!build && !explore && !project) return
   const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
   try {
     const doc = (await listDocs('circuit')).find((d) => d.origin?.path === id)
@@ -76,14 +83,46 @@ export async function startStep(id: string) {
     // A record that no longer reads: start the step again below.
   }
   if (mine !== opening) return
-  openCircuit(build ? stepStarter(build, kit) : explore!.open.build(), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  openCircuit(build ? stepStarter(build, kit) : explore ? explore.open.build() : await projectStarter(project!), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  if (mine !== opening) return
   fitSoon()
   watch()
+}
+
+/**
+ * What a step of the CPU project starts from: the learner's circuit at the end of the step before, or the reference computer of that stage
+ * when they skipped it, and the parts this step gives.
+ */
+async function projectStarter(step: ProjectStep): Promise<Circuit> {
+  const before = STEPS.find((s): s is ProjectStep => s.kind === 'project' && s.project === step.project && s.stage === step.stage - 1)
+  flushSave() // what is on the canvas may be the circuit of the step before, not yet kept
+  let c: Circuit | undefined
+  try {
+    const doc = before && (await listDocs('circuit')).find((d) => d.origin?.path === before.id)
+    const rec = doc && (await getDoc(doc.id))
+    if (rec) c = deserialize(rec.data)
+  } catch {
+    // A circuit that no longer reads: the reference one is the way on.
+  }
+  c ??= structuredClone(cpuStage(step.stage - 1))
+  step.give?.(c)
+  return c
+}
+
+/** Run the open project step's test programs on the circuit on the canvas. A pass is remembered. */
+function checkProjectStep(step: ProjectStep) {
+  const circuit = useStore.getState().circuit
+  const result = checkProject(step, circuit)
+  useProject.setState({ step: step.id, of: circuit, result })
+  if (!result.passed) return
+  const shown = shownShape !== null && circuitShape(circuit) === shownShape
+  commitProgress(markDone(usePath.getState().progress, step.id, shown ? 'shown' : 'solved', Date.now()))
 }
 
 /** Check the circuit on the canvas against the open build step. A pass is remembered, and the circuit becomes a chip in the kit. */
 export function checkStep() {
   const step = currentStep()
+  if (step?.kind === 'project') return checkProjectStep(step)
   if (step?.kind !== 'build') return
   const circuit = useStore.getState().circuit
   const { check, star } = checkStepCircuit(step, circuit)
@@ -99,6 +138,7 @@ export function checkStep() {
 /** Replace the canvas with a solution (undo brings the learner's circuit back). The step counts as shown, and the kit gets our chip. */
 export function showStepSolution() {
   const step = currentStep()
+  if (step?.kind === 'project') return showProjectSolution(step)
   if (step?.kind !== 'build') return
   const { kit } = useKit.getState()
   const solution = refreshChips(solutionOf(step), step.uses ?? [], kit)
@@ -113,11 +153,23 @@ export function showStepSolution() {
   commitProgress(markDone(progress, step.id, 'shown', Date.now()))
 }
 
+/** Replace the canvas with the reference computer at the end of this step. The step counts as shown. */
+function showProjectSolution(step: ProjectStep) {
+  const solution = structuredClone(cpuStage(step.stage))
+  loadCircuit(solution)
+  fitSoon()
+  shownShape = circuitShape(solution)
+  useProject.setState({ of: null, result: null })
+  showToast('This is one way to build it. Undo (⌘Z) brings your circuit back.')
+  commitProgress(markDone(usePath.getState().progress, step.id, 'shown', Date.now()))
+}
+
 /** Put the starting circuit back on the canvas (undo brings the work back). */
-export function restartStep() {
+export async function restartStep() {
   const step = currentStep()
-  if (step?.kind !== 'build' && step?.kind !== 'explore') return
-  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.open.build())
+  if (step?.kind !== 'build' && step?.kind !== 'explore' && step?.kind !== 'project') return
+  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.kind === 'explore' ? step.open.build() : await projectStarter(step))
+  useProject.setState({ of: null, result: null })
   fitSoon()
   shownShape = null
   usePath.setState({ hintShown: false, result: null })

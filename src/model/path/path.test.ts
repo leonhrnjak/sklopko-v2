@@ -5,6 +5,7 @@ import { checkChallenge, circuitShape, logicParts, ruleProblems } from '../chall
 import type { Circuit } from '../circuit'
 import { expandICs, icParams } from '../ic'
 import { CHAPTERS } from './chapters'
+import { cpuStage } from './cpu4'
 import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
 import { PATH_STEP_COUNT, learnFromPath, learnUrl } from './index'
@@ -414,7 +415,14 @@ describe('chapter 3 and the lessons that came with it', () => {
 
 describe('part names in lessons ([[label]])', () => {
   const namesIn = (s: (typeof STEPS)[number]) => s.lesson.flatMap((b) => ('p' in b ? [...b.p.matchAll(/\[\[(.+?)\]\]/g)].map((m) => m[1]) : []))
-  const circuitOf = (s: (typeof STEPS)[number]) => (s.kind === 'explore' ? s.open.build() : s.kind === 'build' ? stepStarter(s, {}) : undefined)
+  const circuitOf = (s: (typeof STEPS)[number]) => {
+    if (s.kind === 'explore') return s.open.build()
+    if (s.kind === 'build') return stepStarter(s, {})
+    if (s.kind !== 'project') return undefined
+    const c = structuredClone(cpuStage(s.stage - 1))
+    s.give?.(c)
+    return c
+  }
 
   it('only name parts that the step’s circuit has, and only in steps that have a circuit', () => {
     let named = 0

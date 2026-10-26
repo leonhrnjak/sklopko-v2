@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import type { Cell } from '../../logic/table'
 import { closeStep, openMap, showStepHint, usePath } from '../../app/path'
 import { useGoals } from '../../app/pathGoals'
+import { useProject } from '../../app/pathProject'
 import { toggleSheet, useSheet } from '../../app/pathSheet'
 import { clearSpot, focusSpot, hoverSpot } from '../../app/pathSpot'
 import { checkStep, markRead, nextStep, restartStep, showStepSolution, startStep } from '../../app/pathWork'
@@ -11,7 +12,7 @@ import { goalTable } from '../../model/challenges'
 import { challengeOf } from '../../model/path/chips'
 import { getChapter } from '../../model/path/chapters'
 import { getStep, stepAfter, stepBefore, stepsOf } from '../../model/path/steps'
-import type { Block, BuildStep, ExploreStep, Step } from '../../model/path/types'
+import type { Block, BuildStep, ExploreStep, ProjectStep, Step } from '../../model/path/types'
 import { CheckVerdict, StepsTable } from '../challenges/CheckVerdict'
 import { rulesText } from '../challenges/rulesText'
 import { KarnaughMap } from '../logic/KarnaughMap'
@@ -20,6 +21,7 @@ import { numberOf } from './numbers'
 import { Mark } from './Mark'
 import { Quiz } from './Quiz'
 import { Spotlight } from './Spotlight'
+import { InstructionWord } from './Word'
 
 /** The values of a map's output over its inputs: 1 on the listed rows, 0 elsewhere. */
 const mapValues = (inputs: string[], ones: number[]): Cell[] => Array.from({ length: 2 ** inputs.length }, (_, row) => (ones.includes(row) ? 1 : 0))
@@ -49,6 +51,7 @@ export function Lesson({ blocks, stepId }: { blocks: Block[]; stepId: string }) 
       {blocks.map((b, i) => {
         if ('p' in b) return <Paragraph key={i} text={b.p} />
         if ('quiz' in b) return <Quiz key={i} stepId={stepId} questions={b.quiz} />
+        if ('word' in b) return <InstructionWord key={i} initial={b.word.value} />
         if ('kmap' in b) return <KarnaughMap key={i} values={mapValues(b.kmap.inputs, b.kmap.ones)} names={b.kmap.inputs} output={b.kmap.output} />
         return (
           <div key={i} className="truth-wrap">
@@ -162,6 +165,82 @@ function BuildBody({ step }: { step: BuildStep }) {
         {table ? <TruthTableView table={table} label="Goal" /> : ch.kind === 'seq' ? <StepsTable ch={ch} /> : null}
         {ch.kind === 'comb' && <small>Every combination of the switches, counting up in binary (the first switch is the leftmost bit).</small>}
         {ch.kind === 'seq' && <small>Steps run in order from everything off; a highlighted switch is the one that changed. Switches stay as set.</small>}
+      </div>
+    </div>
+  )
+}
+
+/** A step of the CPU project: the lesson and the task, and the test programs with a line for each thing looked at. */
+function ProjectBody({ step }: { step: ProjectStep }) {
+  const hintShown = usePath((s) => s.hintShown)
+  const circuit = useStore((s) => s.circuit)
+  const checked = useProject((s) => (s.step === step.id ? s : null))
+  const fresh = !!checked?.result && checked.of === circuit
+  const result = fresh ? checked.result : null
+  const next = stepAfter(step.id)
+  const nextInfo = next ? getStep(next) : undefined
+  const lineOf = (run: string, text: string) => result?.lines.find((l) => l.text === `${run}: ${text}`)
+  return (
+    <div className="challenge-body">
+      <div className="challenge-text">
+        <Lesson blocks={step.lesson} stepId={step.id} />
+        <p className="task">
+          <b>Your task:</b> {step.task}
+        </p>
+        <div className="row">
+          <button className="primary-action" onClick={checkStep} data-testid="step-check">
+            Check my circuit
+          </button>
+          <button onClick={showStepHint} disabled={hintShown}>
+            Hint
+          </button>
+          <button onClick={showStepSolution} title="Replace the canvas with a circuit that does it (undo brings yours back)">
+            Show a solution
+          </button>
+          <button onClick={restartStep} title="Go back to where this step started (undo brings your work back)">
+            Start over
+          </button>
+        </div>
+        {hintShown && step.hint && <p className="challenge-hint">💡 {step.hint}</p>}
+        {result && result.problems.length > 0 && (
+          <ul className="asm-errors" aria-label="Problems">
+            {result.problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
+        {result?.passed && (
+          <div role="status" className="challenge-verdict">
+            <p className="verdict good">✔ Solved! Every test program ran as it should.</p>
+            <div className="step-earned">
+              <button className="primary-action" onClick={nextStep} data-testid="step-next">
+                {nextInfo ? `Next: ${nextInfo.title} →` : 'Back to the map'}
+              </button>
+            </div>
+          </div>
+        )}
+        {checked?.result && !fresh && <small>The circuit has changed since it was last checked.</small>}
+      </div>
+      <div className="challenge-goal">
+        <h4>The test programs</h4>
+        {step.runs.map((run) => (
+          <div key={run.title} className="project-run">
+            <b>{run.title}</b>
+            <pre>{run.program}</pre>
+            <ul className="goals" data-testid="project-lines">
+              {run.checks.map((k) => {
+                const line = lineOf(run.title, k.text)
+                return (
+                  <li key={k.text} className={line ? (line.ok ? 'project-line ok' : 'project-line bad') : 'project-line'}>
+                    <span aria-hidden>{line ? (line.ok ? '☑' : '☒') : '☐'}</span> {k.text}
+                    {line?.got && <small> ({line.got})</small>}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
+        <small>Each program is put into the Program ROM and the clock is ticked; then the parts are read by their labels.</small>
       </div>
     </div>
   )
@@ -298,7 +377,7 @@ export function StepPanel() {
         </button>
       </div>
       <Spotlight />
-      {step.kind === 'build' ? <BuildBody step={step} /> : step.kind === 'explore' ? <ExploreBody step={step} /> : <ReadBody step={step} />}
+      {step.kind === 'build' ? <BuildBody step={step} /> : step.kind === 'explore' ? <ExploreBody step={step} /> : step.kind === 'project' ? <ProjectBody step={step} /> : <ReadBody step={step} />}
     </section>
   )
 }

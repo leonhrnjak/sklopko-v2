@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -21,6 +21,9 @@
   - [x] L3a Clocked steps (`pulse`) and chapter 7, memory (own PR, `learn-l3-ch7`)
   - [x] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`, stacked on `learn-l3-ch7`)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
+  - [x] L4a The project framework and steps 9.1 to 9.4 (own PR, `learn-l4a-cpu-1`)
+  - [ ] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`)
+  - [ ] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
@@ -723,6 +726,19 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - The two upgrades: the Z flag and JZ/JNC rows (9.9), and the output register at address 15 (9.10).
 - The instruction-word figure (bits → opcode, number, address), using `wordFields` (`src/engine/isa.ts`).
 - Tests: every step's solution passes all the earlier runs of the project; e2e: 9.2 and 9.4 by hand, and *Show a solution* followed by the next step.
+
+**What L4a (the project framework and steps 9.1 to 9.4) did, and where it differs from the plan.**
+- A new step kind, `ProjectStep` (`kind: 'project'`, `project: 'cpu4'`, `stage`, `give`, `palette`, `runs`): one circuit, the learner's, that grows. Its start is the learner's circuit at the end of the step before (its stored
+  document, found by `origin.path`), or the reference computer of that stage (`cpuStage(stage - 1)`) when that step was skipped, plus whatever the step `give`s (the Control ROM in 9.3). *Show a solution* puts `cpuStage(stage)` on
+  the canvas and marks the step shown; *Start over* goes back to the step's start. `flushSave` runs before the start is read, because the canvas may hold the step before, not yet kept.
+- **The reference computer by stage is `model/path/cpu4.ts`** (`cpuStage(0..3)`): the beginner computer's machine and labels (`Clock`, `Program ROM`, `PC`, `Control ROM`, `LOAD_ACC`, `ACC`), a part at a time. It is built here
+  and not by parameterising `beginnerBuilder`, which the example uses as one piece. The Control ROM of stage 2 has the LDI row only (`controlWords`).
+- **Clock-run checks are `model/path/run.ts`** (`checkProject`): each test program (SKASM) goes into the part labelled *Program ROM*, the clock is ticked (up and down), and after the ticks a check names, the labelled parts are
+  read: a counter, register, hex display or ROM as a number (`Expect { value }`), or an LED (`{ led }`). A missing label is a problem that says which; each check is a line of the checklist, ticked or crossed with what the computer showed.
+- The instruction-word figure is the block `{ word: { value } }` (`ui/path/Word.tsx`): 16 bits to click, with `disassemble` and `wordFields` saying what the word is. 9.1 has two quiz questions; the plan's `0x0302` is not an
+  instruction (bits 0–3 are unused by LDI), so the quiz asks about `0300` and `0040`.
+- `PATH_STEP_COUNT` is 49. Chips are not used in chapter 9: the steps use the built-in Counter with load, register and ROM, which the palette offers whatever the learner has unlocked.
+- Tests: every stage passes its step's runs and is also passed by every later stage; the starting circuit of each step fails; a missing clock or opcode wire fails 9.4; e2e: the word figure, 9.2 solved by *Show a solution*, and 9.3 starting from it.
 
 ### L5 Program steps: chapters 10–11
 - Program steps on `cpu4` (the learner's from 9.10, or the reference) and on the 8-bit computer. *Edit the program* selects the ROM. The verdict

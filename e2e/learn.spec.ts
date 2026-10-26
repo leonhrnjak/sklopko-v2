@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-computer')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-programming')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -435,4 +435,31 @@ test('learn: chapter 8 builds a counter from the kit, and the RAM and ROM to pla
   for (let i = 0; i < 2; i++) await clickLabelled(page, 'Address')
   await expect(goals).toContainText('☑ The ROM shows 9')
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+})
+
+test('learn: chapter 9 shows an instruction word to click, and the CPU project is checked by running programs on it', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/cpu-plan', { waitUntil: 'networkidle' })
+  const fig = panel(page).getByLabel('Instruction word')
+  await expect(fig).toContainText('0300 is LDI 3')
+  await fig.getByRole('button', { name: 'Bit 9' }).click()
+  await expect(fig).toContainText('LDI 1')
+
+  // The circuit starts as a clock and a ROM: the check says what is missing, then what is wrong.
+  await page.goto('/learn/cpu-fetch', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp')).toHaveCount(2)
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('There is no part labelled “PC”')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page).getByTestId('project-lines')).toContainText('☑ after 5 ticks the PC is 5')
+
+  // The next step starts from this circuit, with the Control ROM given.
+  await panel(page).getByTestId('step-next').click()
+  await expect(panel(page)).toContainText('Decoding instructions')
+  await expect(page.locator('.comp .comp-label', { hasText: 'Control ROM' })).toHaveCount(1)
+  await expect(page.locator('.comp .comp-label', { hasText: /^PC$/ })).toHaveCount(1)
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('There is no part labelled “LOAD_ACC”')
 })

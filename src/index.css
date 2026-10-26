@@ -3880,3 +3880,47 @@ button.linklike:hover {
   font: 9px/9px ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);
 }
+.word-figure {
+  margin: 0 0 8px;
+}
+.word-bits {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.word-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.word-name {
+  font-size: 11px;
+  color: var(--muted);
+}
+.word-bit {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin-right: 2px;
+  font-family: var(--mono, monospace);
+}
+.word-bit.on {
+  background: var(--wire-1);
+  color: #fff;
+}
+.project-run {
+  margin: 0 0 8px;
+}
+.project-run pre {
+  margin: 2px 0 4px;
+  padding: 2px 6px;
+  background: var(--body);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.project-line.bad {
+  color: var(--wire-0, #c0392b);
+}
+.project-line.ok {
+  color: var(--wire-1);
+}
