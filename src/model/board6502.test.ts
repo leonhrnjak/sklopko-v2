@@ -5,7 +5,7 @@ import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
 import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
 import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
-import { BALL_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, COUNTER_SOURCE, VIA_TIMER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { basic6502, sweep65c02 } from './board6502-examples'
 import { BASIC_PROGRAMS, programText } from './basic-programs'
 import { flatten } from './buses'
@@ -335,6 +335,62 @@ describe('the 6502 board with big memory', () => {
   })
 })
 
+describe('the 6502 board with the VIA', () => {
+  const board = (source: string, o: Board6502Options = {}) => start({ memory: 'big', source, devices: ['via'], viaLeds: true, ...o })
+
+  it('needs the big memory and no other device than the terminal', () => {
+    expect(() => board6502Builder({ devices: ['via'] })).toThrow(/need memory: 'big'/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['via', 'leds'] })).toThrow(/each other/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['via'], source: VIA_TIMER_SOURCE })).not.toThrow()
+  })
+
+  it('is wired as Ben Eater wired it: A14 and A13 select it through a gate, A15 is CS2, A0 to A3 are its registers', () => {
+    const { b, keys } = board6502Builder({ memory: 'big', source: VIA_TIMER_SOURCE, devices: ['via'], viaLeds: true })
+    const c = b.build(false)
+    const wires = Object.values(c.wires)
+    const into = (pin: string) => wires.filter((w) => w.to.comp === keys.via && w.to.pin === pin).length
+    for (const pin of ['PHI2', 'RESB', 'CS1', 'CS2B', 'RS0', 'RS1', 'RS2', 'RS3', 'RWB', 'DI']) expect(into(pin), pin).toBe(1)
+    expect(wires.some((w) => w.from.comp === keys.via && w.from.pin === 'IRQB' && w.to.comp === keys.cpu && w.to.pin === 'IRQB')).toBe(true)
+    expect(wires.some((w) => w.from.comp === keys.via && w.from.pin === 'PB' && w.to.comp === keys.bar)).toBe(true)
+  })
+
+  it('timer: the interrupt routine counts on port B every 1,024 cycles, and PB7 is the timer’s square wave', { timeout: 120_000 }, () => {
+    const { sim, keys } = board(VIA_TIMER_SOURCE)
+    const pb = () => Array.from({ length: 8 }, (_, i) => sim.pinValue(keys.via, `PB${i}`))
+    const count = () => (sim.state(keys.ram).mem as Uint8Array)[0]
+    for (let n = 0; n < 200; n++) oneCycle(sim) // set up: the ports are outputs now
+    expect(pb().every((v) => v === 0 || v === 1)).toBe(true)
+    expect(count()).toBe(0)
+    const seen: number[] = []
+    const toggles: number[] = []
+    let p7 = pb()[7]
+    for (let n = 0; n < 4 * 1024 + 300; n++) {
+      oneCycle(sim)
+      if (seen[seen.length - 1] !== count()) seen.push(count())
+      if (pb()[7] !== p7) {
+        p7 = pb()[7]
+        toggles.push(n)
+      }
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4]) // one more at each interrupt
+    expect(toggles.length).toBeGreaterThanOrEqual(4) // PB7 toggles at every timeout, by hardware, to the cycle
+    expect(toggles.slice(1).map((v, i) => v - toggles[i])).toEqual(toggles.slice(1).map(() => 1024))
+    // PORTB shows the count on PB0–PB6.
+    const low = pb().slice(0, 7).reduce<number>((a, v, i) => a | ((v as number) << i), 0)
+    expect(low).toBe(count())
+  })
+
+  it('with the terminal as well: both are built, and either one interrupts', () => {
+    const { b, keys } = board6502Builder({ memory: 'big', source: VIA_TIMER_SOURCE, devices: ['terminal', 'via'], interrupt: true })
+    const c = b.build(false)
+    const wires = Object.values(c.wires)
+    expect(keys.irqAnd).toBeDefined()
+    expect(wires.some((w) => w.from.comp === keys.irqAnd && w.to.comp === keys.cpu && w.to.pin === 'IRQB')).toBe(true)
+    expect(keys.termOrVia).toBeDefined()
+    expect(wires.some((w) => w.from.comp === keys.termOrVia && w.to.comp === keys.mux)).toBe(true)
+  })
+})
+
 describe('the 6502 board with the terminal', () => {
   const board = (source: string, interrupt = false) => start({ memory: 'big', source, devices: ['terminal'], interrupt })
   const screen = (sim: Simulator, id: string) => screenText(sim.state(id) as AciaState)
@@ -345,9 +401,9 @@ describe('the 6502 board with the terminal', () => {
     return screen(sim, id) === text
   }
 
-  it('needs the big memory, and is the only device', () => {
-    expect(() => board6502Builder({ devices: ['terminal'] })).toThrow(/needs memory: 'big'/)
-    expect(() => board6502Builder({ memory: 'big', devices: ['terminal', 'leds'] })).toThrow(/only device/)
+  it('needs the big memory, and has no device but the VIA', () => {
+    expect(() => board6502Builder({ devices: ['terminal'] })).toThrow(/need memory: 'big'/)
+    expect(() => board6502Builder({ memory: 'big', devices: ['terminal', 'leds'] })).toThrow(/each other/)
     expect(() => board6502Builder({ memory: 'big', devices: ['terminal'], source: ECHO_SOURCE })).not.toThrow()
   })
 

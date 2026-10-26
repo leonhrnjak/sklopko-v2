@@ -62,7 +62,7 @@ show:   STA $4000   ; show it on the LEDs
 export const BLINK_BYTES = [0xa9, 0x01, 0x8d, 0x00, 0x40, 0x0a, 0xd0, 0xfa, 0x4c, 0x00, 0xf0]
 
 /** What can be on the board, at its memory-mapped addresses (see `programs6502.ts`). */
-export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal'
+export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal' | 'via'
 
 export interface Board6502Options {
   /** Clock speed in Hz. */
@@ -77,6 +77,8 @@ export interface Board6502Options {
   devices?: Device6502[]
   /** With the terminal: its IRQ pin goes to the CPU's (a typed character interrupts it). */
   interrupt?: boolean
+  /** With the VIA: eight LEDs on port B (PB0–PB7), through a bar that shows an undriven pin as unknown. */
+  viaLeds?: boolean
   /** With the terminal: a switch on its DSR pin (status bit 6), a setting a program can read; the BASIC computer asks its start-up questions when it is on. */
   dsrSwitch?: { label: string; on?: boolean }
   /** The chip: the NMOS 6502 (the default) or the WDC 65C02. The program is assembled for it. */
@@ -116,7 +118,11 @@ export function board6502Builder(o: Board6502Options = {}) {
   const big = o.memory === 'big'
   const has = new Set(o.devices ?? ['leds'])
   const term = has.has('terminal')
-  if (term && !(big && has.size === 1)) throw new Error("The terminal needs memory: 'big' and is the only device on its board.")
+  const via = has.has('via')
+  // The terminal and the VIA decode their own addresses (A13 as well, when both are there) and answer in $4000–$7FFF: they go on the big board, with no other device.
+  const own = term || via
+  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via'))) throw new Error("The terminal and the VIA need memory: 'big' and can only have each other on their board.")
+  const wide = via // A13 is split off the address too: the VIA is at $6000–$7FFF and the terminal, with it, at $4000–$5FFF
   const simple = has.size === 1 && has.has('leds') // the first board: the LED register answers to the whole block
   const links: { from: string; to: string; name?: string }[] = []
   const wire = (from: string, to: string, name?: string) => links.push({ from, to, name })
@@ -149,12 +155,22 @@ export function board6502Builder(o: Board6502Options = {}) {
 
   // Address decoding: the address bus is cut into the low bits (inside the RAM and the ROM) and the top wires, one each: A14 and
   // A15 say which chip is meant. The small board also splits A11–A13 off, for the ROM's smaller size.
-  const split = part(DECODE, 'split', 'splitter', big
-    ? { params: { bits: 16, split: '14,1,1' }, label: 'address: A0–A13, A14, A15' }
-    : { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
+  const split = part(DECODE, 'split', 'splitter', wide
+    ? { params: { bits: 16, split: '13,1,1,1' }, label: 'address: A0–A12, A13, A14, A15' }
+    : big
+      ? { params: { bits: 16, split: '14,1,1' }, label: 'address: A0–A13, A14, A15' }
+      : { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
   wire(`${cpu}.A`, `${split}.A`)
-  const a14 = `${split}.${big ? 'Y1' : 'Y4'}`
-  const a15 = `${split}.${big ? 'Y2' : 'Y5'}`
+  const a14 = `${split}.${wide ? 'Y2' : big ? 'Y1' : 'Y4'}`
+  const a15 = `${split}.${wide ? 'Y3' : big ? 'Y2' : 'Y5'}`
+  // The memory takes A0–A13: straight from the splitter, or put back together from A0–A12 and A13.
+  let lowAddr = `${split}.Y0`
+  if (wide) {
+    const low = part(DECODE, 'lowAddr', 'merger', { params: { bits: 14, split: '13,1' }, label: 'A0–A13 (to the memory)' })
+    wire(`${split}.Y0`, `${low}.A0`)
+    wire(`${split}.Y1`, `${low}.A1`)
+    lowAddr = `${low}.Y`
+  }
   const nrw = part(DECODE, 'nrw', 'not', { label: 'writing' })
   wire(`${cpu}.RWB`, `${nrw}.A`)
   const ramSel = part(DECODE, 'ramSel', 'nor', { label: 'RAM: A15 = 0, A14 = 0' })
@@ -165,7 +181,7 @@ export function board6502Builder(o: Board6502Options = {}) {
   wire(`${nrw}.Y`, `${ramWe}.B`)
   // The terminal looks at the address wires itself (A14 and A15 are its chip selects), so it needs no strobe.
   let ledWe = ''
-  if (!term) {
+  if (!own) {
     const nA15 = part(DECODE, 'nA15', 'not', { label: 'A15 = 0' })
     wire(a15, `${nA15}.A`)
     ledWe = part(DECODE, 'ledWe', 'and', { params: { inputs: 3 }, label: simple ? 'LEDs: A15 = 0, A14 = 1, writing' : 'devices: A15 = 0, A14 = 1, writing' })
@@ -176,7 +192,10 @@ export function board6502Builder(o: Board6502Options = {}) {
   // With several devices the low three address bits say which register is meant: a decoder turns them into one strobe each.
   let lowSplit = ''
   let strobe: (n: number) => string = () => `${ledWe}.Y`
-  if (term) {
+  if (via) {
+    lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,1,1,12' }, label: 'address: A0, A1, A2, A3, the rest' })
+    wire(`${cpu}.A`, `${lowSplit}.A`)
+  } else if (term) {
     lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,14' }, label: 'address: A0, A1, the rest' })
     wire(`${cpu}.A`, `${lowSplit}.A`)
   } else if (!simple) {
@@ -195,7 +214,7 @@ export function board6502Builder(o: Board6502Options = {}) {
     params: { bus: true, abits: mem.romBits, dbits: 8, ...programParams(o) },
     label: big ? 'ROM $8000–$FFFF (16 KB, twice)' : 'ROM $F000–$FFFF',
   })
-  if (big) wire(`${split}.Y0`, `${rom}.A`) // A0–A13 straight in: A14 is not looked at, so the ROM shows twice
+  if (big) wire(lowAddr, `${rom}.A`) // A0–A13 straight in: A14 is not looked at, so the ROM shows twice
   else {
     const romAddr = part(MEMORY, 'romAddr', 'merger', { params: { bits: 12, split: '11,1' }, label: 'A0–A11' })
     wire(`${split}.Y0`, `${romAddr}.A0`)
@@ -203,12 +222,12 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(`${romAddr}.Y`, `${rom}.A`)
   }
   const ram = part(MEMORY, 'ram', 'ram', { params: { bus: true, dbits: 8, abits: mem.ramBits }, label: big ? 'RAM $0000–$3FFF (16 KB)' : 'RAM $0000–$07FF' })
-  wire(`${split}.Y0`, `${ram}.A`)
+  wire(lowAddr, `${ram}.A`)
   wire(`${cpu}.D`, `${ram}.D`)
   wire(`${ramWe}.Y`, `${ram}.WE`)
   wire(`${clk}.Q`, `${ram}.CLK`)
   // What the CPU reads: the ROM when A15 = 1, otherwise the RAM; with devices to read, the block $4000–$7FFF is theirs.
-  const readable = has.has('keypad') || has.has('gamepad') || term
+  const readable = has.has('keypad') || has.has('gamepad') || own
   const mux = part(MEMORY, 'mux', 'busmux', { params: { bits: 8, n: readable ? 4 : 2 }, label: 'what the CPU reads' })
   wire(`${ram}.Q`, `${mux}.I0`)
   wire(`${rom}.D`, `${mux}.I1`)
@@ -228,22 +247,66 @@ export function board6502Builder(o: Board6502Options = {}) {
     shown.push(key)
     return part(col, key, type, opts)
   }
+  // With the VIA too, A13 tells them apart: the VIA answers when A14 and A13 are 1, the terminal when A14 is 1 and A13 is 0.
+  const a13 = `${split}.Y1`
+  let readBus: string[] = []
   if (term) {
     const t = dev(DISPLAY, 'terminal', 'acia6551', { params: { bus: true }, label: 'Terminal (6551) $5000–$5003' })
     wire(`${clk}.Q`, `${t}.PHI2`)
     wire(`${nreset}.Y`, `${t}.RESB`)
-    wire(a14, `${t}.CS0`)
+    if (wide) {
+      const nA13 = part(DECODE, 'nA13', 'not', { label: 'A13 = 0' })
+      wire(a13, `${nA13}.A`)
+      const cs0 = part(DECODE, 'termCs0', 'and', { label: 'terminal: A14 = 1, A13 = 0' })
+      wire(a14, `${cs0}.A`)
+      wire(`${nA13}.Y`, `${cs0}.B`)
+      wire(`${cs0}.Y`, `${t}.CS0`)
+    } else wire(a14, `${t}.CS0`)
     wire(a15, `${t}.CS1B`)
     wire(`${lowSplit}.Y0`, `${t}.RS0`)
     wire(`${lowSplit}.Y1`, `${t}.RS1`)
     wire(`${cpu}.RWB`, `${t}.RWB`)
     wire(`${cpu}.D`, `${t}.DI`)
-    if (o.interrupt) wire(`${t}.IRQB`, `${cpu}.IRQB`)
+    if (o.interrupt && !via) wire(`${t}.IRQB`, `${cpu}.IRQB`)
     if (o.dsrSwitch) {
       const sw = dev(INPUT, 'dsrSwitch', 'switch', { params: { on: !!o.dsrSwitch.on }, label: o.dsrSwitch.label })
       wire(`${sw}.Q`, `${t}.DSRB`)
     }
-    wire(`${t}.D`, `${mux}.I2`)
+    readBus.push(`${t}.D`)
+  }
+  if (via) {
+    const v = dev(DISPLAY, 'via', 'via6522', { params: { bus: true }, label: 'VIA (6522) $6000–$600F' })
+    wire(`${clk}.Q`, `${v}.PHI2`)
+    wire(`${nreset}.Y`, `${v}.RESB`)
+    const cs1 = part(DECODE, 'viaCs1', 'and', { label: 'VIA: A14 = 1, A13 = 1' })
+    wire(a14, `${cs1}.A`)
+    wire(a13, `${cs1}.B`)
+    wire(`${cs1}.Y`, `${v}.CS1`)
+    wire(a15, `${v}.CS2B`)
+    for (let i = 0; i < 4; i++) wire(`${lowSplit}.Y${i}`, `${v}.RS${i}`)
+    wire(`${cpu}.RWB`, `${v}.RWB`)
+    wire(`${cpu}.D`, `${v}.DI`)
+    readBus.push(`${v}.D`)
+    if (o.viaLeds) {
+      const bar = dev(INPUT, 'bar', 'bar', { params: { bus: true, n: 8 }, label: 'Port B: LEDs on PB0–PB7' })
+      wire(`${v}.PB`, `${bar}.I`)
+    }
+    // Its interrupt goes to the CPU; with the terminal's too, either pulls the line low (two active-low outputs ANDed).
+    if (term && o.interrupt) {
+      const irq = part(DECODE, 'irqAnd', 'and', { label: 'IRQ: the VIA or the terminal' })
+      wire(`${v}.IRQB`, `${irq}.A`)
+      wire(`${keys.terminal}.IRQB`, `${irq}.B`)
+      wire(`${irq}.Y`, `${cpu}.IRQB`)
+    } else wire(`${v}.IRQB`, `${cpu}.IRQB`)
+  }
+  // The devices' read buses meet in the multiplexer's third input: one device, straight; the VIA and the terminal, by A13.
+  if (readBus.length === 1) wire(readBus[0], `${mux}.I2`)
+  else if (readBus.length === 2) {
+    const pick = part(MEMORY, 'termOrVia', 'busmux', { params: { bits: 8, n: 2 }, label: 'terminal or VIA: A13' })
+    wire(readBus[0], `${pick}.I0`) // the terminal, A13 = 0
+    wire(readBus[1], `${pick}.I1`)
+    wire(a13, `${pick}.S0`)
+    wire(`${pick}.Y`, `${mux}.I2`)
   }
   if (has.has('leds')) {
     const leds = dev(OUTPUT, 'leds', 'busreg', { params: { bits: 8 }, label: simple ? 'LED register $4000' : 'LED register $4000 (LEDS)' })
@@ -305,7 +368,7 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(zeros('padZeros', 2), `${m}.A1`)
     padBus = `${m}.Y`
   }
-  if (readable && !term) {
+  if (readable && !own) {
     let bus = keyBus || padBus
     if (keyBus && padBus) {
       const pick = dev(INPUT, 'devRead', 'busmux', { params: { bits: 8, n: 2 }, label: 'keypad or gamepad: A2' })
@@ -376,8 +439,8 @@ export function boardExample(o: Board6502Options, t: BoardTexts): Circuit {
   const ids = (...parts: string[]) => parts.filter((k) => keys[k]).map((k) => keys[k])
   const simple = (o.devices ?? ['leds']).length === 1 && (o.devices ?? ['leds'])[0] === 'leds'
   frameAround(b, 'THE CPU: a real MOS 6502', ids('clk', 'reset', 'nreset', 'timer', 'ntimer', 'cpu', ...timing), 'blue')
-  frameAround(b, 'ADDRESS DECODING: who is it talking to?', ids('split', 'nrw', 'ramSel', 'ramWe', 'nA15', 'ledWe', 'lowSplit', 'dec'), 'yellow')
-  frameAround(b, 'MEMORY: ROM and RAM', ids('rom', 'romAddr', 'ram', 'mux', 'sel'), 'green')
+  frameAround(b, 'ADDRESS DECODING: who is it talking to?', ids('split', 'lowAddr', 'nrw', 'ramSel', 'ramWe', 'nA15', 'nA13', 'ledWe', 'termCs0', 'viaCs1', 'irqAnd', 'lowSplit', 'dec'), 'yellow')
+  frameAround(b, 'MEMORY: ROM and RAM', ids('rom', 'romAddr', 'ram', 'mux', 'sel', 'termOrVia'), 'green')
   frameAround(b, simple ? 'OUTPUT' : 'DEVICES', ids(...shown), 'pink')
   note(b, 0, -420, t.intro, 60)
   note(b, 300, -230, CPU_NOTE, 38, 'blue')

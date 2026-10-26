@@ -341,3 +341,53 @@ text:   .byte "HELLO", 13, 10, 0
 .word $0000             ; NMI vector (not used)
 .word reset
 .word irq`
+
+
+/**
+ * The VIA (a 6522, at `$6000`) and its timer, with Ben Eater's register names. The sixteen registers are at `$6000–$600F`:
+ *
+ *     $6000 PORTB   $6001 PORTA   $6002 DDRB   $6003 DDRA   $6004 T1CL  $6005 T1CH  $6006 T1LL  $6007 T1LH
+ *     $6008 T2CL    $6009 T2CH    $600A SR      $600B ACR    $600C PCR   $600D IFR   $600E IER   $600F PORTA, no handshake
+ */
+
+/** Timer 1 runs free and interrupts every 1,024 cycles; the interrupt routine counts on the LEDs of port B, and PB7 is the timer's own square wave. */
+export const VIA_TIMER_SOURCE = `.org $C000
+PORTB = $6000
+DDRB  = $6002
+T1CL  = $6004
+T1CH  = $6005
+ACR   = $600B
+IFR   = $600D
+IER   = $600E
+count = $00
+
+reset:  LDX #$FF
+        TXS
+        LDA #$FF
+        STA DDRB        ; every pin of port B is an output
+        LDA #0
+        STA count
+        STA PORTB
+        LDA #$C0        ; ACR: bit 6 = timer 1 free-running, bit 7 = its square wave on PB7
+        STA ACR
+        LDA #$FE        ; the timer counts 1,022 cycles, interrupts, and starts again 2 cycles later: every 1,024
+        STA T1CL
+        LDA #$03
+        STA T1CH        ; writing the high byte loads the counter and starts the timer
+        LDA #$C0        ; IER: bit 7 = set the bits that are 1, bit 6 = timer 1
+        STA IER
+        CLI             ; interrupts on
+idle:   JMP idle        ; the CPU has nothing else to do: the work is in the interrupt routine
+
+irq:    PHA
+        LDA T1CL        ; reading the low byte of the timer clears its interrupt flag
+        INC count
+        LDA count
+        STA PORTB       ; the count on PB0–PB6 (PB7 belongs to the timer while ACR bit 7 is set)
+        PLA
+        RTI
+
+.org $FFFA
+.word $0000             ; NMI vector (not used)
+.word reset
+.word irq`
