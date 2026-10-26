@@ -607,7 +607,7 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
 **Chip frame (after L1.5, own PR `ic-chip-frame`, from a review of the kit chips).** A chip that is a gate was still too like the built-in one (the same shape, a teal outline and a name
 underneath). It is now the gate inside a **chip frame**: a rounded, tinted body with legs, a tab on top with the name and the chip glyph, which opens the chip when clicked (a double-click on
 the part and *Open inside* did already). The frame is the part's layout (`icGate` in `engine/components/ic.ts`), so selection, wires, labels and *Fit* follow it; the pin tips stay 10 outside it and
-on the 10-grid. The drawing is core canvas code, so it is in the startup chunk: it took it from 179.9 to 180.4 kB, and **the budget is now 181 kB** (raised with the user's yes). It is 5 wider than the gate (more for a long name, up to 100, cut with …), 20 above and 10 below. Chips that are boxes are as before. The solutions of steps were spaced for
+on the 10-grid. The drawing is core canvas code, so it is in the startup chunk: it took it from 179.9 to 180.4 kB, and **the budget is now 181 kB** (raised with the user's yes). It is 5 wider than the gate (more for a long name, up to 100, cut with …); the gate has the same room above (under the 14 tall tab) as below, 6, or 12 for a NOT or buffer, whose triangle reaches 4 beyond its body (so the gate sits 20 or 30 down). Chips that are boxes are as before. The solutions of steps were spaced for
 the smaller chips and are spaced a little wider (the decoder).
 
 ### L2 Explore steps, quizzes, the spotlight, and chapters 3–6

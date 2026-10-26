@@ -83,8 +83,8 @@ describe('an IC with a symbol', () => {
   it('is the gate inside a chip frame, with the pins of the IC on the frame’s legs', () => {
     const and = layoutOf(short(gate('and'), 'and'))
     const gateAnd = viewLayoutOf('and', { inputs: 2 })
-    // The frame: the gate (40 × 40) with 5 free at the sides, a tab on top and a little room below.
-    expect([and.w, and.h]).toEqual([gateAnd.w + 10, gateAnd.h + IC_FRAME.top + IC_FRAME.bottom])
+    // The frame: the gate (40 × 40) with 5 free at the sides, 20 above it (the tab, 14, and 6 of room) and 6 below.
+    expect([and.w, and.h]).toEqual([gateAnd.w + 10, 20 + gateAnd.h + 6])
     expect(and.pins.map((p) => [p.name, p.side, p.x, p.y])).toEqual([
       ['A', 'l', -10, 30],
       ['B', 'l', -10, 50],
@@ -96,7 +96,7 @@ describe('an IC with a symbol', () => {
     const nand = layoutOf(short(gate('nand'), 'nand'))
     expect(nand.pins.find((p) => p.name === 'Y')).toMatchObject({ invert: true, x: nand.w + 10 })
     const not = layoutOf(short(gate('not'), 'not'))
-    expect([not.w, not.h]).toEqual([50, 20 + IC_FRAME.top + IC_FRAME.bottom])
+    expect([not.w, not.h]).toEqual([50, 66]) // the triangle reaches 4 beyond its 20: 12 of room above and below
     expect(not.pins.find((p) => p.name === 'Y')?.invert).toBe(true)
   })
 
@@ -182,7 +182,7 @@ describe('saving', () => {
     expect(back.ics!.chip.symbol).toBe('and')
     const inst = Object.values(back.comps)[0]
     expect(inst.params.symbol).toBe('and')
-    expect(viewLayoutOf('ic', inst.params).h).toBe(40 + IC_FRAME.top + IC_FRAME.bottom)
+    expect(viewLayoutOf('ic', inst.params).h).toBe(66)
   })
 
   it('writes nothing for an IC without one, and ignores a value it does not know', () => {
@@ -192,5 +192,21 @@ describe('saving', () => {
     expect(deserialize(data).ics!.chip.symbol).toBeUndefined()
     data.ics[0].symbol = 5
     expect(deserialize(data).ics!.chip.symbol).toBeUndefined()
+  })
+})
+
+describe('the room inside a chip frame', () => {
+  it('is the same above the gate as below it, for each shape of gate', () => {
+    // The gate's drawn extent: its body, and for a NOT or buffer the triangle's 4 beyond it.
+    for (const [symbol, reach] of [['and', 0], ['or', 0], ['xor', 0], ['nand', 0], ['not', 4], ['buf', 4]] as const) {
+      const type = symbol === 'not' || symbol === 'buf' ? symbol : symbol
+      const chip = icGate(icParams(def(gate(type), symbol)))!
+      const above = chip.dy - reach - IC_FRAME.tab
+      const below = chip.frame.h - (chip.dy + chip.gate.h + reach)
+      expect(above, symbol).toBe(below)
+      expect(above, symbol).toBeGreaterThanOrEqual(6)
+      // The pins stay on the 10-grid whatever the room.
+      for (const p of chip.frame.pins) expect(p.y % 10, `${symbol} ${p.name}`).toBe(0)
+    }
   })
 })

@@ -441,7 +441,7 @@ function MatrixSym({ comp, l, live }: { comp: Comp; l: Layout; live: boolean }) 
 /** The chip glyph: a small package with legs, as on the tab of a chip that is drawn as a gate. */
 function ChipGlyph({ x, y }: { x: number; y: number }) {
   return (
-    <g className="chip-glyph" transform={`translate(${x},${y}) scale(1.25)`}>
+    <g className="chip-glyph" transform={`translate(${x},${y}) scale(1.1)`}>
       <path d="M3,-1.5v2M6.5,-1.5v2M10,-1.5v2M3,8.5v2M6.5,8.5v2M10,8.5v2" />
       <rect x={0} y={1} width={13} height={8} rx={1.5} />
       <rect className="chip-glyph-die" x={3.5} y={3} width={6} height={4} rx={0.8} />
@@ -462,7 +462,7 @@ function IcChip({ comp, chip, live }: { comp: Comp; chip: IcGate; live: boolean 
       {live && <title>{String(comp.params.name || 'IC')}</title>}
       <rect className="chip-body" width={f.w} height={f.h} rx={6} />
       <path className="chip-tab" d={`M0,${IC_FRAME.tab}V6a6,6 0 0 1 6,-6H${f.w - 6}a6,6 0 0 1 6,6V${IC_FRAME.tab}Z`} />
-      <text className="chip-name" x={6} y={11.5}>
+      <text className="chip-name" x={6} y={10.5}>
         {tabName}
       </text>
       <g transform={`translate(${dx},${dy})`}>
@@ -478,7 +478,7 @@ function IcChip({ comp, chip, live }: { comp: Comp; chip: IcGate; live: boolean 
       >
         {live && <title>Open inside</title>}
         <rect x={gx - 2} width={IC_FRAME.glyph + 2} height={IC_FRAME.tab} fill="transparent" />
-        <ChipGlyph x={gx + 1} y={2.5} />
+        <ChipGlyph x={gx + 1} y={2} />
       </g>
     </g>
   )

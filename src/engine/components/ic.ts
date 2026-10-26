@@ -60,8 +60,8 @@ export function symbolOf(symbol: unknown, ins: IcPin[], outs: IcPin[]): IcSymbol
   return (single ? ins.length === 1 : ins.length >= 2 && ins.length <= 8) ? symbol : null
 }
 
-/** Room in the frame of a chip that is a gate: the tab on top (16), a gap above the gate (4) and below it (10); the glyph column, and a name letter. */
-export const IC_FRAME = { top: 20, bottom: 10, tab: 16, glyph: 20, charW: 6.4, maxW: 100 }
+/** Room in the frame of a chip that is a gate: the tab on top (14), the column of the glyph (20), a letter of the name (6.4), and the widest frame. */
+export const IC_FRAME = { tab: 14, glyph: 20, charW: 6.4, maxW: 100 }
 
 /** A chip that is a gate, drawn as that gate inside a chip frame with a tab that holds its name and a glyph that opens it. */
 export interface IcGate {
@@ -78,8 +78,9 @@ export interface IcGate {
 
 /**
  * The frame of a chip that is a gate (`null` when it is drawn as a box). The frame is the gate with 5 free on each side, or wider when
- * the name needs it (up to `maxW`); the gate is centred in it. The pin tips are 10 outside the frame, on the 10-grid, as a gate's are
- * outside its body.
+ * the name needs it (up to `maxW`); the gate is centred in it, and has the same room above it (under the tab) as below it: 6, or 12 for a
+ * NOT or buffer, whose triangle reaches 4 beyond its body. The pin tips are 10 outside the frame, on the 10-grid, as a gate's are outside
+ * its body (so the gate's top is 20 or 30 down).
  */
 export function icGate(p: Params): IcGate | null {
   const ins = icInputs(p)
@@ -89,7 +90,8 @@ export function icGate(p: Params): IcGate | null {
   const [shape, inverted] = SHAPES[symbol]
   const g = gateLayout(ins.length, shape, inverted)
   const name = String(p.name || 'IC')
-  const { top: dy, glyph, charW } = IC_FRAME
+  const { tab, glyph, charW } = IC_FRAME
+  const dy = shape === 'buf' ? 30 : 20
   const reach = g.pins[g.pins.length - 1].x - 10
   const w = Math.min(IC_FRAME.maxW, Math.max(reach + 10, Math.ceil((name.length * charW + 6 + glyph) / 10) * 10))
   const dx = (w - reach) / 2
@@ -98,7 +100,7 @@ export function icGate(p: Params): IcGate | null {
   const pins = (shift: number, down: number) => g.pins.map((q, i) => ({ ...q, name: names[i], x: (q.dir === 'out' ? w + 10 : q.x) - shift, y: q.y + down }))
   return {
     symbol,
-    frame: { w, h: g.h + dy + IC_FRAME.bottom, pins: pins(0, dy) },
+    frame: { w, h: 2 * dy + g.h - tab, pins: pins(0, dy) },
     gate: { ...g, pins: pins(dx, 0) },
     dx,
     dy,
