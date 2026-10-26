@@ -45,11 +45,15 @@ describe('a custom IC', () => {
     return renderToStaticMarkup(createElement('svg', null, createElement(CompSymbol, { comp, layout: viewLayoutOf('ic', p), live })))
   }
 
-  it('is drawn as the gate it is, with its name under it, when it has a symbol; else as a box', () => {
+  it('is drawn as the gate it is, in a chip frame with its name on a tab, when it has a symbol; else as a box', () => {
     const gate = draw('and', true)
     expect(gate).toContain('ic-gate')
-    expect(gate).toContain('Chip')
-    expect(draw('and')).not.toContain('Chip') // a thumbnail in the parts list: the list has the name
+    expect(gate).toContain('chip-body')
+    expect(gate).toContain('Chip') // the name on the tab
+    // The glyph on the tab opens the chip: only where the part is live (not in the parts list or on a ghost).
+    expect(gate).toContain('chip-open')
+    expect(draw('and')).not.toContain('chip-open')
+    expect(draw('and')).toContain('chip-glyph')
     expect(gate).toContain('<path')
     expect(gate).not.toContain('NaN')
     expect(draw('not')).toContain('ic-gate')

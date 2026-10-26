@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
-import { icInputs, icOutputs, symbolOf } from '../engine/components/ic'
+import { IC_FRAME, icGate } from '../engine/components/ic'
 import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, speakerPitch, type ConsoleState, type FramebufferState, type GamepadState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
 import { SCREEN_COLS, SCREEN_ROWS } from '../engine/acia'
@@ -14,8 +14,10 @@ import { TABLE_ROW_H, TABLE_TOP, parseWords, showsTable, tableShape } from '../e
 import { probeBits } from '../engine/components/io'
 import { getDef } from '../engine/registry'
 import { X, Z, toNum, type Layout, type PinDef, type V } from '../engine/types'
+import { enterInstance } from '../app/ics'
 import { useSettings } from '../app/settings'
 import { sim } from '../app/sim'
+import type { IcGate } from '../engine/components/ic'
 import type { Comp } from '../model/circuit'
 
 /** The terminal's screen: the height of a line and the width of a character, in the symbol's own units. */
@@ -435,6 +437,50 @@ function MatrixSym({ comp, l, live }: { comp: Comp; l: Layout; live: boolean }) 
 }
 
 // ---- Entry point -------------------------------------------------------------------------------
+
+/** The chip glyph: a small package with legs, as on the tab of a chip that is drawn as a gate. */
+function ChipGlyph({ x, y }: { x: number; y: number }) {
+  return (
+    <g className="chip-glyph" transform={`translate(${x},${y}) scale(1.25)`}>
+      <path d="M3,-1.5v2M6.5,-1.5v2M10,-1.5v2M3,8.5v2M6.5,8.5v2M10,8.5v2" />
+      <rect x={0} y={1} width={13} height={8} rx={1.5} />
+      <rect className="chip-glyph-die" x={3.5} y={3} width={6} height={4} rx={0.8} />
+    </g>
+  )
+}
+
+/**
+ * A custom IC that is a known gate: the gate inside a chip frame, so that it cannot be taken for the built-in gate. A tab on top
+ * holds its name and the chip glyph, which opens the IC (as double-clicking it does).
+ */
+function IcChip({ comp, chip, live }: { comp: Comp; chip: IcGate; live: boolean }) {
+  const { frame: f, gate, dx, dy, tabName, symbol } = chip
+  const gx = f.w - IC_FRAME.glyph
+  return (
+    <g className="ic-gate">
+      <rect className="chip-body" width={f.w} height={f.h} rx={6} />
+      <path className="chip-tab" d={`M0,${IC_FRAME.tab}V6a6,6 0 0 1 6,-6H${f.w - 6}a6,6 0 0 1 6,6V${IC_FRAME.tab}Z`} />
+      <text className="chip-name" x={6} y={11.5}>
+        {tabName}
+      </text>
+      <g transform={`translate(${dx},${dy})`}>
+        <GateSym type={symbol} l={gate} />
+      </g>
+      {/* The glyph opens the chip (not in the parts list or on a ghost); it does not select or drag the part. */}
+      <g
+        className={live ? 'chip-open' : undefined}
+        data-testid={live ? 'chip-open' : undefined}
+        onPointerDown={live ? (e) => e.stopPropagation() : undefined}
+        onDoubleClick={live ? (e) => e.stopPropagation() : undefined}
+        onClick={live ? (e) => (e.stopPropagation(), enterInstance(comp.id)) : undefined}
+      >
+        {live && <title>Open inside</title>}
+        <rect x={gx - 2} width={IC_FRAME.glyph + 2} height={IC_FRAME.tab} fill="transparent" />
+        <ChipGlyph x={gx + 1} y={2.5} />
+      </g>
+    </g>
+  )
+}
 
 interface Props {
   comp: Comp
@@ -1017,18 +1063,9 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       break
     }
     case 'ic': {
-      // A chip that is a known gate is drawn as that gate, in the chip colour, with its name under it; any other IC is a box.
-      const symbol = symbolOf(p.symbol, icInputs(p), icOutputs(p))
-      content = symbol ? (
-        <g className="ic-gate">
-          {/* Selecting the part works anywhere over the gate and its name, not only on the thin shape. The pins stay outside it. */}
-          <rect x={0} y={-4} width={l.w} height={l.h + 26} fill="transparent" />
-          <GateSym type={symbol} l={l} />
-          {live && <Title text={String(p.name || 'IC')} x={l.w / 2} y={l.h + 14} />}
-        </g>
-      ) : (
-        <BoxSym l={l} title={def.title?.(p) ?? def.name} />
-      )
+      // A chip that is a known gate is drawn as that gate inside a chip frame (see `IcGate`); any other IC is a box.
+      const chip = icGate(p)
+      content = chip ? <IcChip comp={comp} chip={chip} live={live} /> : <BoxSym l={l} title={def.title?.(p) ?? def.name} />
       break
     }
     default:
