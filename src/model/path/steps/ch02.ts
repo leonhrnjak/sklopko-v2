@@ -133,6 +133,7 @@ export const CH02: Step[] = [
         },
       },
       { p: 'Look at the two rows where A and B are the same: 0 0 gives 1, and 1 1 gives 0. Feed one signal into both inputs and the gate is an inverter, a NOT.' },
+      { p: 'A note on writing. The goal of each step is written as a formula: ¬A is NOT A, A·B is A AND B, A + B is A OR B, and A ⊕ B is A XOR B. So “Y = ¬A” means Y is the opposite of A.' },
       { p: 'Here is the rule of this chapter: you are given only NAND. Every other gate you need, you build from it. Each circuit you get right goes into Your kit, in the parts list, as a chip you can place in the next steps.' },
     ],
     challenge: nandOnly('path-not', 'NOT from NAND', 'Make Y the opposite of A, using one NAND gate.', 'Wire A to both inputs of the NAND, then the NAND to Y.', ['A'], 'Y = ¬A'),

@@ -16,7 +16,7 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 - [x] 9. ch09 `cpu-fetch`, `cpu-same`: one tick is two presses of Clock step (the chapter 12 hint already says so).
 
 ## B. Gaps: used before taught
-- [ ] 10. Boolean notation (`·`, `+`, `¬`, `⊕`) is never defined.
+- [x] 10. Boolean notation (`·`, `+`, `¬`, `⊕`) is never defined.
 - [ ] 11. **New step** in ch11: bytes, multi-digit hex, `$`, KB, 64 KB.
 - [ ] 12. ch09 `cpu-fetch`: built-in parts start at 0 and some inputs default when unwired (LD off, EN on), unlike chapter 7–8's "unknown".
 - [ ] 13. **New step** in ch13: arithmetic on the 6502 (`CLC`/`ADC`, `CMP`, branches).
