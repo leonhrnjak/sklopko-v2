@@ -466,3 +466,43 @@ describe('chapter 5, adding numbers', () => {
     }
   })
 })
+
+describe('chapter 7, memory', () => {
+  it('has the six steps, in the order of the plan, and the chips each build makes', () => {
+    expect(stepIdsOf('memory')).toEqual(['feedback', 'sr-latch', 'd-latch', 'dff', 'reg1', 'reg4'])
+    expect(['sr-latch', 'd-latch', 'dff', 'reg1', 'reg4'].map((id) => (getStep(id) as BuildStep).chip)).toEqual(['SR', 'DLATCH', 'DFF', 'REG1', 'REG4'])
+  })
+
+  it('has a gate-level flip-flop that holds its bit through sixteen changes of D without a clock edge, and takes the next one on a pulse', () => {
+    const dff = getStep('dff') as BuildStep
+    const ch = challengeOf(dff)
+    if (ch.kind !== 'seq') throw new Error('a seq challenge was expected')
+    const steps = [
+      { set: { D: 1 as const }, pulse: 'CLK', expect: { Q: 1 as const } },
+      ...Array.from({ length: 16 }, (_, i) => ({ set: { D: (i % 2) as 0 | 1 }, expect: { Q: 1 as const } })),
+      { set: { D: 0 as const }, pulse: 'CLK', expect: { Q: 0 as const } },
+    ]
+    expect(checkChallenge({ ...ch, steps }, solutionOf(dff)).passed).toBe(true)
+  })
+
+  it('shows a flip-flop that is only a latch up: it follows D while CLK stays up', () => {
+    const dff = getStep('dff') as BuildStep
+    const ch = challengeOf(dff)
+    if (ch.kind !== 'seq') throw new Error('a seq challenge was expected')
+    const sol = solutionOf(dff)
+    // A D latch alone, wired to D and CLK.
+    const latch = ((): Circuit => {
+      const b = new CircuitBuilder()
+      const d = b.add('switch', 0, 0, { label: 'D' })
+      const clk = b.add('switch', 0, 70, { label: 'CLK' })
+      const l = b.add('dlatch', 150, 0)
+      const q = b.add('led', 300, 0, { label: 'Q' })
+      b.wire(`${d}.Q`, `${l}.D`)
+      b.wire(`${clk}.Q`, `${l}.E`)
+      b.wire(`${l}.Q`, `${q}.A`)
+      return b.build()
+    })()
+    expect(checkChallenge(ch, sol).passed).toBe(true)
+    expect(checkChallenge({ ...ch, rules: undefined }, latch).passed).toBe(false)
+  })
+})

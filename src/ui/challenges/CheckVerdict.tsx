@@ -8,7 +8,7 @@ export function StepsTable({ ch }: { ch: Challenge & { kind: 'seq' } }) {
   const state: Record<string, number> = Object.fromEntries(ch.inputs.map((n) => [n, 0]))
   const rows = ch.steps.map((s) => {
     Object.assign(state, s.set)
-    return { switches: { ...state }, expect: s.expect, changed: Object.keys(s.set) }
+    return { switches: { ...state }, expect: s.expect, changed: Object.keys(s.set), pulse: s.pulse }
   })
   return (
     <div className="truth-wrap">
@@ -33,8 +33,8 @@ export function StepsTable({ ch }: { ch: Challenge & { kind: 'seq' } }) {
             <tr key={i}>
               <td>{i + 1}</td>
               {ch.inputs.map((n) => (
-                <td key={n} className={`in${r.changed.includes(n) ? ' changed' : ''}`}>
-                  {r.switches[n]}
+                <td key={n} className={`in${r.changed.includes(n) || r.pulse === n ? ' changed' : ''}`}>
+                  {r.pulse === n ? '⏉' : r.switches[n]}
                 </td>
               ))}
               {ch.outputs.map((n) => (
@@ -103,7 +103,7 @@ export function CheckVerdict({ ch, check, success }: { ch: Challenge; check: Che
                       <td>{f.step}</td>
                       {ch.inputs.map((n) => (
                         <td key={n} className="in">
-                          {f.switches[n]}
+                          {f.pulse === n ? '⏉' : f.switches[n]}
                         </td>
                       ))}
                       <td>{f.output}</td>

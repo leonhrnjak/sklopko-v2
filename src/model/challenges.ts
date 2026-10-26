@@ -12,9 +12,11 @@ export interface Rules {
   maxParts?: number
 }
 
-/** One step of a test for a circuit with memory: set some switches, let it settle, then read the LEDs. */
+/** One step of a test for a circuit with memory: set some switches, let it settle, pulse a switch (one rising and one falling edge), then read the LEDs. */
 export interface Step {
   set: Record<string, 0 | 1>
+  /** The switch to pulse after `set`, such as a clock. */
+  pulse?: string
   expect: Record<string, 0 | 1>
 }
 
@@ -87,7 +89,7 @@ export function comb(c: Omit<CombChallenge, 'kind' | 'starter' | 'solution'> & {
   }
 }
 
-function seq(c: Omit<SeqChallenge, 'kind' | 'starter'>): SeqChallenge {
+export function seq(c: Omit<SeqChallenge, 'kind' | 'starter'>): SeqChallenge {
   return { ...c, kind: 'seq', starter: starterOf(c.inputs, c.outputs) }
 }
 

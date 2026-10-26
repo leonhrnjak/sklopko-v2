@@ -14,6 +14,8 @@ export interface StepFailure {
   step: number
   /** All switches as they were set in this step. */
   switches: Record<string, 0 | 1>
+  /** The switch that was pulsed in this step, if any. */
+  pulse?: string
   output: string
   expected: 0 | 1
   got: Cell
@@ -72,6 +74,7 @@ function runChallengeSteps(c: Circuit, ch: Challenge & { kind: 'seq' }, inputIds
     text: '',
     actions: [
       { kind: 'set', values: step.set },
+      ...(step.pulse ? [{ kind: 'pulse' as const, name: step.pulse }] : []),
       { kind: 'expect', values: step.expect },
     ],
   }))
@@ -80,7 +83,7 @@ function runChallengeSteps(c: Circuit, ch: Challenge & { kind: 'seq' }, inputIds
   const failures: StepFailure[] = []
   run.outcomes.forEach((o, i) => {
     Object.assign(state, ch.steps[i].set)
-    for (const f of o.failures) failures.push({ step: i + 1, switches: { ...state }, output: f.output, expected: f.expected, got: f.got })
+    for (const f of o.failures) failures.push({ step: i + 1, switches: { ...state }, pulse: ch.steps[i].pulse, output: f.output, expected: f.expected, got: f.got })
   })
   return { failures, unstable: run.unstable }
 }

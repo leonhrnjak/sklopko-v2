@@ -7,9 +7,10 @@ import { CH03 } from './ch03'
 import { CH04 } from './ch04'
 import { CH05 } from './ch05'
 import { CH06 } from './ch06'
+import { CH07 } from './ch07'
 
 /** Every step, in the order of the path. Loads on demand: the main chunk has only the ids (`../index.ts`). */
-export const STEPS: Step[] = [...CH01, ...CH02, ...CH03, ...CH04, ...CH05, ...CH06]
+export const STEPS: Step[] = [...CH01, ...CH02, ...CH03, ...CH04, ...CH05, ...CH06, ...CH07]
 
 registerSteps(STEPS)
 
