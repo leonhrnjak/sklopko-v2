@@ -17,7 +17,7 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 
 ## B. Gaps: used before taught
 - [x] 10. Boolean notation (`·`, `+`, `¬`, `⊕`) is never defined.
-- [ ] 11. **New step** in ch11: bytes, multi-digit hex, `$`, KB, 64 KB.
+- [x] 11. **New step** in ch11: bytes, multi-digit hex, `$`, KB, 64 KB.
 - [ ] 12. ch09 `cpu-fetch`: built-in parts start at 0 and some inputs default when unwired (LD off, EN on), unlike chapter 7–8's "unknown".
 - [ ] 13. **New step** in ch13: arithmetic on the 6502 (`CLC`/`ADC`, `CMP`, branches).
 - [ ] 14. ch13 `asm-string`: say that `.byte` goes after `done: JMP done`, where the CPU never runs it.

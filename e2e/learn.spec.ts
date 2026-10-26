@@ -634,6 +634,6 @@ test('learn: chapter 14 ticks its goals as the BASIC computer starts and answers
   const done = Object.fromEntries(PATH_STEPS.filter((id) => !['journey'].includes(id)).slice(0, 10).map((id) => [id, { at: 1, how: 'solved' }]))
   await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, quiz: {} })), done)
   await page.goto('/learn/journey', { waitUntil: 'networkidle' })
-  await expect(page.getByTestId('journey')).toContainText('You have done 10 of the 78 steps')
+  await expect(page.getByTestId('journey')).toContainText('You have done 10 of the 79 steps')
   await expect(page.getByTestId('journey')).toContainText('1 Signals and wires')
 })
