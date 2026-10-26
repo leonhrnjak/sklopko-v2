@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { collapseSelection, deleteDefinition, enterDefinition, enterIC, inlineInstance, isUsed, leaveIC, levelsOf, newICId, renameDefinition, subCircuit } from '../model/ic'
-import { isAnnotation, newId } from '../model/circuit'
+import { isAnnotation, newId, type Circuit, type ICDef } from '../model/circuit'
 import { checkpoint, edit, loadCircuit, select, showToast, undo as undoNow, useStore } from './store'
 import { fitToScreen } from './view'
 
@@ -19,28 +19,36 @@ export function openMakeIc(replace = false) {
 export const setMakeIcReplace = (replace: boolean) => useMakeIc.setState({ replace })
 export const closeMakeIc = () => useMakeIc.setState({ open: false })
 
+/**
+ * Tells which gate a circuit is (`detectSymbol` in `model/icsymbol.ts`), if it is one. The caller passes it in: it needs the analyzer, which
+ * loads with the Make IC window and not with the page.
+ */
+export type SymbolDetector = (body: Circuit) => ICDef['symbol']
+
 /** Make a custom IC from the parts (or the whole circuit) and keep it in the circuit's list of ICs; nothing on the canvas changes. Returns its id. */
-export function makeIC(name: string, from: string[] | null, replace = false): string {
+export function makeIC(name: string, from: string[] | null, replace = false, detect?: SymbolDetector): string {
   const clean = name.trim().slice(0, 40) || 'IC'
   let id = ''
-  if (replace && from) return collapseInto(clean, from)
+  if (replace && from) return collapseInto(clean, from, detect)
   checkpoint()
   edit((c) => {
     id = newICId(c.ics, clean)
-    ;(c.ics ??= {})[id] = { id, name: clean, circuit: subCircuit(c, from ?? undefined) }
+    const body = subCircuit(c, from ?? undefined)
+    const symbol = detect?.({ ...body, ics: c.ics })
+    ;(c.ics ??= {})[id] = { id, name: clean, circuit: body, ...(symbol ? { symbol } : {}) }
   }, false)
   showToast(`IC “${clean}” made. It is in the parts list, under “ICs in this circuit”.`)
   return id
 }
 
 /** Collapse parts into one IC: they are replaced by an instance, wired in their place, as one undo step. */
-function collapseInto(name: string, from: string[]): string {
+function collapseInto(name: string, from: string[], detect?: SymbolDetector): string {
   const { circuit } = useStore.getState()
   if (!from.some((id) => circuit.comps[id] && !isAnnotation(circuit.comps[id]))) return ''
   checkpoint()
   let made: ReturnType<typeof collapseSelection> = null
   edit((c) => {
-    made = collapseSelection(c, from, name, newId)
+    made = collapseSelection(c, from, name, newId, detect)
   })
   const result = made as ReturnType<typeof collapseSelection>
   if (!result) return ''

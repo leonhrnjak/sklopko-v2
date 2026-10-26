@@ -1,4 +1,5 @@
 import LZString from 'lz-string'
+import { isIcSymbol } from '../engine/components/ic'
 import { currentIsaId } from '../engine/isalist'
 import { getDef, hasDef } from '../engine/registry'
 import { MAX_DELAY } from '../engine/simulator'
@@ -31,6 +32,8 @@ interface SavedBody {
 interface SavedIC extends SavedBody {
   id: string
   name: string
+  /** The gate symbol its instances are drawn with (see `ICDef.symbol`). Optional: the format version stays. */
+  symbol?: string
 }
 export interface SavedCircuit extends SavedBody {
   app: 'sklopko'
@@ -102,7 +105,7 @@ export function serialize(circuit: Circuit): SavedCircuit {
     app: 'sklopko',
     version: FORMAT_VERSION,
     ...serializeBody(c),
-    ...(ics.length ? { ics: ics.map((def) => ({ id: def.id, name: def.name, ...serializeBody(def.circuit) })) } : {}),
+    ...(ics.length ? { ics: ics.map((def) => ({ id: def.id, name: def.name, ...(def.symbol ? { symbol: def.symbol } : {}), ...serializeBody(def.circuit) })) } : {}),
     ...(c.tests ? { tests: c.tests } : {}),
     ...(c.history === false ? { history: false as const } : {}),
   }
@@ -181,7 +184,7 @@ export function deserialize(data: unknown): Circuit {
   const ics: Record<string, ICDef> = {}
   for (const s of Array.isArray(d.ics) ? d.ics : []) {
     if (!s || !isId(s.id) || Object.hasOwn(ics, s.id) || !Array.isArray(s.comps) || !Array.isArray(s.wires)) continue
-    ics[s.id] = { id: s.id, name: typeof s.name === 'string' && s.name ? s.name.slice(0, 40) : 'IC', circuit: readBody(s) }
+    ics[s.id] = { id: s.id, name: typeof s.name === 'string' && s.name ? s.name.slice(0, 40) : 'IC', circuit: readBody(s), ...(isIcSymbol(s.symbol) ? { symbol: s.symbol } : {}) }
   }
   if (findCycle(ics)) throw new Error('A custom IC in this file contains itself.')
   if (Object.keys(ics).length) c.ics = ics

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CircuitBuilder } from '../builder'
 import { checkChallenge, circuitShape, logicParts, ruleProblems } from '../challengecheck'
 import type { Circuit } from '../circuit'
-import { expandICs } from '../ic'
+import { expandICs, icParams } from '../ic'
 import { CHAPTERS } from './chapters'
 import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
@@ -298,5 +298,41 @@ describe('where the map opens', () => {
     expect(isBehind(p, PATH_STEPS[1])).toBe(false)
     expect(mapChapter(emptyProgress())).toBe(getStep(PATH_STEPS[0])!.chapter)
     expect(mapChapter({ ...emptyProgress(), current: 'gone' })).toBe(getStep(PATH_STEPS[0])!.chapter)
+  })
+})
+
+describe('chips drawn as gates', () => {
+  const chipSteps = builds.filter((s) => s.chip)
+
+  it('every chip of the kit says which gate it is, and its pins fit', () => {
+    expect(chipSteps.map((s) => [s.chip, s.symbol])).toEqual([['NOT', 'not'], ['AND', 'and'], ['OR', 'or'], ['NOR', 'nor'], ['XOR', 'xor']])
+    const table = chipTable(chipSteps.map((s) => s.id), {})
+    for (const s of chipSteps) {
+      const def = table[chipId(s.id)]
+      expect(def.symbol, s.id).toBe(s.symbol)
+      expect(icParams(def).symbol, `${s.id} pins fit`).toBe(s.symbol)
+    }
+  })
+
+  it('also when the chip is the learner’s own, kept before the symbols came in', () => {
+    const not = getStep('not-from-nand') as BuildStep
+    const mine = snapshot('NOT', solutionOf(not))
+    expect(chipTable(['not-from-nand'], { 'not-from-nand': mine })[chipId('not-from-nand')].symbol).toBe('not')
+  })
+
+  it('an older circuit, whose instances were boxes, is drawn with the symbols when its chips are brought up to date', () => {
+    const and = getStep('and-from-nand') as BuildStep
+    const sol = solutionOf(and)
+    // As a document of the version before: no symbol on the chips or on their instances.
+    const old: Circuit = {
+      ...sol,
+      ics: Object.fromEntries(Object.entries(sol.ics!).map(([id, d]) => [id, { id: d.id, name: d.name, circuit: d.circuit }])),
+      comps: Object.fromEntries(Object.entries(sol.comps).map(([id, k]) => [id, k.type === 'ic' ? { ...k, params: { ...k.params, symbol: '' } } : k])),
+    }
+    const inst = (c: Circuit) => Object.values(c.comps).find((k) => k.type === 'ic')!
+    expect(inst(old).params.symbol).toBe('')
+    const fresh = refreshChips(old, and.uses!, {})
+    expect(inst(fresh).params.symbol).toBe('not')
+    expect(checkStepCircuit(and, fresh).check.passed).toBe(true)
   })
 })

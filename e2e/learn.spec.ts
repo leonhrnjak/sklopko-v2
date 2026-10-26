@@ -51,6 +51,8 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
 
   const g = await place(page, 'nand', 200, 80)
   const inv = await place(page, 'ic:kit:not-from-nand', 340, 80)
+  // The chip of a NOT is drawn as a NOT gate, not as a box.
+  await expect(page.locator(`.comp[data-id="${inv}"] .ic-gate`)).toHaveCount(1)
   await wire(page, ['switch1', 'Q'], [g, 'A'])
   await wire(page, ['switch2', 'Q'], [g, 'B'])
   await wire(page, [g, 'Y'], [inv, 'A'])

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
+import { icInputs, icOutputs, symbolOf } from '../engine/components/ic'
 import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, speakerPitch, type ConsoleState, type FramebufferState, type GamepadState, type KeypadState, type SpeakerState } from '../engine/components/devices'
 import { SEG_HEX } from '../engine/components/io'
 import { SCREEN_COLS, SCREEN_ROWS } from '../engine/acia'
@@ -1013,6 +1014,21 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
         clash = active > 1 && val(n === 1 ? 'Y' : `Y${bit}`) === X
       }
       content = <BoxSym l={l} title="BUS" warn={clash} />
+      break
+    }
+    case 'ic': {
+      // A chip that is a known gate is drawn as that gate, in the chip colour, with its name under it; any other IC is a box.
+      const symbol = symbolOf(p.symbol, icInputs(p), icOutputs(p))
+      content = symbol ? (
+        <g className="ic-gate">
+          {/* Selecting the part works anywhere over the gate and its name, not only on the thin shape. The pins stay outside it. */}
+          <rect x={0} y={-4} width={l.w} height={l.h + 26} fill="transparent" />
+          <GateSym type={symbol} l={l} />
+          {live && <Title text={String(p.name || 'IC')} x={l.w / 2} y={l.h + 14} />}
+        </g>
+      ) : (
+        <BoxSym l={l} title={def.title?.(p) ?? def.name} />
+      )
       break
     }
     default:

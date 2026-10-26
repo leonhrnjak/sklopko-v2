@@ -1,6 +1,6 @@
 import { RECV, SEND } from '../engine/netlabels'
 import { getDef, hasDef } from '../engine/registry'
-import { encodePins, type IcPin } from '../engine/components/ic'
+import { encodePins, symbolOf, type IcPin } from '../engine/components/ic'
 import { paramDefaults, type Params } from '../engine/types'
 import { produce } from 'immer'
 import { validPath } from '../routing/path'
@@ -62,7 +62,9 @@ export function deriveInterface(c: Circuit): Interface {
 export function icParams(def: ICDef): Params {
   const { inputs, outputs } = deriveInterface(def.circuit)
   const strip = ({ name, bits }: InterfacePin) => ({ name, bits })
-  return { ic: def.id, name: def.name, ins: encodePins(inputs.map(strip)), outs: encodePins(outputs.map(strip)) }
+  // The symbol only counts while the pins still fit it (an IC edited into something else is a box again).
+  const symbol = symbolOf(def.symbol, inputs, outputs)
+  return { ic: def.id, name: def.name, ins: encodePins(inputs.map(strip)), outs: encodePins(outputs.map(strip)), symbol: symbol ?? '' }
 }
 
 /** The ICs a circuit places directly (ids, each once). */
@@ -487,7 +489,7 @@ const widthAt = (c: Circuit, ref: PinRef) => {
  *   and read inside the selection stays as it is.)
  * Returns what to select afterwards (the new instance and the labels beside it), or null when there is nothing to collapse.
  */
-export function collapseSelection(c: Circuit, ids: string[], name: string, makeId: (prefix: string) => string): { defId: string; instance: string; ids: string[] } | null {
+export function collapseSelection(c: Circuit, ids: string[], name: string, makeId: (prefix: string) => string, symbolOf?: (body: Circuit) => ICDef['symbol']): { defId: string; instance: string; ids: string[] } | null {
   const sel = new Set(ids.filter((id) => c.comps[id]))
   if (![...sel].some((id) => !isAnnotation(c.comps[id]))) return null
   const inner = emptyCircuit()
@@ -594,6 +596,8 @@ export function collapseSelection(c: Circuit, ids: string[], name: string, makeI
 
   const defId = newICId(c.ics, name)
   const def: ICDef = { id: defId, name, circuit: inner }
+  const symbol = symbolOf?.({ ...inner, ics: c.ics })
+  if (symbol) def.symbol = symbol
   const pins = deriveInterface(inner)
   const pinOf = (comp: string) => [...pins.inputs, ...pins.outputs].find((p) => p.comp === comp)!.name
 

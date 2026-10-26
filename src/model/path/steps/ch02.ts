@@ -93,6 +93,7 @@ export const CH02: Step[] = [
     summary: 'Turn a NAND into an inverter.',
     palette: PALETTE,
     chip: 'NOT',
+    symbol: 'not',
     lesson: [
       { p: 'A NAND gate is an AND with its output flipped: it gives 0 only when both of its inputs are 1, and 1 in every other case.' },
       {
@@ -120,6 +121,7 @@ export const CH02: Step[] = [
     summary: 'A NAND, then the NOT you built.',
     palette: PALETTE,
     chip: 'AND',
+    symbol: 'and',
     uses: ['not-from-nand'],
     lesson: [
       { p: 'AND gives 1 only when both inputs are 1. That is exactly the opposite of NAND, so an AND is a NAND followed by a NOT.' },
@@ -136,6 +138,7 @@ export const CH02: Step[] = [
     summary: 'Invert both inputs, then NAND them.',
     palette: PALETTE,
     chip: 'OR',
+    symbol: 'or',
     uses: ['not-from-nand'],
     challenge: 'or-from-nand',
     solution: orSolution,
@@ -152,6 +155,7 @@ export const CH02: Step[] = [
     summary: 'An OR followed by a NOT.',
     palette: PALETTE,
     chip: 'NOR',
+    symbol: 'nor',
     uses: ['or-from-nand', 'not-from-nand'],
     lesson: [
       { p: 'NOR is OR with its output flipped: it gives 1 only when both inputs are 0. You have both pieces in your kit.' },
@@ -168,6 +172,7 @@ export const CH02: Step[] = [
     summary: '“A or B, but not both”.',
     palette: PALETTE,
     chip: 'XOR',
+    symbol: 'xor',
     uses: ['or-from-nand', 'and-from-nand', 'not-from-nand'],
     star: { maxParts: 4 },
     hint: 'For the star: NAND(A, B) is useful in more than one place. Feed it, together with A, into one NAND, and together with B into another.',

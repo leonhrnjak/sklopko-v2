@@ -821,6 +821,18 @@ button.danger {
   stroke-width: 2;
   stroke-linejoin: round;
 }
+/* A custom IC that is a known gate: the gate's shape, in the colour of the chips of the kit. */
+.ic-gate .sym-body {
+  stroke: var(--accent-strong);
+  stroke-width: 2.5;
+}
+.ic-gate path.sym-line {
+  stroke: var(--accent-strong);
+}
+.ic-gate .title {
+  font-size: 10px;
+  fill: var(--accent-strong);
+}
 .sym-line {
   fill: none;
   stroke: var(--ink);

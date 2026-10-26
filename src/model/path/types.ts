@@ -1,3 +1,4 @@
+import type { IcSymbol } from '../../engine/components/ic'
 import type { Challenge } from '../challenges'
 import type { Circuit } from '../circuit'
 
@@ -50,6 +51,8 @@ export interface BuildStep extends StepBase {
   solution?: () => Circuit
   /** The name of the chip the passing circuit becomes in the learner's kit. */
   chip?: string
+  /** The gate the chip is, so that it is drawn with that gate's symbol (see `ICDef.symbol`). */
+  symbol?: IcSymbol
   /** Ids of the steps whose chips the starting circuit has (the learner's own, or ours when they have not built them). */
   uses?: string[]
   /** The parts the palette offers, besides the kit. The rules still decide what passes. */
