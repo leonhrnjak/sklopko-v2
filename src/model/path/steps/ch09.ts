@@ -1,5 +1,5 @@
 import type { Step } from '../types'
-import { CPU_PROGRAM, giveControlRom } from '../cpu4'
+import { CPU_PROGRAM, giveControlRom, upgradeControlRom } from '../cpu4'
 
 /**
  * Chapter 9: Build a computer. One circuit, the learner's, grows through the steps; each step ends with a stage of the reference computer
@@ -272,6 +272,81 @@ export const CH09: Step[] = [
       { p: 'Look at what you have built: a clock, a program counter, a ROM with the program, a Control ROM, an accumulator, a RAM and an adder. It is the same machine as the beginner computer in the Examples gallery, part for part: open that example and put it next to yours.' },
       { p: 'Press Clock step to tick, or let it run. The PC counts 0, 1, 2, 3, 4, 5. The ACC becomes 3, then 7. The RAM keeps the 3 and, at the end, the 7. At the HALT the PC stops. Everything it does, it does by a table of numbers and a few gates: that is all a computer is.' },
       { p: 'Your computer can add and loop, but it cannot make a decision: it cannot ask “is it zero?” and go one way or the other. That is the next step.' },
+    ],
+  },
+  {
+    id: 'cpu-decide',
+    chapter: 'computer',
+    title: 'Decisions: Z and conditional jumps',
+    kind: 'project',
+    project: 'cpu4',
+    stage: 7,
+    give: upgradeControlRom,
+    uses: ['is-zero'],
+    summary: 'A Z flag, and the jumps JZ and JNC: the computer can now choose what to do next.',
+    palette: ['nor', 'or', 'and', 'not', 'register', 'const', 'led', 'hexdisp', 'switch'],
+    task: 'Detect when the adder’s answer is zero (your ZERO chip, or a NOR of its four sum bits) and keep that in a Z flag: a register labelled Z flag with its load from SAVE_CARRY. Make the PC load when JUMP, or JZ and Z, or JNC and not the carry flag. Set the rows JZ and JNC.',
+    hint: 'The Control ROM has two new outputs, JZ and JNC. The PC’s LD is an OR of three things: JUMP, an AND of JZ with the Z flag, and an AND of JNC with NOT the carry flag. Like the carry flag, the Z flag is a register whose other three inputs go to a Constant 0. The row JZ switches JZ on; the row JNC switches JNC on.',
+    runs: [
+      {
+        title: 'Count down from 5 and HALT at 0',
+        program: 'LDI 1\nSTA 0\nLDI 5\nloop: SUB 0\nJZ done\nJMP loop\ndone: HALT',
+        checks: [
+          { after: 4, text: 'after the first SUB the ACC is 4 and the program goes round again', expect: [{ value: 'ACC', is: 4 }] },
+          { after: 8, text: 'the ACC counts down: 3 after the second SUB (JZ did not jump)', expect: [{ value: 'ACC', is: 3 }] },
+          { after: 17, text: 'when the ACC reaches 0, JZ jumps to the HALT: the PC is 6', expect: [{ value: 'PC', is: 6 }, { value: 'ACC', is: 0 }] },
+          { after: 20, text: 'and the computer stays there, halted', expect: [{ value: 'PC', is: 6 }, { led: 'Halted', is: 1 }] },
+        ],
+      },
+      {
+        title: 'JNC loops until a carry',
+        program: 'LDI 9\nSTA 0\nLDI 0\nloop: ADD 0\nJNC loop\nHALT',
+        checks: [
+          { after: 5, text: 'after 9 there is no carry, so JNC jumps back to the ADD', expect: [{ value: 'ACC', is: 9 }, { value: 'PC', is: 3 }] },
+          { after: 7, text: 'after 9 + 9 = 18 the carry is set: JNC lets the PC go on, to the HALT', expect: [{ value: 'ACC', is: 2 }, { value: 'PC', is: 5 }] },
+        ],
+      },
+    ],
+    lesson: [
+      { p: 'Everything the computer does so far, it does in the order of the program. A decision needs two things: a fact about the last result, and a jump that looks at the fact. The carry flag you have is one fact (“it overflowed”). Another is “the answer was zero”, and it is the most useful of all: a countdown ends when it reaches zero, two numbers are equal when their difference is zero.' },
+      { p: 'The Z flag is built like the carry flag. A zero detector, the ZERO you built in chapter 6 (it is in the parts list as a chip), looks at the adder’s four sum bits, and a register keeps its answer when SAVE_CARRY is on: the same instructions, ADD and SUB, that save the carry save Z. The Control ROM has been made wider for you, with two new signals, JZ and JNC, and rows for the two instructions.' },
+      { p: 'The PC used to load whenever JUMP was on. Now it loads when JUMP is on, or when JZ is on and Z is 1, or when JNC is on and the carry flag is 0. JZ means “jump if zero”; JNC, “jump if no carry”.' },
+    ],
+  },
+  {
+    id: 'cpu-output',
+    chapter: 'computer',
+    title: 'Talking to the world',
+    kind: 'project',
+    project: 'cpu4',
+    stage: 8,
+    summary: 'A write to address 15 goes to an output register with a display, instead of to the RAM.',
+    palette: ['and', 'not', 'register', 'hexdisp'],
+    task: 'Make address 15 special: when the address in the instruction is all ones and WRITE_RAM is on, load a 4-bit register labelled Output from the ACC (with a display), and do not write the RAM. Every other write goes to the RAM as before.',
+    hint: 'An AND of the four address bits (the Program ROM’s D0 to D3) says “address 15”. The Output register’s LD is that AND-ed with WRITE_RAM; the RAM’s WE is WRITE_RAM AND-ed with NOT “address 15”.',
+    runs: [
+      {
+        title: 'LDI 7, STA 15',
+        program: 'LDI 7\nSTA 15',
+        checks: [
+          { after: 2, text: 'the Output register shows 7', expect: [{ value: 'Output', is: 7 }] },
+          { after: 2, text: 'and RAM word 15 is unchanged: it is still 0', expect: [{ ram: 'RAM', at: 15, is: 0 }] },
+        ],
+      },
+      {
+        title: 'Writes to RAM still work',
+        program: 'LDI 3\nSTA 4\nLDI 9\nSTA 15\nLDA 4',
+        checks: [
+          { after: 2, text: 'STA 4 writes RAM word 4, and the Output register is still empty', expect: [{ ram: 'RAM', at: 4, is: 3 }, { value: 'Output', is: 0 }] },
+          { after: 4, text: 'STA 15 puts 9 on the output', expect: [{ value: 'Output', is: 9 }] },
+          { after: 5, text: 'LDA 4 loads the 3 from RAM, and the output stays 9', expect: [{ value: 'ACC', is: 3 }, { value: 'Output', is: 9 }] },
+        ],
+      },
+    ],
+    lesson: [
+      { p: 'A computer that cannot show anyone its answer is not much use. Real computers talk to devices through the same wires as memory: some addresses are not RAM at all, they are the device. This is called memory-mapped input and output, and the 6502 does it too.' },
+      { p: 'Here the device is an output register with a display, at address 15. To the program it is just an address: `STA 15` writes the ACC there. In the circuit, an AND of the four address bits is 1 only for address 15. When it is, and WRITE_RAM is on, the Output register loads from the ACC. The RAM must not be written at the same time, so its write enable is WRITE_RAM AND NOT “address 15”.' },
+      { p: 'You have built a computer: it fetches, decodes and executes; it adds, subtracts, jumps, decides, and shows what it found. In the next chapter you program it.' },
     ],
   },
 ]

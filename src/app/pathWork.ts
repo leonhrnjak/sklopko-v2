@@ -1,5 +1,5 @@
 import { checkStepCircuit, stepStarter } from '../model/path/build'
-import { snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chips'
+import { chipTable, snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chips'
 import { circuitShape } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
 import { cpuStage } from '../model/path/cpu4'
@@ -57,7 +57,7 @@ export async function startStep(id: string) {
   const build = step.kind === 'build' ? step : undefined
   const explore = step.kind === 'explore' ? step : undefined
   const project = step.kind === 'project' ? step : undefined
-  const uses = build?.uses ?? []
+  const uses = build?.uses ?? (step.kind === 'project' ? step.uses : undefined) ?? []
   // The challenge panel is the other way to work on a circuit: one at a time.
   closeChallenge()
   closeChallengeList()
@@ -107,6 +107,7 @@ async function projectStarter(step: ProjectStep): Promise<Circuit> {
   }
   c ??= structuredClone(cpuStage(before?.stage ?? 0))
   step.give?.(c)
+  if (step.uses?.length) c.ics = { ...chipTable(step.uses, useKit.getState().kit), ...c.ics }
   return c
 }
 

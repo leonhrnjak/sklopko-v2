@@ -149,6 +149,8 @@ export interface ProjectStep extends StepBase {
   stage: number
   /** Parts given at the start of the step, on top of the circuit it starts from (the Control ROM, say). */
   give?: (c: Circuit) => void
+  /** Ids of build steps whose chips the palette offers (the learner's, or ours when they have not built them). */
+  uses?: string[]
   /** The parts the palette offers. */
   palette: string[]
   runs: CpuRun[]
