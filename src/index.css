@@ -2664,11 +2664,18 @@ table.truth tr.hl td {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
+  /* All the chapters show, in rows: a row that scrolls sideways hides the ones off the screen. */
   .learn-chapters {
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .learn-chapter {
+    width: auto;
+    padding: 4px 8px;
+  }
+  .learn-chapter-title {
+    display: none;
   }
   .learn-chapter-count {
     display: none;

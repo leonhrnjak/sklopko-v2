@@ -359,3 +359,18 @@ test('on a phone a step of Learn is checked and its verdict is on screen, a proj
   expect(o.scrollW).toBeLessThanOrEqual(o.width)
   expect(o.panelRight).toBeLessThanOrEqual(o.width + 0.5)
 })
+
+test('on a phone every chapter of the Learn map is on screen, with no sideways scrolling', async ({ page }) => {
+  await fresh(page)
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.locator('.toolbar-menu').getByText('Learn: from NAND to a computer').tap()
+  const map = page.getByRole('dialog', { name: 'Learn' })
+  await expect(map.getByTestId('learn-chapter-basic')).toBeVisible()
+  const width = page.viewportSize()!.width
+  const boxes = await map.locator('[data-testid^="learn-chapter-"]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ l: r.left, r: r.right })))
+  expect(boxes).toHaveLength(14)
+  for (const b of boxes) {
+    expect(b.l).toBeGreaterThanOrEqual(0)
+    expect(b.r).toBeLessThanOrEqual(width + 0.5)
+  }
+})

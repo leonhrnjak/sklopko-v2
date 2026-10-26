@@ -115,10 +115,12 @@ function MapView() {
                   onClick={() => setPicked(c.id)}
                   aria-current={c.id === chapter.id}
                   data-testid={`learn-chapter-${c.id}`}
+                  title={c.title}
                 >
                   <span className="learn-mark">{st.mark}</span>
                   <span className="learn-chapter-name">
-                    {i + 1} {c.title}
+                    {i + 1}
+                    <span className="learn-chapter-title"> {c.title}</span>
                   </span>
                   <span className="learn-chapter-count">{st.total ? `${st.done}/${st.total}` : 'soon'}</span>
                 </button>
