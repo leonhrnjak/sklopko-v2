@@ -2404,6 +2404,42 @@ table.truth td.in.changed {
 .step-panel .challenge-text .truth-wrap {
   margin: 0 0 8px;
 }
+table.truth tr.hl td {
+  background: color-mix(in srgb, var(--wire-1) 14%, var(--bg));
+  font-weight: 600;
+}
+.quiz {
+  margin: 0 0 8px;
+}
+.quiz-q {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  margin: 0 0 6px;
+  padding: 4px 10px 6px;
+}
+.quiz-q legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.quiz-opt {
+  display: block;
+  padding: 1px 0;
+}
+.quiz-opt.right {
+  color: var(--wire-1);
+}
+.quiz-opt.wrong {
+  color: var(--wire-0, #c0392b);
+}
+.quiz-says {
+  margin: 4px 0 0;
+}
+.quiz-says.right {
+  color: var(--wire-1);
+}
+.step-after {
+  margin: 0 0 6px;
+}
 .step-where {
   color: var(--muted);
   font-size: 12px;

@@ -29,8 +29,8 @@ describe('the path and its index', () => {
 
   it('puts every step in a chapter that exists, and the chapters in the order of the plan', () => {
     const ids = CHAPTERS.map((c) => c.id)
-    expect(ids).toHaveLength(13)
-    expect(new Set(ids).size).toBe(13)
+    expect(ids).toHaveLength(14)
+    expect(new Set(ids).size).toBe(14)
     for (const s of STEPS) expect(ids, s.id).toContain(s.chapter)
     // Steps are in chapter order.
     const order = STEPS.map((s) => ids.indexOf(s.chapter))
@@ -334,5 +334,77 @@ describe('chips drawn as gates', () => {
     const fresh = refreshChips(old, and.uses!, {})
     expect(inst(fresh).params.symbol).toBe('not')
     expect(checkStepCircuit(and, fresh).check.passed).toBe(true)
+  })
+})
+
+describe('chapter 3 and the lessons that came with it', () => {
+  const lessonsOf = (s: (typeof STEPS)[number]) => s.lesson
+  const quizzes = STEPS.flatMap((s) => lessonsOf(s).flatMap((b) => ('quiz' in b ? b.quiz.map((q) => ({ id: s.id, q })) : [])))
+
+  it('has a question with a right answer to point at in every quiz, and a step 3 in the chapters', () => {
+    expect(quizzes.length).toBeGreaterThan(8)
+    for (const { id, q } of quizzes) {
+      expect(q.options.length, id).toBeGreaterThan(1)
+      expect(Number.isInteger(q.answer) && q.answer >= 0 && q.answer < q.options.length, `${id}: ${q.q}`).toBe(true)
+      expect(q.why, id).toBeTruthy()
+    }
+    expect(CHAPTERS[2].id).toBe('tables')
+    expect(stepIdsOf('tables')).toEqual(['table-to-sop', 'sop-majority', 'combine-terms', 'kmap', 'sop-bcd', 'nand-nand', 'sop-nand'])
+  })
+
+  it('marks real rows of its tables and gives its maps rows that exist', () => {
+    for (const s of STEPS)
+      for (const b of lessonsOf(s)) {
+        if ('table' in b) for (const r of b.table.highlight ?? []) expect(r, s.id).toBeLessThan(b.table.rows.length)
+        if ('kmap' in b) for (const r of b.kmap.ones) expect(r, s.id).toBeLessThan(2 ** b.kmap.inputs.length)
+      }
+  })
+
+  it('sends a done-card link to a step that exists', () => {
+    for (const s of builds) if (s.after) expect(hasStep(s.after.step), s.id).toBe(true)
+    expect((getStep('sop-nand') as BuildStep).after?.step).toBe('xor-from-kit')
+  })
+
+  it('makes an existing challenge NAND-only for a step without changing the challenge', () => {
+    const step = getStep('sop-nand') as BuildStep
+    expect(challengeOf(step).rules).toEqual({ only: ['nand'] })
+    expect(challengeOf(step).id).toBe('majority')
+    // The challenge as the Challenges list has it still takes any gates.
+    const plain = { ...step, rules: undefined } as BuildStep
+    expect(challengeOf(plain).rules).toBeUndefined()
+    const andOr = new CircuitBuilder()
+    const [a, b, c, y] = ['A', 'B', 'C'].map((l, i) => andOr.add('switch', 0, i * 70, { label: l })).concat(andOr.add('led', 460, 0, { label: 'Y' }))
+    const ab = andOr.add('and', 120, 0)
+    const ac = andOr.add('and', 120, 80)
+    const bc = andOr.add('and', 120, 160)
+    const any = andOr.add('or', 260, 70, { params: { inputs: 3 } })
+    for (const [g, p, q] of [[ab, a, b], [ac, a, c], [bc, b, c]] as const) {
+      andOr.wire(`${p}.Q`, `${g}.A`)
+      andOr.wire(`${q}.Q`, `${g}.B`)
+    }
+    andOr.wire(`${ab}.Y`, `${any}.A`)
+    andOr.wire(`${ac}.Y`, `${any}.B`)
+    andOr.wire(`${bc}.Y`, `${any}.C`)
+    andOr.wire(`${any}.Y`, `${y}.A`)
+    const circuit = andOr.build()
+    expect(checkStepCircuit(plain, circuit).check.passed).toBe(true)
+    const nandOnly = checkStepCircuit(step, circuit).check
+    expect(nandOnly.passed).toBe(false)
+    expect(nandOnly.problems.length).toBeGreaterThan(0)
+  })
+
+  it('earns the star of the two 4-gate steps, while the circuit read straight off the table is a correct, big one', () => {
+    for (const id of ['sop-bcd', 'sop-nand']) {
+      const s = getStep(id) as BuildStep
+      const r = checkStepCircuit(s, solutionOf(s))
+      expect(r.check.passed, id).toBe(true)
+      expect(r.parts, id).toBe(4)
+      expect(r.star, id).toBe(true)
+    }
+    // The big version from the truth table is a correct circuit, only not a small one.
+    const big = getStep('sop-majority') as BuildStep
+    const r = checkStepCircuit(big, solutionOf(big))
+    expect(r.check.passed).toBe(true)
+    expect(r.parts).toBeGreaterThan(20)
   })
 })

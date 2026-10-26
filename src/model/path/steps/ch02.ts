@@ -175,7 +175,7 @@ export const CH02: Step[] = [
     symbol: 'xor',
     uses: ['or-from-nand', 'and-from-nand', 'not-from-nand'],
     star: { maxParts: 4 },
-    hint: 'For the star: NAND(A, B) is useful in more than one place. Feed it, together with A, into one NAND, and together with B into another.',
+    hint: 'For the star: NAND(A, B) is useful in more than one place. Feed it, together with A, into one NAND, and together with B into another. (Chapter 3 shows why this works: come back to it after that.)',
     lesson: [
       { p: 'XOR (“exclusive or”) gives 1 when its two inputs differ: A or B, but not both. In gates that is (A OR B) AND NOT (A AND B).' },
       { p: 'Build it from OR, AND and NOT in your kit. It will be a correct XOR, though not a small one: every chip of your kit is NAND inside, and they add up.' },
@@ -202,7 +202,13 @@ export const CH02: Step[] = [
           ],
         },
       },
-      { p: 'Next you will use gates to choose between signals, and then to add numbers. Your kit keeps what you built, and the same parts will be in the parts list as ready-made ones when you finish a chapter.' },
+      {
+        quiz: [
+          { q: 'NAND(A, B) is the same as…', options: ['NOT A AND NOT B', 'NOT A OR NOT B', 'A OR B'], answer: 1, why: 'De Morgan: inverting an AND gives an OR of the inverted inputs.' },
+          { q: 'NOR(A, B) is the same as…', options: ['NOT A AND NOT B', 'NOT A OR NOT B', 'A AND B'], answer: 0, why: 'De Morgan again: inverting an OR gives an AND of the inverted inputs.' },
+        ],
+      },
+      { p: 'Next you will turn any truth table into gates, then use gates to choose between signals, and then to add numbers. Your kit keeps what you built, and the same parts will be in the parts list as ready-made ones when you finish a chapter.' },
     ],
   },
 ]

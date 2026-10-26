@@ -3,9 +3,10 @@ import { isDone, type Progress } from '../progress'
 import type { Step } from '../types'
 import { CH01 } from './ch01'
 import { CH02 } from './ch02'
+import { CH03 } from './ch03'
 
 /** Every step, in the order of the path. Loads on demand: the main chunk has only the ids (`../index.ts`). */
-export const STEPS: Step[] = [...CH01, ...CH02]
+export const STEPS: Step[] = [...CH01, ...CH02, ...CH03]
 
 registerSteps(STEPS)
 

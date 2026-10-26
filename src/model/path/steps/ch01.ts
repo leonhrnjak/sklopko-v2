@@ -36,6 +36,13 @@ export const CH01: Step[] = [
         },
       },
       { p: 'Four bits are a convenient size: one hexadecimal digit (0 to 9, then A to F for 10 to 15) writes exactly four bits, so 1011 is B. The computer you will build is 4 bits wide. The real chip at the end of the path is 8 bits wide, which is two hexadecimal digits: 0 to 255.' },
+      {
+        quiz: [
+          { q: 'What number is 1011?', options: ['9', '11', '13'], answer: 1, why: '8 + 2 + 1 = 11.' },
+          { q: 'How is 6 written in four bits?', options: ['0110', '0011', '1100'], answer: 0, why: '6 = 4 + 2, so the 4s and the 2s places hold a 1.' },
+          { q: 'How many different numbers can four bits hold?', options: ['8', '15', '16'], answer: 2, why: '2 × 2 × 2 × 2 = 16: the numbers 0 to 15.' },
+        ],
+      },
     ],
   },
 ]

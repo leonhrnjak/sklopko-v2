@@ -3,7 +3,7 @@ import { snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chip
 import { circuitShape } from '../model/challengecheck'
 import { markDone } from '../model/path/progress'
 import { getStep, stepAfter } from '../model/path/steps'
-import type { Step } from '../model/path/types'
+import type { Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
 import { closeChallenge, closeChallengeList, markSolved } from './challenges'
 import { openCircuit } from './documents'
@@ -117,6 +117,16 @@ export function markRead() {
   const step = currentStep()
   if (step?.kind !== 'read') return
   setProgress(markDone(usePath.getState().progress, step.id, 'read', Date.now()))
+}
+
+/** Remember an answer to question `i` of a step's quiz. A step whose questions are all answered right counts as read. */
+export function answerQuiz(stepId: string, i: number, choice: number, questions: readonly Question[]) {
+  const { progress } = usePath.getState()
+  const given = Array.from({ length: questions.length }, (_, k) => progress.quiz[stepId]?.[k] ?? -1)
+  given[i] = choice
+  let next = { ...progress, quiz: { ...progress.quiz, [stepId]: given } }
+  if (getStep(stepId)?.kind === 'read' && questions.every((q, k) => given[k] === q.answer)) next = markDone(next, stepId, 'read', Date.now())
+  setProgress(next)
 }
 
 /** Go to the step after the open one; at the end of the path, back to the map. */

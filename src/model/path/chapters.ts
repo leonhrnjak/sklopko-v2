@@ -1,9 +1,10 @@
 import type { Chapter } from './types'
 
-/** All thirteen chapters of the path, in order. A chapter with no steps yet shows on the map as coming. */
+/** All fourteen chapters of the path, in order. A chapter with no steps yet shows on the map as coming. */
 export const CHAPTERS: Chapter[] = [
   { id: 'signals', title: 'Signals and wires', blurb: 'A bit is a 0 or a 1. Switches, LEDs, wires, and counting in binary.' },
   { id: 'nand', title: 'NAND is all you need', blurb: 'One kind of gate, and every other gate built from it. Each one goes into your kit.' },
+  { id: 'tables', title: 'From a truth table to gates', blurb: 'Any truth table becomes gates: sum of products, making it smaller, and doing it with NAND only.' },
   { id: 'choosing', title: 'Choosing', blurb: 'Multiplexers, demultiplexers and decoders: send a signal where you want it.' },
   { id: 'adding', title: 'Adding numbers', blurb: 'From a half adder to a 4-bit adder/subtractor.' },
   { id: 'alu', title: 'The ALU', blurb: 'One block that adds, subtracts, ANDs and ORs, and tells you if the answer was zero.' },

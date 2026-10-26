@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { Cell } from '../../logic/table'
 import { closeStep, openMap, showStepHint, usePath } from '../../app/path'
 import { checkStep, markRead, nextStep, restartStep, showStepSolution, startStep } from '../../app/pathWork'
 import { useStore } from '../../app/store'
@@ -10,20 +11,29 @@ import { getStep, stepAfter, stepBefore, stepsOf } from '../../model/path/steps'
 import type { Block, BuildStep, Step } from '../../model/path/types'
 import { CheckVerdict, StepsTable } from '../challenges/CheckVerdict'
 import { rulesText } from '../challenges/rulesText'
+import { KarnaughMap } from '../logic/KarnaughMap'
 import { TruthTableView } from '../logic/TruthTableView'
 import { numberOf } from './numbers'
 import { Mark } from './Mark'
+import { Quiz } from './Quiz'
 
-/** A lesson: paragraphs, and small tables. */
-export function Lesson({ blocks }: { blocks: Block[] }) {
+/** The values of a map's output over its inputs: 1 on the listed rows, 0 elsewhere. */
+const mapValues = (inputs: string[], ones: number[]): Cell[] => Array.from({ length: 2 ** inputs.length }, (_, row) => (ones.includes(row) ? 1 : 0))
+
+/** A lesson: paragraphs, small tables (some rows marked), Karnaugh maps and questions. */
+export function Lesson({ blocks, stepId }: { blocks: Block[]; stepId: string }) {
   return (
     <>
-      {blocks.map((b, i) =>
-        'p' in b ? (
-          <p key={i} className="step-lesson">
-            {b.p}
-          </p>
-        ) : (
+      {blocks.map((b, i) => {
+        if ('p' in b)
+          return (
+            <p key={i} className="step-lesson">
+              {b.p}
+            </p>
+          )
+        if ('quiz' in b) return <Quiz key={i} stepId={stepId} questions={b.quiz} />
+        if ('kmap' in b) return <KarnaughMap key={i} values={mapValues(b.kmap.inputs, b.kmap.ones)} names={b.kmap.inputs} output={b.kmap.output} />
+        return (
           <div key={i} className="truth-wrap">
             <table className="truth">
               <thead>
@@ -35,7 +45,7 @@ export function Lesson({ blocks }: { blocks: Block[] }) {
               </thead>
               <tbody>
                 {b.table.rows.map((row, r) => (
-                  <tr key={r}>
+                  <tr key={r} className={b.table.highlight?.includes(r) ? 'hl' : undefined}>
                     {row.map((cell, c) => (
                       <td key={c}>{cell}</td>
                     ))}
@@ -44,8 +54,8 @@ export function Lesson({ blocks }: { blocks: Block[] }) {
               </tbody>
             </table>
           </div>
-        ),
-      )}
+        )
+      })}
     </>
   )
 }
@@ -62,6 +72,14 @@ function Earned({ step, parts, star }: { step: BuildStep; parts: number; star: b
         </p>
       )}
       {step.star && <p className={star ? 'star-earned' : 'star-todo'}>{star ? `⭐ You met the par of ${step.star.maxParts}!` : `⭐ Do it with ${step.star.maxParts} gates for a star.`}</p>}
+      {step.after && (
+        <p className="step-after" data-testid="step-after">
+          {step.after.text}{' '}
+          <button className="link-button inline" onClick={() => startStep(step.after!.step)}>
+            Go to {getStep(step.after.step)?.title} →
+          </button>
+        </p>
+      )}
       <button className="primary-action" onClick={nextStep} data-testid="step-next">
         {nextStepInfo ? `Next: ${nextStepInfo.title} →` : 'Back to the map'}
       </button>
@@ -84,7 +102,7 @@ function BuildBody({ step }: { step: BuildStep }) {
   return (
     <div className="challenge-body">
       <div className="challenge-text">
-        <Lesson blocks={step.lesson} />
+        <Lesson blocks={step.lesson} stepId={step.id} />
         <p className="task">
           <b>Your task:</b> {step.task ?? ch.task}
         </p>
@@ -140,7 +158,7 @@ function ReadBody({ step }: { step: Step }) {
   return (
     <div className="challenge-body read">
       <div className="challenge-text">
-        <Lesson blocks={step.lesson} />
+        <Lesson blocks={step.lesson} stepId={step.id} />
       </div>
       <div className="read-next">
         <button

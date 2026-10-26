@@ -1,5 +1,5 @@
 import type { IcSymbol } from '../../engine/components/ic'
-import type { Challenge } from '../challenges'
+import type { Challenge, Rules } from '../challenges'
 import type { Circuit } from '../circuit'
 
 /**
@@ -21,8 +21,27 @@ export interface Chapter {
   unlocks?: string[]
 }
 
-/** A paragraph, or a small table (place values, a truth table). */
-export type Block = { p: string } | { table: { head: string[]; rows: string[][] } }
+/** A multiple-choice question with one right answer and a sentence on why. */
+export interface Question {
+  q: string
+  options: string[]
+  /** The index of the right option. */
+  answer: number
+  why: string
+}
+
+/** A Karnaugh map of one output: the inputs in order (the first is the leftmost bit) and the rows where the output is 1. */
+export interface KmapFigure {
+  inputs: string[]
+  output: string
+  ones: number[]
+}
+
+/**
+ * A paragraph, a small table (place values, a truth table; `highlight` marks rows of it), a Karnaugh map, or questions to answer
+ * (practice: they never block going on).
+ */
+export type Block = { p: string } | { table: { head: string[]; rows: string[][]; highlight?: number[] } } | { kmap: KmapFigure } | { quiz: Question[] }
 
 export interface StepBase {
   /** Permanent: progress, the kit and the step's document are stored by it. */
@@ -59,6 +78,10 @@ export interface BuildStep extends StepBase {
   palette?: string[]
   /** An optional par: a star for meeting it. A star never blocks anything. */
   star?: { maxParts: number }
+  /** Rules that replace the challenge's own: how an existing challenge is made NAND-only for the path. */
+  rules?: Rules
+  /** Shown as a link in the done-card: a step to go back to now that this one is done. */
+  after?: { step: string; text: string }
 }
 
 export type Step = ReadStep | BuildStep
