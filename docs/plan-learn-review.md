@@ -2,7 +2,7 @@
 
 A read-through of all 14 chapters (78 steps) as a student meets them, checked against the engine, the examples and the BASIC source.
 One PR per item, stacked in order (`learn-fix-01-…` to `learn-fix-25-…`); tick the box when the PR merges. The new steps (11, 13, 25)
-each raise `PATH_STEP_COUNT` by one: 78 → 81.
+each add a step: 78 → 81. The step count is generated at build time (`scripts/pathStepCount.ts`), so adding a step needs no number changed anywhere.
 
 ## A. Errors and false claims
 - [x] 1. ch05 `binary-add`: the carry row of the table shows carries *out of* each column (`0 1 1 0`); it must be the carries *into* them (`1 1 0 0`).
@@ -39,4 +39,4 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 
 ## Checks for every PR
 `npm test -- --reporter=dot`, `npx oxlint` on the changed files, `npx tsc -b`, `e2e/learn.spec.ts`, and `npm run build` (the startup
-chunk must not grow; only `PATH_STEP_COUNT` changes there). CI has no credits, so the results go in the PR.
+chunk must not grow). CI has no credits, so the results go in the PR.
