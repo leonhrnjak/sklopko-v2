@@ -95,6 +95,8 @@ export type Goal = { text: string } & (
   | { oscillating: true }
   /** Switches, by label, are set like this (the others do not matter). */
   | { switches: Record<string, 0 | 1> }
+  /** A word of a RAM (by label) holds this. */
+  | { memory: string; at: number; is: number }
 )
 
 export interface ExploreStep extends StepBase {

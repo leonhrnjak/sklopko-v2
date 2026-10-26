@@ -27,6 +27,13 @@ const SCRIPTS: Record<string, { label: string; to: number }[]> = {
     { label: 'D2', to: 1 },
   ],
   'ripple-tour': [{ label: 'B', to: 1 }],
+  'rom-ram-tour': [
+    { label: 'Address', to: 3 },
+    { label: 'Data', to: 9 },
+    { label: 'WE', to: 1 },
+    { label: 'CLK', to: 1 },
+    { label: 'Address', to: 5 },
+  ],
   feedback: [
     { label: 'Enable', to: 1 },
     { label: 'Enable', to: 0 },

@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { goalHolds, tick } from '../model/path/goals'
 import { markDone } from '../model/path/progress'
 import type { ExploreStep } from '../model/path/types'
-import { setProgress, usePath } from './path'
+import { usePath } from './path'
+import { commitProgress } from './pathUnlock'
 import { sim } from './sim'
 import { useStore } from './store'
 
@@ -37,7 +38,7 @@ export function watchGoals(step: ExploreStep, alreadyDone: boolean) {
     const ticked = tick(step.goals, before, !!step.ordered, (g) => goalHolds(g, circuit, sim))
     if (ticked.every((t, i) => t === before[i])) return
     useGoals.setState({ ticked })
-    if (ticked.every(Boolean)) setProgress(markDone(usePath.getState().progress, step.id, 'solved', Date.now()))
+    if (ticked.every(Boolean)) commitProgress(markDone(usePath.getState().progress, step.id, 'solved', Date.now()))
   }
   stopWatching = sim.subscribe(look)
 }

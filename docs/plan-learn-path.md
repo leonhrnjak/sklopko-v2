@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -19,7 +19,7 @@
 >   - [x] L2d-3 Chapter 6, the ALU (own PR, `learn-l2-ch6`)
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
   - [x] L3a Clocked steps (`pulse`) and chapter 7, memory (own PR, `learn-l3-ch7`)
-  - [ ] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`)
+  - [x] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`, stacked on `learn-l3-ch7`)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
@@ -702,7 +702,20 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   REG4, all boxes). The flip-flop is a master and a slave D latch with NOT CLK between; REG1 is a MUX in front of a DFF fed back from its own Q.
 - **A flip-flop powers up knowing nothing** (its pins read unknown until written), so the first step of each clocked check loads a 0 with a pulse before it expects anything.
 - The e2e specs that wrote the step count as a number (`0 of 33 steps`) now use `PATH_STEPS.length`; `PATH_STEP_COUNT` is 39.
-- *Unlocks* is still L3b's.
+- *Unlocks* is L3b's.
+
+**What L3b (chapter 8, *Counting and memories*, and the unlocks) did, and where it differs from the plan.**
+- The six steps as in the table: `tff` (chip TFF), `counter4` (COUNT4), `pc` (PC), `rom-gates` (no chip), `ram4x4` (RAM4) and the explore step `rom-ram-tour`. The ROM's four words are 0101, 0011, 1100, 1010.
+- **Every clocked circuit has a CLR.** A flip-flop powers up unknown and a circuit that feeds itself stays unknown, so the T flip-flop, the counter and the PC each take CLR (a synchronous clear: an AND with NOT CLR in front of D),
+  which the plan did not have. The counter and the PC are a REG4, an ADD4 (B tied to a **Constant** 0, Cin = EN, so it adds 1 only while EN is on) and LD = EN or CLR (the PC also LD); the Constant is in those steps' palettes,
+  since a pin connected to nothing is unknown, not 0. The PC's multiplexer per bit has LD choose between the sum and D.
+- `ram4x4` may use the **built-in 4:1 multiplexer** (`rules: only NAND and MUX`, MUX in its palette): twelve 2:1 chips would be wiring and no idea, and it is the first use of an unlocked part. `rom-ram-tour` is built on the
+  spot: a built-in RAM (16 words) and a ROM with the digits of pi, one hex input for the address and one for the data, a WE and a CLK switch. A new goal `{ memory, at, is }` reads a word of a RAM (`Reader.state`, which the
+  simulator has); the goals are "RAM word 3 is 9" and then "the ROM shows 9".
+- **Unlocks** (`Chapter.unlocks`, listed for chapters 2, 4, 5, 6, 7 and 8): a chapter is done when each of its steps is done, solved, shown or read (`chapterDone`, `unlockedParts`, `chaptersUnlockedBy` in `steps/index.ts`). Finishing it
+  toasts "Chapter 7 done: SR latch, D latch … are now in the parts list" (`app/pathUnlock.ts`: `commitProgress` is the one way progress is saved from a step, and `showStepSolution` toasts before it, so the unlock note is the one left).
+  The unlocked parts are added to the palette of **explore** steps that have one; build steps keep their palette (the rules decide what passes anyway), and the CPU steps of chapter 9 will list the built-ins they need.
+- `PATH_STEP_COUNT` is 45. The counter's check has 21 steps (17 ticks).
 
 ### L4 The CPU project: chapter 9
 - `src/model/path/run.ts` (clock-run checks), `withoutWires`, project documents with `start: 'previous'`, and the reference CPU built step by
