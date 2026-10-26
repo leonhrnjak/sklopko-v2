@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-programming')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-bigger')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -501,4 +501,25 @@ test('learn: the last steps of the CPU project make decisions and write to the o
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('Solved!')
   await expect(panel(page).getByTestId('project-lines').first()).toContainText('☑ the Output register shows 7')
+})
+
+test('learn: a program is written in the Program ROM’s inspector and checked on both computers, and the verdict names the wrong one', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/prog-add', { waitUntil: 'networkidle' })
+  await panel(page).getByTestId('edit-program').click()
+  const source = page.getByLabel('Program source')
+  await expect(source).toBeVisible()
+  // A program that is wrong: 2 + 4.
+  await source.fill('LDI 2\nSTA 0\nLDI 4\nADD 0\nSTA 2\nHALT')
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('your program: RAM word 2 is 6, not 7')
+  // The right one.
+  await source.fill('LDI 2\nSTA 0\nLDI 5\nADD 0\nSTA 2\nHALT')
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await panel(page).getByTestId('step-next').click()
+  await expect(panel(page)).toContainText('Counting down')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
 })

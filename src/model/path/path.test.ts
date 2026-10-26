@@ -418,6 +418,7 @@ describe('part names in lessons ([[label]])', () => {
   const circuitOf = (s: (typeof STEPS)[number]) => {
     if (s.kind === 'explore') return s.open.build()
     if (s.kind === 'build') return stepStarter(s, {})
+    if (s.kind === 'program') return cpuStage(8)
     if (s.kind !== 'project') return undefined
     const c = structuredClone(cpuStage(s.stage - 1))
     s.give?.(c)

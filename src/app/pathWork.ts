@@ -4,9 +4,9 @@ import { circuitShape } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
 import { cpuStage } from '../model/path/cpu4'
 import { markDone } from '../model/path/progress'
-import { checkProject } from '../model/path/run'
+import { checkProgram, checkProject, withSource } from '../model/path/run'
 import { STEPS, getStep, stepAfter, unlockedParts } from '../model/path/steps'
-import type { ProjectStep, Question, Step } from '../model/path/types'
+import type { ProgramStep, ProjectStep, Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
 import { closeChallenge, closeChallengeList, markSolved } from './challenges'
 import { flushSave, openCircuit } from './documents'
@@ -16,7 +16,7 @@ import { closeStep, forgetProgress, openMap, setProgress, usePath } from './path
 import { clearKit, putChip, useKit } from './pathKit'
 import { clearProject, useProject } from './pathProject'
 import { commitProgress } from './pathUnlock'
-import { loadCircuit, showToast, useStore } from './store'
+import { loadCircuit, select, showToast, useStore } from './store'
 import { fitToScreen } from './view'
 
 /**
@@ -38,6 +38,8 @@ export const currentStep = (): Step | undefined => {
 
 /** The shape of the solution that "Show a solution" put on the canvas, while it is unchanged: checking it does not count as solving. */
 let shownShape: string | null = null
+/** The program the learner was shown, while it is unchanged. */
+let shownSource: string | null = null
 
 let opening = 0
 
@@ -57,6 +59,7 @@ export async function startStep(id: string) {
   const build = step.kind === 'build' ? step : undefined
   const explore = step.kind === 'explore' ? step : undefined
   const project = step.kind === 'project' ? step : undefined
+  const program = step.kind === 'program' ? step : undefined
   const uses = build?.uses ?? (step.kind === 'project' ? step.uses : undefined) ?? []
   // The challenge panel is the other way to work on a circuit: one at a time.
   closeChallenge()
@@ -64,10 +67,11 @@ export async function startStep(id: string) {
   stopGoals()
   clearProject()
   shownShape = null
+  shownSource = null
   const playable = explore ?? project
   usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (playable?.palette && [...new Set([...playable.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
-  if (!build && !explore && !project) return
+  if (!build && !explore && !project && !program) return
   const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
   try {
     const doc = (await listDocs('circuit')).find((d) => d.origin?.path === id)
@@ -83,10 +87,60 @@ export async function startStep(id: string) {
     // A record that no longer reads: start the step again below.
   }
   if (mine !== opening) return
-  openCircuit(build ? stepStarter(build, kit) : explore ? explore.open.build() : await projectStarter(project!), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  openCircuit(build ? stepStarter(build, kit) : explore ? explore.open.build() : program ? await programStarter(program) : await projectStarter(project!), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
   if (mine !== opening) return
   fitSoon()
   watch()
+}
+
+/** The circuit a step's document holds, if it has one and it reads. */
+async function storedCircuit(stepId: string): Promise<Circuit | undefined> {
+  try {
+    const doc = (await listDocs('circuit')).find((d) => d.origin?.path === stepId)
+    const rec = doc && (await getDoc(doc.id))
+    return rec ? deserialize(rec.data) : undefined
+  } catch {
+    // A circuit that no longer reads: the reference one is the way on.
+    return undefined
+  }
+}
+
+/** What a program step starts from: the computer the learner built in chapter 9 (ours if they did not), with the step's starting program in its ROM. */
+async function programStarter(step: ProgramStep): Promise<Circuit> {
+  flushSave()
+  const last = [...STEPS].reverse().find((s): s is ProjectStep => s.kind === 'project')
+  const base = (last && (await storedCircuit(last.id))) ?? structuredClone(cpuStage(last?.stage ?? 8))
+  return withSource(base, step.starter) ?? base
+}
+
+/** The text of the program in the circuit's Program ROM. */
+const sourceOf = (c: Circuit) => String(Object.values(c.comps).find((k) => k.label === 'Program ROM')?.params.source ?? '')
+
+/** Select the Program ROM, so its inspector shows the program to edit. */
+export function editProgram() {
+  const rom = Object.values(useStore.getState().circuit.comps).find((k) => k.label === 'Program ROM')
+  if (rom) select([rom.id])
+}
+
+/** Run the program in the circuit on the canvas, on the learner's computer and on ours. A pass is remembered. */
+function checkProgramStep(step: ProgramStep) {
+  const circuit = useStore.getState().circuit
+  const result = checkProgram(step, circuit)
+  useProject.setState({ step: step.id, of: circuit, result })
+  if (!result.passed) return
+  const shown = shownSource !== null && sourceOf(circuit) === shownSource
+  commitProgress(markDone(usePath.getState().progress, step.id, shown ? 'shown' : 'solved', Date.now()))
+}
+
+/** Put a solution in the ROM. The step counts as shown. */
+function showProgramSolution(step: ProgramStep) {
+  const circuit = withSource(useStore.getState().circuit, step.solution)
+  if (!circuit) return
+  loadCircuit(circuit)
+  shownSource = step.solution
+  useProject.setState({ of: null, result: null })
+  showToast('This is one way to write it. Undo (⌘Z) brings your program back.')
+  commitProgress(markDone(usePath.getState().progress, step.id, 'shown', Date.now()))
 }
 
 /**
@@ -97,14 +151,7 @@ async function projectStarter(step: ProjectStep): Promise<Circuit> {
   const mine = STEPS.filter((s): s is ProjectStep => s.kind === 'project' && s.project === step.project)
   const before = mine[mine.indexOf(step) - 1]
   flushSave() // what is on the canvas may be the circuit of the step before, not yet kept
-  let c: Circuit | undefined
-  try {
-    const doc = before && (await listDocs('circuit')).find((d) => d.origin?.path === before.id)
-    const rec = doc && (await getDoc(doc.id))
-    if (rec) c = deserialize(rec.data)
-  } catch {
-    // A circuit that no longer reads: the reference one is the way on.
-  }
+  let c = before && (await storedCircuit(before.id))
   c ??= structuredClone(cpuStage(before?.stage ?? 0))
   step.give?.(c)
   if (step.uses?.length) c.ics = { ...chipTable(step.uses, useKit.getState().kit), ...c.ics }
@@ -125,6 +172,7 @@ function checkProjectStep(step: ProjectStep) {
 export function checkStep() {
   const step = currentStep()
   if (step?.kind === 'project') return checkProjectStep(step)
+  if (step?.kind === 'program') return checkProgramStep(step)
   if (step?.kind !== 'build') return
   const circuit = useStore.getState().circuit
   const { check, star } = checkStepCircuit(step, circuit)
@@ -141,6 +189,7 @@ export function checkStep() {
 export function showStepSolution() {
   const step = currentStep()
   if (step?.kind === 'project') return showProjectSolution(step)
+  if (step?.kind === 'program') return showProgramSolution(step)
   if (step?.kind !== 'build') return
   const { kit } = useKit.getState()
   const solution = refreshChips(solutionOf(step), step.uses ?? [], kit)
@@ -169,8 +218,9 @@ function showProjectSolution(step: ProjectStep) {
 /** Put the starting circuit back on the canvas (undo brings the work back). */
 export async function restartStep() {
   const step = currentStep()
-  if (step?.kind !== 'build' && step?.kind !== 'explore' && step?.kind !== 'project') return
-  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.kind === 'explore' ? step.open.build() : await projectStarter(step))
+  if (step?.kind !== 'build' && step?.kind !== 'explore' && step?.kind !== 'project' && step?.kind !== 'program') return
+  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.kind === 'explore' ? step.open.build() : step.kind === 'program' ? await programStarter(step) : await projectStarter(step))
+  shownSource = null
   useProject.setState({ of: null, result: null })
   fitSoon()
   shownShape = null
