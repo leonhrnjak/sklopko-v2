@@ -201,7 +201,7 @@ describe('going on', () => {
     expect(done(m, 'binary')).toMatchObject({ how: 'read' })
     m.nextStep()
     await m.flush()
-    expect(m.usePath.getState().step).toBe('not-from-nand')
+    expect(m.usePath.getState().step).toBe('show-nine')
     await m.startStep(m.steps.PATH_STEPS[m.steps.PATH_STEPS.length - 1])
     m.nextStep()
     expect(m.usePath.getState()).toMatchObject({ step: null, mapOpen: true })

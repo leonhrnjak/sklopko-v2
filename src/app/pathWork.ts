@@ -7,6 +7,7 @@ import type { Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
 import { closeChallenge, closeChallengeList, markSolved } from './challenges'
 import { openCircuit } from './documents'
+import { stopGoals, watchGoals } from './pathGoals'
 import { getDoc, listDocs, metaOf } from './library'
 import { closeStep, forgetProgress, openMap, setProgress, usePath } from './path'
 import { clearKit, putChip, useKit } from './pathKit'
@@ -19,7 +20,11 @@ import { fitToScreen } from './view'
  */
 
 /** Fit the circuit to the canvas once the panel below it has taken its space. */
-const fitSoon = () => requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
+const fitSoon = () => {
+  requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
+  // The panel under the canvas has not always taken its room by then (a step opened from its address): once more when it has.
+  window.setTimeout(fitToScreen, 300)
+}
 
 export const currentStep = (): Step | undefined => {
   const id = usePath.getState().step
@@ -45,14 +50,17 @@ export async function startStep(id: string) {
   const mine = ++opening
   const kit = useKit.getState().kit
   const build = step.kind === 'build' ? step : undefined
+  const explore = step.kind === 'explore' ? step : undefined
   const uses = build?.uses ?? []
   // The challenge panel is the other way to work on a circuit: one at a time.
   closeChallenge()
   closeChallengeList()
+  stopGoals()
   shownShape = null
-  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? null, ours: notBuilt(uses, kit) })
+  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? explore?.palette ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
-  if (!build) return
+  if (!build && !explore) return
+  const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
   try {
     const doc = (await listDocs('circuit')).find((d) => d.origin?.path === id)
     const rec = doc && (await getDoc(doc.id))
@@ -60,14 +68,16 @@ export async function startStep(id: string) {
     if (rec) {
       openCircuit(refreshChips(deserialize(rec.data), uses, kit), { mode: 'stored', meta: metaOf(rec) })
       fitSoon()
+      watch()
       return
     }
   } catch {
     // A record that no longer reads: start the step again below.
   }
   if (mine !== opening) return
-  openCircuit(stepStarter(build, kit), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  openCircuit(build ? stepStarter(build, kit) : explore!.open.build(), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
   fitSoon()
+  watch()
 }
 
 /** Check the circuit on the canvas against the open build step. A pass is remembered, and the circuit becomes a chip in the kit. */
@@ -104,11 +114,12 @@ export function showStepSolution() {
 /** Put the starting circuit back on the canvas (undo brings the work back). */
 export function restartStep() {
   const step = currentStep()
-  if (step?.kind !== 'build') return
-  loadCircuit(stepStarter(step, useKit.getState().kit))
+  if (step?.kind !== 'build' && step?.kind !== 'explore') return
+  loadCircuit(step.kind === 'build' ? stepStarter(step, useKit.getState().kit) : step.open.build())
   fitSoon()
   shownShape = null
   usePath.setState({ hintShown: false, result: null })
+  if (step.kind === 'explore') watchGoals(step, !!usePath.getState().progress.done[step.id])
   showToast('The starting circuit is back. Undo (⌘Z) brings your work back.')
 }
 

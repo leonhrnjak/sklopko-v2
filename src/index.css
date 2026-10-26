@@ -2408,6 +2408,22 @@ table.truth tr.hl td {
   background: color-mix(in srgb, var(--wire-1) 14%, var(--bg));
   font-weight: 600;
 }
+.goals {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.goal {
+  padding: 2px 0;
+}
+.goal.on {
+  color: var(--wire-1);
+}
+.step-done {
+  color: var(--wire-1);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
 .quiz {
   margin: 0 0 8px;
 }

@@ -84,7 +84,32 @@ function xorSolution(): Circuit {
 const nandOnly = (id: string, title: string, task: string, hint: string, inputs: string[], goal: string) =>
   comb({ id, group: 'Learn: NAND is all you need', title, lesson: [], task, hint, inputs, outputs: ['Y'], goal, rules: { only: ['nand'] } })
 
+/** Two switches, a NAND and an LED, wired. */
+function nandToPlay(): Circuit {
+  const { b, ins, outs } = startOf(['A', 'B'], ['Y'])
+  const g = b.add('nand', 200, 20)
+  b.wire(`${ins.A}.Q`, `${g}.A`)
+  b.wire(`${ins.B}.Q`, `${g}.B`)
+  b.wire(`${g}.Y`, `${outs.Y}.A`)
+  return b.build()
+}
+
 export const CH02: Step[] = [
+  {
+    id: 'meet-nand',
+    chapter: 'nand',
+    title: 'Meet the NAND gate',
+    kind: 'explore',
+    summary: 'Find the only combination that makes a NAND give 0.',
+    open: { build: nandToPlay },
+    palette: PALETTE,
+    task: 'Click the switches A and B until the LED Y goes dark.',
+    goals: [{ led: 'Y', is: 0, text: 'Y is dark' }],
+    lesson: [
+      { p: 'A gate is a part that takes some bits in and gives a bit out, by a fixed rule. The one you will use for everything is the NAND gate. Here it is, with two switches in and an LED out.' },
+      { p: 'Try all four settings of A and B and watch Y. There is exactly one setting that makes Y go dark: find it.' },
+    ],
+  },
   {
     id: 'not-from-nand',
     chapter: 'nand',

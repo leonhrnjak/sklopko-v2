@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (its first PR, chapter 3, is built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, merged as #105; L2b, explore steps, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -11,9 +11,10 @@
 > - [x] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
 > - [x] L1.5 Kit chips look like the gates they are: gate symbols for ICs that are known gates, and smaller boxes for the rest (own PR, `ic-gate-symbols`)
 > - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
->   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (own PR, `learn-l2-chapter3`)
->   - [ ] L2b The goal evaluator, the spotlight and the explore steps of chapters 1–2
->   - [ ] L2c Chapters 4–6
+>   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (#105)
+>   - [x] L2b The goal evaluator and the explore steps of chapters 1–2 (own PR, `learn-l2-explore`)
+>   - [ ] L2c The `[[label]]` spotlight
+>   - [ ] L2d Chapters 4–6 (with their explore steps)
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
@@ -620,6 +621,17 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
 - Majority is solved twice (3.2 from the kit, 3.7 in NAND-NAND) and both mark the `majority` challenge solved in the Challenges list, as `valid-bcd` does for 3.5.
 - **Not done here:** the Challenges list does not yet say "In the path: chapter 3" (the startup chunk is at 179.9 of 180 kB; it needs a lazy import) and
   *Choosing* has no `majority` to lose yet (chapter 4 is L2c). The explore steps, the goal evaluator and the spotlight are L2b.
+
+**What L2b did, and where it differs from the plan.**
+- Built as planned: `ExploreStep` (`open: { build }`, `task`, `palette`, `goals`, `ordered`) and `Goal` (`{ led, is }`, `{ display, is }`, `{ oscillating }`, each with the `text` of its checklist line);
+  the pure `model/path/goals.ts` (`goalHolds`, `tick`, `displayValue`, `goalProblems`, found by label) and the app's `pathGoals.ts`, which looks at the goals after each
+  settled step of the simulator, keeps a ticked goal ticked, and marks the step solved when all are. A step that is done shows its goals ticked. *Start over* puts the circuit back.
+  An explore step has a document of its own like a build step, so coming back restores the circuit.
+- The three steps of chapters 1–2: `bits` (1.1), `show-nine` (1.4) and `meet-nand` (2.1). Step numbers shift as the plan said (`wire` is 1.2, NOT is 2.2), ids do not.
+  `show-nine` is a 4-bit input and a hex display built on the spot, not the Counter example (the lesson points at it in words); `PATH_STEP_COUNT` is 18.
+- `ordered` is new: `bits` has "Y is lit" and then "Y is dark again", and the second must not count while the LED has never been lit.
+- A step opened from its address was fitted to the canvas before the panel under it had taken its room, so the circuit ran under the panel; `pathWork`'s `fitSoon` now fits once more after 300 ms.
+- Left for later: the `[[label]]` spotlight (L2c; no lesson may hold `[[` until it exists), goals on examples, CPU registers, console text and RAM (they come with the chapters that need them).
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
