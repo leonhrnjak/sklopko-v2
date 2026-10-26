@@ -62,6 +62,14 @@ export function useSignal(bits: BitSource[]): Signal {
   return useMemo(() => describe(sig), [sig])
 }
 
+/** What the signal an output pin drives is held at from outside (a forced wire), or null. */
+export function useForced(comp: string | undefined, pin: string | undefined): 0 | 1 | null {
+  return useSyncExternalStore(sim.subscribe, () => (comp && pin ? sim.forcedValue(comp, pin) : null))
+}
+
+/** How many signals are held at a level from outside. */
+export const useForceCount = () => useSyncExternalStore(sim.subscribe, () => sim.forceCount)
+
 /** Re-render when any pin of the component changes (for parts that display their values). */
 export function useCompSignature(comp: string, enabled: boolean): string {
   return useSyncExternalStore(enabled ? sim.subscribe : noSubscribe, () => (enabled ? sim.signature(comp) : ''))

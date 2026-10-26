@@ -447,12 +447,14 @@ export function clearAll() {
 export function loadCircuit(c: Circuit, undoable = true) {
   if (undoable) checkpoint()
   set({ circuit: c, structVersion: get().structVersion + 1, selection: [] })
+  sim.clearForces()
   sim.reset()
 }
 
 /** Show another document: its circuit, with no undo history from the one before (that one is safe in the library). */
 export function replaceCircuit(c: Circuit) {
   set({ circuit: c, past: [], future: [], structVersion: get().structVersion + 1, selection: [] })
+  sim.clearForces()
   sim.reset()
 }
 
