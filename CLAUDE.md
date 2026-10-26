@@ -86,6 +86,8 @@ challenge that runs the program on a board). SKASM stays on our own computers.
 
 **Built, waiting for review (PRs #97 to #99): a 6522 VIA and a character LCD** (`docs/plan-via-lcd.md`: V1 the VIA part, its board and a timer example, V2 the HD44780 LCD, V3 the board with both and Ben Eater's examples, plus a BASIC variant; one PR each, stacked `via-6522`, `lcd-hd44780`, `via-lcd-board`; V1 bumps the version to `0.3.0`).
 
+**Planned: a guided learning path, *Learn: From NAND to a computer*** (`docs/plan-learn-path.md`, mockup `docs/mockups/learn-path.html`): 13 chapters and 72 steps, from NAND gates through chips that carry forward, a 4-bit CPU the learner builds and programs, to the 6502 and BASIC; progress is kept in the browser. Seven milestones, L1 to L7, one PR each, stacked (`learn-l1-framework`, …); L1 bumps the version to `0.4.0`. While CI has no credits, run the unit tests, lint, the build and the whole e2e suite locally before merging, and write the results in the PR.
+
 Finished plans, for background: `docs/plan-cpu6502.md` (the 6502 and 65C02 parts), `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
 (index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
 (the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
