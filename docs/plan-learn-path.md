@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -24,7 +24,9 @@
   - [x] L4a The project framework and steps 9.1 to 9.4 (own PR, `learn-l4a-cpu-1`)
   - [x] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`, stacked on `learn-l4a-cpu-1`)
   - [x] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`, stacked on `learn-l4b-cpu-2`)
-> - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
+> - [ ] L5 Program steps: chapters 10–11
+  - [x] L5a Chapter 10, programming your computer (own PR, `learn-l5a-ch10`)
+  - [ ] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`) (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
@@ -762,6 +764,16 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   shows each run.
 - Chapter 11, with the shared-bus build.
 - Tests: the solutions pass and the starters fail; the learner's CPU and the reference agree on every solution; e2e: 10.1 typed in the inspector and checked.
+
+**What L5a (chapter 10, *Programming your computer*) did, and where it differs from the plan.**
+- A new step kind, `ProgramStep` (`kind: 'program'`, `task`, `starter`, `solution`, `tests`). It starts from the computer the learner built in chapter 9 (the stored document of the last project step, or `cpuStage(8)`) with the step's starter in its
+  Program ROM. *Edit the program* selects the ROM, so its inspector (the *Program source* box) shows the text; *Show a solution* puts the solution in the ROM and marks the step shown (until the text changes); *Start over* puts the starter back.
+- **The check is `checkProgram`** (`run.ts`): the text is assembled first (an error is shown with its line), then each test runs the program until HALT (`Halted` lit; at most 400 ticks) **on the reference computer and on the learner's**.
+  What is read: words of RAM, the ACC, and every load of the `Output` register in order (`writes`; `1 1 2 3 5 8 13` needs the duplicates, so the output is watched at each tick, not by its changes). A program wrong on the reference is the learner's:
+  "your program: RAM word 2 is 6, not 7"; one right there but wrong on theirs says "your computer: …" and "your program is right (it works on the reference computer)…".
+- `set` lets a test change the numbers on lines `NAME = n` first, so `prog-multiply` is tried on 3 × 4, 5 × 3, 2 × 6 and 7 × 1 with `FIRST` and `SECOND`. The solutions are all in 16 instructions or fewer (multiplying and Fibonacci are tight; the multiply
+  solution relies on the RAM starting as zeros). `PATH_STEP_COUNT` is 59.
+- Tests: each starter fails and each solution passes; a wrong program and a broken adder are told apart; a program error carries its line. e2e: type a wrong program, then the right one, in the inspector.
 
 ### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks

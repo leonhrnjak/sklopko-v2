@@ -156,4 +156,33 @@ export interface ProjectStep extends StepBase {
   runs: CpuRun[]
 }
 
-export type Step = ReadStep | BuildStep | ExploreStep | ProjectStep
+/** What a finished program should have done on the computer: words of RAM, the numbers written to the output in order, the ACC. */
+export interface ProgramExpect {
+  ram?: Record<number, number>
+  /** Every STA to address 15, in order (the output register's loads). */
+  writes?: number[]
+  acc?: number
+}
+
+/** A test run of a learner's program, on their computer and on the reference one. `set` changes the numbers on the lines `NAME = n` first. */
+export interface ProgramTest {
+  title: string
+  set?: Record<string, number>
+  expect: ProgramExpect
+}
+
+/**
+ * A program to write (SKASM, in the Program ROM's inspector) for the computer built in chapter 9. It is run until HALT on the learner's
+ * computer and on the reference one; when the two disagree the verdict says which is wrong.
+ */
+export interface ProgramStep extends StepBase {
+  kind: 'program'
+  task: string
+  /** What the Program ROM holds when the step starts. */
+  starter: string
+  /** A program that does it, for *Show a solution*. */
+  solution: string
+  tests: ProgramTest[]
+}
+
+export type Step = ReadStep | BuildStep | ExploreStep | ProjectStep | ProgramStep

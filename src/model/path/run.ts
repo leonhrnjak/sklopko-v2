@@ -1,10 +1,11 @@
-import { SKASM } from '../../engine/isa'
+import { SKASM, assemble } from '../../engine/isa'
 import { Simulator } from '../../engine/simulator'
 import { beginnerWords } from '../beginner'
 import { flatten } from '../buses'
 import type { Circuit } from '../circuit'
 import { displayValue, labelled } from './goals'
-import type { CpuRun, Expect, ProjectStep } from './types'
+import { cpuStage } from './cpu4'
+import type { CpuRun, Expect, ProgramExpect, ProgramStep, ProjectStep } from './types'
 
 /** What a check of a project step found: problems that stop it (a part is missing), then a line for each thing looked at. */
 export interface ProjectResult {
@@ -92,5 +93,103 @@ export function checkProject(step: ProjectStep, circuit: Circuit): ProjectResult
   }
   if (unstable) result.problems.push('The circuit never settles (a feedback loop that does not hold a value).')
   result.passed = result.lines.every((l) => l.ok) && !result.problems.length
+  return result
+}
+
+// ---- Programs -----------------------------------------------------------------------------------------------
+
+/** What a program did: whether it reached HALT (and in how many ticks), what is left in the ACC and the RAM, and the numbers sent to the output. */
+export interface Outcome {
+  halted: boolean
+  cycles: number
+  acc: number | null
+  ram: number[]
+  writes: number[]
+}
+
+/** The most ticks a program may take before it counts as never stopping. */
+export const MAX_TICKS = 400
+
+/** The circuit with this program (text) in its Program ROM. */
+export const withSource = (c: Circuit, source: string): Circuit | undefined => withProgram(c, source)
+
+/** Run a program on a computer until it reaches HALT. A string is what is wrong with the computer (a part is missing). */
+export function runProgram(circuit: Circuit, source: string, needOutput = false): Outcome | string {
+  for (const label of ['Program ROM', 'Halted', 'ACC', 'RAM', ...(needOutput ? ['Output'] : [])]) if (!labelled(circuit, label)) return `There is no part labelled “${label}”.`
+  if (!Object.values(circuit.comps).some((k) => k.type === 'clock')) return 'There is no clock.'
+  const c = withProgram(circuit, source)!
+  const sim = new Simulator()
+  sim.load(flatten(c))
+  sim.settle()
+  const halted = labelled(c, 'Halted')!
+  const ram = labelled(c, 'RAM')!
+  const out = labelled(c, 'Output')
+  const writes: number[] = []
+  let cycles = 0
+  while (cycles < MAX_TICKS && sim.pinValue(halted.id, 'A') !== 1) {
+    // A load of the output register at this tick (the clock rises next): what it takes is what the program wrote.
+    if (out && sim.pinValue(out.id, 'LD') === 1) {
+      let n = 0
+      for (let i = 0; i < 4; i++) n |= (sim.pinValue(out.id, 'ABCD'[i]) === 1 ? 1 : 0) << i
+      writes.push(n)
+    }
+    sim.stepClock()
+    sim.stepClock()
+    cycles++
+  }
+  return { halted: sim.pinValue(halted.id, 'A') === 1, cycles, acc: partValue(c, sim, 'ACC'), ram: Array.from(sim.state(ram.id).mem as ArrayLike<number>), writes }
+}
+
+/** What differs between what a program did and what was wanted, as sentences; nothing when it is right. */
+export function wrongIn(o: Outcome, want: ProgramExpect): string[] {
+  const wrong: string[] = []
+  if (!o.halted) wrong.push(`it did not stop (no HALT in ${MAX_TICKS} ticks)`)
+  for (const [at, is] of Object.entries(want.ram ?? {})) if (o.ram[Number(at)] !== is) wrong.push(`RAM word ${at} is ${o.ram[Number(at)]}, not ${is}`)
+  if (want.acc !== undefined && o.acc !== want.acc) wrong.push(`the ACC is ${o.acc}, not ${want.acc}`)
+  if (want.writes && (o.writes.length !== want.writes.length || o.writes.some((w, i) => w !== want.writes![i]))) wrong.push(`the output got ${o.writes.length ? o.writes.join(' ') : 'nothing'}, not ${want.writes.join(' ')}`)
+  return wrong
+}
+
+/** Put `NAME = value` on the line that defines the constant NAME, if the program has one. */
+const patchConstants = (source: string, set: Record<string, number> = {}) =>
+  Object.entries(set).reduce((src, [name, value]) => src.replace(new RegExp(`^(\\s*${name}\\s*=\\s*)\\S+`, 'm'), `$1${value}`), source)
+
+/**
+ * Check a learner's program: each test runs it on the reference computer and on theirs. A program that is wrong on the reference is wrong;
+ * one that is right there but not on theirs is a computer that does not work yet, and the verdict says so.
+ */
+export function checkProgram(step: ProgramStep, circuit: Circuit): ProjectResult {
+  const result: ProjectResult = { passed: false, problems: [], lines: [] }
+  const rom = labelled(circuit, 'Program ROM')
+  if (!rom || rom.type !== 'rom') {
+    result.problems.push('There is no part labelled “Program ROM”.')
+    return result
+  }
+  const source = String(rom.params.source ?? '')
+  const asm = assemble(SKASM, source, 16)
+  if (asm.errors.length) {
+    for (const e of asm.errors.slice(0, 4)) result.problems.push(`Line ${e.line}: ${e.message}`)
+    return result
+  }
+  const needOutput = step.tests.some((t) => t.expect.writes)
+  const reference = cpuStage(8)
+  for (const test of step.tests) {
+    const src = patchConstants(source, test.set)
+    const mine = runProgram(circuit, src, needOutput)
+    const theirs = runProgram(reference, src, needOutput) as Outcome
+    const wantWrong = wrongIn(theirs, test.expect)
+    const line = { text: test.title, ok: false } as ProjectResult['lines'][number]
+    if (wantWrong.length) line.got = `your program: ${wantWrong.join('; ')}`
+    else if (typeof mine === 'string') line.got = mine
+    else {
+      const mineWrong = wrongIn(mine, test.expect)
+      if (mineWrong.length) line.got = `your computer: ${mineWrong.join('; ')}`
+      else line.ok = true
+    }
+    if (!line.ok && !wantWrong.length) result.problems.push(`${test.title}: your program is right (it works on the reference computer), but your computer gives a different answer. Look for the step of chapter 9 that builds what the program uses.`)
+    result.lines.push(line)
+  }
+  result.problems = [...new Set(result.problems)]
+  result.passed = result.lines.every((l) => l.ok)
   return result
 }
