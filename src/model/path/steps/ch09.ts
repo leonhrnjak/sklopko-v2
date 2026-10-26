@@ -52,7 +52,7 @@ export const CH09: Step[] = [
     lesson: [
       { p: 'The circuit already has a [[Clock]] and a [[Program ROM]]. The ROM holds the program, one 16-bit instruction at each address, and shows the instruction at the address on its pins A0 to A3. Right now nothing gives it an address.' },
       { p: 'The part that does is the program counter, the PC: a register that counts. Your counter chip is the same as the built-in Counter with load, and that one is in the parts list now. Add it, give it the label PC (select it and type the label), and wire the clock to its CLK pin. Every tick it counts up by one, so the ROM shows instruction 0, then 1, then 2…' },
-      { p: 'Wire the counter’s outputs Q0 to Q3 to the ROM’s address pins A0 to A3. A hex display on the same outputs lets you see the PC. Then press Clock step to tick.' },
+      { p: 'Wire the counter’s outputs Q0 to Q3 to the ROM’s address pins A0 to A3. A hex display on the same outputs lets you see the PC. Then press Clock step to tick: it flips the clock level, so one full tick is two presses, and the PC moves on the first of them.' },
     ],
   },
   {
@@ -270,7 +270,7 @@ export const CH09: Step[] = [
     ],
     lesson: [
       { p: 'Look at what you have built: a clock, a program counter, a ROM with the program, a Control ROM, an accumulator, a RAM and an adder. It is the same machine as the beginner computer in the Examples gallery, part for part: open that example and put it next to yours.' },
-      { p: 'Press Clock step to tick, or let it run. The PC counts 0, 1, 2, 3, 4, 5. The ACC becomes 3, then 4, then 7. The RAM keeps the 3 and, at the end, the 7. At the HALT the PC stops. Everything it does, it does by a table of numbers and a few gates: that is all a computer is.' },
+      { p: 'Press Clock step to tick (two presses make one tick), or let it run. The PC counts 0, 1, 2, 3, 4, 5. The ACC becomes 3, then 4, then 7. The RAM keeps the 3 and, at the end, the 7. At the HALT the PC stops. Everything it does, it does by a table of numbers and a few gates: that is all a computer is.' },
       { p: 'Your computer can add and loop, but it cannot make a decision: it cannot ask “is it zero?” and go one way or the other. That is the next step.' },
     ],
   },
