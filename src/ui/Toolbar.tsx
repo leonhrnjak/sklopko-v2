@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
@@ -566,6 +566,9 @@ function Crumbs() {
   )
 }
 
+/** The clock's rate badge is its own chunk: it only matters once a clock runs, and the startup chunk is at its budget. */
+const ClockBadge = lazy(() => import('./ClockBadge').then((m) => ({ default: m.ClockBadge })))
+
 export function StatusBar() {
   const status = useSimStatus()
   const running = useStore((s) => s.running)
@@ -578,6 +581,9 @@ export function StatusBar() {
         <DocName />
         <Crumbs />
         {!running && <span className="badge paused">Paused</span>}
+        <Suspense fallback={null}>
+          <ClockBadge />
+        </Suspense>
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
             Oscillating

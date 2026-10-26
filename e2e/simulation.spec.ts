@@ -179,6 +179,23 @@ test('a CPU with a fast clock says how fast it really runs', async ({ page }) =>
   expect(cycles).toBeLessThan(1_000_000)
 })
 
+test('the fastest clock is named on the canvas, and says what it reaches when the page cannot keep up', async ({ page }) => {
+  // The welcome example ticks twice a second: the page keeps up, so the badge only names the rate (and the speed scales it).
+  await page.goto('/', { waitUntil: 'networkidle' })
+  const badge = page.getByTestId('clock-rate')
+  await expect(badge).toHaveText('Clock 2 Hz')
+  await page.selectOption('select[aria-label="Simulation speed"]', '4')
+  await expect(badge).toHaveText('Clock 8 Hz')
+  await page.getByTestId('run').click() // paused: nothing runs, so nothing to say
+  await expect(badge).toHaveCount(0)
+
+  // A 1 MHz clock on a CPU is more than the page can simulate.
+  await page.goto('/6502-keypad', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Clock \\(Φ2\\)')
+  await page.getByLabel('Frequency').selectOption({ label: '1 MHz' })
+  await expect(badge).toContainText(/Clock 1 MHz · reaching [\d.]+ [kM]?Hz \(\d+%\)/, { timeout: 15000 })
+})
+
 test('Back while running pauses the simulation', async ({ page }) => {
   await page.goto('/computer', { waitUntil: 'networkidle' })
   await page.selectOption('select[aria-label="Simulation speed"]', '4')

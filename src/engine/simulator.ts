@@ -158,6 +158,9 @@ export class Simulator {
   private moved = false
   /** Whether the snapshots for stepping back are taken at all (see `setHistory`). */
   private keepHistory = true
+  /** Clock time asked of `advance` since the page opened, and how much of it was skipped (ms): see `clockTime`. */
+  private offeredMs = 0
+  private skippedMs = 0
   /** The last `advance` ran out of its time (`deadline`) with clock time left over, which was skipped: the circuit is too big for its clock. */
   private late = false
 
@@ -489,11 +492,13 @@ export class Simulator {
   advance(ms: number, deadline?: number) {
     let left = ms
     this.late = false
+    if (this.clocks.length) this.offeredMs += ms
     this.hit = null // a stop is reported for the call that tripped it (see takeBreak)
     const maxEdges = deadline === undefined ? 64 : 100000
     for (let edges = 0; edges < maxEdges && this.clocks.length; edges++) {
       if (deadline !== undefined && (edges & 3) === 3 && performance.now() > deadline) {
         this.late = true
+        this.skippedMs += left
         break
       }
       // A breakpoint stops the simulation at the edge that tripped it: no further edges, and the rest of the time is dropped.
@@ -550,6 +555,21 @@ export class Simulator {
   /** Did the last `advance` (or `frame`) have to skip clock time because its work took too long? Whoever runs the simulation may give it more time. */
   get lagging() {
     return this.late
+  }
+
+  /** Clock time asked of the simulation, and how much of it had to be skipped because the work did not fit (ms, running totals). */
+  get clockTime() {
+    return { offered: this.offeredMs, skipped: this.skippedMs }
+  }
+
+  /** The rate of the fastest clock in Hz, or null if there is no clock (or none that ticks). */
+  fastestClockHz(): number | null {
+    let hz = 0
+    for (const c of this.clocks) {
+      const half = c.def.clockHalfPeriod!(c.inst.params)
+      if (half > 0 && Number.isFinite(half)) hz = Math.max(hz, 500 / half)
+    }
+    return hz > 0 ? hz : null
   }
 
   /** Remember the settled state, dropping any snapshots after the one we stepped back to. */
