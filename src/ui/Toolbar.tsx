@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
@@ -8,6 +8,7 @@ import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
+import { openMap, useDoneCount } from '../app/path'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
 import { open6502Reference, openBasicReference, openReference } from '../app/reference'
@@ -27,7 +28,19 @@ import {
   useStore,
 } from '../app/store'
 import { levelsOf } from '../model/ic'
+import { PATH_STEP_COUNT } from '../model/path'
 import { fitView } from './canvas/viewport'
+
+/** Opens the map of the learning path. Once something is done, a ring shows how much. */
+function LearnButton() {
+  const done = useDoneCount()
+  return (
+    <button className="learn-btn" onClick={openMap} title="Learn: From NAND to a computer. A path of short lessons, each with something to build, ending in a real 6502 running BASIC" data-testid="learn-button">
+      Learn
+      {done > 0 && <span className="learn-ring" style={{ '--p': `${Math.round((100 * done) / PATH_STEP_COUNT)}%` } as CSSProperties} role="img" aria-label={`${done} of ${PATH_STEP_COUNT} steps done`} />}
+    </button>
+  )
+}
 
 /** Labelled display options; used in the settings popover and in the phone menu. */
 function SettingsFields() {
@@ -309,6 +322,9 @@ export function Toolbar() {
         <Dots />
       </MenuItem>
       <MenuLabel>Learn</MenuLabel>
+      <MenuItem onClick={openMap} title="From NAND to a computer: a path of short lessons, each with something to build, ending in a real 6502 running BASIC">
+        Learn: from NAND to a computer
+      </MenuItem>
       <MenuItem onClick={openChallengeList} title="Short lessons, each with something to build; your circuit is checked automatically">
         Challenges
       </MenuItem>
@@ -421,6 +437,7 @@ export function Toolbar() {
         </span>
       </div>
       <div className="group wide-only">
+        <LearnButton />
         {examplesButton}
         <DropMenu label="Tools">{toolItems}</DropMenu>
         <DropMenu label="File">{fileItems}</DropMenu>
@@ -444,6 +461,7 @@ export function Toolbar() {
             }}
           >
             <div className="menu-section">
+              <LearnButton />
               {examplesButton}
               {shareButton}
             </div>

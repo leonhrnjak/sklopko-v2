@@ -64,14 +64,14 @@ function starterOf(inputs: string[], outputs: string[]): () => Circuit {
 }
 
 /** Where the starter's switches and LEDs are, so a hand-built solution can use them. */
-const startOf = (inputs: string[], outputs: string[]) => {
+export const startOf = (inputs: string[], outputs: string[]) => {
   const b = new CircuitBuilder()
   const ins = Object.fromEntries(inputs.map((name, i) => [name, b.add('switch', 0, i * 70, { label: name })]))
   const outs = Object.fromEntries(outputs.map((name, i) => [name, b.add('led', 460, i * 70, { label: name })]))
   return { b, ins, outs }
 }
 
-function comb(c: Omit<CombChallenge, 'kind' | 'starter' | 'solution'> & { solution?: () => Circuit }): CombChallenge {
+export function comb(c: Omit<CombChallenge, 'kind' | 'starter' | 'solution'> & { solution?: () => Circuit }): CombChallenge {
   const { solution, ...rest } = c
   return {
     ...rest,

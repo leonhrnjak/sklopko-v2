@@ -97,6 +97,14 @@ export function startAutosave() {
   if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSave)
 }
 
+const openedListeners = new Set<(origin: DocMeta['origin']) => void>()
+
+/** Be told whenever another document is put on the canvas (with where it came from), for what is tied to the open document, such as a lesson's panel. */
+export function onCircuitOpened(fn: (origin: DocMeta['origin']) => void) {
+  openedListeners.add(fn)
+  return () => void openedListeners.delete(fn)
+}
+
 /** Put a circuit on the canvas as another document. What was open is saved first and stays in the library. */
 export function openCircuit(c: Circuit, how: Opening) {
   if (isEmbed()) {
@@ -105,6 +113,7 @@ export function openCircuit(c: Circuit, how: Opening) {
   }
   flushSave()
   replaceCircuit(c)
+  for (const fn of openedListeners) fn(how.mode === 'stored' ? how.meta.origin : how.origin)
   // Putting it there looked like a change to the autosave: it is not one.
   if (timer) clearTimeout(timer)
   timer = null

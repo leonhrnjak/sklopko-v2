@@ -34,11 +34,23 @@ export interface CheckResult {
 /** Parts that are never counted against the rules: they are the circuit's surroundings, not its logic. */
 const FREE = new Set(['io', 'display', 'annotation'])
 
+/** The logic parts of a circuit, custom ICs counted as the parts they are made of. */
+const logicOf = (c: Circuit) => Object.values(busModel(c).circuit.comps).filter((k) => hasDef(k.type) && !FREE.has(getDef(k.type).category))
+
+/** How many logic parts the circuit has in all (what the `maxParts` rule counts). */
+export const logicParts = (c: Circuit) => logicOf(c).length
+
+/** What a check was about, without the switch positions (flipping a switch doesn't change the answer). */
+export const circuitShape = (c: Circuit) =>
+  JSON.stringify([
+    Object.values(c.comps).map((k) => [k.id, k.type, k.label, JSON.stringify(k.params.inputs ?? '')]),
+    Object.values(c.wires).map((w) => [w.from.comp, w.from.pin, w.to.comp, w.to.pin]),
+  ])
+
 /** Break the rules? One sentence for each rule that is broken. */
 export function ruleProblems(c: Circuit, rules: Rules | undefined): string[] {
   if (!rules) return []
-  // Custom ICs count as the parts they are made of.
-  const logic = Object.values(busModel(c).circuit.comps).filter((k) => hasDef(k.type) && !FREE.has(getDef(k.type).category))
+  const logic = logicOf(c)
   const problems: string[] = []
   if (rules.only) {
     const wrong = [...new Set(logic.filter((k) => !rules.only!.includes(k.type)).map((k) => getDef(k.type).name))]

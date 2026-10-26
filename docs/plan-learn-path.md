@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: planned, nothing built yet.** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 built.** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -8,7 +8,7 @@
 > `npm run build`, and the whole e2e suite, `npm run e2e`) and writes the results in its *Checks* section. This replaces the usual "scoped e2e
 > locally, the rest in CI" until CI runs again.
 >
-> - [ ] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
+> - [x] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
 > - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–5 (choosing, adding numbers, the ALU)
 > - [ ] L3 Clocked builds and chapters 6–7 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 8 (build a computer, and its two upgrades)
@@ -529,6 +529,28 @@ no credits, each runs the whole suite locally (see the top). Each lists *What it
   the toolbar button and its ring, and the palette filter (`Palette.tsx`: the step's parts and *Your kit*).
 - Tests: the invariant loop for read and build steps and for chips; the progress store (corrupt values, *Forget*); e2e `e2e/learn.spec.ts`:
   open the map, solve 2.2 and see NOT in the kit, use it in 2.3, reload and still see the progress, and a step link `/learn/and-from-nand`.
+
+**What L1 did, and where it differs from the plan.**
+- Built as planned: the types, the progress store (`sklopko.path.v1`), the kit (`sklopko.path.kit.v1`), `pathWork.ts` (`startStep`, `checkStep`,
+  `showStepSolution`, `restartStep`, `nextStep`), `origin.path` in the library, the routes `/learn` and `/learn/<id>`, the map, the step panel,
+  the toolbar button with its ring (also *Tools → Learn* and the phone menu), the palette filter, and the verdict moved out of the challenge
+  panel into `CheckVerdict.tsx`. The shown version is `v0.4.0` from this PR on.
+- **Chapters 1 and 2 have 8 of their 11 steps.** The explore steps (`bits`, `show-nine`, `meet-nand`) and the quizzes of `binary` and `nand-recap` need
+  the goal evaluator and quiz blocks, which are L2's: they come in with it, at their places in the chapters. Step numbers (1.1, 2.3…) are worked
+  out from the order, so they shift when those arrive; ids do not. `Block` is `{ p }` or `{ table }` for now.
+- **The main chunk has a count, not a list.** `model/path/index.ts` (startup) holds `PATH_STEP_COUNT`, the addresses and nothing else; the order of
+  the steps, the chapters, `recommended` and the rest are in `steps/index.ts`, which loads with the map. `path.test.ts` keeps the count equal to the
+  number of steps. The startup chunk is 179.4 kB of 180 (it was 177.7), so L2 onward must not put anything but small state in it.
+- **The kit stores each chip with the chips it needs** (a circuit that places an IC cannot be read without its definition), but a starting circuit
+  takes every chip by id from the kit, or from our reference chips, never from another chip's copy. So solving NOT again reaches every gate made of it.
+- **An existing challenge as a step shares its solved state one way:** solving the step ticks the challenge in the Challenges list (`markSolved`),
+  but a challenge solved earlier does not tick the step, since a step done means its chip is in the kit. The step has its own document
+  (`origin.path`), not the challenge's, because its starting circuit holds the kit's chips.
+- **Show a solution** marks the step *shown* (◐) at once, puts our chip in the kit unless the learner has solved the step, and a check of the
+  unchanged solution keeps it *shown*: any change by the learner makes the next passing check *solved*.
+- A step's circuit ends when another document is put on the canvas (File → New, an example, My circuits, a challenge): `onCircuitOpened` in
+  `documents.ts`. A circuit opened again with an older kit gets the learner's chips swapped in (`refreshChips`).
+- The star is counted in L1 (step 2.6 has one): `logicParts` in `challengecheck.ts` after IC expansion, the same count as the `maxParts` rule.
 
 ### L2 Explore steps, quizzes, the spotlight, and chapters 3–5
 - `src/app/pathGoals.ts` (the live-goal evaluator), quiz blocks, the `[[label]]` spotlight (a canvas overlay from a small store, drawn like the

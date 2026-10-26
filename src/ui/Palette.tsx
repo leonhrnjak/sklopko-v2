@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { deleteIC, enterDefinitionById, renameIC } from '../app/ics'
+import { usePath } from '../app/path'
 import { setPartsOpen, usePartsDrawer } from '../app/parts'
 import { setPlacing, useStore } from '../app/store'
 import { CATEGORIES, DEFS } from '../engine/registry'
@@ -123,6 +124,7 @@ function IcSection({
   collapsed,
   toggle,
   lastPointer,
+  kit,
 }: {
   ics: Record<string, ICDef> | undefined
   q: string
@@ -130,6 +132,8 @@ function IcSection({
   collapsed: boolean
   toggle: () => void
   lastPointer: { current: string }
+  /** The chips are the learner's kit (a step of the learning path is open): they are only placed, not edited, renamed or deleted. */
+  kit: boolean
 }) {
   const [renaming, setRenaming] = useState<string | null>(null)
   const items = Object.values(ics ?? {}).filter((d) => !q || d.name.toLowerCase().includes(q))
@@ -138,7 +142,7 @@ function IcSection({
     <section className="palette-section" data-testid="ic-section">
       <button className="palette-heading" onClick={toggle} aria-expanded={!collapsed}>
         <span className={`chevron${collapsed ? ' closed' : ''}`}>▾</span>
-        ICs in this circuit
+        {kit ? 'Your kit' : 'ICs in this circuit'}
       </button>
       {!collapsed && (
         <div className="palette-grid">
@@ -173,7 +177,7 @@ function IcSection({
                 ) : (
                   <button
                     className={`palette-item${placing === what ? ' active' : ''}`}
-                    title={`${d.name}: a custom IC of this circuit`}
+                    title={kit ? `${d.name}: a chip from your kit` : `${d.name}: a custom IC of this circuit`}
                     data-type={what}
                     onPointerDown={(e) => {
                       lastPointer.current = e.pointerType
@@ -191,17 +195,19 @@ function IcSection({
                     <span className="palette-name">{d.name}</span>
                   </button>
                 )}
-                <div className="ic-actions">
-                  <button onClick={() => enterDefinitionById(d.id)} aria-label={`Edit ${d.name}`} title="Open the circuit inside it to change it" data-testid={`ic-edit-${d.id}`}>
-                    Edit
-                  </button>
-                  <button onClick={() => setRenaming(d.id)} aria-label={`Rename ${d.name}`} title="Rename it">
-                    Rename
-                  </button>
-                  <button onClick={() => deleteIC(d.id)} aria-label={`Delete ${d.name}`} title="Delete it (only when nothing uses it)" data-testid={`ic-delete-${d.id}`}>
-                    Delete
-                  </button>
-                </div>
+                {!kit && (
+                  <div className="ic-actions">
+                    <button onClick={() => enterDefinitionById(d.id)} aria-label={`Edit ${d.name}`} title="Open the circuit inside it to change it" data-testid={`ic-edit-${d.id}`}>
+                      Edit
+                    </button>
+                    <button onClick={() => setRenaming(d.id)} aria-label={`Rename ${d.name}`} title="Rename it">
+                      Rename
+                    </button>
+                    <button onClick={() => deleteIC(d.id)} aria-label={`Delete ${d.name}`} title="Delete it (only when nothing uses it)" data-testid={`ic-delete-${d.id}`}>
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -214,6 +220,8 @@ function IcSection({
 export function Palette() {
   const placing = useStore((s) => s.placing)
   const ics = useStore((s) => s.circuit.ics)
+  // While a step of the learning path is open, the parts are the step's, and the chips are the learner's kit.
+  const stepParts = usePath((s) => s.palette)
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const lastPointer = useRef('mouse')
@@ -252,11 +260,12 @@ export function Palette() {
         aria-label="Search parts"
       />
       <div className="palette-scroll">
-        <IcSection ics={ics} q={q} placing={placing} collapsed={!!collapsed.ics && !q} toggle={() => setCollapsed({ ...collapsed, ics: !collapsed.ics })} lastPointer={lastPointer} />
+        <IcSection ics={ics} q={q} placing={placing} collapsed={!!collapsed.ics && !q} toggle={() => setCollapsed({ ...collapsed, ics: !collapsed.ics })} lastPointer={lastPointer} kit={stepParts !== null} />
         {CATEGORIES.map((cat) => {
           const items = DEFS.filter(
             (d) =>
               d.category === cat.id &&
+              (!stepParts || stepParts.includes(d.type)) &&
               (!q || d.name.toLowerCase().includes(q) || d.type.includes(q) || d.description.toLowerCase().includes(q)),
           )
           if (!items.length) return null

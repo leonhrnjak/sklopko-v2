@@ -13,8 +13,8 @@ export interface DocMeta {
   name: string
   created: number
   updated: number
-  /** Where it came from, when that matters (an example it is a copy of, the challenge it is work on). */
-  origin?: { example?: string; challenge?: string }
+  /** Where it came from, when that matters (an example it is a copy of, the challenge or the step of the learning path it is work on). */
+  origin?: { example?: string; challenge?: string; path?: string }
   /** A small picture of a circuit, as SVG text (see `thumbnailSvg`); the list shows it without reading the data. */
   thumb?: string
 }
@@ -376,7 +376,7 @@ export function importDocs(data: unknown, valid: (rec: DocRecord) => boolean): P
         updated: isNum(raw.updated) ? raw.updated : now,
         data: raw.data,
         ...(thumb ? { thumb } : {}),
-        ...(origin ? { origin: { ...(typeof origin.example === 'string' ? { example: origin.example } : {}), ...(typeof origin.challenge === 'string' ? { challenge: origin.challenge } : {}) } } : {}),
+        ...(origin ? { origin: { ...(typeof origin.example === 'string' ? { example: origin.example } : {}), ...(typeof origin.challenge === 'string' ? { challenge: origin.challenge } : {}), ...(typeof origin.path === 'string' ? { path: origin.path } : {}) } } : {}),
       }
       if (!valid(rec)) {
         skipped++
