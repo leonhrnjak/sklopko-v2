@@ -270,7 +270,7 @@ export const CH09: Step[] = [
     ],
     lesson: [
       { p: 'Look at what you have built: a clock, a program counter, a ROM with the program, a Control ROM, an accumulator, a RAM and an adder. It is the same machine as the beginner computer in the Examples gallery, part for part: open that example and put it next to yours.' },
-      { p: 'Press Clock step to tick, or let it run. The PC counts 0, 1, 2, 3, 4, 5. The ACC becomes 3, then 7. The RAM keeps the 3 and, at the end, the 7. At the HALT the PC stops. Everything it does, it does by a table of numbers and a few gates: that is all a computer is.' },
+      { p: 'Press Clock step to tick, or let it run. The PC counts 0, 1, 2, 3, 4, 5. The ACC becomes 3, then 4, then 7. The RAM keeps the 3 and, at the end, the 7. At the HALT the PC stops. Everything it does, it does by a table of numbers and a few gates: that is all a computer is.' },
       { p: 'Your computer can add and loop, but it cannot make a decision: it cannot ask “is it zero?” and go one way or the other. That is the next step.' },
     ],
   },
