@@ -197,7 +197,7 @@ export const CH09: Step[] = [
       },
     ],
     lesson: [
-      { p: 'The adder is what makes it a calculator. ADD adds a word of RAM to the ACC and keeps the sum in the ACC: the adder’s A is the ACC, its B the RAM word, and its sum goes to the ACC through the third input of each multiplexer (ACC_SRC = ADDER).' },
+      { p: 'The adder is what makes it a calculator. ADD adds a word of RAM to the ACC and keeps the sum in the ACC: the adder’s A is the ACC, its B the RAM word, and its sum goes to the ACC through input 1, the second, of each multiplexer (ACC_SRC = ADDER).' },
       { p: 'Subtraction is addition with the second number flipped and a 1 added: A − B is A + NOT B + 1 (your ADDSUB did exactly that). So B passes through an XOR with a signal, SUBTRACT: XOR leaves the bit as it is when SUBTRACT is 0 and flips it when it is 1. And SUBTRACT also goes to the adder’s carry in, which is the + 1.' },
       { p: 'The carry out is worth keeping: it says that an ADD went over 15, or that a SUB had to borrow. A one-bit memory, the carry flag, takes it when the control signal SAVE_CARRY is on. For SUB the carry comes out the other way round, so the flag takes the carry XOR SUBTRACT. A 4-bit register is a good flag: use its first bit, and tie the other three inputs to a Constant 0.' },
       { p: 'ADD and SUB rows: LOAD_ACC, ACC_SRC set to ADDER, and SAVE_CARRY; SUB also has SUBTRACT on.' },
