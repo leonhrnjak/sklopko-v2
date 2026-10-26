@@ -67,9 +67,9 @@ function decoderSolution(): Circuit {
 function mux4ToPlay(): Circuit {
   const b = new CircuitBuilder()
   const m = b.add('mux', 260, 40)
-  ;[0, 1, 2, 3].forEach((i) => b.wire(`${b.add('switch', 0, i * 70, { label: `D${i}` })}.Q`, `${m}.I${i}`))
-  b.wire(`${b.add('switch', 120, 330, { label: 'S1' })}.Q`, `${m}.S1`)
-  b.wire(`${b.add('switch', 200, 330, { label: 'S0' })}.Q`, `${m}.S0`)
+  ;[0, 1, 2, 3].forEach((i) => b.wire(`${b.add('switch', 0, i * 60, { label: `D${i}` })}.Q`, `${m}.I${i}`))
+  b.wire(`${b.add('switch', 120, 280, { label: 'S1' })}.Q`, `${m}.S1`)
+  b.wire(`${b.add('switch', 200, 280, { label: 'S0' })}.Q`, `${m}.S0`)
   b.wire(`${m}.Y`, `${b.add('led', 460, 100, { label: 'Y' })}.A`)
   return b.build()
 }
