@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -24,9 +24,9 @@
   - [x] L4a The project framework and steps 9.1 to 9.4 (own PR, `learn-l4a-cpu-1`)
   - [x] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`, stacked on `learn-l4a-cpu-1`)
   - [x] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`, stacked on `learn-l4b-cpu-2`)
-> - [ ] L5 Program steps: chapters 10–11
+> - [x] L5 Program steps: chapters 10–11
   - [x] L5a Chapter 10, programming your computer (own PR, `learn-l5a-ch10`)
-  - [ ] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`) (programming your computer; a bigger computer)
+  - [x] L5b Chapter 11, a bigger computer (own PR, `learn-l5b-ch11`, stacked on `learn-l5a-ch10`) (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
 >
@@ -774,6 +774,17 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - `set` lets a test change the numbers on lines `NAME = n` first, so `prog-multiply` is tried on 3 × 4, 5 × 3, 2 × 6 and 7 × 1 with `FIRST` and `SECOND`. The solutions are all in 16 instructions or fewer (multiplying and Fibonacci are tight; the multiply
   solution relies on the RAM starting as zeros). `PATH_STEP_COUNT` is 59.
 - Tests: each starter fails and each solution passes; a wrong program and a broken adder are told apart; a program error carries its line. e2e: type a wrong program, then the right one, in the inspector.
+
+**What L5b (chapter 11, *A bigger computer*) did, and where it differs from the plan.**
+- The five steps: `meet-8bit` (**a read step with two questions, not an explore step**: the goals the plan names, “open the ALU block” and “step until PC = 4”, look inside an IC and need a goal on a part
+  that is not in the circuit's top level; the lesson sends the learner to *Examples → Custom ICs → The 8-bit computer as blocks*), `shared-bus` (a build step, no chip: a new 5-input challenge `path-shared-bus`, two 2-bit sources
+  on one bus with tri-state buffers and Bus junctions, rules `only tribuf, busjoin, not`), and the three program steps `prog-console`, `prog-table-sum` and `prog-call`. `PATH_STEP_COUNT` is 64.
+- **Program steps on the 8-bit computer** (`ProgramStep.computer: 'cpu8'`): the canvas is the prebuilt example `computer-sieve` (console only; its routed circuit is fetched, and built with `buildComputer2` if the fetch fails),
+  with the step's starter in its `Program` ROM (words and `.byte` table: `withSource8`). `checkProgram` runs the circuit **on the canvas only** (one computer, no reference to compare) until HALT (`runProgram8`, at most 3000 ticks)
+  and reads the ACC, the RAM and the console text (`ProgramExpect.console`).
+- Where the plan had “output = the sum” (`OUT NUMBER`), the check reads **the ACC at HALT**: the number display is a device the console computer does not have, and the prebuilt example is not changed.
+- A test can change the numbers of the `.byte` table (`bytes`), so a program that adds the constants itself fails the second and third run; `ProgramStep.needs` lists instructions the program must use (CALL and RET), looked for outside comments.
+- Tests: starters fail and solutions pass on the 8-bit computer; the table and CALL checks catch cheating; `app/path.test.ts` stubs the example's fetch for the last step. e2e: the shared bus, a wrong then right console program (the verdict says “the console shows HJ, not HI”), and `prog-call`.
 
 ### L6 The 6502 and BASIC: chapters 12–14
 - CPU-cycle goals (`cpu.addr` with R/W), the board starter without its decoder's wires (`board6502Builder` and `withoutWires`), 6502 program checks

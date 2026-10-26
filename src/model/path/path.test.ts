@@ -5,6 +5,7 @@ import { checkChallenge, circuitShape, logicParts, ruleProblems } from '../chall
 import type { Circuit } from '../circuit'
 import { expandICs, icParams } from '../ic'
 import { CHAPTERS } from './chapters'
+import { computer2Builder } from '../computer2'
 import { cpuStage } from './cpu4'
 import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
@@ -418,7 +419,7 @@ describe('part names in lessons ([[label]])', () => {
   const circuitOf = (s: (typeof STEPS)[number]) => {
     if (s.kind === 'explore') return s.open.build()
     if (s.kind === 'build') return stepStarter(s, {})
-    if (s.kind === 'program') return cpuStage(8)
+    if (s.kind === 'program') return s.computer === 'cpu8' ? computer2Builder({ source: 'HALT', hz: 16, devices: ['console'] }).b.c : cpuStage(8)
     if (s.kind !== 'project') return undefined
     const c = structuredClone(cpuStage(s.stage - 1))
     s.give?.(c)

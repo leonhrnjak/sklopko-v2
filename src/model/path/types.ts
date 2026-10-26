@@ -159,6 +159,8 @@ export interface ProjectStep extends StepBase {
 /** What a finished program should have done on the computer: words of RAM, the numbers written to the output in order, the ACC. */
 export interface ProgramExpect {
   ram?: Record<number, number>
+  /** The text on the console at the end. */
+  console?: string
   /** Every STA to address 15, in order (the output register's loads). */
   writes?: number[]
   acc?: number
@@ -168,6 +170,8 @@ export interface ProgramExpect {
 export interface ProgramTest {
   title: string
   set?: Record<string, number>
+  /** Replace the numbers of the first `.byte` line (the table) first. */
+  bytes?: number[]
   expect: ProgramExpect
 }
 
@@ -177,6 +181,10 @@ export interface ProgramTest {
  */
 export interface ProgramStep extends StepBase {
   kind: 'program'
+  /** The computer it runs on: the 4-bit one built in chapter 9 (the default), or the 8-bit one of the Computers examples. */
+  computer?: 'cpu4' | 'cpu8'
+  /** Instructions the program must use (CALL and RET, say), found in the text outside comments. */
+  needs?: string[]
   task: string
   /** What the Program ROM holds when the step starts. */
   starter: string

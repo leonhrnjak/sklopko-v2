@@ -1,4 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { emptyCircuit } from '../model/circuit'
+import { serialize } from '../model/serialize'
 
 /**
  * The learning path's app layer: opening, checking and showing steps, the kit and the progress it keeps. The modules read
@@ -202,7 +204,11 @@ describe('going on', () => {
     m.nextStep()
     await m.flush()
     expect(m.usePath.getState().step).toBe('show-nine')
+    // The last step may be one that opens a prebuilt example: there is no server here.
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({ ok: true, json: async () => serialize(emptyCircuit()) })) as unknown as typeof fetch
     await m.startStep(m.steps.PATH_STEPS[m.steps.PATH_STEPS.length - 1])
+    globalThis.fetch = realFetch
     m.nextStep()
     expect(m.usePath.getState()).toMatchObject({ step: null, mapOpen: true })
   })

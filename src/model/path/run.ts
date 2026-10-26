@@ -1,4 +1,4 @@
-import { SKASM, assemble } from '../../engine/isa'
+import { SKASM, assemble, toHexBytes, toHexWords } from '../../engine/isa'
 import { Simulator } from '../../engine/simulator'
 import { beginnerWords } from '../beginner'
 import { flatten } from '../buses'
@@ -105,6 +105,8 @@ export interface Outcome {
   acc: number | null
   ram: number[]
   writes: number[]
+  /** What is on the console, on a computer that has one. */
+  text?: string
 }
 
 /** The most ticks a program may take before it counts as never stopping. */
@@ -140,15 +142,66 @@ export function runProgram(circuit: Circuit, source: string, needOutput = false)
   return { halted: sim.pinValue(halted.id, 'A') === 1, cycles, acc: partValue(c, sim, 'ACC'), ram: Array.from(sim.state(ram.id).mem as ArrayLike<number>), writes }
 }
 
+// The 8-bit computer (the Computers examples): one computer only, and a console.
+
+/** The circuit with this program in the Program ROM of the 8-bit computer (its words, and the table of its `.byte` lines). */
+export function withSource8(c: Circuit, source: string): Circuit | undefined {
+  const rom = labelled(c, 'Program')
+  if (!rom || rom.type !== 'rom') return undefined
+  const r = assemble(SKASM, source, 256)
+  if (r.errors.length) return undefined
+  return { ...c, comps: { ...c.comps, [rom.id]: { ...rom, params: { ...rom.params, isa: SKASM.id, source, data: toHexWords(r.words, SKASM.bits), tdata: toHexBytes(r.table) } } } }
+}
+
+/** The most ticks a program may take on the 8-bit computer (it is slower to simulate, and the programs are short). */
+export const MAX_TICKS_8 = 3000
+
+/** Run a program on the 8-bit computer until it reaches HALT. A string is what is wrong with the computer (a part is missing). */
+export function runProgram8(circuit: Circuit, source: string): Outcome | string {
+  for (const label of ['Program', 'Halted', 'ACC', 'Data RAM']) if (!labelled(circuit, label)) return `There is no part labelled “${label}”.`
+  const c = withSource8(circuit, source)
+  if (!c) return 'The program does not assemble.'
+  const sim = new Simulator()
+  sim.load(flatten(c))
+  sim.settle()
+  const halted = labelled(c, 'Halted')!
+  const acc = labelled(c, 'ACC')!
+  const ram = labelled(c, 'Data RAM')!
+  const screen = labelled(c, 'LCD text display')
+  let cycles = 0
+  while (cycles < MAX_TICKS_8 && sim.pinValue(halted.id, 'A') !== 1) {
+    sim.stepClock()
+    sim.stepClock()
+    cycles++
+  }
+  let a = 0
+  for (let i = 0; i < 8; i++) a |= (sim.pinValue(acc.id, `Q${i}`) === 1 ? 1 : 0) << i
+  return {
+    halted: sim.pinValue(halted.id, 'A') === 1,
+    cycles,
+    acc: a,
+    ram: Array.from(sim.state(ram.id).mem as ArrayLike<number>),
+    writes: [],
+    text: screen ? String((sim.state(screen.id) as { lines: string[] }).lines.join('\n')) : '',
+  }
+}
+
 /** What differs between what a program did and what was wanted, as sentences; nothing when it is right. */
 export function wrongIn(o: Outcome, want: ProgramExpect): string[] {
   const wrong: string[] = []
-  if (!o.halted) wrong.push(`it did not stop (no HALT in ${MAX_TICKS} ticks)`)
+  if (!o.halted) wrong.push(`it did not stop (no HALT in ${o.cycles} ticks)`)
+  if (want.console !== undefined && (o.text ?? '').trim() !== want.console) wrong.push(`the console shows “${(o.text ?? '').trim()}”, not “${want.console}”`)
   for (const [at, is] of Object.entries(want.ram ?? {})) if (o.ram[Number(at)] !== is) wrong.push(`RAM word ${at} is ${o.ram[Number(at)]}, not ${is}`)
   if (want.acc !== undefined && o.acc !== want.acc) wrong.push(`the ACC is ${o.acc}, not ${want.acc}`)
   if (want.writes && (o.writes.length !== want.writes.length || o.writes.some((w, i) => w !== want.writes![i]))) wrong.push(`the output got ${o.writes.length ? o.writes.join(' ') : 'nothing'}, not ${want.writes.join(' ')}`)
   return wrong
 }
+
+/** Put these numbers on the first `.byte` line (the table), if the program has one. */
+const patchBytes = (source: string, bytes?: number[]) => (bytes ? source.replace(/\.byte[^\n]*/i, `.byte ${bytes.join(', ')}`) : source)
+
+/** The source with its comments taken out. */
+const code = (source: string) => source.replace(/(;|\/\/).*$/gm, '')
 
 /** Put `NAME = value` on the line that defines the constant NAME, if the program has one. */
 const patchConstants = (source: string, set: Record<string, number> = {}) =>
@@ -159,6 +212,7 @@ const patchConstants = (source: string, set: Record<string, number> = {}) =>
  * one that is right there but not on theirs is a computer that does not work yet, and the verdict says so.
  */
 export function checkProgram(step: ProgramStep, circuit: Circuit): ProjectResult {
+  if (step.computer === 'cpu8') return checkProgram8(step, circuit)
   const result: ProjectResult = { passed: false, problems: [], lines: [] }
   const rom = labelled(circuit, 'Program ROM')
   if (!rom || rom.type !== 'rom') {
@@ -191,5 +245,35 @@ export function checkProgram(step: ProgramStep, circuit: Circuit): ProjectResult
   }
   result.problems = [...new Set(result.problems)]
   result.passed = result.lines.every((l) => l.ok)
+  return result
+}
+
+/** Check a program on the 8-bit computer: it runs on the circuit on the canvas, which has the Program ROM. */
+function checkProgram8(step: ProgramStep, circuit: Circuit): ProjectResult {
+  const result: ProjectResult = { passed: false, problems: [], lines: [] }
+  const rom = labelled(circuit, 'Program')
+  if (!rom || rom.type !== 'rom') {
+    result.problems.push('There is no part labelled “Program”.')
+    return result
+  }
+  const source = String(rom.params.source ?? '')
+  const asm = assemble(SKASM, source, 256)
+  if (asm.errors.length) {
+    for (const e of asm.errors.slice(0, 4)) result.problems.push(`Line ${e.line}: ${e.message}`)
+    return result
+  }
+  for (const word of step.needs ?? []) if (!new RegExp(`\\b${word}\\b`, 'i').test(code(source))) result.problems.push(`The program has to use ${word}.`)
+  for (const test of step.tests) {
+    const o = runProgram8(circuit, patchBytes(patchConstants(source, test.set), test.bytes))
+    const line = { text: test.title, ok: false } as ProjectResult['lines'][number]
+    if (typeof o === 'string') line.got = o
+    else {
+      const wrong = wrongIn(o, test.expect)
+      if (wrong.length) line.got = wrong.join('; ')
+      else line.ok = true
+    }
+    result.lines.push(line)
+  }
+  result.passed = result.lines.every((l) => l.ok) && !result.problems.length
   return result
 }
