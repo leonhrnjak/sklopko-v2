@@ -560,8 +560,7 @@ describe('chapter 8, counting and memories, and what a chapter unlocks', () => {
 describe('the whole path, read through', () => {
   const paragraphs = (s: (typeof STEPS)[number]) => s.lesson.flatMap((b) => ('p' in b ? [b.p] : []))
 
-  it('has all 79 steps of the plan, in the 14 chapters', () => {
-    expect(STEPS.length).toBe(79)
+  it('has steps in all 14 chapters', () => {
     expect(CHAPTERS.length).toBe(14)
     for (const c of CHAPTERS) expect(stepsOf(c.id).length, c.id).toBeGreaterThan(0)
   })

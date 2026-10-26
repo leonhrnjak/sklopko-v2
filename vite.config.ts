@@ -2,8 +2,10 @@
 import react from '@vitejs/plugin-react'
 import { execFileSync, execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { examplesPlugin } from './scripts/examples-plugin.ts'
+import { pathStepCount } from './scripts/pathStepCount.ts'
 import { appVersion } from './scripts/version.ts'
 import { serviceWorkerPlugin } from './scripts/sw-plugin.ts'
 
@@ -30,6 +32,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion(pkg.version, git)),
     __APP_COMMIT__: JSON.stringify(commit()),
+    __PATH_STEP_COUNT__: pathStepCount(fileURLToPath(new URL('./src/model/path/steps', import.meta.url))),
   },
   test: {
     include: ['src/**/*.test.ts'],

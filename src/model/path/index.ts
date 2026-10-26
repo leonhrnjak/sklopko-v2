@@ -4,8 +4,8 @@
  * are in `steps/`, which load when the map or a step is opened; `path.test.ts` keeps the count in step with them.
  */
 
-/** How many steps the path has. */
-export const PATH_STEP_COUNT = 79
+/** How many steps the path has: counted from `steps/ch*.ts` at build time (`scripts/pathStepCount.ts`), checked against `STEPS` by `path.test.ts`. */
+export const PATH_STEP_COUNT: number = __PATH_STEP_COUNT__
 
 /** `/learn` is the map, `/learn/<id>` a step: a link a teacher can hand out. */
 export const LEARN_ROOT = '/learn'
