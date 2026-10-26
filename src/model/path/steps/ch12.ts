@@ -65,14 +65,15 @@ export const CH12: Step[] = [
             ['The Control ROM and the decoder', 'Inside the chip'],
             ['The Z and carry flags', 'Z and C, in the status register P'],
             ['LDI n, LDA a, STA a', 'LDA #n, LDA a, STA a'],
-            ['ADD a, SUB a', 'ADC a, SBC a (with the carry)'],
-            ['JMP, JZ, JNC', 'JMP, BEQ, BCC'],
+            ['ADD a, SUB a', 'CLC then ADC a, SEC then SBC a'],
+            ['JMP, JZ, JNC', 'JMP, BEQ, BCC (after an add)'],
             ['X, the index register', 'X (and Y)'],
             ['CALL and RET, the stack', 'JSR and RTS, the stack at $0100'],
             ['HALT', 'a jump to itself'],
           ],
         },
       },
+      { p: 'Two differences in the arithmetic. The 6502 has no plain add: ADC always adds the carry flag too, so you clear it first with CLC; and SBC subtracts the carry flag’s opposite, so you set it first with SEC. And after a subtraction its carry flag means the opposite of yours: C is 1 when nothing had to be borrowed (yours was 1 for a borrow). So your JNC after a SUB is BCS on the 6502, and BCC after an ADC.' },
       { p: 'One thing is new. Your computer had a separate path from the program ROM and from the RAM. The 6502 has one set of address wires and one set of data wires, a single bus, and everything is on it: the program, the data, and the devices. Which chip answers is decided by the address.' },
       {
         quiz: [
