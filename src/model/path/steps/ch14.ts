@@ -65,7 +65,7 @@ export const CH14: Step[] = [
     kind: 'read',
     summary: 'Every chip you built, your CPU, your programs: from NAND to BASIC.',
     lesson: [
-      { p: 'You started with a switch, a wire and an LED. You made a NAND gate do everything: NOT, AND, OR, XOR; then from a truth table to gates, a multiplexer, an adder, an ALU. A gate that feeds itself remembered a bit; with a clock it became a flip-flop, a register, a counter, a RAM. With those you built a computer, programmed it, met a bigger one, and then a real chip, the 6502, and wrote assembly for it. At the end it runs BASIC.' },
+      { p: 'You started with a switch, a wire and an LED. You made a NAND gate do everything: NOT, AND, OR, XOR; then from a truth table to gates, a multiplexer, an adder, an ALU. Two gates that feed each other remembered a bit; with a clock they became a flip-flop, a register, a counter, a RAM. With those you built a computer, programmed it, met a bigger one, and then a real chip, the 6502, and wrote assembly for it. At the end it runs BASIC.' },
       { journey: true },
       { p: 'Nothing in it is magic. Every layer is made of the one below: BASIC is a program, which is instructions, which are numbers, which are bits, which are gates, which are NANDs. You have seen every step of that, and you built most of them.' },
       { p: 'Where next? The Examples gallery has more computers: games, a calculator, a ray-casting 3D view on the 8-bit computer, a BASIC computer with an LCD. You can open any circuit, edit it, and see what changes. And you can change the computer you built: give it a new instruction, one row of its Control ROM at a time.' },

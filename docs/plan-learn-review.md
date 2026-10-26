@@ -11,7 +11,7 @@ each raise `PATH_STEP_COUNT` by one: 78 → 81.
 - [x] 4. ch14 `basic-boot`: 1 MHz is a million clock cycles a second, not a million instructions.
 - [ ] 5. ch12 `6502-map`: ADD/SUB are `CLC`+`ADC` / `SEC`+`SBC`; after SBC the carry means "no borrow", the opposite of the learner's flag, so JNC ≠ BCC after a subtract.
 - [ ] 6. ch09 `cpu-same`: the ACC becomes 3, then 4, then 7.
-- [ ] 7. ch14 `journey`: a gate feeding itself oscillated; two gates feeding each other remembered.
+- [x] 7. ch14 `journey`: a gate feeding itself oscillated; two gates feeding each other remembered.
 - [ ] 8. ch14 `basic-boot`: it is a bigger version of the chapter 12 board (different memory map), not that board.
 - [ ] 9. ch09 `cpu-fetch`, `cpu-same`: one tick is two presses of Clock step (the chapter 12 hint already says so).
 
