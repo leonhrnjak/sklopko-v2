@@ -1,6 +1,7 @@
 import { counterDisplay } from '../model/example-counter'
 import { WELCOME_ID, exampleFromPath, type ExampleInfo } from '../model/examples-index'
 import { historyOf } from '../model/ic'
+import { learnFromPath } from '../model/path'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
 import { unlockAudio, updateAudio } from './audio'
@@ -10,6 +11,7 @@ import { flushFsm, restoreFsm } from './fsm'
 import { installGamepadKeys } from './gamepad'
 import { installKeypadKeys } from './keypad'
 import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
+import { openLearnRoute } from './path'
 import { loadIntoSim, sim } from './sim'
 import { MIN_WORK_MS, workBudget } from './workbudget'
 import { setRunning, showToast, useStore } from './store'
@@ -67,7 +69,7 @@ async function initialCircuit(): Promise<{ circuit: Circuit; how: Opening }> {
       showToast('That example could not be loaded.')
     }
   }
-  if (location.pathname !== '/') setExampleUrl(null)
+  if (location.pathname !== '/' && !learnFromPath(location.pathname)) setExampleUrl(null)
   try {
     const fromHash = fromShareHash(location.hash)
     if (fromHash) {
@@ -141,6 +143,10 @@ export async function startRuntime() {
 
   openCircuit(first.circuit, first.how)
   sync()
+
+  // /learn is the map of the learning path and /learn/<step> a step: they open over whatever the library had.
+  const route = isEmbed() ? undefined : learnFromPath(location.pathname)
+  if (route) void openLearnRoute(route)
 
   // The first real edit (anything that creates an undo step) leaves the example: drop its short link so a
   // reload brings back the edited circuit from autosave instead of a fresh example.

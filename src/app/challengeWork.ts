@@ -1,7 +1,7 @@
 import { type Challenge, CHALLENGES, getChallenge } from '../model/challenges'
 import { checkChallenge } from '../model/challengecheck'
 import { deserialize } from '../model/serialize'
-import { KEY, useChallenges } from './challenges'
+import { markSolved, useChallenges } from './challenges'
 import { openCircuit } from './documents'
 import { getDoc, listDocs, metaOf } from './library'
 import { setExampleUrl } from './runtime'
@@ -78,14 +78,6 @@ export function runCheck() {
   const circuit = useStore.getState().circuit
   const check = checkChallenge(ch, circuit)
   useChallenges.setState({ result: { of: circuit, check } })
-  if (check.passed && !useChallenges.getState().solved.includes(ch.id)) {
-    const solved = [...useChallenges.getState().solved, ch.id]
-    useChallenges.setState({ solved })
-    try {
-      localStorage.setItem(KEY, JSON.stringify(solved))
-    } catch {
-      // Not remembered after a reload.
-    }
-  }
+  if (check.passed) markSolved(ch.id)
 }
 

@@ -4,6 +4,7 @@ import { isEmbed } from './app/embed'
 import { useFsm } from './app/fsm'
 import { useGallery } from './app/gallery'
 import { useMakeIc } from './app/ics'
+import { usePath } from './app/path'
 import { usePicture } from './app/picture'
 import { useTestbench } from './app/testbench'
 import { useLogic } from './app/logic'
@@ -28,6 +29,8 @@ const FsmPanel = lazy(() => import('./ui/fsm/FsmPanel').then((m) => ({ default: 
 const References = lazy(() => import('./ui/References').then((m) => ({ default: m.References })))
 const ChallengeList = lazy(() => import('./ui/challenges/ChallengeList').then((m) => ({ default: m.ChallengeList })))
 const ChallengePanel = lazy(() => import('./ui/challenges/ChallengePanel').then((m) => ({ default: m.ChallengePanel })))
+const PathMap = lazy(() => import('./ui/path/PathMap').then((m) => ({ default: m.PathMap })))
+const StepPanel = lazy(() => import('./ui/path/StepPanel').then((m) => ({ default: m.StepPanel })))
 const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ default: m.ExampleGallery })))
 const MakeIcDialog = lazy(() => import('./ui/MakeIcDialog').then((m) => ({ default: m.MakeIcDialog })))
 const PictureDialog = lazy(() => import('./ui/PictureDialog').then((m) => ({ default: m.PictureDialog })))
@@ -40,6 +43,8 @@ export default function App() {
   const referenceOpen = useReference((s) => s.open)
   const challengeListOpen = useChallenges((s) => s.listOpen)
   const challengeOpen = useChallenges((s) => s.current !== null)
+  const mapOpen = usePath((s) => s.mapOpen)
+  const stepOpen = usePath((s) => s.step !== null)
   const waveOpen = useWave((s) => s.open)
   const galleryOpen = useGallery((s) => s.open)
   const makeIcOpen = useMakeIc((s) => s.open)
@@ -79,6 +84,9 @@ export default function App() {
           <OnDemand open={challengeOpen}>
             <ChallengePanel />
           </OnDemand>
+          <OnDemand open={stepOpen}>
+            <StepPanel />
+          </OnDemand>
         </div>
         <Inspector />
       </main>
@@ -105,6 +113,9 @@ export default function App() {
       </OnDemand>
       <OnDemand open={galleryOpen}>
         <ExampleGallery />
+      </OnDemand>
+      <OnDemand open={mapOpen}>
+        <PathMap />
       </OnDemand>
       <LibraryDialog />
     </div>

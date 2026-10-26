@@ -46,3 +46,16 @@ export function resetProgress() {
     // Nothing stored anyway.
   }
 }
+
+/** Remember that a challenge is solved (by its own panel, or by the step of the learning path that is that challenge). */
+export function markSolved(id: string) {
+  const { solved } = useChallenges.getState()
+  if (solved.includes(id)) return
+  const next = [...solved, id]
+  useChallenges.setState({ solved: next })
+  try {
+    localStorage.setItem(KEY, JSON.stringify(next))
+  } catch {
+    // Not remembered after a reload.
+  }
+}
