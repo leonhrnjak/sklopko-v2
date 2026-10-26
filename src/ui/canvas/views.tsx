@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import { getDef } from '../../engine/registry'
-import { useCompSignature, useSignal } from '../../app/hooks'
+import { useCompSignature, useForced, useSignal } from '../../app/hooks'
 import type { BitSource } from '../../model/buses'
 import { boundsRect, compLayout, findPin, labelAnchor, worldPins, type Comp, type Point, type Wire } from '../../model/circuit'
 import type { Circuit } from '../../model/circuit'
@@ -95,15 +95,28 @@ const sameBits = (a: BitSource[], b: BitSource[]) =>
 /** The tooltip of a bus wire: how wide it is and what it carries. */
 const busTitle = (n: number, hex: string) => `${n}-bit bus: ${hex ? `0x${hex}` : '?'}`
 
+/** The small "⚡0" on a wire that is held at a level from outside. */
+function ForcedMark({ path, value }: { path: Point[]; value: 0 | 1 }) {
+  const [a, b] = path.length > 1 ? [path[0], path[1]] : [path[0], path[0]]
+  return (
+    <text className="wire-force-mark" x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 6} textAnchor="middle">
+      ⚡{value}
+    </text>
+  )
+}
+
 export const WireView = memo(function WireView({ wire, bits, selected, hops, traced }: WireViewProps) {
   const sig = useSignal(bits)
   const bus = bits.length > 1
+  const forced = useForced(bus ? undefined : bits[0]?.comp, bits[0]?.pin)
   const d = hopPathD(wire.path, hops)
   return (
-    <g data-kind="wire" data-id={wire.id} className={selected ? 'wire-group selected' : 'wire-group'}>
+    <g data-kind="wire" data-id={wire.id} className={`wire-group${selected ? ' selected' : ''}${forced !== null ? ' forced' : ''}`}>
       {traced && <path className={`wire-trace ${traced}`} d={d} />}
       {selected && <path className="wire-sel" d={d} />}
+      {forced !== null && <path className="wire-forced" d={d} />}
       <path className={`wire${bus ? ' bus' : ''} ${sig.cls}`} d={d} />
+      {forced !== null && <ForcedMark path={wire.path} value={forced} />}
       {wire.path.slice(1).map((b, i) => {
         const a = wire.path[i]
         return (

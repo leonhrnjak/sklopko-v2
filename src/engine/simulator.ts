@@ -115,6 +115,10 @@ export class Simulator {
   private slow: CComp[] = []
   private netByOut = new Map<string, number>()
   private values = new Uint8Array(0)
+  /** Signals held at 0 or 1 from outside (a stuck-at fault): by the output pin that drives the net (`comp:pin`). Kept when the circuit is compiled again. */
+  private forces = new Map<string, 0 | 1>()
+  /** The forces by net (-1: not forced), or null while there are none, which keeps the commit of every tick free of the check. */
+  private forced: Int8Array | null = null
   private listeners = new Set<() => void>()
   private dirty = true
 
@@ -259,6 +263,7 @@ export class Simulator {
       const v = oldValues.get(key)
       if (v !== undefined) this.values[net] = v
     }
+    this.applyForces()
     // A slow part starts out showing what its outputs show now, so loading a circuit does not make anything move.
     this.slow = this.comps.filter((cc) => cc.pipe)
     for (const cc of this.slow) this.fillPipe(cc)
@@ -371,10 +376,11 @@ export class Simulator {
       this.evaluate(cc)
     }
     // Commit every output at once, flagging the readers of each net that changed.
+    const forced = this.forced
     let changed = false
     for (let k = 0; k < this.written; k += 2) {
       const net = writes[k]
-      const v = writes[k + 1]
+      const v = forced !== null && forced[net] >= 0 ? forced[net] : writes[k + 1]
       if (values[net] !== v) {
         values[net] = v
         changed = true
@@ -393,7 +399,8 @@ export class Simulator {
       if (pending) break
       const n = cc.outNets.length
       for (let k = 0; k < pipe.length; k++) {
-        if (pipe[k] !== values[cc.outNets[k % n]]) {
+        const net = cc.outNets[k % n]
+        if (pipe[k] !== values[net] && !(forced !== null && forced[net] >= 0)) {
           pending = true
           break
         }
@@ -555,6 +562,72 @@ export class Simulator {
   /** Did the last `advance` (or `frame`) have to skip clock time because its work took too long? Whoever runs the simulation may give it more time. */
   get lagging() {
     return this.late
+  }
+
+  /** Rebuild `forced` from `forces` for the current nets (a force on a pin that is gone is dropped), and put the forced values on the nets. */
+  private applyForces() {
+    for (const key of [...this.forces.keys()]) if (!this.netByOut.has(key)) this.forces.delete(key)
+    if (!this.forces.size) {
+      this.forced = null
+      return
+    }
+    this.forced = new Int8Array(this.values.length).fill(-1)
+    for (const [key, v] of this.forces) {
+      const net = this.netByOut.get(key)!
+      this.forced[net] = v
+      this.setNet(net, v)
+    }
+  }
+
+  /** Put a value on a net from outside, flagging the parts that read it. */
+  private setNet(net: number, v: V) {
+    if (this.values[net] === v) return
+    this.values[net] = v
+    for (const r of this.readers[net]) this.mark(r)
+    this.unstable = false
+    this.dirty = true
+    this.moved = true
+  }
+
+  /**
+   * Hold the signal an output pin drives at 0 or 1, whatever its part says (a stuck-at fault), or let it go again with `null`.
+   * Returns false when the pin drives nothing here. The caller settles afterwards.
+   */
+  force(compId: string, pin: string, v: 0 | 1 | null): boolean {
+    const key = pinKey(compId, pin)
+    const net = this.netByOut.get(key)
+    if (net === undefined) return false
+    if (v === null) this.forces.delete(key)
+    else this.forces.set(key, v)
+    this.applyForces()
+    // Letting go: the part that drives the net says what it is again.
+    if (v === null) {
+      const driver = this.byId.get(compId)
+      if (driver) this.touch(driver)
+    }
+    this.dirty = true
+    return true
+  }
+
+  /** What an output pin is held at, or null if it is not held. */
+  forcedValue(compId: string, pin: string): 0 | 1 | null {
+    if (!this.forces.size) return null // every wire asks on every publish
+    return this.forces.get(pinKey(compId, pin)) ?? null
+  }
+
+  /** How many signals are held at the moment. */
+  get forceCount(): number {
+    return this.forces.size
+  }
+
+  /** Let every held signal go. */
+  clearForces() {
+    if (!this.forces.size) return
+    const drivers = [...this.forces.keys()].map((k) => this.byId.get(k.slice(0, k.lastIndexOf(':'))))
+    this.forces.clear()
+    this.forced = null
+    for (const d of drivers) if (d) this.touch(d)
+    this.dirty = true
   }
 
   /** Clock time asked of the simulation, and how much of it had to be skipped because the work did not fit (ms, running totals). */

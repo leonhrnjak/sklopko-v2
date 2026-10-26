@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { fresh, freshEmpty, place, wire, clickComp, pickByLabel, toggleTool, clickLabelled, chooseExample } from './helpers'
+import { fresh, freshEmpty, place, wire, clickComp, ledOn, pickByLabel, toggleTool, clickLabelled, chooseExample } from './helpers'
 
 test('examples load and the welcome counter ticks', async ({ page }) => {
   await fresh(page)
@@ -194,6 +194,49 @@ test('the fastest clock is named on the canvas, and says what it reaches when th
   await pickByLabel(page, 'Clock \\(Φ2\\)')
   await page.getByLabel('Frequency').selectOption({ label: '1 MHz' })
   await expect(badge).toContainText(/Clock 1 MHz · reaching [\d.]+ [kM]?Hz \(\d+%\)/, { timeout: 15000 })
+})
+
+/** Select a wire by clicking the middle of its first segment (the thin hit areas of a wire are not "visible" to a plain click). */
+async function selectWire(page: import('@playwright/test').Page, n: number) {
+  const b = (await page.locator('.wire-group').nth(n).locator('.wire-hit').first().boundingBox())!
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+}
+
+test('hold a wire at 0 or 1 to see a stuck-at fault, and let it go', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 120, 150)
+  const gate = await place(page, 'not', 340, 150)
+  const led = await place(page, 'led', 560, 150)
+  await wire(page, [sw, 'Q'], [gate, 'A'])
+  await wire(page, [gate, 'Y'], [led, 'A'])
+  await expect.poll(() => ledOn(page, led)).toBe(true) // the switch is off, so NOT gives 1
+
+  // Select the wire after the gate (the second one) and hold it at 0.
+  await selectWire(page, 1)
+  await page.getByTestId('force-0').click()
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  await expect(page.locator('.wire-group.forced')).toHaveCount(1)
+  await expect(page.locator('.wire-force-mark')).toHaveText('⚡0')
+  // The switch no longer matters on that side.
+  await clickComp(page, sw)
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  await page.getByTestId('run').click() // paused: it is still held
+  await expect(page.getByTestId('force-badge')).toContainText('1 held')
+
+  // Hold it at 1, then let it go: the gate says what it says (the switch is on, so NOT gives 0).
+  await selectWire(page, 1)
+  await page.getByTestId('force-1').click()
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+  await page.getByTestId('force-release').click()
+  await expect.poll(() => ledOn(page, led)).toBe(false)
+  await expect(page.locator('.wire-group.forced')).toHaveCount(0)
+  await expect(page.getByTestId('force-badge')).toHaveCount(0)
+
+  // Release all, from the badge.
+  await page.getByTestId('force-1').click()
+  await expect(page.getByTestId('force-badge')).toBeVisible()
+  await page.getByTestId('force-badge').getByRole('button', { name: 'Release all' }).click()
+  await expect(page.getByTestId('force-badge')).toHaveCount(0)
 })
 
 test('Back while running pauses the simulation', async ({ page }) => {

@@ -584,6 +584,7 @@ export function StatusBar() {
   const toast = useStore((s) => s.toast)
   const toastAction = useStore((s) => s.toastAction)
   const empty = useStore((s) => Object.keys(s.circuit.comps).length === 0)
+  const locked = useSettings((s) => s.lockEdits) && running
   return (
     <>
       <div className="status">
@@ -591,7 +592,7 @@ export function StatusBar() {
         <Crumbs />
         {!running && <span className="badge paused">Paused</span>}
         <Suspense fallback={null}>
-          <RunBadges />
+          <RunBadges locked={locked} />
         </Suspense>
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">

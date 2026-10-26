@@ -363,6 +363,9 @@ function CompInspector({ comp }: { comp: Comp }) {
   )
 }
 
+/** Fault-finding controls on a wire, fetched when the first one is looked at. */
+const ForceControls = lazy(() => import('./ForceControls').then((m) => ({ default: m.ForceControls })))
+
 function WireInspector({ wire }: { wire: Wire }) {
   const circuit = useStore((s) => s.circuit)
   const cone = useTraceOptions((s) => s.cone)
@@ -387,6 +390,11 @@ function WireInspector({ wire }: { wire: Wire }) {
         <input type="checkbox" checked={cone} onChange={(e) => setCone(e.target.checked)} />
         <span>Also show what feeds it (the logic back to the nearest registers, memories and inputs)</span>
       </label>
+      {width === 1 && net.source && (
+        <Suspense fallback={null}>
+          <ForceControls comp={net.source.comp} pin={net.source.pin} />
+        </Suspense>
+      )}
       <div className="row">
         <button onClick={() => resetWireRoute(wire.id)} disabled={!wire.manual} title="Double-click the wire">
           Auto-route

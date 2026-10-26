@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClockMeter, describeClock } from '../app/clockrate'
-import { useSettings } from '../app/settings'
+import { useForceCount } from '../app/hooks'
 import { sim } from '../app/sim'
 import { useStore } from '../app/store'
 
@@ -38,10 +38,8 @@ function ClockBadge() {
 }
 
 /** While editing is locked and the simulation runs. */
-function LockBadge() {
-  const lock = useSettings((s) => s.lockEdits)
-  const running = useStore((s) => s.running)
-  if (!lock || !running) return null
+function LockBadge({ locked }: { locked: boolean }) {
+  if (!locked) return null
   return (
     <span className="badge locked" title="Editing is locked while the simulation runs. Pause it to change the circuit, or switch the lock off in Tools." data-testid="locked-badge">
       🔒 Editing locked
@@ -49,10 +47,32 @@ function LockBadge() {
   )
 }
 
-export function RunBadges() {
+/** While signals are held at a level (see `ForceControls`): how many, and a way to let them all go. */
+function ForceBadge() {
+  const count = useForceCount()
+  if (!count) return null
+  return (
+    <span className="badge forced" data-testid="force-badge">
+      ⚡ {count} held
+      <button
+        onClick={() => {
+          sim.clearForces()
+          sim.settle()
+          sim.publish()
+        }}
+      >
+        Release all
+      </button>
+    </span>
+  )
+}
+
+/** `locked`: editing is locked and the simulation runs (passed in, so that this chunk does not need the settings). */
+export function RunBadges({ locked }: { locked: boolean }) {
   return (
     <>
-      <LockBadge />
+      <LockBadge locked={locked} />
+      <ForceBadge />
       <ClockBadge />
     </>
   )
