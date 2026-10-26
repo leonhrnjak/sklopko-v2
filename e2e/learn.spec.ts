@@ -15,7 +15,7 @@ async function openStep(page: Page, chapter: string, step: string) {
 test('learn: the map, a gate built by hand goes into the kit, and the next step uses it', async ({ page }) => {
   await fresh(page)
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('0 of 29 steps')
+  await expect(map(page)).toContainText('0 of 33 steps')
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
   await expect(map(page).getByTestId('learn-chapter-memory')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
@@ -68,7 +68,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await expect(panel(page)).toContainText('2.3 AND, from NAND and your NOT')
   await expect(page.locator('.comp')).toHaveCount(5) // two switches, the LED, the NAND and the NOT
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 29 steps')
+  await expect(map(page)).toContainText('2 of 33 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(2)
   await expect(map(page).getByTestId('learn-step-and-from-nand')).toContainText('chip: AND')
 })
@@ -91,7 +91,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   const row = map(page).getByTestId('learn-step-and-from-nand')
   await expect(row.getByLabel('Solution shown')).toBeVisible()
   await expect(map(page).getByTestId('kit-chip')).toContainText('AND')
-  await expect(map(page)).toContainText('1 of 29 steps')
+  await expect(map(page)).toContainText('1 of 33 steps')
 
   // A read step is done when the learner says so, and leads on.
   await page.getByTestId('learn-chapter-signals').click()
@@ -101,7 +101,7 @@ test('learn: a link to a step, Show a solution counts as shown, a read step, and
   await panel(page).getByTestId('step-next').click()
   await expect(panel(page)).toContainText('Making numbers')
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('2 of 29 steps')
+  await expect(map(page)).toContainText('2 of 33 steps')
 
   // Closing the step takes the panel away and the parts list is whole again.
   await map(page).getByRole('button', { name: 'Close' }).click()
@@ -122,15 +122,15 @@ test('learn: /learn opens the map, and Forget my progress clears the steps and t
   await openStep(page, 'nand', 'not-from-nand')
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByRole('button', { name: 'Map' }).click()
-  await expect(map(page)).toContainText('1 of 29 steps')
+  await expect(map(page)).toContainText('1 of 33 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(1)
   await map(page).getByTestId('learn-forget').click()
   await map(page).getByTestId('learn-forget-yes').click()
-  await expect(map(page)).toContainText('0 of 29 steps')
+  await expect(map(page)).toContainText('0 of 33 steps')
   await expect(map(page).getByTestId('kit-chip')).toHaveCount(0)
   // The address is /learn while the map is open, so a reload opens it again.
   await page.reload({ waitUntil: 'networkidle' })
-  await expect(map(page)).toContainText('0 of 29 steps')
+  await expect(map(page)).toContainText('0 of 33 steps')
 })
 
 test('learn: another document ends the step, and the palette has every part again', async ({ page }) => {
@@ -177,7 +177,7 @@ test('learn: a quiz says at once what is right, chapter 3 shows the map, and the
   await page.reload({ waitUntil: 'networkidle' })
   await expect(panel(page).getByTestId('quiz-0').getByLabel('A·¬B·C')).toBeChecked()
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('1 of 29 steps')
+  await expect(map(page)).toContainText('1 of 33 steps')
   await map(page).getByRole('button', { name: 'Close' }).click()
 
   // The Karnaugh map of the lesson: three groups for majority.
@@ -222,7 +222,7 @@ test('learn: an explore step ticks its goals while you play, and is done when th
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
   await expect(goals).toContainText('☑ Y is lit')
   await page.getByTestId('learn-button').click()
-  await expect(map(page)).toContainText('1 of 29 steps')
+  await expect(map(page)).toContainText('1 of 33 steps')
   await map(page).getByRole('button', { name: 'Close' }).click()
 
   // Next goes on to the step after it.
@@ -348,5 +348,35 @@ test('learn: chapter 5 builds a half adder from the kit, ADD4 asks for nine inpu
   await clickLabelled(page, 'B')
   await expect(goals).toContainText('☑ Cout is lit', { timeout: 10_000 })
   await expect(goals).toContainText('☑ Sum shows 0')
+  await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+})
+
+test('learn: chapter 6 builds a zero detector and the ALU from the kit, and the built-in ALU ticks its two flag goals', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/is-zero', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page).getByTestId('chip-earned')).toContainText('ZERO is in your kit')
+
+  // The ALU: ten switches and six LEDs, checked on all 1024 rows.
+  await page.goto('/learn/alu4', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp')).toHaveCount(16)
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 30_000 })
+  await expect(panel(page).getByTestId('chip-earned')).toContainText('ALU is in your kit')
+
+  // Turning S1 on ANDs 6 and 9: no bit in common, so Z. Then 6 + 10 carries out.
+  await page.goto('/learn/alu-tour', { waitUntil: 'networkidle' })
+  const goals = panel(page).getByTestId('goals')
+  await expect(goals.getByRole('listitem')).toHaveCount(2)
+  await expect(goals).toContainText('☐ Z is lit')
+  await clickLabelled(page, 'S1')
+  await expect(goals).toContainText('☑ Z is lit')
+  await expect(goals).toContainText('☐ C is lit')
+  await clickLabelled(page, 'S1')
+  await clickLabelled(page, 'B')
+  await expect(goals).toContainText('☑ C is lit')
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
 })

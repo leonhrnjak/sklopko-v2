@@ -12,12 +12,18 @@ const PALETTE = ['nand', 'switch', 'led']
 const bits = (name: string) => [3, 2, 1, 0].map((i) => `${name}${i}`)
 
 /**
- * The goal of a 4-bit adder in the expression language: sum bit i is `a_i ⊕ b_i ⊕ carry_i`, and the carry out of bit i is
+ * The terms of a 4-bit adder in the expression language: sum bit i is `a_i ⊕ b_i ⊕ carry_i`, and the carry out of bit i is
  * `a_i·b_i + (a_i ⊕ b_i)·carry_i`. `b` is what the second number's bit is (the plain input, or XORed with SUB), `cin` the carry in.
  */
-function adderGoal(b: (i: number) => string, cin: string): string {
+export function adderTerms(b: (i: number) => string, cin: string) {
   const carry = (i: number): string => (i === 0 ? cin : `(A${i - 1}·${b(i - 1)} + (A${i - 1} ⊕ ${b(i - 1)})·${carry(i - 1)})`)
-  return [...[3, 2, 1, 0].map((i) => `S${i} = (A${i} ⊕ ${b(i)}) ⊕ ${carry(i)}`), `Cout = ${carry(4)}`].join('\n')
+  return { sum: (i: number) => `(A${i} ⊕ ${b(i)}) ⊕ ${carry(i)}`, carry }
+}
+
+/** The goal of a 4-bit adder: S3 to S0 and Cout. */
+function adderGoal(b: (i: number) => string, cin: string): string {
+  const t = adderTerms(b, cin)
+  return [...[3, 2, 1, 0].map((i) => `S${i} = ${t.sum(i)}`), `Cout = ${t.carry(4)}`].join('\n')
 }
 
 /** HA: Sum is the XOR, Carry the AND. */

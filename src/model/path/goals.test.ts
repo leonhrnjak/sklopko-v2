@@ -27,6 +27,11 @@ const SCRIPTS: Record<string, { label: string; to: number }[]> = {
     { label: 'D2', to: 1 },
   ],
   'ripple-tour': [{ label: 'B', to: 1 }],
+  'alu-tour': [
+    { label: 'S1', to: 1 },
+    { label: 'S1', to: 0 },
+    { label: 'B', to: 10 },
+  ],
 }
 
 /** A simulator holding the circuit, with a way to operate its switches and 4-bit inputs by label. */

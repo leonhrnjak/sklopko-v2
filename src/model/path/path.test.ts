@@ -104,7 +104,7 @@ describe('build steps', () => {
       it('is not solved when a wire of the solution is missing', () => {
         const sol = solutionOf(s)
         for (const id of Object.keys(sol.wires)) expect(checkStepCircuit(s, without(sol, id)).check.passed, `without ${id}`).toBe(false)
-      })
+      }, 30_000) // the ALU has 64 wires and 1024 rows
 
       it('offers only parts that its solution can be built from', () => {
         if (!s.palette) return
