@@ -35,9 +35,10 @@ export function formatHz(hz: number): string {
 /** A clock that reaches less than this share of what it was asked for is "not keeping up". */
 export const KEEPING_UP = 0.95
 
-/** What the status badge says about the fastest clock: what it was asked to do and, when it falls short, what it reaches. */
-export function describeClock(askedHz: number, share: number | null): { text: string; slow: boolean } {
-  if (share === null || share >= KEEPING_UP) return { text: `Clock ${formatHz(askedHz)}`, slow: false }
-  const percent = Math.max(1, Math.round(share * 100))
-  return { text: `Clock ${formatHz(askedHz)} · reaching ${formatHz(askedHz * share)} (${percent}%)`, slow: true }
+/** What the footer says about the fastest clock: the rate it was asked for and, once measured, the rate it reaches. */
+export function describeClock(askedHz: number, share: number | null): { asked: string; actual: string | null; percent: number | null; slow: boolean } {
+  const asked = formatHz(askedHz)
+  if (share === null) return { asked, actual: null, percent: null, slow: false }
+  const slow = share < KEEPING_UP
+  return { asked, actual: formatHz(askedHz * (slow ? share : 1)), percent: slow ? Math.max(1, Math.round(share * 100)) : null, slow }
 }
