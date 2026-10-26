@@ -8,7 +8,7 @@ import type { Circuit } from '../circuit'
  * `index.ts`.
  */
 
-/** What a step asks of the learner. `read`, `build` and `explore` exist; the others come with the milestones that need them. */
+/** What a step asks of the learner. `program` comes with the milestone that needs it. */
 export type StepKind = 'read' | 'explore' | 'build' | 'project' | 'program'
 
 export interface Chapter {
@@ -41,7 +41,13 @@ export interface KmapFigure {
  * A paragraph, a small table (place values, a truth table; `highlight` marks rows of it), a Karnaugh map, or questions to answer
  * (practice: they never block going on).
  */
-export type Block = { p: string } | { table: { head: string[]; rows: string[][]; highlight?: number[] } } | { kmap: KmapFigure } | { quiz: Question[] }
+export type Block =
+  | { p: string }
+  | { table: { head: string[]; rows: string[][]; highlight?: number[] } }
+  | { kmap: KmapFigure }
+  | { quiz: Question[] }
+  /** An instruction word of the computer, as 16 bits to click, with its fields and what it means. */
+  | { word: { value: number } }
 
 export interface StepBase {
   /** Permanent: progress, the kit and the step's document are stored by it. */
@@ -112,4 +118,40 @@ export interface ExploreStep extends StepBase {
   ordered?: boolean
 }
 
-export type Step = ReadStep | BuildStep | ExploreStep
+/** Something to find in a computer that is running, by the label of a part: a counter, register, display or ROM as a number, or an LED. */
+export type Expect = { value: string; is: number } | { led: string; is: 0 | 1 }
+
+/** What the computer should show after `after` clock ticks (full cycles: up and down). `text` is the line of the checklist. */
+export interface CpuCheck {
+  after: number
+  text: string
+  expect: Expect[]
+}
+
+/** A test program (SKASM, put into the part labelled *Program ROM*) and what the learner's computer should do running it. */
+export interface CpuRun {
+  title: string
+  program: string
+  checks: CpuCheck[]
+}
+
+/**
+ * A step of the CPU project: one circuit, the learner's, that grows from step to step. It starts from the circuit at the end of the step
+ * before (or the reference one, `cpuStage(stage - 1)`, when that step was skipped), and is checked by running test programs on it.
+ */
+export interface ProjectStep extends StepBase {
+  kind: 'project'
+  /** The project it belongs to; every step of it shares one circuit. */
+  project: 'cpu4'
+  /** What the step asks for, in one sentence. */
+  task: string
+  /** The stage of the reference computer (`cpuStage`) this step ends with: its solution, and the next step's start when this one is skipped. */
+  stage: number
+  /** Parts given at the start of the step, on top of the circuit it starts from (the Control ROM, say). */
+  give?: (c: Circuit) => void
+  /** The parts the palette offers. */
+  palette: string[]
+  runs: CpuRun[]
+}
+
+export type Step = ReadStep | BuildStep | ExploreStep | ProjectStep
