@@ -51,6 +51,7 @@ describe('a custom IC', () => {
     expect(gate).toContain('chip-body')
     expect(gate).toContain('Chip') // the name on the tab
     // The glyph on the tab opens the chip: only where the part is live (not in the parts list or on a ghost).
+    expect(gate).toContain('<title>Chip</title>') // the whole name, as a tooltip
     expect(gate).toContain('chip-open')
     expect(draw('and')).not.toContain('chip-open')
     expect(draw('and')).toContain('chip-glyph')

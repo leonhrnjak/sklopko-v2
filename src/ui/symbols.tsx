@@ -458,6 +458,8 @@ function IcChip({ comp, chip, live }: { comp: Comp; chip: IcGate; live: boolean 
   const gx = f.w - IC_FRAME.glyph
   return (
     <g className="ic-gate">
+      {/* The whole name, for a name that the tab had to cut. */}
+      {live && <title>{String(comp.params.name || 'IC')}</title>}
       <rect className="chip-body" width={f.w} height={f.h} rx={6} />
       <path className="chip-tab" d={`M0,${IC_FRAME.tab}V6a6,6 0 0 1 6,-6H${f.w - 6}a6,6 0 0 1 6,6V${IC_FRAME.tab}Z`} />
       <text className="chip-name" x={6} y={11.5}>
