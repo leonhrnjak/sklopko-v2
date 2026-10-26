@@ -610,6 +610,11 @@ the part and *Open inside* did already). The frame is the part's layout (`icGate
 on the 10-grid. The drawing is core canvas code, so it is in the startup chunk: it took it from 179.9 to 180.4 kB, and **the budget is now 181 kB** (raised with the user's yes). It is 5 wider than the gate (more for a long name, up to 100, cut with …); the gate sits 20 down, with the same room above (under the 14 tall tab) as below, 6; a NOT or buffer is drawn there with a triangle that reaches 2 beyond its body (alone, 4), so 4 of room, and the frame is not taller than it needs. Chips that are boxes are as before. The solutions of steps were spaced for
 the smaller chips and are spaced a little wider (the decoder).
 
+**Folding the lesson on a phone (after L2d-1, own PR `learn-phone-fold`, from a review).** On a phone the step's panel is a sheet over the parts list, so reaching the parts meant closing the step (and getting
+back through the menu, the map and *Continue*). The sheet's head has a button, *Parts ▾*, that folds the lesson to a one-row bar between the canvas and the parts list (which then shows whole, with the
+learner's kit), and *Lesson ▴* in the bar brings it back; the step stays open and is not restarted. A step that opens comes unfolded (`app/pathSheet.ts`). The head is two rows on a phone (where you
+are and the arrows; then the title, cut short, with the buttons), where it used to wrap. Desktop is unchanged: the parts list is beside the canvas there. (This is a first part of L7's phone sheet.)
+
 ### L2 Explore steps, quizzes, the spotlight, and chapters 3–6
 - `src/app/pathGoals.ts` (the live-goal evaluator), quiz blocks, the `[[label]]` spotlight (a canvas overlay from a small store, drawn like the
   trace rings), stars.
