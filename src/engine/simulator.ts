@@ -662,6 +662,11 @@ export class Simulator {
     this.moved = false
   }
 
+  /** How many clock edges `stepBack` can go back over now. */
+  get stepBackDepth(): number {
+    return this.history.length ? Math.max(0, this.cursor + (this.moved ? 1 : 0)) : 0
+  }
+
   /** Is there an earlier clock edge to go back to? */
   canStepBack(): boolean {
     return this.history.length > 0 && this.cursor >= (this.moved ? 0 : 1)

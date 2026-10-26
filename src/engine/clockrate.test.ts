@@ -49,4 +49,18 @@ describe('the clock rate', () => {
     s.advance(1000)
     expect(s.clockTime).toEqual({ offered: 0, skipped: 0 })
   })
+
+  it('counts the clock edges it can step back over', () => {
+    const s = new Simulator()
+    s.load(clock(1000))
+    s.settle()
+    expect(s.stepBackDepth).toBe(0)
+    s.advance(10) // 20 half periods of 0.5 ms
+    expect(s.stepBackDepth).toBeGreaterThan(10)
+    const n = s.stepBackDepth
+    s.stepBack()
+    expect(s.stepBackDepth).toBe(n - 1)
+    s.setHistory(false)
+    expect(s.stepBackDepth).toBe(0)
+  })
 })

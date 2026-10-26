@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
-import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
 import { leaveLevels, leaveToDepth, openMakeIc } from '../app/ics'
@@ -293,10 +292,10 @@ export function Toolbar() {
         onClick={() => updateSettings({ lockEdits: !lockEdits })}
         aria-pressed={lockEdits}
         aria-label="Lock editing while running"
-        title={lockEdits ? 'Editing is locked while the simulation runs. Click to unlock.' : 'Lock editing while the simulation runs, so nothing can be changed by accident. Switches and memories can still be operated.'}
+        title={lockEdits ? 'Locked: nothing can be edited while the simulation runs. Pause to edit, or click to unlock.' : 'Editable. Click to lock editing while the simulation runs, so nothing is changed by accident. Switches and memories still work.'}
         data-testid="lock-toggle"
       >
-        {lockEdits ? '🔒' : '🔓'}
+        {lockEdits ? '🔒 Locked' : '✎ Edit'}
       </button>
       <select
         value={speed}
@@ -578,7 +577,6 @@ function Crumbs() {
 }
 
 export function StatusBar() {
-  const status = useSimStatus()
   const toast = useStore((s) => s.toast)
   const toastAction = useStore((s) => s.toastAction)
   const empty = useStore((s) => Object.keys(s.circuit.comps).length === 0)
@@ -587,11 +585,6 @@ export function StatusBar() {
       <div className="status">
         <DocName />
         <Crumbs />
-        {status === 'u' && (
-          <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
-            Oscillating
-          </span>
-        )}
       </div>
       {empty && (
         <div className="empty-hint">

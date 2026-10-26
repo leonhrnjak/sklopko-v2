@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ClockMeter, describeClock, formatHz } from './clockrate'
+import { ClockMeter, describeClock, formatHz, formatTime } from './clockrate'
 
 describe('the clock meter', () => {
   it('gives nothing until a second has passed, then the share of the clock time that was simulated', () => {
@@ -46,5 +46,12 @@ describe('describing the clock', () => {
     expect(describeClock(1000, null)).toEqual({ asked: '1 kHz', actual: null, percent: null, slow: false })
     expect(describeClock(1000, 0.97)).toEqual({ asked: '1 kHz', actual: '1 kHz', percent: null, slow: false })
     expect(describeClock(1_000_000, 0.64)).toEqual({ asked: '1 MHz', actual: '640 kHz', percent: 64, slow: true })
+  })
+
+  it('writes simulated time short', () => {
+    expect(formatTime(0)).toBe('0 ms')
+    expect(formatTime(340.4)).toBe('340 ms')
+    expect(formatTime(12_540)).toBe('12.5 s')
+    expect(formatTime(125_000)).toBe('2 min 5 s')
   })
 })

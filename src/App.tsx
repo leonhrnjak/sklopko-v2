@@ -11,6 +11,8 @@ import { useLogic } from './app/logic'
 import { useReference } from './app/reference'
 import { useOpenOnFirstProbe, useWave } from './app/waveform'
 import { usePartsDrawer } from './app/parts'
+import { useSettings } from './app/settings'
+import { useStore } from './app/store'
 import { Canvas } from './ui/canvas/Canvas'
 import { ContextMenu } from './ui/canvas/ContextMenu'
 import { EmbedBar } from './ui/EmbedBar'
@@ -21,7 +23,6 @@ import { OnDemand } from './ui/OnDemand'
 import { Palette } from './ui/Palette'
 import { SelectionBar } from './ui/SelectionBar'
 import { StatusBar, Toolbar } from './ui/Toolbar'
-import { ZoomControls } from './ui/ZoomControls'
 
 // The panels, each its own chunk, fetched the first time it is opened.
 const LogicPanel = lazy(() => import('./ui/logic/LogicPanel').then((m) => ({ default: m.LogicPanel })))
@@ -52,6 +53,9 @@ export default function App() {
   const pictureOpen = usePicture((s) => s.open)
   const testsOpen = useTestbench((s) => s.open)
   const partsOpen = usePartsDrawer((s) => s.open)
+  const lockEdits = useSettings((s) => s.lockEdits)
+  const running = useStore((s) => s.running)
+  const locked = lockEdits && running
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
     requestAnimationFrame(fitView)
@@ -75,12 +79,11 @@ export default function App() {
           <div className="stage-view">
             <Canvas />
             <StatusBar />
-            <ZoomControls />
             <SelectionBar />
             <ContextMenu />
           </div>
           <OnDemand open>
-            <RunFooter />
+            <RunFooter locked={locked} />
           </OnDemand>
           <OnDemand open={waveOpen}>
             <WaveformPanel />

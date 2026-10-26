@@ -34,8 +34,12 @@ test('lock editing while running: nothing can be changed until it is paused, but
   const lock = page.getByTestId('lock-toggle')
   await expect(lock).toHaveAttribute('aria-pressed', 'false')
 
+  await expect(lock).toHaveText('✎ Edit')
+  await expect(page.getByTestId('locked-pill')).toHaveCount(0)
   await lock.click()
   await expect(lock).toHaveAttribute('aria-pressed', 'true')
+  await expect(lock).toHaveText('🔒 Locked')
+  await expect(page.getByTestId('locked-pill')).toBeVisible() // the footer says what the lock does
   const parts = page.locator('.comp')
   await expect(parts).toHaveCount(2)
   // Dropping a part does nothing and says why; deleting does nothing either.
@@ -56,6 +60,7 @@ test('lock editing while running: nothing can be changed until it is paused, but
 
   // Paused, the circuit can be changed again.
   await page.getByTestId('run').click()
+  await expect(page.getByTestId('locked-pill')).toHaveCount(0)
   await clickComp(page, led)
   await page.keyboard.press('Delete')
   await expect(parts).toHaveCount(1)
