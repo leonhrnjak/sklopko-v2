@@ -4,7 +4,7 @@ import { circuitShape } from '../model/challengecheck'
 import type { Circuit } from '../model/circuit'
 import { cpuStage } from '../model/path/cpu4'
 import { markDone } from '../model/path/progress'
-import { checkProgram, checkProject, withSource } from '../model/path/run'
+import { checkProgram, checkProject, withSource, withSource8 } from '../model/path/run'
 import { STEPS, getStep, stepAfter, unlockedParts } from '../model/path/steps'
 import type { ProgramStep, ProjectStep, Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
@@ -87,8 +87,16 @@ export async function startStep(id: string) {
     // A record that no longer reads: start the step again below.
   }
   if (mine !== opening) return
-  openCircuit(build ? stepStarter(build, kit) : explore ? explore.open.build() : program ? await programStarter(program) : await projectStarter(project!), { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  let start: Circuit
+  try {
+    start = build ? stepStarter(build, kit) : explore ? explore.open.build() : program ? await programStarter(program) : await projectStarter(project!)
+  } catch {
+    // The 8-bit computer is a file fetched from the site: it may not be there (offline, before the first visit).
+    if (mine === opening) showToast('The computer for this step could not be loaded.')
+    return
+  }
   if (mine !== opening) return
+  openCircuit(start, { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
   fitSoon()
   watch()
 }
@@ -107,6 +115,13 @@ async function storedCircuit(stepId: string): Promise<Circuit | undefined> {
 
 /** What a program step starts from: the computer the learner built in chapter 9 (ours if they did not), with the step's starting program in its ROM. */
 async function programStarter(step: ProgramStep): Promise<Circuit> {
+  if (step.computer === 'cpu8') {
+    // The 8-bit computer is the example's: the build writes it routed, so there is nothing to build here.
+    const res = await fetch(`${import.meta.env.BASE_URL}examples/computer-sieve.json`)
+    if (!res.ok) throw new Error(`The 8-bit computer: ${res.status}`)
+    const base = deserialize(await res.json())
+    return withSource8(base, step.starter) ?? base
+  }
   flushSave()
   const last = [...STEPS].reverse().find((s): s is ProjectStep => s.kind === 'project')
   const base = (last && (await storedCircuit(last.id))) ?? structuredClone(cpuStage(last?.stage ?? 8))
@@ -114,11 +129,12 @@ async function programStarter(step: ProgramStep): Promise<Circuit> {
 }
 
 /** The text of the program in the circuit's Program ROM. */
-const sourceOf = (c: Circuit) => String(Object.values(c.comps).find((k) => k.label === 'Program ROM')?.params.source ?? '')
+const romOf = (c: Circuit) => Object.values(c.comps).find((k) => k.label === 'Program ROM' || k.label === 'Program')
+const sourceOf = (c: Circuit) => String(romOf(c)?.params.source ?? '')
 
 /** Select the Program ROM, so its inspector shows the program to edit. */
 export function editProgram() {
-  const rom = Object.values(useStore.getState().circuit.comps).find((k) => k.label === 'Program ROM')
+  const rom = romOf(useStore.getState().circuit)
   if (rom) select([rom.id])
 }
 
@@ -134,7 +150,8 @@ function checkProgramStep(step: ProgramStep) {
 
 /** Put a solution in the ROM. The step counts as shown. */
 function showProgramSolution(step: ProgramStep) {
-  const circuit = withSource(useStore.getState().circuit, step.solution)
+  const now = useStore.getState().circuit
+  const circuit = step.computer === 'cpu8' ? withSource8(now, step.solution) : withSource(now, step.solution)
   if (!circuit) return
   loadCircuit(circuit)
   shownSource = step.solution

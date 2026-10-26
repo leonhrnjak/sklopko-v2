@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-bigger')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-meet6502')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -522,4 +522,30 @@ test('learn: a program is written in the Program ROM’s inspector and checked o
   await panel(page).getByRole('button', { name: 'Show a solution' }).click()
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('Solved!')
+})
+
+test('learn: chapter 11 builds a shared bus from tri-state buffers, and programs the 8-bit computer', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/shared-bus', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+
+  // The 8-bit computer opens with a program of its own to write; the text console is the check for the first.
+  await page.goto('/learn/prog-console', { waitUntil: 'networkidle' })
+  await expect(page.locator('.comp .comp-label', { hasText: /^Program$/ })).toHaveCount(1, { timeout: 30_000 })
+  await panel(page).getByTestId('edit-program').click()
+  const source = page.getByLabel('Program source')
+  await expect(source).toBeVisible()
+  await source.fill('LDI 72\nOUT CHAR\nLDI 74\nOUT CHAR\nHALT')
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('the console shows “HJ”, not “HI”', { timeout: 30_000 })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 30_000 })
+
+  await page.goto('/learn/prog-call', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 60_000 })
 })
