@@ -62,7 +62,7 @@ test('after one visit the app opens and runs with no network: the page, a short 
   await expect.poll(() => page.locator('.comp').count()).toBe(5)
   // The panels that load on demand are in the cache too.
   await page.getByRole('button', { name: 'Tools ▾' }).click()
-  await page.getByRole('menuitem', { name: 'Logic…' }).click()
+  await page.getByRole('menuitem', { name: 'Logic' }).click()
   await expect(page.getByRole('dialog', { name: 'Logic tools' })).toBeVisible()
   await context.setOffline(false)
 })

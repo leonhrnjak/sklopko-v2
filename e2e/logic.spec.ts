@@ -5,7 +5,7 @@ import { freshEmpty, tableRows, chooseTool, chooseFile } from './helpers'
 
 test('logic: analyze a circuit: truth table, smallest expression and Karnaugh map', async ({ page }) => {
   await page.goto('/gates', { waitUntil: 'networkidle' })
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   const panel = page.getByRole('dialog', { name: 'Logic tools' })
   await expect(panel).toBeVisible()
   // Inputs A, B; four outputs (the labels become names).
@@ -39,13 +39,13 @@ test('logic: analyze a circuit: truth table, smallest expression and Karnaugh ma
 
 test('logic: an empty canvas explains what to do', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   await expect(page.getByRole('dialog')).toContainText('Put at least one Switch and one LED on the canvas')
 })
 
 test('logic: build a circuit from an expression, put it on the canvas, and analyze what was built', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   const panel = page.getByRole('dialog', { name: 'Logic tools' })
   await panel.getByRole('tab', { name: 'Build circuit' }).click()
   const box = panel.getByLabel('Expressions')
@@ -82,7 +82,7 @@ test('logic: build a circuit from an expression, put it on the canvas, and analy
   expect(await page.locator('.wire-group').count()).toBeGreaterThanOrEqual(6)
 
   // And it does what was asked: analyze it.
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   await page.getByRole('tab', { name: 'Analyze circuit' }).click()
   expect((await tableRows(page, 'Truth table')).map((r) => r.at(-1))).toEqual(['1', '0', '1', '0', '1', '0', '1', '1'])
   await expect(page.getByLabel('Expressions')).toContainText('Y = A·B + ¬C')
@@ -90,7 +90,7 @@ test('logic: build a circuit from an expression, put it on the canvas, and analy
 
 test('logic: the circuit built from an expression really works when you flip its switches', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   await page.getByRole('tab', { name: 'Build circuit' }).click()
   await page.getByLabel('Expressions').fill('Y = A ⊕ B')
   await page.getByRole('button', { name: 'Build circuit' }).click()
@@ -112,7 +112,7 @@ test('logic: the circuit built from an expression really works when you flip its
 
 test('logic: undo removes a built circuit in one step', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   await page.getByRole('tab', { name: 'Build circuit' }).click()
   await page.getByLabel('Expressions').fill('Y = A·B')
   await page.getByRole('button', { name: 'Build circuit' }).click()
@@ -123,7 +123,7 @@ test('logic: undo removes a built circuit in one step', async ({ page }) => {
 
 test('logic: build from a truth table you fill in, with a don’t care', async ({ page }) => {
   await freshEmpty(page)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   const panel = page.getByRole('dialog', { name: 'Logic tools' })
   await panel.getByRole('tab', { name: 'Build circuit' }).click()
   await panel.getByRole('radio', { name: 'Truth table' }).click()
@@ -148,7 +148,7 @@ test('logic: build from a truth table you fill in, with a don’t care', async (
 
 test('logic: compare a circuit with an expression, and with another circuit file', async ({ page }) => {
   await page.goto('/gates', { waitUntil: 'networkidle' })
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   const panel = page.getByRole('dialog', { name: 'Logic tools' })
   await panel.getByRole('tab', { name: 'Compare' }).click()
   const box = panel.getByLabel('Expression to compare with')
@@ -173,7 +173,7 @@ test('logic: compare a circuit with an expression, and with another circuit file
   await page.getByRole('button', { name: 'Close' }).click()
   await chooseFile(page, 'Save file')
   const saved = readFileSync((await (await download).path())!)
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   await panel.getByRole('tab', { name: 'Compare' }).click()
   await panel.getByRole('radio', { name: 'A circuit file' }).click()
   const chooser = page.waitForEvent('filechooser')
@@ -190,7 +190,7 @@ test('logic: compare a circuit with an expression, and with another circuit file
 
 test('logic: analyze says when the circuit only has parts it cannot read (4-bit inputs, displays)', async ({ page }) => {
   await page.goto('/adder', { waitUntil: 'networkidle' })
-  await chooseTool(page, 'Logic…')
+  await chooseTool(page, 'Logic')
   const panel = page.getByRole('dialog', { name: 'Logic tools' })
   await expect(panel).toContainText('which this tab does not read')
 })

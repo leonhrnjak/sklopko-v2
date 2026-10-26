@@ -270,7 +270,7 @@ test('rename, duplicate and delete in the library; a delete can be undone', asyn
 
 test('state machines are in the library too', async ({ page }) => {
   await fresh(page)
-  await chooseTool(page, 'State machines…')
+  await chooseTool(page, 'State machines')
   const panel = page.getByRole('dialog', { name: /State machine/ })
   await expect(panel).toBeVisible()
   await page.waitForTimeout(700)
@@ -311,7 +311,7 @@ test('the state machine of an earlier version is brought in', async ({ page }) =
   })
   await page.evaluate((s) => localStorage.setItem('sklopko.fsm.v1', s), old)
   await page.reload({ waitUntil: 'networkidle' })
-  await chooseTool(page, 'State machines…')
+  await chooseTool(page, 'State machines')
   await expect(page.getByRole('dialog', { name: /State machine/ }).getByLabel('Machine name')).toHaveValue('Old machine')
   await expect.poll(async () => (await records(page)).filter((r) => r.kind === 'fsm').map((r) => r.name)).toEqual(['Old machine'])
 })

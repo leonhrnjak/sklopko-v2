@@ -476,7 +476,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
   const tools = page.getByRole('menu', { name: 'Tools' })
   await expect(tools).toHaveCount(0)
   await page.getByRole('button', { name: 'Tools ▾' }).click()
-  await expect(tools.getByRole('menuitem')).toHaveText(['Logic…', 'State machines…', 'Make IC…', 'Tests…', 'Learn: from NAND to a computer', 'Challenges', 'SKASM…', '6502…', 'BASIC…'])
+  await expect(tools.getByRole('menuitem')).toHaveText(['Logic', 'State machines', 'Make IC', 'Tests', 'Learn: from NAND to a computer', 'Challenges', 'SKASM', '6502', 'BASIC'])
   await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Waveforms', 'Timing'])
   await page.keyboard.press('Escape')
   await expect(tools).toHaveCount(0)
@@ -493,7 +493,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
     'Save file',
     'Embed code',
     'Clear wires',
-    'Save picture…',
+    'Save picture',
   ])
   await page.getByTestId('canvas').click({ position: { x: 600, y: 400 } })
   await expect(file).toHaveCount(0)

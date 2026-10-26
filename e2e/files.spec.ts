@@ -100,7 +100,7 @@ test('picture export: SVG of the whole circuit, and of what is on screen; PNG', 
   await page.goto('/labels', { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
   const save = async (format: 'SVG' | 'PNG', show: 'Whole circuit' | 'What is on screen') => {
-    await chooseFile(page, 'Save picture…')
+    await chooseFile(page, 'Save picture')
     const dialog = page.getByRole('dialog', { name: 'Save a picture' })
     await dialog.getByLabel(format).check()
     await dialog.getByLabel(show).check()

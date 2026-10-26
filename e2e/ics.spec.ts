@@ -20,7 +20,7 @@ async function inverterCircuit(page: Page) {
 
 test('make an IC from the circuit, place it from the parts list, wire it up and run it', async ({ page }) => {
   await inverterCircuit(page)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await expect(dialog(page)).toBeVisible()
   await expect(dialog(page).getByTestId('ic-inputs')).toHaveText('A')
   await expect(dialog(page).getByTestId('ic-outputs')).toHaveText('Y')
@@ -60,7 +60,7 @@ test('make an IC from the circuit, place it from the parts list, wire it up and 
 test('an IC needs inputs and outputs: the window says what is missing and does not make one', async ({ page }) => {
   await freshEmpty(page)
   await place(page, 'and', 300, 200)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await expect(dialog(page).getByRole('alert')).toHaveCount(2)
   await expect(dialog(page)).toContainText('no inputs')
   await expect(dialog(page)).toContainText('no outputs')
@@ -85,7 +85,7 @@ test('an IC made from the selected parts only, with a warning for a button insid
   await page.mouse.move(canvas.x + 560, canvas.y + 230, { steps: 6 })
   await page.mouse.up()
   await expect(page.locator('.comp.selected')).toHaveCount(3)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await expect(dialog(page)).toContainText('3 selected parts')
   await expect(dialog(page).getByTestId('ic-inputs')).toHaveText('in1')
   await expect(dialog(page).getByRole('alert')).toHaveCount(0)
@@ -94,13 +94,13 @@ test('an IC made from the selected parts only, with a warning for a button insid
 
   // With the button in the circuit, the whole-circuit IC warns about it.
   await page.mouse.click(canvas.x + 700, canvas.y + 500)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await expect(dialog(page)).toContainText('Push button inside cannot be operated')
 })
 
 test('an instance can be expanded back into its parts, in one undo step', async ({ page }) => {
   await inverterCircuit(page)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await dialog(page).getByLabel('IC name').fill('Inverter')
   await dialog(page).getByRole('button', { name: 'Make IC' }).click()
   const ic = await place(page, 'ic:inverter', 300, 330)
@@ -120,7 +120,7 @@ test('an instance can be expanded back into its parts, in one undo step', async 
 /** The inverter IC, made from the circuit, and an instance of it between a new switch and a new LED. */
 async function inverterInUse(page: Page) {
   const made = await inverterCircuit(page)
-  await chooseTool(page, 'Make IC…')
+  await chooseTool(page, 'Make IC')
   await dialog(page).getByLabel('IC name').fill('Inverter')
   await dialog(page).getByRole('button', { name: 'Make IC' }).click()
   const sw = await place(page, 'switch', 120, 330)
