@@ -378,3 +378,28 @@ test('an example opens from a ready file, with its thumbnail beside it', async (
   await expect(page.locator('.doc-name.unsaved')).toHaveText('Electronic dice (copy)') // unedited: no copy kept yet
   await expect(page).toHaveURL(/\/dice$/)
 })
+
+test('a backup also keeps the progress and the kit of Learn, and importing brings them back in another browser', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/not-from-nand', { waitUntil: 'networkidle' })
+  await page.getByRole('region', { name: 'Step' }).getByRole('button', { name: 'Show a solution' }).click()
+  await openLibrary(page)
+  const download = page.waitForEvent('download')
+  await dialog(page).getByRole('button', { name: 'Download all' }).click()
+  const path = (await (await download).path())!
+  const backup = JSON.parse(readFileSync(path, 'utf8')) as { learn?: { progress: { done: Record<string, { how: string }> }; kit: Record<string, { name: string }> } }
+  expect(backup.learn?.progress.done['not-from-nand'].how).toBe('shown')
+  expect(backup.learn?.kit['not-from-nand'].name).toBe('NOT')
+  await expect(page.locator('.toast')).toContainText('and your progress in Learn')
+
+  // An empty browser: the file brings the step and the chip.
+  await fresh(page)
+  expect(await page.evaluate(() => localStorage.getItem('sklopko.path.v1'))).toBeNull()
+  await openLibrary(page)
+  const chooser = page.waitForEvent('filechooser')
+  await dialog(page).getByRole('button', { name: 'Import…' }).click()
+  await (await chooser).setFiles(path)
+  await expect(page.locator('.toast')).toContainText('and 1 step of Learn')
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sklopko.path.v1')!).done['not-from-nand'].how)).toBe('shown')
+  expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('sklopko.path.kit.v1')!)))).toEqual(['not-from-nand'])
+})

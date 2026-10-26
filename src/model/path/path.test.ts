@@ -12,7 +12,7 @@ import { cpuStage } from './cpu4'
 import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
 import { PATH_STEP_COUNT, learnFromPath, learnUrl } from './index'
-import { countDone, emptyProgress, markDone, parseProgress } from './progress'
+import { countDone, emptyProgress, markDone, mergeProgress, parseProgress } from './progress'
 import { hasDef } from '../../engine/registry'
 import { PATH_STEPS, STEPS, chapterDone, chaptersUnlockedBy, getStep, hasStep, isBehind, mapChapter, recommended, stepAfter, stepBefore, stepIdsOf, stepsOf, unlockedParts } from './steps'
 import type { BuildStep } from './types'
@@ -554,5 +554,61 @@ describe('chapter 8, counting and memories, and what a chapter unlocks', () => {
     expect(chaptersUnlockedBy(p, done).map((c) => c.id)).toEqual(['memory'])
     expect(unlockedParts(done)).toEqual(['srlatch', 'dlatch', 'dff', 'jkff', 'tff', 'register'])
     expect(chaptersUnlockedBy(done, markDone(done, ids[0], 'solved', 3))).toEqual([])
+  })
+})
+
+describe('the whole path, read through', () => {
+  const paragraphs = (s: (typeof STEPS)[number]) => s.lesson.flatMap((b) => ('p' in b ? [b.p] : []))
+
+  it('has all 78 steps of the plan, in the 14 chapters', () => {
+    expect(STEPS.length).toBe(78)
+    expect(CHAPTERS.length).toBe(14)
+    for (const c of CHAPTERS) expect(stepsOf(c.id).length, c.id).toBeGreaterThan(0)
+  })
+
+  it('keeps each lesson short enough to read beside the circuit: at most five paragraphs and 1,500 characters', () => {
+    for (const s of STEPS) {
+      expect(paragraphs(s).length, s.id).toBeLessThanOrEqual(5)
+      expect(paragraphs(s).join('').length, s.id).toBeLessThanOrEqual(1500)
+    }
+  })
+
+  it('keeps titles and summaries short, and the text clean: no double spaces, whole sentences, backticks and [[ ]] in pairs', () => {
+    for (const s of STEPS) {
+      expect(s.title.length, `${s.id}: title`).toBeLessThanOrEqual(40)
+      expect(s.summary.length, `${s.id}: summary`).toBeLessThanOrEqual(130)
+      const texts = [s.summary, ...paragraphs(s), ...(s.kind === 'build' || s.kind === 'explore' || s.kind === 'project' || s.kind === 'program' ? [s.task ?? ''] : [])]
+      for (const t of texts) {
+        expect(t, `${s.id}: ${t.slice(0, 30)}`).not.toMatch(/ {2}|\s$|^\s/)
+        expect((t.match(/`/g) ?? []).length % 2, `${s.id}: backticks`).toBe(0)
+        expect((t.match(/\[\[/g) ?? []).length, `${s.id}: [[ ]]`).toBe((t.match(/\]\]/g) ?? []).length)
+      }
+      for (const p of paragraphs(s)) expect(p, `${s.id}: ${p.slice(0, 30)}`).toMatch(/[.?!:)”"…`]$/)
+    }
+  })
+})
+
+describe('merging progress', () => {
+  it('adds what a backup has: done in either is done, solving beats being shown, a star stays, and the answers of a quiz come along', () => {
+    let mine = emptyProgress()
+    mine = markDone(mine, 'a', 'shown', 5)
+    mine = markDone(mine, 'b', 'solved', 6)
+    mine = { ...mine, current: 'b', quiz: { q1: [1, 2] } }
+    let theirs = emptyProgress()
+    theirs = markDone(theirs, 'a', 'solved', 9, true)
+    theirs = markDone(theirs, 'b', 'shown', 9)
+    theirs = markDone(theirs, 'c', 'read', 9)
+    theirs = { ...theirs, current: 'c', quiz: { q1: [0, 0], q2: [3] } }
+    const merged = mergeProgress(mine, JSON.parse(JSON.stringify(theirs)))
+    expect(merged.done.a).toEqual({ at: 5, how: 'solved', star: true })
+    expect(merged.done.b).toMatchObject({ how: 'solved' })
+    expect(merged.done.c).toMatchObject({ how: 'read' })
+    expect(merged.current).toBe('b')
+    expect(merged.quiz).toEqual({ q1: [1, 2], q2: [3] })
+  })
+
+  it('takes nothing from a value that is not progress', () => {
+    const mine = markDone(emptyProgress(), 'a', 'solved', 1)
+    for (const junk of [null, 5, 'x', [], { v: 2, done: { z: { how: 'solved', at: 1 } } }]) expect(mergeProgress(mine, junk)).toEqual(mine)
   })
 })

@@ -60,3 +60,16 @@ export const isDone = (p: Progress, id: string) => id in p.done
 
 /** How many of these steps are done. Steps the path no longer has (an older version's) do not count. */
 export const countDone = (p: Progress, ids: readonly string[]) => ids.reduce((n, id) => n + (isDone(p, id) ? 1 : 0), 0)
+
+/**
+ * Progress from a backup added to this browser's: a step done in either is done (solving beats being shown, a star stays), and the quiz answers
+ * of a step that has none here come along. Where the learner was last stays as it is. `theirs` is read as `parseProgress` reads it.
+ */
+export function mergeProgress(mine: Progress, theirs: unknown): Progress {
+  const other = parseProgress(theirs)
+  let merged = mine
+  for (const [id, d] of Object.entries(other.done)) merged = markDone(merged, id, d.how, d.at, !!d.star)
+  const quiz = { ...merged.quiz }
+  for (const [id, a] of Object.entries(other.quiz)) if (!(id in quiz)) quiz[id] = a
+  return { ...merged, quiz }
+}

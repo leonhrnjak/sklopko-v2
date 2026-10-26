@@ -18,6 +18,7 @@ import { clearKit, putChip, useKit } from './pathKit'
 import { clearProject, useProject } from './pathProject'
 import { commitProgress } from './pathUnlock'
 import { loadCircuit, select, showToast, useStore } from './store'
+import { setWaveOpen } from './waveform'
 import { fitToScreen } from './view'
 
 /**
@@ -98,6 +99,9 @@ export async function startStep(id: string) {
   }
   if (mine !== opening) return
   openCircuit(start, { mode: 'now', name: `Learn: ${step.title}`, origin: { path: id } })
+  // A board of an example has probes, which open the waveforms and take the room the step's panel needs: they are one click away in the toolbar.
+  // (They open after the circuit is rendered, so this waits a moment.)
+  if ((explore && 'example' in explore.open) || program?.example || project?.board) setTimeout(() => setWaveOpen(false), 200)
   fitSoon()
   watch()
 }

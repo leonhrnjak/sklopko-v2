@@ -117,8 +117,10 @@ export async function removeDoc(meta: DocMeta) {
 
 export async function downloadLibrary() {
   const backup = await exportAll()
+  // The progress and the kit of Learn go in the same file: what was built is in the documents, what was done is here.
+  const learn = (await import('./pathBackup')).addLearn(backup)
   downloadText('sklopko-library.json', JSON.stringify(backup), 'application/json')
-  showToast(`Saved ${backup.docs.length} ${backup.docs.length === 1 ? 'document' : 'documents'} to a file.`)
+  showToast(`Saved ${backup.docs.length} ${backup.docs.length === 1 ? 'document' : 'documents'}${learn} to a file.`)
 }
 
 /** Does this record's data read as what its kind says? */
@@ -137,9 +139,11 @@ export async function importLibraryFile() {
   const file = await openTextFile('.json,application/json')
   if (!file) return
   try {
-    const { added, skipped } = await importDocs(JSON.parse(file.text), readable)
+    const data = JSON.parse(file.text)
+    const { added, skipped } = await importDocs(data, readable)
     await refreshLibrary()
-    showToast(`Added ${added} ${added === 1 ? 'document' : 'documents'}${skipped ? ` (${skipped} could not be read)` : ''}.`)
+    const learn = data?.learn ? (await import('./pathBackup')).restoreText(data.learn) : ''
+    showToast(`Added ${added} ${added === 1 ? 'document' : 'documents'}${skipped ? ` (${skipped} could not be read)` : ''}${learn}.`)
   } catch (e) {
     showToast(e instanceof SyntaxError ? 'That is not a Sklopko library file.' : reason(e))
   }

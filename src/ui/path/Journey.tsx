@@ -19,13 +19,13 @@ export function Journey() {
       <p className="step-lesson">
         You have done <b>{done.length}</b> of the {STEPS.length} steps ({solved} solved by yourself, {done.length - solved} read or shown), and written <b>{programs}</b> program{programs === 1 ? '' : 's'}.
       </p>
-      <ul className="journey-chapters">
+      <ul className="goals">
         {CHAPTERS.map((c) => {
           const ids = stepsOf(c.id)
           const n = ids.filter((s) => isDone(progress, s.id)).length
           const next = ids.find((s) => !isDone(progress, s.id))
           return (
-            <li key={c.id} className={n === ids.length && ids.length ? 'on' : undefined}>
+            <li key={c.id} className={n === ids.length && ids.length ? 'goal on' : 'goal'}>
               <span aria-hidden>{n === ids.length && ids.length ? '✔' : n ? '◕' : '○'}</span> {chapterNumber(c.id)} {c.title} <small>{n}/{ids.length}</small>
               {next && (
                 <>

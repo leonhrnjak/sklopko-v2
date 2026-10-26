@@ -269,3 +269,36 @@ describe('what is stored', () => {
     expect(again.usePath.getState().progress.done).toEqual({})
   })
 })
+
+describe('the backup file', () => {
+  it('keeps the steps done and the kit, and adds them to another browser without replacing what is there', async () => {
+    const m = await load()
+    await m.startStep('not-from-nand')
+    await m.flush()
+    m.loadCircuit(m.chips.solutionOf(m.steps.getStep('not-from-nand') as never))
+    m.checkStep()
+    expect(done(m, 'not-from-nand')?.how).toBe('solved')
+    const { learnForBackup } = await import('./pathBackup')
+    const backup = JSON.parse(JSON.stringify(learnForBackup()))
+    expect(Object.keys(backup.progress.done)).toEqual(['not-from-nand'])
+    expect(Object.keys(backup.kit)).toEqual(['not-from-nand'])
+
+    // Another browser: nothing done, but one step shown there (and a chip of our own for it).
+    vi.resetModules()
+    storage.clear()
+    const other = await load()
+    const { restoreLearn, learnForBackup: mine } = await import('./pathBackup')
+    expect(mine()).toBeUndefined() // nothing to keep yet
+    const { markDone } = await import('../model/path/progress')
+    other.setProgress(markDone(other.usePath.getState().progress, 'binary', 'read', 5))
+    expect(restoreLearn(backup)).toEqual({ steps: 1, chips: 1 })
+    expect(Object.keys(other.usePath.getState().progress.done).sort()).toEqual(['binary', 'not-from-nand'])
+    expect(other.useKit.getState().kit['not-from-nand'].name).toBe('NOT')
+    expect(JSON.parse(storage.get('sklopko.path.v1')!).done['not-from-nand'].how).toBe('solved') // kept in this browser, too
+    // Again: nothing new, nothing changes.
+    expect(restoreLearn(backup)).toEqual({ steps: 0, chips: 0 })
+    // Rubbish is ignored.
+    expect(restoreLearn('nope')).toEqual({ steps: 0, chips: 0 })
+    expect(restoreLearn({ progress: { done: { x: 5 } }, kit: [1] })).toEqual({ steps: 0, chips: 0 })
+  })
+})

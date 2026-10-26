@@ -25,6 +25,7 @@ import { setCone, useTraceOptions } from '../app/trace'
 import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
 import { enterInstance, expandInstance, openMakeIc } from '../app/ics'
+import { openMap } from '../app/path'
 import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
@@ -409,6 +410,13 @@ function Help() {
         </button>
       </div>
       <ul className="help">
+        <li>
+          <b>New here?</b>{' '}
+          <button className="inline-link" onClick={openMap}>
+            Learn
+          </button>{' '}
+          teaches this step by step.
+        </li>
         <li>
           <b>Add parts:</b> drag from the left panel, or click one and then click the canvas (Shift keeps placing).
         </li>

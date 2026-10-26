@@ -85,6 +85,17 @@ security headers.
   solution* help when stuck, and *Start over* puts the starting circuit back (undoable); solved challenges are ticked and
   remembered in your browser. Each challenge keeps a circuit of its own, so leaving one and coming back brings back what
   you built.
+- **Learn:** the *Learn* button (left of *Examples*) opens *From NAND to a computer*: 14 chapters and 78 short steps, each with
+  something to do. You start with a switch, a wire and an LED; build every gate from NAND, then a multiplexer, an adder and an
+  ALU; make a latch, a flip-flop, a register, a counter and a RAM; and put them together into a 4-bit CPU, one circuit that
+  grows step by step, checked by running small programs on it. You then program it, meet an 8-bit computer and a real MOS
+  6502 (wiring its address decoder, writing assembly for it), and finish with Microsoft BASIC running on it. A step is a
+  few paragraphs, with part names you can point at to find them on the canvas, and one thing to do: *read* (with questions),
+  *explore* (play with a circuit until its goals tick), *build* (a gate, or a block that goes into *Your kit* and is used by the
+  next steps), *project* (the CPU), or *program* (SKASM or 6502 assembly, run on the computer). *Hint*, *Show a solution* and
+  *Start over* are always there, and any step can be opened from the map or a link such as `/learn/dff`. Finishing a chapter
+  unlocks its built-in parts. Progress, the kit and the circuits you built stay in your browser, and *My circuits → Download all*
+  keeps them in the backup file. On a phone the lesson folds to a bar, so the parts list is within reach.
 - **Notes and frames:** the *Notes & frames* group of the parts panel has a *Note* (text that wraps at the width you
   choose, in five colours) and a *Frame* (a titled, tinted box drawn behind everything). Neither has pins or any
   effect on the simulation, and wires route straight through them. Drag a frame by its border or title bar to move it
