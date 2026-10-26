@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { PATH_STEPS } from '../src/model/path/steps'
-import { clickLabelled, fresh, place, wire } from './helpers'
+import { clickLabelled, fresh, pinCenter, place, wire } from './helpers'
 
 const panel = (page: Page) => page.getByRole('region', { name: 'Step' })
 const map = (page: Page) => page.getByRole('dialog', { name: 'Learn' })
@@ -289,4 +289,33 @@ test('learn: chapter 4 builds a decoder from the kit, and the 4-way multiplexer 
   await expect(goals).toContainText('☑ Choose input 2')
   await expect(goals).toContainText('☑ Turn D2 on while it is chosen')
   await expect(panel(page).getByTestId('explore-done')).toBeVisible()
+})
+
+test('learn: a chip that is a gate sits in a chip frame with its name and a glyph that opens it', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/and-from-nand', { waitUntil: 'networkidle' })
+  const inv = await place(page, 'ic:kit:not-from-nand', 340, 80)
+  const chip = page.locator(`.comp[data-id="${inv}"]`)
+  // A frame, a tab with the name, and the glyph, so it cannot be taken for the built-in gate.
+  await expect(chip.locator('.chip-body')).toHaveCount(1)
+  await expect(chip.locator('.chip-name')).toHaveText('NOT')
+  await expect(chip.getByTestId('chip-open')).toHaveCount(1)
+  // The legs are the pins: each pin dot sits 10 units outside the frame, level with the end of its leg, and a wire to it ends there.
+  await wire(page, ['switch1', 'Q'], [inv, 'A'])
+  const frame = (await chip.locator('.chip-body').boundingBox())!
+  const dot = await pinCenter(page, inv, 'A')
+  // The box measured includes half the 2.5 stroke on each side; the frame of a NOT is 50 wide.
+  const zoom = frame.width / 52.5
+  const left = frame.x + 1.25 * zoom
+  const right = frame.x + frame.width - 1.25 * zoom
+  expect(dot.x).toBeCloseTo(left - 10 * zoom, 0)
+  const out = await pinCenter(page, inv, 'Y')
+  expect(out.x).toBeCloseTo(right + 10 * zoom, 0)
+  // The leg is drawn up to the dot: the line that ends at the pin starts inside the frame.
+  const leg = (await chip.locator('line.sym-line').first().boundingBox())!
+  expect(Math.abs(leg.x - dot.x)).toBeLessThan(2 * zoom) // the round end of the line is a little outside
+  // Clicking the glyph opens the chip, without selecting or moving it.
+  const g = (await chip.getByTestId('chip-open').boundingBox())!
+  await page.mouse.click(g.x + g.width / 2, g.y + g.height / 2)
+  await expect(page.getByTestId('crumbs').locator('[aria-current]')).toHaveText('NOT')
 })

@@ -1,5 +1,5 @@
 import { box, gateLayout, type GateShape } from '../layouts'
-import { X, type ComponentDef, type Params, type PinGroup } from '../types'
+import { X, type ComponentDef, type Layout, type Params, type PinGroup } from '../types'
 
 /**
  * A custom IC placed in a circuit. Its definition lives in the document (`Circuit.ics`), but its pins are copied into the
@@ -60,6 +60,53 @@ export function symbolOf(symbol: unknown, ins: IcPin[], outs: IcPin[]): IcSymbol
   return (single ? ins.length === 1 : ins.length >= 2 && ins.length <= 8) ? symbol : null
 }
 
+/** Room in the frame of a chip that is a gate: the tab on top (14), the column of the glyph (20), a letter of the name (6.4), and the widest frame. */
+export const IC_FRAME = { tab: 14, glyph: 20, charW: 6.4, maxW: 100 }
+
+/** A chip that is a gate, drawn as that gate inside a chip frame with a tab that holds its name and a glyph that opens it. */
+export interface IcGate {
+  symbol: IcSymbol
+  /** The layout of the part: the frame, with the pins on its legs (the pin tips are 10 outside it). */
+  frame: Layout
+  /** The gate's own layout, in the coordinates it is drawn in (at `dx`, `dy` inside the frame), with its pins reaching the same tips. */
+  gate: Layout
+  dx: number
+  dy: number
+  /** The name as the tab shows it: cut short, with … , when it does not fit. */
+  tabName: string
+}
+
+/**
+ * The frame of a chip that is a gate (`null` when it is drawn as a box). The frame is the gate with 5 free on each side, or wider when
+ * the name needs it (up to `maxW`); the gate is centred in it, 20 down (the tab is 14 and the room 6, above and below; 4 for a NOT's triangle,
+ * which reaches 2 beyond its body here). The pin tips are 10 outside the frame, on the 10-grid, as a gate's are outside its body.
+ */
+export function icGate(p: Params): IcGate | null {
+  const ins = icInputs(p)
+  const outs = icOutputs(p)
+  const symbol = symbolOf(p.symbol, ins, outs)
+  if (!symbol) return null
+  const [shape, inverted] = SHAPES[symbol]
+  const g = gateLayout(ins.length, shape, inverted)
+  const name = String(p.name || 'IC')
+  const { tab, glyph, charW } = IC_FRAME
+  const dy = 20
+  const reach = g.pins[g.pins.length - 1].x - 10
+  const w = Math.min(IC_FRAME.maxW, Math.max(reach + 10, Math.ceil((name.length * charW + 6 + glyph) / 10) * 10))
+  const dx = (w - reach) / 2
+  const room = Math.floor((w - 6 - glyph) / charW)
+  const names = [...ins, ...outs].map((q) => q.name)
+  const pins = (shift: number, down: number) => g.pins.map((q, i) => ({ ...q, name: names[i], x: (q.dir === 'out' ? w + 10 : q.x) - shift, y: q.y + down }))
+  return {
+    symbol,
+    frame: { w, h: 2 * dy + g.h - tab, pins: pins(0, dy) },
+    gate: { ...g, pins: pins(dx, 0) },
+    dx,
+    dy,
+    tabName: name.length <= room ? name : `${name.slice(0, room - 1)}…`,
+  }
+}
+
 const pinSpecs = (pins: IcPin[], dir: 'in' | 'out') => pins.flatMap((pin) => scalarNames(pin).map((name) => ({ name, label: pin.bits > 1 ? name : pin.name, dir })))
 
 const groups = (pins: IcPin[], dir: 'in' | 'out'): PinGroup[] => pins.filter((p) => p.bits > 1).map((p) => ({ name: p.name, dir, pins: scalarNames(p) }))
@@ -78,14 +125,9 @@ export const ic: ComponentDef[] = [
     layout: (p) => {
       const ins = icInputs(p)
       const outs = icOutputs(p)
-      const symbol = symbolOf(p.symbol, ins, outs)
-      if (symbol) {
-        // The gate's own shape and size, with the IC's pin names.
-        const [shape, inverted] = SHAPES[symbol]
-        const l = gateLayout(ins.length, shape, inverted)
-        const names = [...ins, ...outs].map((q) => q.name)
-        return { ...l, pins: l.pins.map((pin, i) => ({ ...pin, name: names[i] })) }
-      }
+      // A chip that is a gate: the gate in a chip frame, with the IC's pin names.
+      const gate = icGate(p)
+      if (gate) return gate.frame
       const left = pinSpecs(ins, 'in')
       const right = pinSpecs(outs, 'out')
       // The body is as small as the pin labels and a short title allow; a longer name widens it, and one input and one output make it 40 tall.

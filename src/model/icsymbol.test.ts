@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { IC_FRAME, icGate } from '../engine/components/ic'
 import { viewLayoutOf } from '../engine/viewlayout'
 import { CircuitBuilder } from './builder'
 import type { Circuit, ICDef } from './circuit'
@@ -21,6 +22,8 @@ function gate(type: string, n = 2): Circuit {
 
 const def = (circuit: Circuit, symbol?: ICDef['symbol']): ICDef => ({ id: 'chip', name: 'Chip', circuit, ...(symbol ? { symbol } : {}) })
 const layoutOf = (d: ICDef) => viewLayoutOf('ic', icParams(d))
+/** A chip with a short name, so that its frame is as wide as its gate needs and no wider. */
+const short = (circuit: Circuit, symbol: ICDef['symbol']): ICDef => ({ ...def(circuit, symbol), name: 'AND' })
 
 describe('detectSymbol', () => {
   it('knows each gate from its truth table, whatever it is made of', () => {
@@ -77,20 +80,51 @@ describe('detectSymbol', () => {
 })
 
 describe('an IC with a symbol', () => {
-  it('is as big as the gate, with the pins of the IC', () => {
-    const and = layoutOf(def(gate('and'), 'and'))
+  it('is the gate inside a chip frame, with the pins of the IC on the frame’s legs', () => {
+    const and = layoutOf(short(gate('and'), 'and'))
     const gateAnd = viewLayoutOf('and', { inputs: 2 })
-    expect([and.w, and.h]).toEqual([gateAnd.w, gateAnd.h]) // 40 × 40
+    // The frame: the gate (40 × 40) with 5 free at the sides, 20 above it (the tab, 14, and 6 of room) and 6 below.
+    expect([and.w, and.h]).toEqual([gateAnd.w + 10, 20 + gateAnd.h + 6])
     expect(and.pins.map((p) => [p.name, p.side, p.x, p.y])).toEqual([
-      ['A', 'l', -10, 10],
-      ['B', 'l', -10, 30],
-      ['Y', 'r', 50, 20],
+      ['A', 'l', -10, 30],
+      ['B', 'l', -10, 50],
+      ['Y', 'r', 60, 40],
     ])
-    const nand = layoutOf(def(gate('nand'), 'nand'))
-    expect(nand.pins.find((p) => p.name === 'Y')).toMatchObject({ invert: true, x: 60 })
-    const not = layoutOf(def(gate('not'), 'not'))
-    expect([not.w, not.h]).toEqual([30, 20])
+    // Every pin tip is 10 outside the frame and on the 10-grid, as a gate's are outside its body.
+    for (const p of and.pins) expect(p.side === 'l' ? p.x : p.x - and.w, p.name).toBe(p.side === 'l' ? -10 : 10)
+    for (const p of and.pins) expect(p.y % 10, p.name).toBe(0)
+    const nand = layoutOf(short(gate('nand'), 'nand'))
+    expect(nand.pins.find((p) => p.name === 'Y')).toMatchObject({ invert: true, x: nand.w + 10 })
+    const not = layoutOf(short(gate('not'), 'not'))
+    expect([not.w, not.h]).toEqual([50, 20 + 20 + 6]) // the triangle reaches 2 beyond its 20: 4 of room above and below
     expect(not.pins.find((p) => p.name === 'Y')?.invert).toBe(true)
+  })
+
+  it('draws the gate at its own size inside the frame, with its legs reaching the same pin tips', () => {
+    const chip = icGate(icParams(short(gate('and'), 'and')))!
+    const gateAnd = viewLayoutOf('and', { inputs: 2 })
+    expect([chip.gate.w, chip.gate.h]).toEqual([gateAnd.w, gateAnd.h])
+    // Gate coordinates plus the offset are frame coordinates: the tips agree.
+    for (const [i, p] of chip.gate.pins.entries()) {
+      expect(p.x + chip.dx, p.name).toBe(chip.frame.pins[i].x)
+      expect(p.y + chip.dy, p.name).toBe(chip.frame.pins[i].y)
+    }
+    // The gate is centred.
+    expect(chip.dx).toBe(5)
+  })
+
+  it('makes the frame wider for a long name, up to a limit, and cuts a name that still does not fit', () => {
+    const named = (name: string) => icGate(icParams({ ...def(gate('and'), 'and'), name }))!
+    expect(named('AND').frame.w).toBe(50)
+    const wide = named('Adder bit')
+    expect(wide.frame.w).toBeGreaterThan(50)
+    expect(wide.tabName).toBe('Adder bit')
+    expect((wide.frame.w - 40) / 2).toBe(wide.dx) // still centred, whatever the width
+    const cut = named('A very long name for a chip')
+    expect(cut.frame.w).toBe(IC_FRAME.maxW)
+    expect(cut.tabName.endsWith('…')).toBe(true)
+    expect(cut.tabName.length).toBeLessThan('A very long name for a chip'.length)
+    expect(named('').tabName).toBe('IC')
   })
 
   it('keeps its own pin names', () => {
@@ -148,7 +182,7 @@ describe('saving', () => {
     expect(back.ics!.chip.symbol).toBe('and')
     const inst = Object.values(back.comps)[0]
     expect(inst.params.symbol).toBe('and')
-    expect(viewLayoutOf('ic', inst.params).h).toBe(40)
+    expect(viewLayoutOf('ic', inst.params).h).toBe(66)
   })
 
   it('writes nothing for an IC without one, and ignores a value it does not know', () => {
@@ -158,5 +192,19 @@ describe('saving', () => {
     expect(deserialize(data).ics!.chip.symbol).toBeUndefined()
     data.ics[0].symbol = 5
     expect(deserialize(data).ics!.chip.symbol).toBeUndefined()
+  })
+})
+
+describe('the room inside a chip frame', () => {
+  it('is the same above the gate as below it, for each shape of gate', () => {
+    for (const [symbol, reach] of [['and', 0], ['or', 0], ['xor', 0], ['nand', 0], ['not', 2], ['buf', 2]] as const) {
+      const chip = icGate(icParams(def(gate(symbol), symbol)))!
+      const above = chip.dy - reach - IC_FRAME.tab
+      const below = chip.frame.h - (chip.dy + chip.gate.h + reach)
+      expect(above, symbol).toBe(below)
+      expect(above, symbol).toBe(6 - reach)
+      // The pins stay on the 10-grid whatever the room.
+      for (const p of chip.frame.pins) expect(p.y % 10, `${symbol} ${p.name}`).toBe(0)
+    }
   })
 })

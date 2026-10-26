@@ -47,11 +47,11 @@ function demuxSolution(): Circuit {
 function decoderSolution(): Circuit {
   const { b, ins, outs } = withChips(['A1', 'A0'], ['Y0', 'Y1', 'Y2', 'Y3'], ['not-from-nand', 'and-from-nand'])
   const n1 = b.ic(chipId('not-from-nand'), 100, -20)
-  const n0 = b.ic(chipId('not-from-nand'), 100, 60)
+  const n0 = b.ic(chipId('not-from-nand'), 100, 80)
   b.wire(`${ins.A1}.Q`, `${n1}.A`)
   b.wire(`${ins.A0}.Q`, `${n0}.A`)
   const row = (i: number, hi: string, lo: string) => {
-    const g = b.ic(chipId('and-from-nand'), 280, i * 70)
+    const g = b.ic(chipId('and-from-nand'), 280, i * 90)
     b.wire(hi, `${g}.A`)
     b.wire(lo, `${g}.B`)
     b.wire(`${g}.Y`, `${outs[`Y${i}`]}.A`)

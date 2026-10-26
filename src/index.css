@@ -3,6 +3,8 @@
   --accent: #3fa98a;
   --accent-strong: #2c8a6f;
   --accent-ink: #ffffff;
+  --chip-fill: #e6f4ef;
+  --chip-tab: #2c8a6f;
   --bg: #f4f5f3;
   --panel: #ffffff;
   --panel-border: #e2e5e1;
@@ -44,6 +46,8 @@
   :root {
     --accent: #3fa98a;
     --accent-strong: #57c3a2;
+    --chip-fill: #1d332d;
+    --chip-tab: #2a7a63;
     /* The top bar stays dark teal: the bright accent is for small marks, not a whole strip of white text. */
     --bar: #1f5e4c;
     --bar-strong: #1a4e3f;
@@ -821,12 +825,61 @@ button.danger {
   stroke-width: 2;
   stroke-linejoin: round;
 }
-/* A custom IC that is a known gate: the gate's shape, in the colour of the chips of the kit. */
+/* A custom IC that is a known gate: the gate inside a chip frame in the colour of the kit's chips, with a tab for its name. */
+.ic-gate .chip-body {
+  fill: var(--chip-fill);
+}
+.ic-gate .chip-body,
 .ic-gate .sym-body {
   stroke: var(--accent-strong);
   stroke-width: 2.5;
 }
-.ic-gate path.sym-line {
+.ic-gate .sym-line {
+  stroke: var(--accent-strong);
+}
+.chip-tab,
+.chip-glyph-die {
+  fill: var(--chip-tab);
+}
+.chip-name {
+  fill: #fff;
+  font: 700 9px sans-serif;
+  pointer-events: none;
+}
+.chip-glyph rect {
+  fill: #fff;
+}
+.chip-glyph path {
+  stroke: #fff;
+  stroke-width: 1.4;
+}
+.chip-open {
+  cursor: pointer;
+}
+.chip-open:hover .chip-glyph rect:not(.chip-glyph-die) {
+  fill: #ffe08a;
+}
+.sym-line {
+  stroke: var(--accent-strong);
+}
+.chip-glyph rect {
+  fill: #fff;
+}
+.chip-glyph path {
+  stroke: #fff;
+  stroke-width: 1.4;
+  fill: none;
+}
+.chip-glyph .chip-glyph-die {
+  fill: var(--chip-tab);
+}
+.chip-open {
+  cursor: pointer;
+}
+.chip-open:hover .chip-glyph rect:not(.chip-glyph-die) {
+  fill: #ffe08a;
+}
+.sym-line {
   stroke: var(--accent-strong);
 }
 .ic-gate .title {
