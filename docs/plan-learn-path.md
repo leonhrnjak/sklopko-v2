@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -10,13 +10,13 @@
 >
 > - [x] L1 The framework (map, step panel, progress, your kit) and chapters 1–2 (bits; NAND is all you need)
 > - [x] L1.5 Kit chips look like the gates they are: gate symbols for ICs that are known gates, and smaller boxes for the rest (own PR, `ic-gate-symbols`)
-> - [ ] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
+> - [x] L2 Explore steps, quizzes, the spotlight, and chapters 3–6 (from a truth table to gates; choosing; adding numbers; the ALU)
 >   - [x] L2a Quiz blocks, map figures, NAND-only rules, chapter 3 (#105)
 >   - [x] L2b The goal evaluator and the explore steps of chapters 1–2 (own PR, `learn-l2-explore`)
 >   - [x] L2c The `[[label]]` spotlight (own PR, `learn-l2-spotlight`)
 >   - [x] L2d-1 Chapter 4, choosing (own PR, `learn-l2-ch4`)
 >   - [x] L2d-2 Chapter 5, adding numbers (own PR, `learn-l2-ch5`)
->   - [ ] L2d-3 Chapter 6, the ALU
+>   - [x] L2d-3 Chapter 6, the ALU (own PR, `learn-l2-ch6`)
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
@@ -674,6 +674,16 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - `ripple-tour` is built on the spot (not the `/ripple` example): two 4-bit inputs, four full adders with a delay of 6, a hex display and a Cout LED, with A at 15 and B at 0. The goals are
   Cout lit and Sum showing 0 (click B: 15 + 1). The lesson points at Timing and at the example.
 - *Unlocks* is still L3's. `PATH_STEP_COUNT` is 29.
+
+**What L2d-3 (chapter 6, *The ALU*) did, and where it differs from the plan.**
+- The four steps as in the table: `is-zero` (chip ZERO, from two NORs and an AND), `compare` (the existing challenge, NAND-only by `rules`, with a reference solution from XOR, NOT, AND, OR and NOR; no chip, as in the plan),
+  `alu4` (chip ALU) and the explore step `alu-tour`. The step count is 33.
+- `alu4` is a new challenge (`path-alu4`): A3–A0, B3–B0, S1, S0 in; Y3–Y0, Z, C out; 1024 rows. S1 S0 = 00 ADD, 01 SUB, 10 AND, 11 OR. The ADDSUB chip gets S0 on its SUB input; per bit an AND and an OR,
+  chosen by S0, and a second MUX chosen by S1 picks the adder or the logic. Z is the ZERO chip on Y. **C matches the built-in ALU**: the adder's carry for ADD, the borrow (Cout flipped) for SUB, and 0 for AND and OR.
+  The goal is written with `adderTerms` (now exported from `ch05.ts`, the pieces `adderGoal` is made of).
+- `alu-tour` is built on the spot (the built-in ALU with S1 and S0 switches, S2 left off, A = 6, B = 9, a display and Z and C LEDs) rather than opening `/alu-flags`. AND makes Z; B at 10 makes 6 + 10 = 16, so C.
+- The missing-wire test of the build steps has a 30 s limit: the ALU has 64 wires, and one check of its 1024 rows takes about 150 ms.
+- *Unlocks* is still L3's. `PATH_STEP_COUNT` is 33.
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
