@@ -71,8 +71,8 @@ async function chooseFromMenu(page: Page, menu: 'Tools' | 'File', item: string) 
 export const chooseTool = (page: Page, item: string) => chooseFromMenu(page, 'Tools', item)
 export const chooseFile = (page: Page, item: string) => chooseFromMenu(page, 'File', item)
 
-/** Switch a checkbox entry of the Tools menu (Waveforms, Timing, Step-back history, the lock), found by its test id. */
-export async function toggleTool(page: Page, testid: 'waves-toggle' | 'timing-toggle' | 'history-toggle' | 'lock-toggle') {
+/** Switch a checkbox entry of the Tools menu (Waveforms, Timing, Step-back history), found by its test id. */
+export async function toggleTool(page: Page, testid: 'waves-toggle' | 'timing-toggle' | 'history-toggle') {
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await page.getByTestId(testid).click()
 }

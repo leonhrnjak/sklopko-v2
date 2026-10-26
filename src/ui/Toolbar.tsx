@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { useSimStatus } from '../app/hooks'
 import { openChallengeList } from '../app/challenges'
 import { openGallery } from '../app/gallery'
@@ -288,6 +288,16 @@ export function Toolbar() {
       <button onClick={reset} title="Power-cycle: all signals and memories return to their initial state">
         Reset
       </button>
+      <button
+        className={`lock-btn${lockEdits ? ' on' : ''}`}
+        onClick={() => updateSettings({ lockEdits: !lockEdits })}
+        aria-pressed={lockEdits}
+        aria-label="Lock editing while running"
+        title={lockEdits ? 'Editing is locked while the simulation runs. Click to unlock.' : 'Lock editing while the simulation runs, so nothing can be changed by accident. Switches and memories can still be operated.'}
+        data-testid="lock-toggle"
+      >
+        {lockEdits ? '🔒' : '🔓'}
+      </button>
       <select
         value={speed}
         onChange={(e) => setSpeed(Number(e.target.value))}
@@ -349,14 +359,6 @@ export function Toolbar() {
         testid="history-toggle"
       >
         Step-back history
-      </MenuItem>
-      <MenuItem
-        checked={lockEdits}
-        onClick={() => updateSettings({ lockEdits: !lockEdits })}
-        title="While the simulation runs, the circuit cannot be changed. Switches and memories can still be operated. Pause to edit."
-        testid="lock-toggle"
-      >
-        Lock editing while running
       </MenuItem>
       <MenuItem
         checked={waveOpen}
@@ -575,25 +577,16 @@ function Crumbs() {
   )
 }
 
-/** The badges about a running simulation (the clock's rate, the editing lock) are their own chunk: the startup chunk is at its budget. */
-const RunBadges = lazy(() => import('./RunBadges').then((m) => ({ default: m.RunBadges })))
-
 export function StatusBar() {
   const status = useSimStatus()
-  const running = useStore((s) => s.running)
   const toast = useStore((s) => s.toast)
   const toastAction = useStore((s) => s.toastAction)
   const empty = useStore((s) => Object.keys(s.circuit.comps).length === 0)
-  const locked = useSettings((s) => s.lockEdits) && running
   return (
     <>
       <div className="status">
         <DocName />
         <Crumbs />
-        {!running && <span className="badge paused">Paused</span>}
-        <Suspense fallback={null}>
-          <RunBadges locked={locked} />
-        </Suspense>
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
             Oscillating

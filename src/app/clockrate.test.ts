@@ -42,9 +42,9 @@ describe('describing the clock', () => {
     expect(formatHz(640_000)).toBe('640 kHz')
   })
 
-  it('names only the asked rate while the clock keeps up, and the rate it reaches when it does not', () => {
-    expect(describeClock(1000, null)).toEqual({ text: 'Clock 1 kHz', slow: false })
-    expect(describeClock(1000, 0.97)).toEqual({ text: 'Clock 1 kHz', slow: false })
-    expect(describeClock(1_000_000, 0.64)).toEqual({ text: 'Clock 1 MHz · reaching 640 kHz (64%)', slow: true })
+  it('names the asked rate until it is measured, then the rate it reaches', () => {
+    expect(describeClock(1000, null)).toEqual({ asked: '1 kHz', actual: null, percent: null, slow: false })
+    expect(describeClock(1000, 0.97)).toEqual({ asked: '1 kHz', actual: '1 kHz', percent: null, slow: false })
+    expect(describeClock(1_000_000, 0.64)).toEqual({ asked: '1 MHz', actual: '640 kHz', percent: 64, slow: true })
   })
 })

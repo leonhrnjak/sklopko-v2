@@ -179,21 +179,23 @@ test('a CPU with a fast clock says how fast it really runs', async ({ page }) =>
   expect(cycles).toBeLessThan(1_000_000)
 })
 
-test('the fastest clock is named on the canvas, and says what it reaches when the page cannot keep up', async ({ page }) => {
-  // The welcome example ticks twice a second: the page keeps up, so the badge only names the rate (and the speed scales it).
+test('the footer names the fastest clock and what it reaches, and says when the page cannot keep up', async ({ page }) => {
+  // The welcome example ticks twice a second: the page keeps up, so asked and actual agree (and the speed scales both).
   await page.goto('/', { waitUntil: 'networkidle' })
-  const badge = page.getByTestId('clock-rate')
-  await expect(badge).toHaveText('Clock 2 Hz')
+  const clock = page.getByTestId('clock-rate')
+  await expect(page.getByTestId('run-state')).toHaveText('Running')
+  await expect(clock).toHaveText('Clock 2 Hz · actual 2 Hz', { timeout: 5000 })
   await page.selectOption('select[aria-label="Simulation speed"]', '4')
-  await expect(badge).toHaveText('Clock 8 Hz')
-  await page.getByTestId('run').click() // paused: nothing runs, so nothing to say
-  await expect(badge).toHaveCount(0)
+  await expect(clock).toContainText('Clock 8 Hz')
+  await page.getByTestId('run').click() // paused: the asked rate stays, nothing is measured
+  await expect(page.getByTestId('run-state')).toHaveText('Paused')
+  await expect(clock).toHaveText('Clock 8 Hz')
 
   // A 1 MHz clock on a CPU is more than the page can simulate.
   await page.goto('/6502-keypad', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Clock \\(Φ2\\)')
   await page.getByLabel('Frequency').selectOption({ label: '1 MHz' })
-  await expect(badge).toContainText(/Clock 1 MHz · reaching [\d.]+ [kM]?Hz \(\d+%\)/, { timeout: 15000 })
+  await expect(clock).toContainText(/Clock 1 MHz · actual [\d.]+ [kM]?Hz \(\d+%\)/, { timeout: 15000 })
 })
 
 /** Select a wire by clicking the middle of its first segment (the thin hit areas of a wire are not "visible" to a plain click). */
@@ -267,6 +269,7 @@ test('breakpoint: place one, wire it to a counter, and Run stops where it says',
   const clk = await place(page, 'clock', 120, 150)
   const cnt = await place(page, 'counter', 320, 150)
   const bp = await place(page, 'breakpoint', 560, 150)
+  await expect(page.getByTestId('breakpoint-count')).toHaveText('Breakpoints: 1') // counted in the footer
   await wire(page, [clk, 'Q'], [cnt, 'CLK'])
   await wire(page, [cnt, 'A'], [bp, 'A'])
   await expect(page.locator('.wire-group')).toHaveCount(2)
@@ -400,6 +403,9 @@ test('glitches: the hazard example dips for a moment, it is marked on the circui
 test('glitches: in the ripple-carry adder three sum bits flicker, one after another, and the slowest path is the carry chain', async ({ page }) => {
   await page.goto('/ripple', { waitUntil: 'networkidle' })
   await toggleTool(page, 'timing-toggle')
+  // The timing panel covers the lower half of the canvas, and the switches are down there: scroll them into the part that is left.
+  await page.getByTestId('canvas').hover()
+  await page.mouse.wheel(0, 150)
   await expect(page.getByTestId('timing-delay')).toHaveText('24 gate delays')
   await clickLabelled(page, 'A') // 5 -> 6
   // Three sum bits and two of the carries between the adders.

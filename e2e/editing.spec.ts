@@ -31,10 +31,11 @@ test('lock editing while running: nothing can be changed until it is paused, but
   const sw = await place(page, 'switch', 120, 150)
   const led = await place(page, 'led', 360, 150)
   await wire(page, [sw, 'Q'], [led, 'A'])
-  await expect(page.getByTestId('locked-badge')).toHaveCount(0)
+  const lock = page.getByTestId('lock-toggle')
+  await expect(lock).toHaveAttribute('aria-pressed', 'false')
 
-  await toggleTool(page, 'lock-toggle')
-  await expect(page.getByTestId('locked-badge')).toBeVisible()
+  await lock.click()
+  await expect(lock).toHaveAttribute('aria-pressed', 'true')
   const parts = page.locator('.comp')
   await expect(parts).toHaveCount(2)
   // Dropping a part does nothing and says why; deleting does nothing either.
@@ -53,9 +54,8 @@ test('lock editing while running: nothing can be changed until it is paused, but
   await clickComp(page, sw)
   await expect.poll(() => ledOn(page, led)).toBe(true)
 
-  // Paused, the circuit can be changed again, and the badge is gone.
+  // Paused, the circuit can be changed again.
   await page.getByTestId('run').click()
-  await expect(page.getByTestId('locked-badge')).toHaveCount(0)
   await clickComp(page, led)
   await page.keyboard.press('Delete')
   await expect(parts).toHaveCount(1)
@@ -512,7 +512,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
   await expect(tools).toHaveCount(0)
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await expect(tools.getByRole('menuitem')).toHaveText(['Logic', 'State machines', 'Make IC', 'Tests', 'Learn: from NAND to a computer', 'Challenges', 'SKASM', '6502', 'BASIC'])
-  await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Lock editing while running', 'Waveforms', 'Timing'])
+  await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Waveforms', 'Timing'])
   await page.keyboard.press('Escape')
   await expect(tools).toHaveCount(0)
 

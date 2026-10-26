@@ -35,6 +35,7 @@ const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ d
 const MakeIcDialog = lazy(() => import('./ui/MakeIcDialog').then((m) => ({ default: m.MakeIcDialog })))
 const PictureDialog = lazy(() => import('./ui/PictureDialog').then((m) => ({ default: m.PictureDialog })))
 const TestbenchDialog = lazy(() => import('./ui/TestbenchDialog').then((m) => ({ default: m.TestbenchDialog })))
+const RunFooter = lazy(() => import('./ui/RunFooter').then((m) => ({ default: m.RunFooter })))
 const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ default: m.WaveformPanel })))
 
 export default function App() {
@@ -78,6 +79,9 @@ export default function App() {
             <SelectionBar />
             <ContextMenu />
           </div>
+          <OnDemand open>
+            <RunFooter />
+          </OnDemand>
           <OnDemand open={waveOpen}>
             <WaveformPanel />
           </OnDemand>
