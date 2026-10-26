@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { collapseSelection, deleteDefinition, enterDefinition, enterIC, inlineInstance, isUsed, leaveIC, levelsOf, newICId, renameDefinition, subCircuit } from '../model/ic'
 import { isAnnotation, newId, type Circuit, type ICDef } from '../model/circuit'
-import { checkpoint, edit, loadCircuit, select, showToast, undo as undoNow, useStore } from './store'
+import { checkpoint, edit, loadCircuit, lockedOut, select, showToast, undo as undoNow, useStore } from './store'
 import { fitToScreen } from './view'
 
 /**
@@ -27,6 +27,7 @@ export type SymbolDetector = (body: Circuit) => ICDef['symbol']
 
 /** Make a custom IC from the parts (or the whole circuit) and keep it in the circuit's list of ICs; nothing on the canvas changes. Returns its id. */
 export function makeIC(name: string, from: string[] | null, replace = false, detect?: SymbolDetector): string {
+  if (lockedOut()) return ''
   const clean = name.trim().slice(0, 40) || 'IC'
   let id = ''
   if (replace && from) return collapseInto(clean, from, detect)

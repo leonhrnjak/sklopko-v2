@@ -26,6 +26,41 @@ test('build an AND circuit by drag and drop, then operate it', async ({ page }) 
   await expect.poll(() => ledOn(page, led)).toBe(false)
 })
 
+test('lock editing while running: nothing can be changed until it is paused, but a switch still works', async ({ page }) => {
+  await freshEmpty(page)
+  const sw = await place(page, 'switch', 120, 150)
+  const led = await place(page, 'led', 360, 150)
+  await wire(page, [sw, 'Q'], [led, 'A'])
+  await expect(page.getByTestId('locked-badge')).toHaveCount(0)
+
+  await toggleTool(page, 'lock-toggle')
+  await expect(page.getByTestId('locked-badge')).toBeVisible()
+  const parts = page.locator('.comp')
+  await expect(parts).toHaveCount(2)
+  // Dropping a part does nothing and says why; deleting does nothing either.
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  const item = (await page.locator('.palette-item[data-type="and"]').boundingBox())!
+  await page.mouse.move(item.x + item.width / 2, item.y + item.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(canvas.x + 300, canvas.y + 300, { steps: 6 })
+  await page.mouse.up()
+  await expect(page.locator('.toast')).toContainText('Editing is locked')
+  await expect(parts).toHaveCount(2)
+  await clickComp(page, led)
+  await page.keyboard.press('Delete')
+  await expect(parts).toHaveCount(2)
+  // Operating is not editing.
+  await clickComp(page, sw)
+  await expect.poll(() => ledOn(page, led)).toBe(true)
+
+  // Paused, the circuit can be changed again, and the badge is gone.
+  await page.getByTestId('run').click()
+  await expect(page.getByTestId('locked-badge')).toHaveCount(0)
+  await clickComp(page, led)
+  await page.keyboard.press('Delete')
+  await expect(parts).toHaveCount(1)
+})
+
 test('moving a gate drags its wires along', async ({ page }) => {
   await freshEmpty(page)
   const s = await place(page, 'switch', 120, 150)
@@ -477,7 +512,7 @@ test('the toolbar is one row, and Tools and File are menus that close after a ch
   await expect(tools).toHaveCount(0)
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await expect(tools.getByRole('menuitem')).toHaveText(['Logic', 'State machines', 'Make IC', 'Tests', 'Learn: from NAND to a computer', 'Challenges', 'SKASM', '6502', 'BASIC'])
-  await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Waveforms', 'Timing'])
+  await expect(tools.getByRole('menuitemcheckbox')).toHaveText(['Step-back history', 'Lock editing while running', 'Waveforms', 'Timing'])
   await page.keyboard.press('Escape')
   await expect(tools).toHaveCount(0)
 

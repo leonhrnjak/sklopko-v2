@@ -243,6 +243,7 @@ export function Toolbar() {
 
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
   const historyOn = useHistoryOn()
+  const lockEdits = useSettings((s) => s.lockEdits)
   const step = () => {
     sim.tick()
     sim.publish()
@@ -348,6 +349,14 @@ export function Toolbar() {
         testid="history-toggle"
       >
         Step-back history
+      </MenuItem>
+      <MenuItem
+        checked={lockEdits}
+        onClick={() => updateSettings({ lockEdits: !lockEdits })}
+        title="While the simulation runs, the circuit cannot be changed. Switches and memories can still be operated. Pause to edit."
+        testid="lock-toggle"
+      >
+        Lock editing while running
       </MenuItem>
       <MenuItem
         checked={waveOpen}
@@ -566,8 +575,8 @@ function Crumbs() {
   )
 }
 
-/** The clock's rate badge is its own chunk: it only matters once a clock runs, and the startup chunk is at its budget. */
-const ClockBadge = lazy(() => import('./ClockBadge').then((m) => ({ default: m.ClockBadge })))
+/** The badges about a running simulation (the clock's rate, the editing lock) are their own chunk: the startup chunk is at its budget. */
+const RunBadges = lazy(() => import('./RunBadges').then((m) => ({ default: m.RunBadges })))
 
 export function StatusBar() {
   const status = useSimStatus()
@@ -582,7 +591,7 @@ export function StatusBar() {
         <Crumbs />
         {!running && <span className="badge paused">Paused</span>}
         <Suspense fallback={null}>
-          <ClockBadge />
+          <RunBadges />
         </Suspense>
         {status === 'u' && (
           <span className="badge warn" title="Some signals keep changing on their own (feedback loop without memory)">
