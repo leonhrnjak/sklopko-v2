@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, built).** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -20,10 +20,10 @@
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
   - [x] L3a Clocked steps (`pulse`) and chapter 7, memory (own PR, `learn-l3-ch7`)
   - [x] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`, stacked on `learn-l3-ch7`)
-> - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
+> - [x] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
   - [x] L4a The project framework and steps 9.1 to 9.4 (own PR, `learn-l4a-cpu-1`)
   - [x] L4b Steps 9.5 to 9.8 (own PR, `learn-l4b-cpu-2`, stacked on `learn-l4a-cpu-1`)
-  - [ ] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`)
+  - [x] L4c Steps 9.9 and 9.10, decisions and output (own PR, `learn-l4c-cpu-3`, stacked on `learn-l4b-cpu-2`)
 > - [ ] L5 Program steps: chapters 10–11 (programming your computer; a bigger computer)
 > - [ ] L6 The 6502 and BASIC: chapters 12–14
 > - [ ] L7 Polish: the phone sheet, backup, entry points, README
@@ -748,6 +748,14 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
 - A new expectation `{ ram, at, is }` reads a word of a RAM by label. A step starts from **the step before it in the project**, not stage − 1, so `cpu-same` (the same stage as `cpu-jump`) starts from the learner's circuit and
   is done as soon as it runs: the tests say a step is not done by its start *unless it only confirms the step before*.
 - Tests: the stages and runs as in L4a for all seven steps; e2e: 9.6 and 9.7 by *Show a solution*, and 9.8 next.
+
+**What L4c (steps 9.9 and 9.10) did, and where it differs from the plan.**
+- `cpu-decide` (stage 7): the Control ROM is **made 16 bits wide for the learner** (`upgradeControlRom`, the step's `give`: their rows kept, signals `JZ` and `JNC` and rows 6 `JNC` and 8 `JZ` added, since the beginner's ROM has 8 bits and
+  the ROM's data width is 4, 8 or 16), a Z flag (a register that takes a zero detector on the adder's sum with the carry flag, on SAVE_CARRY) and the PC's load: JUMP, or JZ and Z, or JNC and not the carry flag. The learner's own
+  **ZERO chip** (or ours) is offered in the parts list: `ProjectStep.uses` puts the chips of build steps into the circuit's table, and the panel says when they are ours. The reference uses a built-in 4-input NOR.
+- `cpu-output` (stage 8): the AND of the four address bits is the output register's select (an Output register and display); the RAM's write enable becomes WRITE_RAM and not that select, so address 15 does not write the RAM.
+- Tests: a countdown from 5 that HALTs at 0, JNC looping until a carry, `LDI 7; STA 15` (the output shows 7, RAM word 15 stays 0), and a write to RAM next to a write to the output; the widened Control ROM keeps every old row.
+  e2e: 9.9 and 9.10 by *Show a solution*. `PATH_STEP_COUNT` is 55: chapter 9 has all ten steps.
 
 ### L5 Program steps: chapters 10–11
 - Program steps on `cpu4` (the learner's from 9.10, or the reference) and on the 8-bit computer. *Edit the program* selects the ROM. The verdict

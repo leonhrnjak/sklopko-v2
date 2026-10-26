@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Circuit } from '../circuit'
-import { cpuStage } from './cpu4'
+import { cpuStage, upgradeControlRom } from './cpu4'
 import { checkProject } from './run'
 import { STEPS, getStep } from './steps'
 import type { ProjectStep } from './types'
@@ -16,8 +16,8 @@ function start(s: ProjectStep): Circuit {
 
 describe('the CPU project', () => {
   it('has the stages in order, one step for each', () => {
-    expect(projects.map((s) => s.stage)).toEqual([1, 2, 3, 4, 5, 6, 6])
-    expect(projects.map((s) => s.id)).toEqual(['cpu-fetch', 'cpu-decode', 'cpu-ldi', 'cpu-ram', 'cpu-add', 'cpu-jump', 'cpu-same'])
+    expect(projects.map((s) => s.stage)).toEqual([1, 2, 3, 4, 5, 6, 6, 7, 8])
+    expect(projects.map((s) => s.id)).toEqual(['cpu-fetch', 'cpu-decode', 'cpu-ldi', 'cpu-ram', 'cpu-add', 'cpu-jump', 'cpu-same', 'cpu-decide', 'cpu-output'])
   })
 
   for (const s of projects) {
@@ -37,7 +37,7 @@ describe('the CPU project', () => {
       })
 
       it('is also done by the stages after it, so a learner who goes on keeps what they had', () => {
-        for (let k = s.stage + 1; k <= 6; k++) {
+        for (let k = s.stage + 1; k <= 8; k++) {
           const later = checkProject(s, cpuStage(k))
           expect(later.lines.filter((l) => !l.ok), `${s.id} at stage ${k}`).toEqual([])
         }
@@ -61,5 +61,14 @@ describe('the CPU project', () => {
     expect(checkProject(ldi, noClock).passed).toBe(false)
     const noOpcode = without(full, (w) => w.to.pin === 'A0' && full.comps[w.to.comp].label === 'Control ROM')
     expect(checkProject(ldi, noOpcode).passed).toBe(false)
+  })
+
+  it('widens the Control ROM for step 9.9 without losing a row: the computer still jumps and halts', () => {
+    const c = structuredClone(cpuStage(6))
+    upgradeControlRom(c)
+    const rom = Object.values(c.comps).find((k) => k.label === 'Control ROM')!
+    expect(rom.params.dbits).toBe(16)
+    expect(String(rom.params.data).split(' ').length).toBe(16)
+    expect(checkProject(getStep('cpu-jump') as ProjectStep, c).passed).toBe(true)
   })
 })

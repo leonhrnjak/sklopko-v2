@@ -485,3 +485,20 @@ test('learn: the later steps of the CPU project check RAM, the carry and jumps, 
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('Solved!')
 })
+
+test('learn: the last steps of the CPU project make decisions and write to the output', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/cpu-decide', { waitUntil: 'networkidle' })
+  // The Control ROM is given wide, with JZ and JNC, and the ZERO chip is offered (ours: it was not built).
+  await expect(panel(page).getByTestId('step-ours')).toContainText('ZERO')
+  await expect(page.locator('.palette-item', { hasText: 'ZERO' })).toHaveCount(1)
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 30_000 })
+  await panel(page).getByTestId('step-next').click()
+  await expect(panel(page)).toContainText('Talking to the world')
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!')
+  await expect(panel(page).getByTestId('project-lines').first()).toContainText('☑ the Output register shows 7')
+})

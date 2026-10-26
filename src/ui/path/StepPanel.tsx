@@ -173,6 +173,7 @@ function BuildBody({ step }: { step: BuildStep }) {
 /** A step of the CPU project: the lesson and the task, and the test programs with a line for each thing looked at. */
 function ProjectBody({ step }: { step: ProjectStep }) {
   const hintShown = usePath((s) => s.hintShown)
+  const ours = usePath((s) => s.ours)
   const circuit = useStore((s) => s.circuit)
   const checked = useProject((s) => (s.step === step.id ? s : null))
   const fresh = !!checked?.result && checked.of === circuit
@@ -187,6 +188,20 @@ function ProjectBody({ step }: { step: ProjectStep }) {
         <p className="task">
           <b>Your task:</b> {step.task}
         </p>
+        {ours.length > 0 && (
+          <p className="step-ours" data-testid="step-ours">
+            You haven’t built{' '}
+            {ours.map((id, i) => (
+              <span key={id}>
+                {i > 0 && (i === ours.length - 1 ? ' or ' : ', ')}
+                <button className="link-button inline" onClick={() => startStep(id)}>
+                  {(getStep(id) as BuildStep).chip}
+                </button>
+              </span>
+            ))}{' '}
+            yet, so the parts list has ours.
+          </p>
+        )}
         <div className="row">
           <button className="primary-action" onClick={checkStep} data-testid="step-check">
             Check my circuit

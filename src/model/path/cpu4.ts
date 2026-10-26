@@ -19,6 +19,8 @@ import { boundsRect, type Circuit } from '../circuit'
  *   4  RAM, and a multiplexer in front of the ACC to choose its source (ACC_SRC): the rows STA and LDA
  *   5  the adder, the XORs that flip RAM's bits for SUB, and the carry flag: the rows ADD and SUB
  *   6  jumps and HALT: the PC loads the address in the instruction (JUMP), and stops (HALT)
+ *   7  decisions: a Z flag (the adder's answer was zero), and the rows JZ and JNC: the PC loads on JUMP, JZ and Z, or JNC and not carry
+ *   8  the world: a write to address 15 goes to an output register, shown on a display, and not to the RAM
  */
 
 /** The program in the Program ROM at the start: add 3 and 4. */
@@ -27,16 +29,30 @@ export const CPU_PROGRAM = BEGINNER_SOURCE
 const NIB = ['A', 'B', 'C', 'D']
 const ACC_Q = ['QA', 'QB', 'QC', 'QD']
 
+/** From step 9.9 the Control ROM is 16 bits wide and has two more signals and rows, for the conditional jumps. */
+export const WIDE_SIGNALS = `${BEGINNER_SIGNALS}JZ\nJNC\n`
+export const WIDE_ROWS = `${BEGINNER_ROWS}6 JNC\n8 JZ\n`
+
 /** The control ROM's words for a text such as `LDI: LOAD_ACC ACC_SRC=NUM` (rows not listed are 0). */
-export function controlWords(text: string): string {
-  const { layout } = parseSignals(BEGINNER_SIGNALS)
-  const r = assembleSignals(layout, parseRows(BEGINNER_ROWS).rows, text, 16, 8)
+export function controlWords(text: string, wide = false): string {
+  const { layout } = parseSignals(wide ? WIDE_SIGNALS : BEGINNER_SIGNALS)
+  const r = assembleSignals(layout, parseRows(wide ? WIDE_ROWS : BEGINNER_ROWS).rows, text, 16, wide ? 16 : 8)
   if (r.errors.length) throw new Error(`The control ROM does not assemble: ${r.errors.map((e) => `${e.line}: ${e.message}`).join('; ')}`)
-  return toHexWords(r.words, 8)
+  return toHexWords(r.words, wide ? 16 : 8)
 }
 
 /** A Control ROM part's params: named signals and rows, and these words. */
-export const controlParams = (text = '') => ({ abits: 4, dbits: 8, data: controlWords(text), signals: BEGINNER_SIGNALS, rows: BEGINNER_ROWS })
+export const controlParams = (text = '', wide = false) =>
+  wide ? { abits: 4, dbits: 16, data: controlWords(text, true), signals: WIDE_SIGNALS, rows: WIDE_ROWS } : { abits: 4, dbits: 8, data: controlWords(text), signals: BEGINNER_SIGNALS, rows: BEGINNER_ROWS }
+
+/** Step 9.9's gift: the learner's Control ROM made wide, with its rows as they are and room for JZ and JNC. */
+export function upgradeControlRom(c: Circuit) {
+  const rom = Object.values(c.comps).find((k) => k.type === 'rom' && k.label === 'Control ROM')
+  if (!rom) return
+  const words = String(rom.params.data ?? '').split(/[\s,]+/).filter(Boolean).map((w) => parseInt(w, 16) || 0)
+  while (words.length < 16) words.push(0)
+  rom.params = { ...rom.params, dbits: 16, signals: WIDE_SIGNALS, rows: WIDE_ROWS, data: toHexWords(words.slice(0, 16), 16) }
+}
 
 /** The Program ROM's params, holding this program. */
 export const programParams = (source: string) => ({ abits: 4, dbits: 16, isa: SKASM.id, source, data: beginnerWords(source) })
@@ -50,13 +66,14 @@ export function giveControlRom(c: Circuit) {
 export function controlTextFor(stage: number): string {
   const rows = BEGINNER_CONTROL_TEXT.split('\n').filter(Boolean)
   const upTo = (names: string[]) => rows.filter((r) => names.includes(r.split(':')[0])).join('\n')
-  if (stage >= 6) return BEGINNER_CONTROL_TEXT
+  if (stage >= 7) return `${BEGINNER_CONTROL_TEXT}JNC:  JNC\nJZ:   JZ\n`
+  if (stage === 6) return BEGINNER_CONTROL_TEXT
   if (stage === 5) return upTo(['LDI', 'LDA', 'STA', 'ADD', 'SUB'])
   if (stage === 4) return upTo(['LDI', 'LDA', 'STA'])
   return upTo(['LDI'])
 }
 
-/** The reference computer at this stage (0 to 6). */
+/** The reference computer at this stage (0 to 8). */
 export function cpuStage(stage: number): Circuit {
   const b = new CircuitBuilder()
   const cols: Record<number, number> = {}
@@ -93,7 +110,7 @@ export function cpuStage(stage: number): Circuit {
     }
   }
   if (stage >= 2) {
-    ctl = part(DECODE, 'rom', { params: controlParams(controlTextFor(stage)), label: 'Control ROM' })
+    ctl = part(DECODE, 'rom', { params: controlParams(controlTextFor(stage), stage >= 7), label: 'Control ROM' })
     for (let i = 0; i < 4; i++) wire(`${prog}.D${4 + i}`, `${ctl}.A${i}`) // the opcode
     if (stage < 6) {
       const led = part(DECODE, 'led', { label: 'LOAD_ACC', params: { color: 'green' } })
@@ -107,7 +124,7 @@ export function cpuStage(stage: number): Circuit {
     const halted = part(DECODE, 'led', { label: 'Halted', params: { color: 'red' } })
     wire(`${ctl}.D6`, `${nhalt}.A`)
     wire(`${nhalt}.Y`, `${pc}.EN`)
-    wire(`${ctl}.D5`, `${pc}.LD`, 'JUMP')
+    if (stage < 7) wire(`${ctl}.D5`, `${pc}.LD`, 'JUMP')
     wire(`${ctl}.D6`, `${halted}.A`)
     for (let i = 0; i < 4; i++) wire(`${prog}.D${i}`, `${pc}.D${i}`, `ADDR${i}`) // a jump loads the address from the instruction
   }
@@ -124,18 +141,20 @@ export function cpuStage(stage: number): Circuit {
   if (stage >= 4) {
     ram = part(RAM, 'ram', { params: { dbits: 4 }, label: 'RAM' })
     wire(`${clk}.Q`, `${ram}.CLK`)
-    wire(`${ctl}.D3`, `${ram}.WE`, 'WRITE_RAM')
+    if (stage < 8) wire(`${ctl}.D3`, `${ram}.WE`, 'WRITE_RAM')
     for (let i = 0; i < 4; i++) {
       wire(`${prog}.D${i}`, `${ram}.A${i}`, `ADDR${i}`) // the address in the instruction
       wire(`${acc}.${ACC_Q[i]}`, `${ram}.D${i}`)
     }
   }
   let adder = ''
+  let carryFlag = ''
   if (stage >= 5) {
     adder = part(ADDER, 'add4', { label: 'Adder' })
     // The carry is remembered in a flag: 1 after an ADD that went over 15, or a SUB that went below 0 (it "borrowed"), as in SKASM.
     const carryX = part(ADDER, 'xor', { label: 'carry xor SUB' }, 30)
     const flag = part(ADDER, 'register', { label: 'Carry flag' })
+    carryFlag = flag
     const zero = part(ADDER, 'const', { params: { value: 0 } }, 30) // the register's three unused inputs
     const carry = part(ADDER, 'led', { label: 'Carry', params: { color: 'yellow' } })
     wire(`${ctl}.D4`, `${adder}.Ci`, 'SUBTRACT') // subtracting adds 1
@@ -165,6 +184,56 @@ export function cpuStage(stage: number): Circuit {
         wire(`${adder}.S${i}`, `${m}.I1`)
       }
     }
+  }
+
+  if (stage >= 7) {
+    // A zero detector on the adder's answer, and a Z flag that takes it with the carry flag (SAVE_CARRY).
+    const zero = part(ADDER, 'nor', { params: { inputs: 4 }, label: 'sum is zero' }, 30)
+    const zflag = part(ADDER, 'register', { label: 'Z flag' })
+    const zeros = part(ADDER, 'const', { params: { value: 0 } }, 30)
+    const zled = part(ADDER, 'led', { label: 'Z', params: { color: 'yellow' } })
+    for (let i = 0; i < 4; i++) wire(`${adder}.S${i}`, `${zero}.${NIB[i]}`)
+    wire(`${zero}.Y`, `${zflag}.A`)
+    for (const pin of ['B', 'C', 'D']) wire(`${zeros}.Q`, `${zflag}.${pin}`)
+    wire(`${ctl}.D7`, `${zflag}.LD`, 'SAVE_CARRY')
+    wire(`${clk}.Q`, `${zflag}.CLK`)
+    wire(`${zflag}.QA`, `${zled}.A`)
+    // The PC loads on JUMP, or on JZ with Z, or on JNC with no carry.
+    const jz = part(DECODE, 'and', { label: 'JZ and Z' })
+    const noCarry = part(DECODE, 'not', { label: 'not carry' })
+    const jnc = part(DECODE, 'and', { label: 'JNC and not carry' })
+    const load = part(DECODE, 'or', { params: { inputs: 3 }, label: 'load the PC?' })
+    wire(`${ctl}.D8`, `${jz}.A`)
+    wire(`${zflag}.QA`, `${jz}.B`)
+    wire(`${carryFlag}.QA`, `${noCarry}.A`)
+    wire(`${ctl}.D9`, `${jnc}.A`)
+    wire(`${noCarry}.Y`, `${jnc}.B`)
+    wire(`${ctl}.D5`, `${load}.A`)
+    wire(`${jz}.Y`, `${load}.B`)
+    wire(`${jnc}.Y`, `${load}.C`)
+    wire(`${load}.Y`, `${pc}.LD`)
+  }
+  if (stage >= 8) {
+    // An address of all ones, with a write, is the output register; and then the RAM is not written.
+    const sel = part(DECODE, 'and', { params: { inputs: 4 }, label: 'address is 15' })
+    const outLoad = part(DECODE, 'and', { label: 'write to the output' })
+    const notSel = part(DECODE, 'not', { label: 'not the output' })
+    const ramWrite = part(DECODE, 'and', { label: 'write to RAM' })
+    const out = part(ACC, 'register', { label: 'Output' })
+    const outDisp = part(ACC, 'hexdisp', { label: 'Output display' })
+    for (let i = 0; i < 4; i++) {
+      wire(`${prog}.D${i}`, `${sel}.${NIB[i]}`)
+      wire(`${acc}.${ACC_Q[i]}`, `${out}.${NIB[i]}`)
+      wire(`${out}.${ACC_Q[i]}`, `${outDisp}.${NIB[i]}`)
+    }
+    wire(`${sel}.Y`, `${outLoad}.A`)
+    wire(`${ctl}.D3`, `${outLoad}.B`, 'WRITE_RAM')
+    wire(`${sel}.Y`, `${notSel}.A`)
+    wire(`${notSel}.Y`, `${ramWrite}.A`)
+    wire(`${ctl}.D3`, `${ramWrite}.B`, 'WRITE_RAM')
+    wire(`${ramWrite}.Y`, `${ram}.WE`)
+    wire(`${outLoad}.Y`, `${out}.LD`)
+    wire(`${clk}.Q`, `${out}.CLK`)
   }
 
   const sent = new Map<string, boolean>()
