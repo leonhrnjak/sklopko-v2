@@ -9,7 +9,8 @@ import { checkStepCircuit, stepStarter } from './build'
 import { challengeOf, chipId, chipTable, notBuilt, parseKit, refreshChips, snapshot, solutionOf, type Kit } from './chips'
 import { PATH_STEP_COUNT, learnFromPath, learnUrl } from './index'
 import { countDone, emptyProgress, markDone, parseProgress } from './progress'
-import { PATH_STEPS, STEPS, getStep, hasStep, isBehind, mapChapter, recommended, stepAfter, stepBefore, stepIdsOf, stepsOf } from './steps'
+import { hasDef } from '../../engine/registry'
+import { PATH_STEPS, STEPS, chapterDone, chaptersUnlockedBy, getStep, hasStep, isBehind, mapChapter, recommended, stepAfter, stepBefore, stepIdsOf, stepsOf, unlockedParts } from './steps'
 import type { BuildStep } from './types'
 
 const builds = STEPS.filter((s): s is BuildStep => s.kind === 'build')
@@ -504,5 +505,38 @@ describe('chapter 7, memory', () => {
     })()
     expect(checkChallenge(ch, sol).passed).toBe(true)
     expect(checkChallenge({ ...ch, rules: undefined }, latch).passed).toBe(false)
+  })
+})
+
+describe('chapter 8, counting and memories, and what a chapter unlocks', () => {
+  it('has the six steps, in the order of the plan, and the chips each build makes', () => {
+    expect(stepIdsOf('counting')).toEqual(['tff', 'counter4', 'pc', 'rom-gates', 'ram4x4', 'rom-ram-tour'])
+    expect(['tff', 'counter4', 'pc', 'ram4x4'].map((id) => (getStep(id) as BuildStep).chip)).toEqual(['TFF', 'COUNT4', 'PC', 'RAM4'])
+  })
+
+  it('counts 17 ticks and wraps: the counter asked for goes 1…15, 0, 1', () => {
+    const ch = challengeOf(getStep('counter4') as BuildStep)
+    if (ch.kind !== 'seq') throw new Error('a seq challenge was expected')
+    const outs = ch.steps.filter((s) => s.pulse).map((s) => ['Q3', 'Q2', 'Q1', 'Q0'].reduce((n, k) => n * 2 + (s.expect[k] ?? 0), 0))
+    expect(outs.slice(2, 19)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1])
+  })
+
+  it('unlocks built-in parts that exist, for chapters that exist', () => {
+    for (const c of CHAPTERS.filter((x) => x.unlocks)) {
+      expect(stepIdsOf(c.id).length, c.id).toBeGreaterThan(0)
+      for (const t of c.unlocks!) expect(hasDef(t), `${c.id}: ${t}`).toBe(true)
+    }
+  })
+
+  it('unlocks a chapter’s parts when every one of its steps is done, however it was done, and not before', () => {
+    let p = emptyProgress()
+    const ids = stepIdsOf('memory')
+    expect(unlockedParts(p)).toEqual([])
+    for (const id of ids.slice(0, -1)) p = markDone(p, id, 'shown', 1)
+    expect(chapterDone(p, 'memory')).toBe(false)
+    const done = markDone(p, ids[ids.length - 1], 'solved', 2)
+    expect(chaptersUnlockedBy(p, done).map((c) => c.id)).toEqual(['memory'])
+    expect(unlockedParts(done)).toEqual(['srlatch', 'dlatch', 'dff', 'jkff', 'tff', 'register'])
+    expect(chaptersUnlockedBy(done, markDone(done, ids[0], 'solved', 3))).toEqual([])
   })
 })

@@ -2,7 +2,7 @@ import { checkStepCircuit, stepStarter } from '../model/path/build'
 import { snapshot, notBuilt, refreshChips, solutionOf } from '../model/path/chips'
 import { circuitShape } from '../model/challengecheck'
 import { markDone } from '../model/path/progress'
-import { getStep, stepAfter } from '../model/path/steps'
+import { getStep, stepAfter, unlockedParts } from '../model/path/steps'
 import type { Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
 import { closeChallenge, closeChallengeList, markSolved } from './challenges'
@@ -11,6 +11,7 @@ import { stopGoals, watchGoals } from './pathGoals'
 import { getDoc, listDocs, metaOf } from './library'
 import { closeStep, forgetProgress, openMap, setProgress, usePath } from './path'
 import { clearKit, putChip, useKit } from './pathKit'
+import { commitProgress } from './pathUnlock'
 import { loadCircuit, showToast, useStore } from './store'
 import { fitToScreen } from './view'
 
@@ -57,7 +58,7 @@ export async function startStep(id: string) {
   closeChallengeList()
   stopGoals()
   shownShape = null
-  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? explore?.palette ?? null, ours: notBuilt(uses, kit) })
+  usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (explore?.palette && [...new Set([...explore.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
   if (!build && !explore) return
   const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
@@ -91,7 +92,7 @@ export function checkStep() {
   // The solution we showed is not the learner's: it stays "shown" until they change it and check again.
   const shown = shownShape !== null && circuitShape(circuit) === shownShape
   if (!shown && step.chip) putChip(step.id, snapshot(step.chip, circuit))
-  setProgress(markDone(usePath.getState().progress, step.id, shown ? 'shown' : 'solved', Date.now(), star))
+  commitProgress(markDone(usePath.getState().progress, step.id, shown ? 'shown' : 'solved', Date.now(), star))
   if (!shown && typeof step.challenge === 'string') markSolved(step.challenge)
 }
 
@@ -107,8 +108,9 @@ export function showStepSolution() {
   usePath.setState({ result: null })
   const { progress } = usePath.getState()
   if (step.chip && progress.done[step.id]?.how !== 'solved') putChip(step.id, snapshot(step.chip, solution))
-  setProgress(markDone(progress, step.id, 'shown', Date.now()))
   showToast('This is one way to solve it. Undo (⌘Z) brings your circuit back.')
+  // After the toast: a chapter this completes says what it unlocked, which matters more.
+  commitProgress(markDone(progress, step.id, 'shown', Date.now()))
 }
 
 /** Put the starting circuit back on the canvas (undo brings the work back). */
@@ -127,7 +129,7 @@ export function restartStep() {
 export function markRead() {
   const step = currentStep()
   if (step?.kind !== 'read') return
-  setProgress(markDone(usePath.getState().progress, step.id, 'read', Date.now()))
+  commitProgress(markDone(usePath.getState().progress, step.id, 'read', Date.now()))
 }
 
 /** Remember an answer to question `i` of a step's quiz. A step whose questions are all answered right counts as read. */
@@ -137,7 +139,7 @@ export function answerQuiz(stepId: string, i: number, choice: number, questions:
   given[i] = choice
   let next = { ...progress, quiz: { ...progress.quiz, [stepId]: given } }
   if (getStep(stepId)?.kind === 'read' && questions.every((q, k) => given[k] === q.answer)) next = markDone(next, stepId, 'read', Date.now())
-  setProgress(next)
+  commitProgress(next)
 }
 
 /** Go to the step after the open one; at the end of the path, back to the map. */

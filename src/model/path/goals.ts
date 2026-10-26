@@ -7,6 +7,8 @@ import type { Goal } from './types'
 export interface Reader {
   pinValue(compId: string, pin: string): V
   readonly unstable: boolean
+  /** A part's state, if the reader can tell it (the simulator can): a memory's words are `mem`. */
+  state?(compId: string): unknown
 }
 
 /** The part with this label (labels name parts in lessons and goals). */
@@ -30,6 +32,11 @@ export function displayValue(c: Circuit, label: string, r: Reader): number | nul
 /** Does the goal hold right now? */
 export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
   if ('oscillating' in g) return r.unstable
+  if ('memory' in g) {
+    const k = labelled(c, g.memory)
+    const mem = k && (r.state?.(k.id) as { mem?: ArrayLike<number> } | undefined)?.mem
+    return !!mem && mem[g.at] === g.is
+  }
   if ('switches' in g)
     return Object.entries(g.switches).every(([label, is]) => {
       const k = labelled(c, label)
@@ -46,7 +53,7 @@ export function goalHolds(g: Goal, c: Circuit, r: Reader): boolean {
 export const goalProblems = (goals: readonly Goal[], c: Circuit): string[] =>
   goals.flatMap((g) => {
     if ('switches' in g) return Object.keys(g.switches).flatMap((l) => (labelled(c, l)?.type === 'switch' ? [] : [`${g.text}: there is no switch labelled “${l}”`]))
-    const label = 'led' in g ? g.led : 'display' in g ? g.display : undefined
+    const label = 'led' in g ? g.led : 'display' in g ? g.display : 'memory' in g ? g.memory : undefined
     if (label === undefined) return []
     const k = labelled(c, label)
     if (!k) return [`${g.text}: there is no part labelled “${label}”`]

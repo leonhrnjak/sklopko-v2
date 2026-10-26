@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-counting')).toContainText('soon')
+  await expect(map(page).getByTestId('learn-chapter-computer')).toContainText('soon')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 
@@ -401,4 +401,38 @@ test('learn: chapter 7 shows a gate that never settles, and a flip-flop is check
   await panel(page).getByTestId('step-check').click()
   await expect(panel(page)).toContainText('Solved!')
   await expect(panel(page).getByTestId('chip-earned')).toContainText('DFF is in your kit')
+})
+
+test('learn: finishing chapter 7 unlocks its built-in parts with a toast, and they are in the palette of a step that plays', async ({ page }) => {
+  await fresh(page)
+  const done = Object.fromEntries(PATH_STEPS.filter((id) => ['feedback', 'sr-latch', 'd-latch', 'dff', 'reg1'].includes(id)).map((id) => [id, { at: 1, how: 'solved' }]))
+  await page.evaluate((d) => localStorage.setItem('sklopko.path.v1', JSON.stringify({ v: 1, done: d, quiz: {} })), done)
+  await page.goto('/learn/reg4', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await expect(page.locator('.toast')).toContainText('Chapter 7 done')
+  await expect(page.locator('.toast')).toContainText('D flip-flop')
+  // An explore step offers them from now on.
+  await page.goto('/learn/rom-ram-tour', { waitUntil: 'networkidle' })
+  await expect(page.locator('.palette-item', { hasText: 'D flip-flop' })).toHaveCount(1)
+})
+
+test('learn: chapter 8 builds a counter from the kit, and the RAM and ROM to play with tick two goals', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/learn/counter4', { waitUntil: 'networkidle' })
+  await panel(page).getByRole('button', { name: 'Show a solution' }).click()
+  await panel(page).getByTestId('step-check').click()
+  await expect(panel(page)).toContainText('Solved!', { timeout: 30_000 })
+  await expect(panel(page).getByTestId('chip-earned')).toContainText('COUNT4 is in your kit')
+
+  await page.goto('/learn/rom-ram-tour', { waitUntil: 'networkidle' })
+  const goals = panel(page).getByTestId('goals')
+  await expect(goals.getByRole('listitem')).toHaveCount(2)
+  for (let i = 0; i < 3; i++) await clickLabelled(page, 'Address')
+  for (let i = 0; i < 9; i++) await clickLabelled(page, 'Data')
+  await clickLabelled(page, 'WE')
+  await clickLabelled(page, 'CLK')
+  await expect(goals).toContainText('☑ RAM word 3 is 9')
+  for (let i = 0; i < 2; i++) await clickLabelled(page, 'Address')
+  await expect(goals).toContainText('☑ The ROM shows 9')
+  await expect(panel(page).getByTestId('explore-done')).toBeVisible()
 })
