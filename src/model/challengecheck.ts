@@ -1,5 +1,6 @@
 import { getDef, hasDef } from '../engine/registry'
 import { compareTables, type Comparison } from '../logic/compare'
+import { MAX_INPUTS } from '../logic/expr'
 import type { Cell } from '../logic/table'
 import { analyzeCircuit, circuitPorts } from './analyze'
 import { goalTable, type Challenge, type Rules } from './challenges'
@@ -104,7 +105,7 @@ export function checkChallenge(ch: Challenge, c: Circuit): CheckResult {
   if (result.problems.length) return result
 
   if (ch.kind === 'comb') {
-    const a = analyzeCircuit(c, ch.inputs.map((n) => inputIds[n]), ch.outputs.map((n) => outputIds[n]))
+    const a = analyzeCircuit(c, ch.inputs.map((n) => inputIds[n]), ch.outputs.map((n) => outputIds[n]), MAX_INPUTS)
     result.warnings = a.warnings
     result.comparison = compareTables(goalTable(ch), a.table)
     result.passed = result.comparison.equal

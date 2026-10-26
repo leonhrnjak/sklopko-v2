@@ -80,10 +80,11 @@ export interface Analysis {
 
 /**
  * Sweep the chosen switches through every combination (the first is the most significant bit) and read the chosen LEDs.
- * This runs in a simulator of its own, so the one on the canvas is not disturbed. Other switches stay as they are.
+ * This runs in a simulator of its own, so the one on the canvas is not disturbed. Other switches stay as they are. `max` lifts the limit
+ * for a caller that wants more rows (a challenge of nine inputs).
  */
-export function analyzeCircuit(c: Circuit, inputIds: string[], outputIds: string[]): Analysis {
-  if (inputIds.length > MAX_ANALYZE_INPUTS) throw new RangeError(`At most ${MAX_ANALYZE_INPUTS} inputs can be swept.`)
+export function analyzeCircuit(c: Circuit, inputIds: string[], outputIds: string[], max = MAX_ANALYZE_INPUTS): Analysis {
+  if (inputIds.length > max) throw new RangeError(`At most ${max} inputs can be swept.`)
   const ports = circuitPorts(c)
   const nameOf = (id: string) => [...ports.inputs, ...ports.outputs].find((p) => p.id === id)!.name
   const sim = new Simulator()

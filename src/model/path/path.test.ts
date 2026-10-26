@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CircuitBuilder } from '../builder'
+import { goalTable, type CombChallenge } from '../challenges'
 import { checkChallenge, circuitShape, logicParts, ruleProblems } from '../challengecheck'
 import type { Circuit } from '../circuit'
 import { expandICs, icParams } from '../ic'
@@ -427,5 +428,41 @@ describe('part names in lessons ([[label]])', () => {
       }
     }
     expect(named).toBeGreaterThan(4)
+  })
+})
+
+describe('chapter 5, adding numbers', () => {
+  const rows = (id: string) => {
+    const ch = challengeOf(getStep(id) as BuildStep)
+    return goalTable(ch as CombChallenge)
+  }
+  /** The value of a table's outputs (S3..S0, Cout) in the row where the inputs, in order, are these bits. */
+  const outputsAt = (id: string, inputs: number[]) => {
+    const t = rows(id)
+    const row = inputs.reduce((n, b) => n * 2 + b, 0)
+    return Object.fromEntries(t.outputs.map((o, i) => [o, t.values[i][row]]))
+  }
+  const bitsOf = (n: number, w: number) => Array.from({ length: w }, (_, i) => (n >> (w - 1 - i)) & 1)
+
+  it('has the seven steps, in the order of the plan, and the chips each one makes', () => {
+    expect(stepIdsOf('adding')).toEqual(['binary-add', 'half-adder', 'full-adder', 'adder4', 'ripple-tour', 'negative', 'addsub'])
+    expect(['half-adder', 'full-adder', 'adder4', 'addsub'].map((id) => (getStep(id) as BuildStep).chip)).toEqual(['HA', 'FA', 'ADD4', 'ADDSUB'])
+  })
+
+  it('asks of the 4-bit adder every sum, carry in included', () => {
+    for (const [a, b, cin] of [[15, 1, 0], [7, 8, 1], [9, 9, 0], [0, 0, 1]]) {
+      const sum = a + b + cin
+      expect(outputsAt('adder4', [...bitsOf(a, 4), ...bitsOf(b, 4), cin]), `${a} + ${b} + ${cin}`).toEqual({ S3: (sum >> 3) & 1, S2: (sum >> 2) & 1, S1: (sum >> 1) & 1, S0: sum & 1, Cout: sum >> 4 })
+    }
+  })
+
+  it('asks of the adder/subtractor A + B, or A − B with SUB on (Cout is 1 when nothing was borrowed)', () => {
+    for (const [a, b, sub] of [[5, 3, 1], [3, 5, 1], [5, 3, 0], [15, 15, 0], [0, 1, 1]]) {
+      const r = (sub ? a - b : a + b) & 31 // 5 bits: Cout is bit 4 of A + (¬B & 15) + 1
+      const full = sub ? a + (~b & 15) + 1 : a + b
+      const out = outputsAt('addsub', [...bitsOf(a, 4), ...bitsOf(b, 4), sub])
+      expect(out.S3 * 8 + out.S2 * 4 + out.S1 * 2 + out.S0, `${a} ${sub ? '−' : '+'} ${b}`).toBe(r & 15)
+      expect(out.Cout, `${a} ${sub ? '−' : '+'} ${b}: Cout`).toBe(full >> 4)
+    }
   })
 })

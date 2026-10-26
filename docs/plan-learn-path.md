@@ -15,7 +15,7 @@
 >   - [x] L2b The goal evaluator and the explore steps of chapters 1–2 (own PR, `learn-l2-explore`)
 >   - [x] L2c The `[[label]]` spotlight (own PR, `learn-l2-spotlight`)
 >   - [x] L2d-1 Chapter 4, choosing (own PR, `learn-l2-ch4`)
->   - [ ] L2d-2 Chapter 5, adding numbers
+>   - [x] L2d-2 Chapter 5, adding numbers (own PR, `learn-l2-ch5`)
 >   - [ ] L2d-3 Chapter 6, the ALU
 > - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
 > - [ ] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)
@@ -663,6 +663,17 @@ are and the arrows; then the title, cut short, with the buttons), where it used 
   `{ switches: { label: 0 | 1 } }` goal says "the switches are like this" (S1 = 1, S0 = 0), so the plan's "select input 2" is a goal, and the three goals are ordered.
 - *Unlocks* is not done: it is L3's (the toast and the built-ins that unlock). `PATH_STEP_COUNT` is 22.
 - The e2e that finishes the path now takes its last step from `PATH_STEPS`, so adding steps no longer breaks it.
+
+**What L2d-2 (chapter 5, *Adding numbers*) did, and where it differs from the plan.**
+- The seven steps as in the table: read steps `binary-add` and `negative` (with quizzes), the builds `half-adder` (chip HA, the existing challenge, from the learner's XOR and AND), `full-adder`
+  (FA, two HAs and an OR), `adder4` (ADD4, four FAs) and `addsub` (ADDSUB, ADD4 and four XORs, SUB into Cin), and the explore step `ripple-tour`. All the builds are NAND-only by `rules`
+  (the kit's chips are NAND inside). The chips are boxes, not gates.
+- `adder4` and `addsub` are new challenges written in `steps/ch05.ts` (`path-adder4`, `path-addsub`): nine inputs, 512 rows. Their goals are written by `adderGoal`, which inlines the carries
+  (the expression language would also list a named carry as an output). `analyzeCircuit` had a limit of 8 inputs for the Analyze tab: it now takes an optional `max`, and the challenge check passes
+  the language's own limit (10), so the tab is unchanged.
+- `ripple-tour` is built on the spot (not the `/ripple` example): two 4-bit inputs, four full adders with a delay of 6, a hex display and a Cout LED, with A at 15 and B at 0. The goals are
+  Cout lit and Sum showing 0 (click B: 15 + 1). The lesson points at Timing and at the example.
+- *Unlocks* is still L3's. `PATH_STEP_COUNT` is 29.
 
 ### L3 Clocked builds, and chapters 7–8
 - `pulse` in challenge steps (`Step` in `challenges.ts`, used by `runChallengeSteps` in `challengecheck.ts`), and the steps table in the panel
