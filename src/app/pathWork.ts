@@ -5,7 +5,7 @@ import type { Circuit } from '../model/circuit'
 import { cutWires } from '../model/path/board'
 import { cpuStage } from '../model/path/cpu4'
 import { markDone } from '../model/path/progress'
-import { checkProgram, checkProject, withSource, withSource8 } from '../model/path/run'
+import { checkProgram, checkProject, withSource, withSource6502, withSource8 } from '../model/path/run'
 import { STEPS, getStep, stepAfter, unlockedParts } from '../model/path/steps'
 import type { ProgramStep, ProjectStep, Question, Step } from '../model/path/types'
 import { deserialize } from '../model/serialize'
@@ -126,10 +126,10 @@ async function storedCircuit(stepId: string): Promise<Circuit | undefined> {
 
 /** What a program step starts from: the computer the learner built in chapter 9 (ours if they did not), with the step's starting program in its ROM. */
 async function programStarter(step: ProgramStep): Promise<Circuit> {
-  if (step.computer === 'cpu8') {
-    // The 8-bit computer is the example's: the build writes it routed, so there is nothing to build here.
-    const base = await fetchExample('computer-sieve')
-    return withSource8(base, step.starter) ?? base
+  if (step.computer === 'cpu8' || step.computer === 'board6502') {
+    // The computer is an example's: the build writes it routed, so there is nothing to build here.
+    const base = await fetchExample(step.example ?? 'computer-sieve')
+    return (step.computer === 'cpu8' ? withSource8(base, step.starter) : withSource6502(base, step.starter)) ?? base
   }
   flushSave()
   const last = [...STEPS].reverse().find((s): s is ProjectStep => s.kind === 'project' && s.project === 'cpu4')
@@ -138,7 +138,7 @@ async function programStarter(step: ProgramStep): Promise<Circuit> {
 }
 
 /** The text of the program in the circuit's Program ROM. */
-const romOf = (c: Circuit) => Object.values(c.comps).find((k) => k.label === 'Program ROM' || k.label === 'Program')
+const romOf = (c: Circuit) => Object.values(c.comps).find((k) => k.label === 'Program ROM' || k.label === 'Program' || (k.type === 'rom' && String(k.label).startsWith('ROM $')))
 const sourceOf = (c: Circuit) => String(romOf(c)?.params.source ?? '')
 
 /** Select the Program ROM, so its inspector shows the program to edit. */
@@ -160,7 +160,7 @@ function checkProgramStep(step: ProgramStep) {
 /** Put a solution in the ROM. The step counts as shown. */
 function showProgramSolution(step: ProgramStep) {
   const now = useStore.getState().circuit
-  const circuit = step.computer === 'cpu8' ? withSource8(now, step.solution) : withSource(now, step.solution)
+  const circuit = step.computer === 'cpu8' ? withSource8(now, step.solution) : step.computer === 'board6502' ? withSource6502(now, step.solution) : withSource(now, step.solution)
   if (!circuit) return
   loadCircuit(circuit)
   shownSource = step.solution

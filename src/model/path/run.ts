@@ -1,4 +1,5 @@
 import { assemble6502 } from '../../engine/asm6502'
+import { lcdText, type LcdState } from '../../engine/hd44780'
 import { SKASM, assemble, toHexBytes, toHexWords } from '../../engine/isa'
 import { Simulator } from '../../engine/simulator'
 import { beginnerWords } from '../beginner'
@@ -128,6 +129,9 @@ export interface Outcome {
   writes: number[]
   /** What is on the console, on a computer that has one. */
   text?: string
+  /** On a 6502 board: the numbers the LED register took, in order, and the lines of the LCD. */
+  leds?: number[]
+  lcd?: string[]
 }
 
 /** The most ticks a program may take before it counts as never stopping. */
@@ -212,6 +216,12 @@ export function wrongIn(o: Outcome, want: ProgramExpect): string[] {
   const wrong: string[] = []
   if (!o.halted) wrong.push(`it did not stop (no HALT in ${o.cycles} ticks)`)
   if (want.console !== undefined && (o.text ?? '').trim() !== want.console) wrong.push(`the console shows “${(o.text ?? '').trim()}”, not “${want.console}”`)
+  if (want.ledTrace) {
+    const seen = o.leds ?? []
+    if (!seen.some((_, i) => want.ledTrace!.every((n, j) => seen[i + j] === n))) wrong.push(`the LEDs took ${seen.length ? seen.slice(0, 12).join(', ') : 'no value'}${seen.length > 12 ? '…' : ''}, not ${want.ledTrace.join(', ')}`)
+  }
+  if (want.leds !== undefined && o.leds?.[o.leds.length - 1] !== want.leds) wrong.push(`the LEDs show ${o.leds?.[o.leds.length - 1] ?? 'nothing'}, not ${want.leds}`)
+  if (want.lcd !== undefined && (o.lcd?.[0] ?? '').trimEnd() !== want.lcd) wrong.push(`the LCD’s first line is “${(o.lcd?.[0] ?? '').trimEnd()}”, not “${want.lcd}”`)
   for (const [at, is] of Object.entries(want.ram ?? {})) if (o.ram[Number(at)] !== is) wrong.push(`RAM word ${at} is ${o.ram[Number(at)]}, not ${is}`)
   if (want.acc !== undefined && o.acc !== want.acc) wrong.push(`the ACC is ${o.acc}, not ${want.acc}`)
   if (want.writes && (o.writes.length !== want.writes.length || o.writes.some((w, i) => w !== want.writes![i]))) wrong.push(`the output got ${o.writes.length ? o.writes.join(' ') : 'nothing'}, not ${want.writes.join(' ')}`)
@@ -234,6 +244,7 @@ const patchConstants = (source: string, set: Record<string, number> = {}) =>
  */
 export function checkProgram(step: ProgramStep, circuit: Circuit): ProjectResult {
   if (step.computer === 'cpu8') return checkProgram8(step, circuit)
+  if (step.computer === 'board6502') return checkProgram6502(step, circuit)
   const result: ProjectResult = { passed: false, problems: [], lines: [] }
   const rom = labelled(circuit, 'Program ROM')
   if (!rom || rom.type !== 'rom') {
@@ -291,6 +302,97 @@ function checkProgram8(step: ProgramStep, circuit: Circuit): ProjectResult {
     else {
       const wrong = wrongIn(o, test.expect)
       if (wrong.length) line.got = wrong.join('; ')
+      else line.ok = true
+    }
+    result.lines.push(line)
+  }
+  result.passed = result.lines.every((l) => l.ok) && !result.problems.length
+  return result
+}
+
+// ---- A 6502 board -----------------------------------------------------------------------------------------
+
+/** The ROM of a 6502 board, which holds the program. */
+const romOf6502 = (c: Circuit) => Object.values(c.comps).find((k) => k.type === 'rom' && String(k.label).startsWith('ROM'))
+
+/** The ROM's image of a program for this board: its bytes as hex text, or what is wrong with it (assembled for the 65C02 if the ROM says so, the first `.org` at the ROM's first address). */
+function image6502(c: Circuit, source: string): { data: string } | { error: string } {
+  const rom = romOf6502(c)
+  if (!rom) return { error: 'There is no ROM on the board.' }
+  const size = 2 ** (Number(rom.params.abits) || 12)
+  const base = 0x10000 - size
+  const r = assemble6502(source, size, rom.params.isa === '65c02')
+  if (r.errors.length) return { error: `Line ${r.errors[0].line}: ${r.errors[0].message}` }
+  if (r.base !== base) return { error: `The program has to begin at .org $${base.toString(16).toUpperCase()}, where this board’s ROM starts.` }
+  return { data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
+}
+
+/** The circuit with this program (text) in the 6502 board's ROM. */
+export function withSource6502(c: Circuit, source: string): Circuit | undefined {
+  const rom = romOf6502(c)
+  const img = image6502(c, source)
+  if (!rom || 'error' in img) return undefined
+  return { ...c, comps: { ...c.comps, [rom.id]: { ...rom, params: { ...rom.params, source, data: img.data } } } }
+}
+
+/**
+ * Run a program on a 6502 board for up to `maxTicks` clock ticks, and stop as soon as it has done what `want` says (a program that loops
+ * for ever has nothing else to show). A string is what is wrong with the board.
+ */
+export function runProgram6502(circuit: Circuit, source: string, want: ProgramExpect, maxTicks: number): Outcome | string {
+  const c = withSource6502(circuit, source)
+  if (!c) return 'The program does not assemble for this board.'
+  const sim = new Simulator()
+  sim.load(flatten(c))
+  sim.settle()
+  const leds = Object.values(c.comps).find((k) => k.type === 'busreg' && String(k.label).startsWith('LED register'))
+  const con = Object.values(c.comps).find((k) => k.type === 'console')
+  const lcd = Object.values(c.comps).find((k) => k.type === 'hd44780')
+  const trace: number[] = []
+  const outcome = (cycles: number): Outcome => ({
+    halted: true,
+    cycles,
+    acc: null,
+    ram: [],
+    writes: [],
+    leds: trace,
+    text: con ? (sim.state(con.id) as { lines: string[] }).lines.join('\n') : '',
+    lcd: lcd ? lcdText(sim.state(lcd.id) as LcdState) : [],
+  })
+  for (let cycles = 0; cycles < maxTicks; cycles++) {
+    if (leds) {
+      const v = partValue(c, sim, String(leds.label))
+      if (v !== null && trace[trace.length - 1] !== v) trace.push(v)
+    }
+    if (cycles % 16 === 15 && !wrongIn(outcome(cycles), want).length) return outcome(cycles)
+    sim.stepClock()
+    sim.stepClock()
+  }
+  return outcome(maxTicks)
+}
+
+/** Check a program on a 6502 board of an example: it runs on the circuit on the canvas, whose ROM holds the program. */
+function checkProgram6502(step: ProgramStep, circuit: Circuit): ProjectResult {
+  const result: ProjectResult = { passed: false, problems: [], lines: [] }
+  const rom = romOf6502(circuit)
+  if (!rom) {
+    result.problems.push('There is no ROM on the board.')
+    return result
+  }
+  const source = String(rom.params.source ?? '')
+  const img = image6502(circuit, source)
+  if ('error' in img) {
+    result.problems.push(img.error)
+    return result
+  }
+  for (const word of step.needs ?? []) if (!new RegExp(`\\b${word}\\b`, 'i').test(code(source))) result.problems.push(`The program has to use ${word}.`)
+  for (const test of step.tests) {
+    const o = runProgram6502(circuit, patchConstants(source, test.set), test.expect, step.maxTicks ?? 2000)
+    const line = { text: test.title, ok: false } as ProjectResult['lines'][number]
+    if (typeof o === 'string') line.got = o
+    else {
+      const wrong = wrongIn(o, test.expect)
+      if (wrong.length) line.got = `${wrong.join('; ')} (in ${o.cycles} ticks)`
       else line.ok = true
     }
     result.lines.push(line)

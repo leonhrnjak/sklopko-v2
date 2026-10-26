@@ -171,6 +171,12 @@ export interface ProgramExpect {
   ram?: Record<number, number>
   /** The text on the console at the end. */
   console?: string
+  /** On a 6502 board: the numbers the LED register took, found in this order in a row (the first is what it held at the start). */
+  ledTrace?: number[]
+  /** On a 6502 board: what the LED register holds at the end. */
+  leds?: number
+  /** On a 6502 board: the first line of the LCD (trailing spaces left out). */
+  lcd?: string
   /** Every STA to address 15, in order (the output register's loads). */
   writes?: number[]
   acc?: number
@@ -191,8 +197,12 @@ export interface ProgramTest {
  */
 export interface ProgramStep extends StepBase {
   kind: 'program'
-  /** The computer it runs on: the 4-bit one built in chapter 9 (the default), or the 8-bit one of the Computers examples. */
-  computer?: 'cpu4' | 'cpu8'
+  /** The computer it runs on: the 4-bit one built in chapter 9 (the default), the 8-bit one of the Computers examples, or a 6502 board of an example. */
+  computer?: 'cpu4' | 'cpu8' | 'board6502'
+  /** The example that is the canvas, for a computer that is an example's (the 8-bit one: `computer-sieve`). */
+  example?: string
+  /** The most clock ticks a program may take before it counts as stuck, on a 6502 board (it is checked after each few ticks, and a program that has done what it should is not run on). */
+  maxTicks?: number
   /** Instructions the program must use (CALL and RET, say), found in the text outside comments. */
   needs?: string[]
   task: string
