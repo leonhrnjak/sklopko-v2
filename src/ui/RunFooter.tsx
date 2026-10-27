@@ -51,7 +51,6 @@ export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onT
   return (
     <div className="run-footer">
       <div className="run-left" role="status" aria-label="Simulation">
-        <span className="run-label">Run</span>
         <span className="run-state">
           <span className={`run-dot${running ? ' live' : ''}`} aria-hidden="true" />
           <span data-testid="run-state">{running ? 'Running' : 'Paused'}</span>

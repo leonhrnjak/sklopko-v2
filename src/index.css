@@ -1475,12 +1475,6 @@ button.danger {
   padding-left: 14px;
   border-left: 1px solid var(--panel-border);
 }
-.run-label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 .run-state {
   display: inline-flex;
   align-items: center;
@@ -1545,9 +1539,6 @@ button.danger {
   text-decoration: underline;
 }
 @media (max-width: 700px) {
-  .run-label {
-    display: none;
-  }
   .run-footer {
     gap: 10px;
     padding-inline: 8px;
