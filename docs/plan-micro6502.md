@@ -18,6 +18,11 @@ engine cannot express, see `plan-cpu6502.md`); it is the textbook microcoded mac
   `$FFFC`); the circuit runs it at power-on and when the Reset button is held.
 - The names of the control bits are on the microcode ROMs (`signals`), so the inspector shows what each output switches on.
 
+## Reading the circuit
+Each section (sequencer, microcode, control, registers, ALU and flags, address bus, memory) has a titled frame and, in a band above it, notes that
+say what its parts do (the router ignores notes, so they stand outside the wiring). A note about one part carries a letter, "(a)", and the
+labels of the parts it explains start with the same letter. A test checks that no note lies on a part, a frame or another note.
+
 ## Test
 `src/model/micro6502.test.ts` runs the circuit and the `cpu6502` core side by side with the same memory map, over random programs that
 use every implemented opcode and over hand-made ones (a branch across a page boundary, both ways). In every cycle the address bus,

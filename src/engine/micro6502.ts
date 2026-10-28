@@ -349,6 +349,9 @@ export const rowAddress = (reset: boolean, op: number, t: number) => (reset ? 20
 
 const programs: (Cycles | null)[] = Array.from({ length: 256 }, (_, op) => program(BY_OPCODE_6502[op]))
 
+/** The rows of an opcode as written in the table above: the fetch, then the cycles after it (an opcode the part does not have: one cycle that does nothing). */
+export const microRows = (op: number): Row[] => [FETCH_ROW, ...(programs[op] ?? [UNKNOWN_ROW])]
+
 /** The opcodes the part has (every other one is a two-cycle NOP). */
 export const MICRO_OPCODES: number[] = OPCODES_6502.map((o) => o.opcode)
   .filter((op) => programs[op])

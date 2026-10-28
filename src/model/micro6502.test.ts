@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
 import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
-import { MICRO_OPCODES } from '../engine/micro6502'
+import { MICRO_OPCODES, microRows } from '../engine/micro6502'
 import { BY_OPCODE_6502, OPCODES_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { flatten } from './buses'
-import { micro6502, micro6502Builder } from './micro6502'
+import { boundsRect } from './circuit'
+import { micro6502, micro6502Basic, micro6502Builder } from './micro6502'
 
 const hex = (bytes: number[]) => bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')
 
@@ -82,6 +83,30 @@ describe('the 6502 built from parts', () => {
     const c = micro6502()
     expect(Object.keys(c.comps).length).toBeGreaterThan(100)
     expect(Object.values(c.comps).filter((k) => k.type === 'rom')).toHaveLength(5)
+  })
+
+  it('has notes that explain each section, and none of them lies on a part, a frame or another note', () => {
+    for (const [name, c] of [['LED board', micro6502()], ['BASIC board', micro6502Basic()]] as const) {
+      const comps = Object.values(c.comps)
+      const notes = comps.filter((k) => k.type === 'note')
+      expect(notes.length, name).toBeGreaterThan(14)
+      // A note about one part is joined to it by a letter: "(a)" starts the note and the labels of the parts it explains.
+      for (const letter of ['a', 'b', 'c', 'd', 'e', 'f']) {
+        expect(notes.some((k) => String(k.params.text).startsWith(`(${letter}) `)), `${name}: note (${letter})`).toBe(true)
+        expect(comps.some((k) => k.type !== 'note' && (k.label ?? '').startsWith(`(${letter}) `)), `${name}: parts of note (${letter})`).toBe(true)
+      }
+      const others = comps // (the frames too: a note stands above the frame of its section)
+      const touch = (a: ReturnType<typeof boundsRect>, b: ReturnType<typeof boundsRect>) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+      for (const n of notes)
+        for (const k of others)
+          if (k !== n) expect(touch(boundsRect(n), boundsRect(k)), `${name}: the note "${String(n.params.text).slice(0, 30)}…" is on ${k.type} ${k.label ?? k.id}`).toBe(false)
+    }
+  }, 60_000)
+
+  it('lists the rows of an instruction: the fetch, then its cycles', () => {
+    expect(microRows(0xa9)).toHaveLength(2) // LDA #: fetch, read the constant
+    expect(microRows(0xbd)).toHaveLength(5) // LDA abs,X: fetch, two address bytes, the read before the fix, the read after it
+    expect(microRows(0xbd)[0].FETCH).toBe(true)
   })
 
   it('has microcode for every one of the 151 documented opcodes', () => {
