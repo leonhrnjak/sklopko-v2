@@ -336,6 +336,34 @@ function MuxSym({ l, title, demux }: { l: Layout; title: string; demux: boolean 
   )
 }
 
+/**
+ * Splitter and merger: a comb, not a gate. A thick spine takes the whole bus on one side and a tooth leads to each piece on the
+ * other (thin for a single bit, thick with a slash for a smaller bus), with the bit range written on the tooth. No fill and
+ * no title, so it reads as wiring.
+ */
+function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
+  const spineX = merge ? l.w - 12 : 12
+  const ys = l.pins.map((p) => p.y)
+  const top = Math.min(...ys) - 6
+  const bottom = Math.max(...ys) + 6
+  return (
+    <>
+      <rect className="sym-hit" x={0} y={0} width={l.w} height={l.h} />
+      <line className="sym-line bus" x1={spineX} y1={top} x2={spineX} y2={bottom} />
+      {l.pins.map((p) => (
+        <Stub key={p.name} pin={p} inner={{ x: spineX, y: p.y }} />
+      ))}
+      {l.pins
+        .filter((p) => p.side === (merge ? 'l' : 'r'))
+        .map((p) => (
+          <Txt key={p.name} x={merge ? spineX - 5 : spineX + 5} y={p.y - 12} anchor={merge ? 'end' : 'start'} className="pin-label">
+            {p.label ?? p.name}
+          </Txt>
+        ))}
+    </>
+  )
+}
+
 // ---- Displays ----------------------------------------------------------------------------------
 
 function Digit({ x, y, w, h, segs, dp }: { x: number; y: number; w: number; h: number; segs: number; dp?: boolean }) {
@@ -1053,6 +1081,10 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'splitter':
+    case 'merger':
+      content = <CombSym l={l} merge={comp.type === 'merger'} />
+      break
     case 'busjoin': {
       // Warn when two or more drivers are active and the line came out unknown: contention.
       const n = Number(p.bits) || 1
