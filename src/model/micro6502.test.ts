@@ -97,9 +97,42 @@ describe('the 6502 built from parts', () => {
       }
       const others = comps // (the frames too: a note stands above the frame of its section)
       const touch = (a: ReturnType<typeof boundsRect>, b: ReturnType<typeof boundsRect>) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+      // (A frame that holds the whole note is fine: the grey frames of the CPU and the board hold their sections and their notes.)
+      const inside = (a: ReturnType<typeof boundsRect>, b: ReturnType<typeof boundsRect>) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h
       for (const n of notes)
         for (const k of others)
-          if (k !== n) expect(touch(boundsRect(n), boundsRect(k)), `${name}: the note "${String(n.params.text).slice(0, 30)}…" is on ${k.type} ${k.label ?? k.id}`).toBe(false)
+          if (k !== n && !(k.type === 'frame' && inside(boundsRect(n), boundsRect(k))))
+            expect(touch(boundsRect(n), boundsRect(k)), `${name}: the note "${String(n.params.text).slice(0, 30)}…" is on ${k.type} ${k.label ?? k.id}`).toBe(false)
+    }
+  }, 60_000)
+
+  it('keeps the CPU and the board apart: the CPU is one grey frame, the memory, clock and devices another, and they do not touch', () => {
+    for (const [name, c] of [['LED board', micro6502()], ['BASIC board', micro6502Basic()]] as const) {
+      const comps = Object.values(c.comps)
+      const frames = comps.filter((k) => k.type === 'frame' && k.params.color === 'grey')
+      const cpu = frames.find((f) => String(f.params.title).startsWith('THE 6502 CPU'))!
+      const board = frames.find((f) => String(f.params.title).startsWith('THE BOARD'))!
+      expect(cpu && board, name).toBeTruthy()
+      const a = boundsRect(cpu)
+      const b = boundsRect(board)
+      expect(a.x + a.w, `${name}: room between the frames`).toBeLessThan(b.x - 200)
+      const inFrame = (k: (typeof comps)[number], f: ReturnType<typeof boundsRect>) => boundsRect(k).x >= f.x && boundsRect(k).x + boundsRect(k).w <= f.x + f.w
+      for (const k of comps) {
+        if (['rom', 'ram', 'clock', 'button', 'led', 'bar', 'acia6551'].includes(k.type) && !(k.label ?? '').startsWith('Microcode')) expect(inFrame(k, b) && !inFrame(k, a), `${name}: ${k.type} ${k.label} is on the board`).toBe(true)
+        if (['dff', 'busctr', 'busadd', 'busgate'].includes(k.type)) expect(inFrame(k, a) && !inFrame(k, b), `${name}: ${k.type} ${k.label} is in the CPU`).toBe(true)
+      }
+      // No wire runs from one to the other: what joins them is the named nets.
+      for (const w of Object.values(c.wires)) {
+        const ends = [w.from.comp, w.to.comp].map((id) => c.comps[id])
+        const side = (k: (typeof comps)[number]) => (inFrame(k, a) ? 'cpu' : inFrame(k, b) ? 'board' : 'between')
+        expect(new Set(ends.map(side)).has('cpu') && new Set(ends.map(side)).has('board'), `${name}: a wire from ${ends[0].type} ${ends[0].label ?? ''} to ${ends[1].type} ${ends[1].label ?? ''}`).toBe(false)
+      }
+      // The pins between them are nets with names, each with a Send label on the CPU's side and a Receive label on the board's.
+      for (const pin of ['ADDRESS', 'R', 'DI', 'RWB', 'SYNC', 'PHI2', 'RES']) {
+        const named = comps.filter((k) => (k.type === 'netsend' || k.type === 'netrecv') && k.params.name === pin)
+        expect(named.some((k) => k.type === 'netsend'), `${name}: pin ${pin} is sent`).toBe(true)
+        expect(named.some((k) => k.type === 'netrecv'), `${name}: pin ${pin} is received`).toBe(true)
+      }
     }
   }, 60_000)
 

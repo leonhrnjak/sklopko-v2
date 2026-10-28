@@ -52,8 +52,8 @@ function onCore(p: Prog) {
   return { screen: m.screen, cycles: m.cycles - start }
 }
 
-/** The same on the circuit: lines are typed as the keyboard buffer empties, and it runs until the screen is the core's. */
-function onCircuit(p: Prog, want: string, max: number) {
+/** The same on the circuit: lines are typed as the keyboard buffer empties, and it runs until the program has finished. */
+function onCircuit(p: Prog, max: number) {
   const m = micro6502Builder({ hz: 100, board: 'basic' })
   const sim = new Simulator()
   sim.load(flatten(m.b.c))
@@ -82,17 +82,17 @@ describe('BASIC programs on the CPU built from parts, against the core', () => {
   for (const p of QUICK)
     it(`${p.id}: the same screen as the core`, () => {
       const core = onCore(p)
-      const mine = onCircuit(p, core.screen, 400_000)
+      const mine = onCircuit(p, 400_000)
       expect(same(mine.screen, core.screen), `${p.id}\ncircuit:\n${mine.screen}\ncore:\n${core.screen}`).toBe(true)
     }, 120_000)
 
-  describe.skipIf(!process.env.SLOW)('the long ones', () => {
+  describe.skipIf(!import.meta.env.SLOW)('the long ones', () => {
     for (const p of SLOW)
       it(`${p.id}: the same screen as the core`, () => {
         const core = onCore(p)
         console.log(`${p.id}: ${core.cycles} cycles after the start-up`)
         const t0 = performance.now()
-        const mine = onCircuit(p, core.screen, 20_000_000)
+        const mine = onCircuit(p, 20_000_000)
         console.log(`${p.id}: circuit ${mine.cycles} cycles in ${((performance.now() - t0) / 1000).toFixed(0)} s`)
         expect(same(mine.screen, core.screen), `${p.id}\ncircuit:\n${mine.screen}\ncore:\n${core.screen}`).toBe(true)
       }, 3_600_000)
