@@ -9,7 +9,7 @@ describe('serialization', () => {
       const c = ex.build()
       const back = deserialize(JSON.parse(JSON.stringify(serialize(c))))
       expect(back).toEqual(JSON.parse(JSON.stringify(c)))
-    })
+    }, 60000) // the biggest examples take seconds to build and route: more so on a busy machine
   }
 
   it('round-trips through a share link', () => {

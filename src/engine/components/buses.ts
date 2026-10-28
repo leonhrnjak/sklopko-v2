@@ -31,6 +31,16 @@ const whole = (p: Params, name: string, dir: 'in' | 'out'): PinSpec => ({
   bus: Number(p.bits),
 })
 
+/**
+ * Width of the body: room for the trunk and its diagonals on one side and the widest piece label on the other. The symbol is a trunk with bus entries, not a box
+ * with a title, so it needs far less than a part with a label on every pin.
+ */
+function combWidth(p: Params): number {
+  const offsets = splitOffsets(p)
+  const label = Math.max(...splitWidths(p).map((w, i) => range(offsets[i], w).length * 4.5))
+  return Math.max(40, Math.ceil((label + 17) / 10) * 10)
+}
+
 export const buses: ComponentDef[] = [
   {
     type: 'splitter',
@@ -42,7 +52,7 @@ export const buses: ComponentDef[] = [
     params: [bitsParam, splitParam],
     wiring: true,
     title: () => 'SPLIT',
-    layout: (p) => box({ left: [whole(p, 'A', 'in')], right: pieces(p, 'Y', 'out') }),
+    layout: (p) => box({ left: [whole(p, 'A', 'in')], right: pieces(p, 'Y', 'out'), w: combWidth(p) }),
     evaluate() {},
   },
   {
@@ -55,7 +65,7 @@ export const buses: ComponentDef[] = [
     params: [bitsParam, splitParam],
     wiring: true,
     title: () => 'MERGE',
-    layout: (p) => box({ left: pieces(p, 'A', 'in'), right: [whole(p, 'Y', 'out')] }),
+    layout: (p) => box({ left: pieces(p, 'A', 'in'), right: [whole(p, 'Y', 'out')], w: combWidth(p) }),
     evaluate() {},
   },
 ]

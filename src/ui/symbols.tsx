@@ -336,6 +336,47 @@ function MuxSym({ l, title, demux }: { l: Layout; title: string; demux: boolean 
   )
 }
 
+/**
+ * Splitter and merger: a trunk with bus entries, not a gate. A thick trunk takes the whole bus on one side; each piece leaves it
+ * on a 45 degree diagonal and runs straight to its pin (thin for a single bit, thick with a slash for a smaller bus), with the
+ * bit range written on the wire. No fill and no title, so it reads as wiring. A merger is the mirror image.
+ */
+function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
+  const s = merge ? -1 : 1
+  const at = (k: number) => (merge ? l.w - k : k)
+  const trunk = at(10)
+  const side = merge ? 'l' : 'r'
+  const pieces = l.pins.filter((p) => p.side === side)
+  const whole = l.pins.find((p) => p.side !== side)!
+  const top = Math.min(...pieces.map((p) => p.y))
+  const bottom = Math.max(...pieces.map((p) => p.y)) + 8
+  // The slash goes on the stub outside the body, clear of the label.
+  const slash = (p: PinDef) => {
+    const x = (p.x + (p.side === 'l' ? 0 : l.w)) / 2
+    return p.bus ? <line className="sym-line bus-slash" x1={x - 2.5} y1={p.y + 4} x2={x + 2.5} y2={p.y - 4} /> : null
+  }
+  return (
+    <g className="comb">
+      <rect className="sym-hit" x={0} y={0} width={l.w} height={l.h} />
+      <line className="sym-line bus" x1={trunk} y1={top} x2={trunk} y2={bottom} />
+      <line className="sym-line bus" x1={whole.x} y1={whole.y} x2={trunk} y2={whole.y} />
+      {slash(whole)}
+      {pieces.map((p) => {
+        const cls = p.bus ? 'sym-line bus' : 'sym-line'
+        return (
+          <g key={p.name}>
+            <polyline className={cls} fill="none" points={`${trunk},${p.y + 8} ${trunk + s * 8},${p.y} ${p.x},${p.y}`} />
+            {slash(p)}
+            <Txt x={trunk + s * 9} y={p.y - 7} anchor={merge ? 'end' : 'start'} className="pin-label">
+              {p.label ?? p.name}
+            </Txt>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
 // ---- Displays ----------------------------------------------------------------------------------
 
 function Digit({ x, y, w, h, segs, dp }: { x: number; y: number; w: number; h: number; segs: number; dp?: boolean }) {
@@ -1053,6 +1094,10 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
       )
       break
     }
+    case 'splitter':
+    case 'merger':
+      content = <CombSym l={l} merge={comp.type === 'merger'} />
+      break
     case 'busjoin': {
       // Warn when two or more drivers are active and the line came out unknown: contention.
       const n = Number(p.bits) || 1

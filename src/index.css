@@ -895,6 +895,21 @@ button.danger {
   stroke-width: 2;
   stroke-linecap: round;
 }
+/* Invisible, but it makes the empty space of a part (a splitter's comb) something to click and drag. */
+.sym-hit {
+  fill: transparent;
+  stroke: none;
+}
+/* The comb of a splitter or merger is wiring: as thick as the wires it joins (.wire is 2.5, .wire.bus is 5). */
+.comb .sym-line {
+  stroke-width: 2.5;
+}
+.comb .sym-line.bus {
+  stroke-width: 5;
+}
+.comb .sym-line.bus-slash {
+  stroke-width: 1.5;
+}
 .sym-line.bubble {
   fill: var(--body);
 }
