@@ -10,8 +10,8 @@ import { boundsRect, type Circuit } from './circuit'
  * on its pins, one bus access in every clock, but inside it is the plain textbook machine (see `engine/micro6502.ts` for the
  * microcode and the datapath), not the chip's 3,510 transistors.
  *
- * It has 134 of the 151 documented opcodes (all but the stack, the interrupt instructions, BIT and the flag instructions that
- * are not CLC and SEC), and the reset sequence. The memory map is that of the first 6502 board:
+ * It has all 151 documented opcodes and the reset sequence. Decimal mode is not built: SED and CLD set and clear the flag, but ADC and SBC
+ * stay binary. There are no interrupt lines yet (BRK works). The memory map is that of the first 6502 board:
  *
  *     $0000–$3FFF  RAM (2 KB, repeated)          $4000–$7FFF  the LED register (write only)
  *     $8000–$FFFF  ROM (4 KB, repeated)          the CPU starts at the address stored in $FFFC–$FFFD
@@ -187,7 +187,16 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(['LD_A', 'LD_X', 'LD_Y'].includes(ld) ? unlessSkipped(ld) : c(ld), `${r}.LD`)
     wire(CLK, `${r}.CLK`)
     regs[key] = `${r}.Q`
-    rFrom.push(`${r}.D`)
+    if (key === 'SP') {
+      // SP loads the result (TXS), or itself plus one (a pull) or minus one (a push), by its own adders.
+      const up = part(REGS, 'spUp', 'busadd', { params: { bits: 8 }, label: 'SP + 1' }, 20)
+      wire(`${r}.Q`, `${up}.A`)
+      wire(one8, `${up}.B`)
+      const down = part(REGS, 'spDown', 'busadd', { params: { bits: 8 }, label: 'SP − 1' }, 20)
+      wire(`${r}.Q`, `${down}.A`)
+      wire(minus1, `${down}.B`)
+      wire(mux(REGS, 'spD', 8, 'SP loads R, SP + 1 or SP − 1', [R, `${up}.S`, `${down}.S`, `${down}.S`], c('SPSRC')), `${r}.D`)
+    } else rFrom.push(`${r}.D`)
     show(REGS, `show${key}`, key, `${r}.Q`)
   }
   // TH loads the result, the data bus, or itself plus the carry of an index (the high byte of the address, fixed).
@@ -224,7 +233,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   // ---- The ALU: A input, B input, adder and logic, result -------------------------------------------------------------
   const ainSplit = splitter(ALU, 'ainSplit', 4, [3, 1], 'AIN: which, and which group', c('AIN'))
   const aLow = mux(ALU, 'aLow', 8, 'A input: A X Y SP PCL PCH TL 0', [regs.A, regs.X, regs.Y, regs.SP, regs.PCL, regs.PCH, regs.TL, zero8], `${ainSplit}.Y0`)
-  const aHigh = mux(ALU, 'aHigh', 8, 'A input, second group: DL TH', [regs.DL, regs.TH, zero8, zero8, zero8, zero8, zero8, zero8], `${ainSplit}.Y0`)
+  const aHigh = mux(ALU, 'aHigh', 8, 'A input, second group: DL TH P', [regs.DL, regs.TH, `${p}.Q`, zero8, zero8, zero8, zero8, zero8], `${ainSplit}.Y0`)
   const aIn = mux(ALU, 'aIn', 8, 'ALU input A', [aLow, aHigh], `${ainSplit}.Y1`)
   // The B input's select is BIN, except that PAGEFIX makes ONE into MINUS1 when the offset in TL is negative.
   const tls = splitter(ALU, 'tls', 8, [7, 1], 'TL: the offset’s sign', regs.TL)
@@ -233,7 +242,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const binSplit = splitter(ALU, 'binSplit', 3, [1, 2], 'BIN: bit 0, bits 1–2', c('BIN'))
   const bin0 = gate(ALU, 'bin0', 'or', 'BIN bit 0, or a backward page fix', [`${binSplit}.Y0`, gate(ALU, 'fixNeg', 'and', 'PAGEFIX and TL7', [c('PAGEFIX'), TL7])])
   const binSel = merger(ALU, 'binSel', 3, [1, 2], 'BIN', [bin0, `${binSplit}.Y1`])
-  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', ['DI', regs.TL, one8, minus1, zero8, regs.TH, regs.DL, zero8], binSel)
+  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', ['DI', regs.TL, one8, minus1, zero8, regs.TH, regs.DL, busconst(ALU, 'flagB', 8, 0x10, '$10')], binSel)
   const nb = part(ALU, 'nb', 'busgate', { params: { bits: 8, op: 'not' }, label: 'B inverted' }, 20)
   wire(bIn, `${nb}.A`)
   const bx = mux(ALU, 'bx', 8, 'B, or its opposite (SBC, CMP)', [bIn, `${nb}.Y`], c('INVB'))
@@ -266,11 +275,12 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const zeroCmp = part(ALU, 'zeroCmp', 'buscmp', { params: { bits: 8 }, label: 'R is zero' }, 20)
   wire(result, `${zeroCmp}.A`)
   wire(zero8, `${zeroCmp}.B`)
-  const bs = splitter(ALU, 'bs', 8, [7, 1], 'B input: its sign', bx)
+  const bs = splitter(ALU, 'bs', 8, [6, 1, 1], 'B input: bits 6 and 7', bx)
   const overflow = gate(ALU, 'overflow', 'and', 'overflow: operands agree, result not', [
     gate(ALU, 'ovA', 'xor', 'A sign ≠ result sign', [`${as}.Y1`, R7]),
-    gate(ALU, 'ovB', 'xor', 'B sign ≠ result sign', [`${bs}.Y1`, R7]),
+    gate(ALU, 'ovB', 'xor', 'B sign ≠ result sign', [`${bs}.Y2`, R7]),
   ])
+  let fixed = 0
   const cSrc = splitter(ALU, 'cSrc', 2, [1, 1], 'C_SRC', c('C_SRC'))
   const cNew = part(ALU, 'cNew', 'mux', { params: { n: 4 }, label: 'the carry: adder, 0, 1, shifted' }, 20)
   const cOne = bit(ALU, 'cOne', 1)
@@ -291,13 +301,27 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(when, `${m}.S0`)
     return `${m}.Y`
   }
-  const nNext = choose('nNext', 'N: hold, or the sign of R', FN, R7, unlessSkipped('NZ'))
-  const zNext = choose('zNext', 'Z: hold, or R = 0', FZ, `${zeroCmp}.EQ`, unlessSkipped('NZ'))
+  const bit0 = () => bit(ALU, `bit0_${++fixed}`, 0)
+  const bit1 = () => bit(ALU, `bit1_${++fixed}`, 1)
+  // BIT takes N and V from bits 7 and 6 of the operand, and Z from A AND the operand.
+  const isBit = c('BIT')
+  const nzOrBit = gate(ALU, 'nzOrBit', 'or', 'N and Z change', [unlessSkipped('NZ'), isBit])
+  const nVal = choose('nVal', 'N: the sign of R, or BIT’s bit 7', R7, `${bs}.Y2`, isBit)
+  const vVal = choose('vVal', 'V: the overflow, or BIT’s bit 6', overflow, `${bs}.Y1`, isBit)
+  const nNext = choose('nNext', 'N: hold, or the new N', FN, nVal, nzOrBit)
+  const zNext = choose('zNext', 'Z: hold, or R = 0', FZ, `${zeroCmp}.EQ`, nzOrBit)
   const cNext = choose('cNext', 'C: hold, or the new carry', FC, `${cNew}.Y`, unlessSkipped('UPD_C'))
-  const vNext = choose('vNext', 'V: hold, or the overflow', FV, overflow, unlessSkipped('V'))
-  const iNext = gate(ALU, 'iNext', 'or', 'I: set by the reset', [FI, c('SETI')])
-  const pNext = merger(ALU, 'pNext', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'P: C Z I D – 1 V N', [cNext, zNext, iNext, FD, bit(ALU, 'bFlag', 0), bit(ALU, 'uFlag', 1), vNext, nNext])
-  wire(pNext, `${p}.D`)
+  const vChange = choose('vChange', 'V: hold, or the new V', FV, vVal, gate(ALU, 'vOrBit', 'or', 'V changes', [unlessSkipped('V'), isBit]))
+  const vNext = gate(ALU, 'vNext', 'and', 'V, and CLV clears it', [vChange, gate(ALU, 'nClv', 'not', 'not CLV', [c('CLV')])])
+  // I and D are set or cleared by their own instructions (the reset sets I).
+  const iNext = gate(ALU, 'iNext', 'and', 'I: set by SEI and reset, cleared by CLI', [gate(ALU, 'iSet', 'or', 'I set', [FI, c('SETI')]), gate(ALU, 'nClri', 'not', 'not CLI', [c('CLRI')])])
+  const dNext = gate(ALU, 'dNext', 'and', 'D: set by SED, cleared by CLD', [gate(ALU, 'dSet', 'or', 'D set', [FD, c('SETD')]), gate(ALU, 'nClrd', 'not', 'not CLD', [c('CLRD')])])
+  const pNext = merger(ALU, 'pNext', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'P: C Z I D – 1 V N', [cNext, zNext, iNext, dNext, bit0(), bit1(), vNext, nNext])
+  // PLP and RTI load the flags from the result (the break flag is not kept, and bit 5 is always 1).
+  const rp = splitter(ALU, 'rp', 8, [4, 2, 2], 'R: the flags it holds', result)
+  const pData = merger(ALU, 'pData', 8, [4, 1, 1, 2], 'P from R: D I Z C, –, 1, V N', [`${rp}.Y0`, bit0(), bit1(), `${rp}.Y2`])
+  wire(mux(ALU, 'pLoad', 8, 'P: next flags, or R (PLP, RTI)', [pNext, pData], c('LD_P')), `${p}.D`)
+
 
   // Every register loads R (the program counter's low byte may load TL instead).
   for (const d of rFrom) wire(R, d)

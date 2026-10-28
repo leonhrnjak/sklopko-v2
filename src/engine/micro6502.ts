@@ -18,8 +18,8 @@ import { parseSignals, type Signal } from './signals'
 export const MICRO_SIGNALS_1 = `FETCH          ; the opcode is read (SYNC): the instruction register loads it
 WRITE          ; this cycle writes (R/W is low)
 ASEL 3 = PC ADDR STACK ZEROPAGE VEC_LO VEC_HI VEC_IRQ_LO VEC_IRQ_HI   ; the address bus
-AIN 4 = A X Y SP PCL PCH TL ZERO DL TH   ; the ALU's A input
-BIN 3 = DATA TL ONE MINUS1 ZERO TH DL    ; the ALU's B input
+AIN 4 = A X Y SP PCL PCH TL ZERO DL TH P   ; the ALU's A input
+BIN 3 = DATA TL ONE MINUS1 ZERO TH DL FLAGB   ; the ALU's B input ($10: the break flag, for the copy of P that is pushed)
 INVB           ; B is inverted (SBC, CMP)
 CIN 2 = ZERO ONE FLAG ; the carry into the adder
 _ 1
@@ -56,8 +56,17 @@ SETI           ; the interrupt-disable flag is set
 _ 1
 `
 
-export const MICRO_SIGNALS = [MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3]
-export const MICRO_ROM_BITS = [16, 16, 16]
+export const MICRO_SIGNALS_4 = `SPSRC 2 = R INC DEC   ; SP loads the result, SP + 1 (a pull) or SP - 1 (a push)
+BIT            ; N and V from bits 7 and 6 of B, Z from the result
+LD_P           ; the flags load the result (PLP, RTI)
+CLRI           ; the interrupt-disable flag is cleared
+SETD           ; the decimal flag is set
+CLRD           ; ... and cleared
+CLV            ; the overflow flag is cleared
+`
+
+export const MICRO_SIGNALS = [MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3, MICRO_SIGNALS_4]
+export const MICRO_ROM_BITS = [16, 16, 16, 8]
 export const MICRO_ABITS = 12
 
 const layouts = MICRO_SIGNALS.map((t) => {
@@ -108,6 +117,7 @@ const READ_OPS: Record<string, Row> = {
   CMP: { AIN: 'A', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },
   CPX: { AIN: 'X', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },
   CPY: { AIN: 'Y', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },
+  BIT: { AIN: 'A', BIN: 'DATA', OP: 'AND', BIT: true },
 }
 
 /** Operations that write a register to memory: the ALU passes the register through (register + 0). */
@@ -127,6 +137,9 @@ const changeOps = (from: 'A' | 'DL'): Record<string, Row> => ({
   DEC: { AIN: from, BIN: 'MINUS1', NZ: true },
 })
 
+/** The cycle that reads a byte at PC into TL or TH (and moves PC on). */
+const fetchTo = (reg: 'LD_TL' | 'LD_TH'): Row => ({ ASEL: 'PC', INC_PC: true, AIN: 'ZERO', BIN: 'DATA', [reg]: true })
+
 /** Implied instructions: the cycle after the opcode reads the byte at PC again (and throws it away) while the work is done. */
 const IMPLIED: Record<string, Row> = {
   NOP: {},
@@ -140,10 +153,60 @@ const IMPLIED: Record<string, Row> = {
   TYA: { AIN: 'Y', BIN: 'ZERO', LD_A: true, NZ: true },
   CLC: { UPD_C: true, C_SRC: 'CLEAR' },
   SEC: { UPD_C: true, C_SRC: 'SET' },
+  TSX: { AIN: 'SP', BIN: 'ZERO', LD_X: true, NZ: true },
+  TXS: { AIN: 'X', BIN: 'ZERO', LD_SP: true }, // (SP loads the result: no flags change)
+  CLI: { CLRI: true },
+  SEI: { SETI: true },
+  CLD: { CLRD: true },
+  SED: { SETD: true },
+  CLV: { CLV: true },
 }
 
-/** The cycle that reads a byte at PC into TL or TH (and moves PC on). */
-const fetchTo = (reg: 'LD_TL' | 'LD_TH'): Row => ({ ASEL: 'PC', INC_PC: true, AIN: 'ZERO', BIN: 'DATA', [reg]: true })
+/** A push: the byte is written at SP, which goes down. */
+const push = (value: Row): Row => ({ ASEL: 'STACK', WRITE: true, LD_SP: true, SPSRC: 'DEC', ...value })
+/** A pull: SP goes up as a read of the stack is done, then the byte is read at the new SP. */
+const pullSp: Row = { ASEL: 'STACK', LD_SP: true, SPSRC: 'INC' }
+const FLAGS_PUSHED: Row = { AIN: 'P', BIN: 'FLAGB', OP: 'OR' } // P with the break flag set, as BRK and PHP push it
+const PC_FROM_TL: Row = { AIN: 'ZERO', BIN: 'DATA', LD_PCH: true, LD_PCL: true, PCL_FROM: 'TL' }
+
+/** The instructions that use the stack, and BRK: their cycles after the opcode. */
+const STACK_PROGRAMS: Record<string, Cycles> = {
+  PHA: [{ ASEL: 'PC' }, { ...push({ AIN: 'A', BIN: 'ZERO' }), END: true }],
+  PHP: [{ ASEL: 'PC' }, { ...push(FLAGS_PUSHED), END: true }],
+  PLA: [{ ASEL: 'PC' }, pullSp, { ASEL: 'STACK', AIN: 'ZERO', BIN: 'DATA', LD_A: true, NZ: true, END: true }],
+  PLP: [{ ASEL: 'PC' }, pullSp, { ASEL: 'STACK', AIN: 'ZERO', BIN: 'DATA', LD_P: true, END: true }],
+  // PC has moved past the first byte of the address, which is where the return address points (the last byte of the JSR).
+  JSR: [
+    fetchTo('LD_TL'),
+    { ASEL: 'STACK' },
+    push({ AIN: 'PCH', BIN: 'ZERO' }),
+    push({ AIN: 'PCL', BIN: 'ZERO' }),
+    { ASEL: 'PC', ...PC_FROM_TL, END: true },
+  ],
+  RTS: [
+    { ASEL: 'PC' },
+    pullSp,
+    { ...pullSp, AIN: 'ZERO', BIN: 'DATA', LD_TL: true },
+    { ASEL: 'STACK', ...PC_FROM_TL },
+    { ASEL: 'PC', INC_PC: true, END: true },
+  ],
+  RTI: [
+    { ASEL: 'PC' },
+    pullSp,
+    { ...pullSp, AIN: 'ZERO', BIN: 'DATA', LD_P: true },
+    { ...pullSp, AIN: 'ZERO', BIN: 'DATA', LD_TL: true },
+    { ASEL: 'STACK', ...PC_FROM_TL, END: true },
+  ],
+  BRK: [
+    { ASEL: 'PC', INC_PC: true },
+    push({ AIN: 'PCH', BIN: 'ZERO' }),
+    push({ AIN: 'PCL', BIN: 'ZERO' }),
+    push({ ...FLAGS_PUSHED, SETI: true }),
+    { ASEL: 'VEC_IRQ_LO', AIN: 'ZERO', BIN: 'DATA', LD_TL: true },
+    { ASEL: 'VEC_IRQ_HI', ...PC_FROM_TL, END: true },
+  ],
+}
+
 
 /** Where an operand is once its address is known, and the cycles that find it (after the opcode fetch). */
 interface Address {
@@ -225,6 +288,7 @@ function program(o: Opcode6502 | undefined): Cycles | null {
       { ASEL: 'ADDR', AIN: 'TL', BIN: 'ONE', LD_TL: true, LD_PCL: true, PCL_FROM: 'DATA' },
       { ASEL: 'ADDR', AIN: 'ZERO', BIN: 'DATA', LD_PCH: true, END: true },
     ]
+  if (m in STACK_PROGRAMS) return STACK_PROGRAMS[m]
   if (mode === 'imp') return m in IMPLIED ? [{ ASEL: 'PC', ...IMPLIED[m], END: true }] : null
   if (mode === 'acc') {
     const op = changeOps('A')[m]
