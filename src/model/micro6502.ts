@@ -93,6 +93,9 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const netNames = new Map<string, { name: string; bits: number }>()
   const wire = (from: string, to: string) => links.push({ from, to })
   const named = (pin: string, name: string, bits = 1) => netNames.set(pin, { name, bits })
+  // The pins between the CPU and the board: these nets are always sent by name, so the two meet only at labels that read like pins.
+  const pins = new Set<string>()
+  const pin = (from: string, name: string, bits = 1) => (named(from, name, bits), pins.add(from), from)
   const splitter = (col: number, key: string, bits: number, split: number[], label: string, from: string) => {
     const s = part(col, key, 'splitter', { params: { bits, split: split.join(',') }, label }, 20)
     wire(from, `${s}.A`)
@@ -107,7 +110,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     `${part(col, key, 'busconst', { params: { bits, value: value.toString(16).toUpperCase() }, ...(label ? { label } : {}) }, 20)}.Q`
   const bit = (col: number, key: string, value: 0 | 1) => `${part(col, key, 'const', { params: { value } }, 10)}.Q`
   const gate = (col: number, key: string, type: string, label: string, ins: string[]) => {
-    const g = part(col, key, type, { ...(type === 'not' || ins.length === 2 ? {} : { params: { inputs: ins.length } }), label }, 20)
+    const g = part(col, key, type, { ...(type === 'not' || type === 'buf' || ins.length === 2 ? {} : { params: { inputs: ins.length } }), label }, 20)
     ins.forEach((from, i) => wire(from, `${g}.${String.fromCharCode(65 + i)}`))
     return `${g}.Y`
   }
@@ -139,9 +142,8 @@ export function micro6502Builder(o: Micro6502Options = {}) {
 
   // ---- The sequencer: the clock, the step counter T, the instruction register IR and the microcode ROMs -----------------------
   noteIn(SEQ, 'SEQUENCER. It decides what the CPU does in every clock cycle. The clock ticks once per bus cycle. T counts the cycles of the instruction that is running (0 is the fetch of its opcode); IR holds the opcode. T, IR and a reset flag are the address of the microcode ROMs, which say what to do in this cycle. When an instruction is over, T goes back to 0 and the next opcode is fetched.', 'yellow')
-  const clk = part(SEQ, 'clk', 'clock', { params: { hz: o.hz ?? 4 }, label: 'Clock' })
-  const CLK = `${clk}.Q`
-  named(CLK, 'CLK')
+  const clk = part(MEM, 'clk', 'clock', { params: { hz: o.hz ?? 4 }, label: 'Clock' })
+  const CLK = pin(`${clk}.Q`, 'PHI2')
   // The CPU works on the falling edge of the clock, as the 6502 does on the fall of Φ2: the address and the data to write are on the bus
   // from the fall before, memory and devices take what is written at the rise in the middle of the cycle, and the CPU takes what is read
   // (a chip like the terminal answers after that rise) as the cycle ends.
@@ -151,20 +153,23 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const CPU_CLK = `${nclk}.Y`
   named(CPU_CLK, 'CPU_CLK')
   noteIn(SEQ, 'RESET. “Ready” is 0 at power-on and while the Reset button is held. That makes the microcode run its reset sequence (7 cycles: two dummy reads, three reads of the stack that count SP down, then the vector at $FFFC is read into PC). In its last cycle Ready becomes 1 and the program starts.', 'pink')
-  const reset = part(SEQ, 'reset', 'button', { label: 'Reset (hold it for a clock or two)' })
+  const reset = part(MEM, 'reset', 'button', { label: 'Reset (hold it for a clock or two)' })
+  pin(`${reset}.Q`, 'RES')
+  // The CPU takes RES in at one pin (a buffer), as it takes PHI2 at the inverter of its clock.
+  const RESIN = gate(SEQ, 'resIn', 'buf', 'RES pin: reset, from the board', [`${reset}.Q`])
   // Not ready: from power-on, and while the button is held, until the reset sequence has run its seven cycles.
   const ready = part(SEQ, 'ready', 'dff', { label: 'Ready: the reset sequence is over' })
-  const RST = gate(SEQ, 'rst', 'or', 'reset: button or sequence running', [`${reset}.Q`, `${ready}.NQ`])
+  const RST = gate(SEQ, 'rst', 'or', 'reset: button or sequence running', [RESIN, `${ready}.NQ`])
   named(RST, 'RST')
   wire(CPU_CLK, `${ready}.CLK`)
 
-  const nButton = gate(SEQ, 'nButton', 'not', 'the button is not held', [`${reset}.Q`])
+  const nButton = gate(SEQ, 'nButton', 'not', 'the button is not held', [RESIN])
 
   noteIn(SEQ, 'T counts 0, 1, 2… through the cycles of an instruction (at most 7). The END signal loads 0 into it: the instruction is over. IR loads the opcode when the microcode says FETCH (the SYNC LED).', 'yellow')
   const t = part(SEQ, 't', 'busctr', { params: { bits: 3 }, label: 'T: the cycle of the instruction' })
   wire(busconst(SEQ, 'zero3', 3, 0), `${t}.D`)
   wire(CPU_CLK, `${t}.CLK`)
-  wire(`${reset}.Q`, `${t}.R`)
+  wire(RESIN, `${t}.R`)
   show(SEQ, 'showT', 'T', `${t}.Q`, 3)
   const ir = part(SEQ, 'ir', 'busreg', { params: { bits: 8 }, label: 'IR: the opcode' })
   wire(CPU_CLK, `${ir}.CLK`)
@@ -317,7 +322,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const shr = merger(ALU, 'shr', 8, [7, 1], 'A shifted right', [`${as2}.Y1`, shiftIn])
   tag = ''
   const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [`${adder}.S`, ...logic, shl, shr, shl, shr], c('OP'))
-  named(result, R, 8)
+  pin(result, R, 8)
 
   // The flags: N and Z from the result, C from the adder, V from the signs of the operands and the result.
   const rs = splitter(ALU, 'rs', 8, [7, 1], 'R: its sign', result)
@@ -392,16 +397,21 @@ export function micro6502Builder(o: Micro6502Options = {}) {
 
   // ---- The address bus ---------------------------------------------------------------------------------------------------
   noteIn(ADDR, 'ADDRESS BUS. One multiplexer chooses the address of the cycle (ASEL): PC (fetching), TH:TL (an address being built), page 1 with SP (the stack), page 0 with TL (zero page), or one of the vectors at $FFFC–$FFFF.', 'pink')
+  noteIn(ADDR, 'THE CPU’S PINS, as on the real chip. Out: ADDRESS (A0–A15), R (the data it writes, D0–D7), RWB (low while it writes) and SYNC (high while it fetches an opcode). In: DI (the data it reads), PHI2 (the clock) and RES (reset). Between the CPU and the board they travel only as named nets: a Send label here, a Receive label on the board. Nothing else crosses.', 'pink')
   const pc = merger(ADDR, 'pc', 16, [8, 8], 'PC', [regs.PCL, regs.PCH])
   const addr = merger(ADDR, 'addrReg', 16, [8, 8], 'the address built in TL and TH', [regs.TL, regs.TH])
   const stack = merger(ADDR, 'stack', 16, [8, 8], 'stack: page 1 and SP', [regs.SP, busconst(ADDR, 'page1', 8, 1)])
   const zp = merger(ADDR, 'zp', 16, [8, 8], 'zero page: TL', [regs.TL, busconst(ADDR, 'page0', 8, 0)])
   const vec = [0xfffc, 0xfffd, 0xfffe, 0xffff].map((v) => busconst(ADDR, `vec${v}`, 16, v))
   const A = mux(ADDR, 'abus', 16, 'ADDRESS BUS', [pc, addr, stack, zp, ...vec], c('ASEL'))
-  named(A, 'ADDRESS', 16)
+  pin(A, 'ADDRESS', 16)
+  // The other pins of the CPU: R/W (low while it writes) and SYNC (high while it fetches an opcode).
+  const rwb = pin(gate(ADDR, 'rwb', 'not', 'RWB pin: low while writing', [c('WRITE')]), 'RWB')
+  const syncPin = pin(gate(ADDR, 'syncPin', 'buf', 'SYNC pin: high while fetching', [c('FETCH')]), 'SYNC')
 
   // ---- Memory: RAM and ROM, and the LED register or the terminal -----------------------------------------------------------------
   const basic = o.board === 'basic'
+  noteIn(MEM, 'THE BOARD is everything around a CPU: the clock and the Reset button, which feed its pins PHI2 and RES, and the memory and devices, which read its pins ADDRESS, R, RWB and SYNC and answer on DI. Swap the CPU for another and the board stays; the BASIC board is the same one the 6502 part runs on.', 'grey')
   noteIn(
     MEM,
     basic
@@ -420,7 +430,8 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   else wire(merger(MEM, 'romA', 12, [11, 1], 'A0–A11', [`${split}.Y0`, `${split}.Y1`]), `${rom}.A`)
   const nA15 = gate(MEM, 'nA15', 'not', 'A15 = 0', [A15])
   const nA14 = gate(MEM, 'nA14', 'not', 'A14 = 0', [A14])
-  const ramWe = gate(MEM, 'ramWe', 'and', 'write RAM', [c('WRITE'), nA15, nA14])
+  const writeOn = gate(MEM, 'writeOn', 'not', 'writing: RWB is low', [rwb])
+  const ramWe = gate(MEM, 'ramWe', 'and', 'write RAM', [writeOn, nA15, nA14])
   const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8, abits: basic ? 14 : 11 }, label: basic ? 'RAM $0000–$3FFF (16 KB)' : 'RAM $0000–$07FF' })
   wire(`${split}.Y0`, `${ram}.A`)
   wire(R, `${ram}.D`)
@@ -433,12 +444,12 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     const low = splitter(MEM, 'low', 16, [1, 1, 14], 'address: A0, A1, the rest', A)
     const term = part(MEM, 'terminal', 'acia6551', { params: BUS, label: 'Terminal (6551) $5000–$5003' })
     wire(CLK, `${term}.PHI2`)
-    wire(nButton, `${term}.RESB`)
+    wire(gate(MEM, 'nRes', 'not', 'RES is low while pressed', [`${reset}.Q`]), `${term}.RESB`)
     wire(A14, `${term}.CS0`)
     wire(A15, `${term}.CS1B`)
     wire(`${low}.Y0`, `${term}.RS0`)
     wire(`${low}.Y1`, `${term}.RS1`)
-    wire(gate(MEM, 'nWrite', 'not', 'read (R/W high)', [c('WRITE')]), `${term}.RWB`)
+    wire(rwb, `${term}.RWB`)
     wire(R, `${term}.DI`)
     const dsr = part(MEM, 'dsrSwitch', 'switch', { label: 'Ask the start-up questions (at Reset)' })
     wire(`${dsr}.Q`, `${term}.DSRB`)
@@ -446,19 +457,19 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     DI = mux(MEM, 'di', 8, 'what is read: RAM, ROM or terminal', [`${ram}.Q`, `${rom}.D`, `${term}.D`, `${rom}.D`], sel)
   } else {
     DI = mux(MEM, 'di', 8, 'what is read: RAM, or ROM if A15 = 1', [`${ram}.Q`, `${rom}.D`], A15)
-    const ledWe = gate(MEM, 'ledWe', 'and', 'write the LEDs', [c('WRITE'), nA15, A14])
+    const ledWe = gate(MEM, 'ledWe', 'and', 'write the LEDs', [writeOn, nA15, A14])
     const leds = reg(MEM, 'ledReg', 'LED register $4000', R, ledWe, CLK)
     const bar = part(MEM, 'bar', 'bar', { params: { bus: true, n: 8 }, label: 'LEDs' })
     wire(leds, `${bar}.I`)
   }
-  named(DI, 'DI', 8)
+  pin(DI, 'DI', 8)
   // `DI` is the ALU's B input and the instruction register's input.
   wire('DI', `${ir}.D`)
   wire(c('FETCH'), `${ir}.LD`)
   const sync = part(MEM, 'sync', 'led', { label: 'SYNC (the opcode is being read)' })
-  wire(c('FETCH'), `${sync}.A`)
+  wire(syncPin, `${sync}.A`)
   const writing = part(MEM, 'writing', 'led', { label: 'writing', params: { color: 'red' } })
-  wire(c('WRITE'), `${writing}.A`)
+  wire(writeOn, `${writing}.A`)
   show(MEM, 'showAddr', 'address', A, 16)
 
   // ---- The sequencer's decisions: when the instruction ends -------------------------------------------------------------
@@ -489,12 +500,13 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     const { col, ids } = sections.get(section)!
     sectionLeft.set(section, left)
     for (const { id, x } of ids) b.c.comps[id].x = x + left
-    left += (col + 1) * COLUMN + 120
+    left += (col + 1) * COLUMN + (section === ADDR ? 440 : 120) // the CPU and the board are far apart: only their pins join them
   }
   // The notes of a section stand in the band above its frame, side by side in the section's columns and stacked upwards.
   const stackTop = new Map<string, number>()
   const used = new Map<number, number>()
   let highest = -100
+  const noteIds = new Map<number, string[]>()
   for (const n of pendingNotes) {
     const columns = sections.get(n.section)!.col + 1
     const k = used.get(n.section) ?? 0
@@ -503,6 +515,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     const id = b.add('note', sectionLeft.get(n.section)! + (k % columns) * COLUMN, 0, { params: { text: n.text, cols: 44, color: n.color } })
     const y = Math.floor(((stackTop.get(key) ?? -110) - boundsRect(b.c.comps[id]).h) / 10) * 10
     b.c.comps[id].y = y
+    noteIds.set(n.section, [...(noteIds.get(n.section) ?? []), id])
     stackTop.set(key, y - 20)
     highest = Math.min(highest, y)
   }
@@ -512,30 +525,36 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   for (const l of links) byFrom.set(l.from, [...(byFrom.get(l.from) ?? []), l.to])
   // The names 'DI' and 'R' stand for pins that are not known yet while the parts are placed; they are the pins the muxes made.
   const named2 = new Map(netNames)
-  named2.set(DI, { name: 'DI', bits: 8 })
   const alias = new Map<string, string>([['DI', DI], [R, result]])
   for (const [from0, targets] of byFrom) {
     const from = alias.get(from0) ?? from0
     const net = named2.get(from)
-    const sent = net && targets.length >= 3 ? b.tap(from, net.name, 20, net.bits) : undefined
+    const sent = net && (targets.length >= 3 || pins.has(from)) ? b.tap(from, net.name, 20, net.bits) : undefined
     for (const to of targets) if (!(sent && net && b.tag(to, net.name, 20, net.bits))) b.wire(from, to)
   }
 
-  const frame = (section: number, title: string, color: string) => frameAround(b, title, sections.get(section)!.ids.map((i) => i.id), color)
+  const frameIds = new Map<number, string>()
+  const frame = (section: number, title: string, color: string) => frameIds.set(section, frameAround(b, title, sections.get(section)!.ids.map((i) => i.id), color))
   frame(SEQ, 'SEQUENCER: clock, cycle T, opcode IR', 'blue')
   frame(ROMS, 'MICROCODE: what each cycle switches on', 'blue')
   frame(CTL, 'CONTROL: the bits, and when it ends', 'blue')
   frame(REGS, 'REGISTERS', 'green')
   frame(ALU, 'ALU and FLAGS', 'yellow')
-  frame(ADDR, 'ADDRESS BUS: what goes on it', 'pink')
+  frame(ADDR, 'ADDRESS BUS and the CPU’s pins', 'pink')
   frame(MEM, o.board === 'basic' ? 'MEMORY and the TERMINAL' : 'MEMORY and the LEDs', 'green')
+  // The CPU is one thing and the board another: a grey frame round each, with its notes.
+  const around = (title: string, sectionsOf: number[]) =>
+    frameAround(b, title, sectionsOf.flatMap((x) => [frameIds.get(x)!, ...(noteIds.get(x) ?? [])]), 'grey', 50)
+  const cpuFrame = around('THE 6502 CPU: the processor', [SEQ, ROMS, CTL, REGS, ALU, ADDR])
+  const boardFrame = around('THE BOARD: clock, reset, memory', [MEM])
+  highest = Math.min(boundsRect(b.c.comps[cpuFrame]).y, boundsRect(b.c.comps[boardFrame]).y)
   const intro = note(
     b,
     0,
     0,
     o.board === 'basic'
-      ? 'The BASIC computer with a 6502 built from registers, counters, multiplexers, an adder and a microcode ROM, instead of the 6502 part: Ben Eater’s memory map, Microsoft BASIC in the ROM and a serial terminal at $5000. It resets itself when it starts and then says OK; click the terminal’s screen and type. This CPU is very slow (the clock is as fast as the page can go, a few thousand cycles a second): give BASIC a minute to start, and expect a short program to take a while. Hold the Reset button for a clock to start over. Each part below is explained by the notes next to it.'
-      : 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over. To watch it work, press Pause and then Clock step: two steps are one cycle, one bus access. Each part below is explained by the notes next to it.',
+      ? 'The BASIC computer with a 6502 built from registers, counters, multiplexers, an adder and a microcode ROM, instead of the 6502 part: Ben Eater’s memory map, Microsoft BASIC in the ROM and a serial terminal at $5000. It resets itself and then says OK; click the terminal’s screen and type. It is very slow (a few thousand cycles a second): give BASIC a minute to start. The grey frame on the left is the CPU, the one on the right the board; each section has notes above it.'
+      : 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over. To watch it work, press Pause and then Clock step: two steps are one cycle, one bus access. The grey frame on the left is the CPU, the one on the right is the board it runs on; each section has notes above it.',
     48,
   )
   b.c.comps[intro].y = Math.floor((highest - 40 - boundsRect(b.c.comps[intro]).h) / 10) * 10

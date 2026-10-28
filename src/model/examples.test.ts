@@ -47,7 +47,9 @@ describe('notes and frames in the examples', () => {
         for (let j = i + 1; j < frames.length; j++) {
           const b = boundsRect(frames[j])
           const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-          expect(overlap, `${e.id}: "${frames[i].params.title}" overlaps "${frames[j].params.title}"`).toBe(false)
+          // (A frame may hold another whole: a frame round a group of frames.)
+          const holds = (o: typeof a, p: typeof a) => p.x >= o.x && p.y >= o.y && p.x + p.w <= o.x + o.w && p.y + p.h <= o.y + o.h
+          expect(overlap && !holds(a, b) && !holds(b, a), `${e.id}: "${frames[i].params.title}" overlaps "${frames[j].params.title}"`).toBe(false)
         }
       }
     }
