@@ -88,6 +88,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('6502', '65c02-timer', '65C02 + timer: an interrupt wakes it from WAI'),
   e('BASIC computer', '6502-basic', 'BASIC computer: a 6502 that runs Microsoft BASIC'),
   e('BASIC computer', '6502-basic-lcd', 'BASIC computer + VIA + LCD: POKE text onto a display'),
+  e('BASIC computer', '6502-parts-basic', 'BASIC on a 6502 built from parts (very slow)'),
   e('BASIC computer', '6502-echo', '6502 + terminal: echo (polling the status register)'),
   e('BASIC computer', '6502-echo-irq', '6502 + terminal: echo by interrupt'),
   e('Custom ICs', 'ic-adder', 'A 4-bit adder made of ICs inside ICs'),
