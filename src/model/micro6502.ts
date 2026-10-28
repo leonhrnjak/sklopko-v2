@@ -157,6 +157,21 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   pin(`${reset}.Q`, 'RES')
   // The CPU takes RES in at one pin (a buffer), as it takes PHI2 at the inverter of its clock.
   const RESIN = gate(SEQ, 'resIn', 'buf', 'RES pin: reset, from the board', [`${reset}.Q`])
+  // The interrupt pins are low-active, as on the chip. On the LED board two buttons pull them low; on the BASIC board IRQ is the
+  // terminal's line and NMI is not used.
+  let irqPinNet: string
+  let nmiPinNet: string
+  let irqLine: string | undefined
+  if (o.board === 'basic') {
+    irqLine = part(MEM, 'irqLine', 'buf', { label: 'IRQB: the terminal’s line' }, 20)
+    irqPinNet = pin(`${irqLine}.Y`, 'IRQB')
+    nmiPinNet = pin(bit(MEM, 'nmiHigh', 1), 'NMIB')
+  } else {
+    const irqButton = part(MEM, 'irqButton', 'button', { label: 'IRQ button (hold: IRQB low)' })
+    const nmiButton = part(MEM, 'nmiButton', 'button', { label: 'NMI button (press: NMIB low)' })
+    irqPinNet = pin(gate(MEM, 'irqLow', 'not', 'IRQB: low while IRQ is held', [`${irqButton}.Q`]), 'IRQB')
+    nmiPinNet = pin(gate(MEM, 'nmiLow', 'not', 'NMIB: low while NMI is held', [`${nmiButton}.Q`]), 'NMIB')
+  }
   // Not ready: from power-on, and while the button is held, until the reset sequence has run its seven cycles.
   const ready = part(SEQ, 'ready', 'dff', { label: 'Ready: the reset sequence is over' })
   const RST = gate(SEQ, 'rst', 'or', 'reset: button or sequence running', [RESIN, `${ready}.NQ`])
@@ -266,7 +281,6 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   wire(CPU_CLK, `${pch}.CLK`)
   wire(c('LD_PCL'), `${pcl}.LD`)
   wire(c('LD_PCH'), `${pch}.LD`)
-  wire(c('INC_PC'), `${pcl}.EN`)
   wire(`${pcl}.CO`, `${pch}.EN`)
   show(REGS, 'showPC', 'PCL', `${pcl}.Q`)
   show(REGS, 'showPCH', 'PCH', `${pch}.Q`)
@@ -294,7 +308,11 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const binSplit = splitter(ALU, 'binSplit', 3, [1, 2], 'BIN: bit 0, bits 1–2', c('BIN'))
   const bin0 = gate(ALU, 'bin0', 'or', 'BIN bit 0, or a backward page fix', [`${binSplit}.Y0`, gate(ALU, 'fixNeg', 'and', 'PAGEFIX and TL7', [c('PAGEFIX'), TL7])])
   const binSel = merger(ALU, 'binSel', 3, [1, 2], 'BIN', [bin0, `${binSplit}.Y1`])
-  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', ['DI', regs.TL, one8, minus1, zero8, regs.TH, regs.DL, busconst(ALU, 'flagB', 8, 0x10, '$10')], binSel)
+  // The B flag that PHP and BRK push is 1; an interrupt pushes it as 0 (INTR picks which).
+  const flagB = part(ALU, 'flagB', 'busmux', { params: { bits: 8, n: 2 }, label: 'the B flag: 1, but 0 for an interrupt' }, 20)
+  wire(busconst(ALU, 'flagB1', 8, 0x10, '$10'), `${flagB}.I0`)
+  wire(zero8, `${flagB}.I1`)
+  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', ['DI', regs.TL, one8, minus1, zero8, regs.TH, regs.DL, `${flagB}.Y`], binSel)
   const nb = part(ALU, 'nb', 'busgate', { params: { bits: 8, op: 'not' }, label: 'B inverted' }, 20)
   wire(bIn, `${nb}.A`)
   const bx = mux(ALU, 'bx', 8, 'B, or its opposite (SBC, CMP)', [bIn, `${nb}.Y`], c('INVB'))
@@ -402,8 +420,15 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const addr = merger(ADDR, 'addrReg', 16, [8, 8], 'the address built in TL and TH', [regs.TL, regs.TH])
   const stack = merger(ADDR, 'stack', 16, [8, 8], 'stack: page 1 and SP', [regs.SP, busconst(ADDR, 'page1', 8, 1)])
   const zp = merger(ADDR, 'zp', 16, [8, 8], 'zero page: TL', [regs.TL, busconst(ADDR, 'page0', 8, 0)])
-  const vec = [0xfffc, 0xfffd, 0xfffe, 0xffff].map((v) => busconst(ADDR, `vec${v}`, 16, v))
-  const A = mux(ADDR, 'abus', 16, 'ADDRESS BUS', [pc, addr, stack, zp, ...vec], c('ASEL'))
+  // The vectors of reset and the interrupts: $FFFC, $FFFD, and $FFFE, $FFFF or, for an NMI, $FFFA, $FFFB.
+  const vecReset = [0xfffc, 0xfffd].map((v) => busconst(ADDR, `vec${v}`, 16, v))
+  const vecInt = [0, 1].map((i) => {
+    const m = part(ADDR, `vecInt${i}`, 'busmux', { params: { bits: 16, n: 2 }, label: i ? 'vector high: $FFFF, or NMI’s $FFFB' : 'vector low: $FFFE, or NMI’s $FFFA' }, 20)
+    wire(busconst(ADDR, `vecIrq${i}`, 16, 0xfffe + i), `${m}.I0`)
+    wire(busconst(ADDR, `vecNmi${i}`, 16, 0xfffa + i), `${m}.I1`)
+    return m
+  })
+  const A = mux(ADDR, 'abus', 16, 'ADDRESS BUS', [pc, addr, stack, zp, ...vecReset, ...vecInt.map((m) => `${m}.Y`)], c('ASEL'))
   pin(A, 'ADDRESS', 16)
   // The other pins of the CPU: R/W (low while it writes) and SYNC (high while it fetches an opcode).
   const rwb = pin(gate(ADDR, 'rwb', 'not', 'RWB pin: low while writing', [c('WRITE')]), 'RWB')
@@ -463,8 +488,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(leds, `${bar}.I`)
   }
   pin(DI, 'DI', 8)
-  // `DI` is the ALU's B input and the instruction register's input.
-  wire('DI', `${ir}.D`)
+  // `DI` is the ALU's B input and (unless an interrupt is taken) the instruction register's input.
   wire(c('FETCH'), `${ir}.LD`)
   const sync = part(MEM, 'sync', 'led', { label: 'SYNC (the opcode is being read)' })
   wire(syncPin, `${sync}.A`)
@@ -492,6 +516,49 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   named(end, 'END_NOW')
   wire(end, `${t}.LD`)
   wire(gate(CTL, 'readyNext', 'and', 'ready, or the sequence ends; not held', [gate(CTL, 'endsReset', 'or', 'ready, or the reset ends', [`${ready}.Q`, c('END_RESET')]), nButton]), `${ready}.D`)
+
+  // ---- Interrupts ---------------------------------------------------------------------------------------------------------------
+  noteIn(CTL, 'INTERRUPTS. IRQB and NMIB are pins, low when asking. The CPU looks at them once per cycle (the flip-flops IRQ and NMI keep what the last cycle saw). NMI is an edge: it is remembered (NMI waiting) until it is taken. At the fetch of the next instruction, TAKE says whether an interrupt goes first: NMI always, IRQ only while the flag I is 0. If so, the opcode that was read is thrown away: IR is loaded with 0, which is BRK, and PC is not moved on. BRK’s own microcode then pushes PC and the flags (with B = 0) and reads the vector: $FFFE for IRQ, $FFFA for NMI. INTR remembers it is an interrupt until the instruction ends.', 'yellow')
+  const flop = (key: string, label: string) => {
+    const f = part(CTL, key, 'dff', { label }, 20)
+    wire(CPU_CLK, `${f}.CLK`)
+    return f
+  }
+  const pick = (key: string, label: string, hold: string, fresh: string, when: string) => {
+    const m = part(CTL, key, 'mux', { params: { n: 2 }, label }, 20)
+    wire(hold, `${m}.I0`)
+    wire(fresh, `${m}.I1`)
+    wire(when, `${m}.S0`)
+    return `${m}.Y`
+  }
+  const irqIn = gate(CTL, 'irqIn', 'not', 'IRQ: the pin is low', [irqPinNet])
+  const nmiIn = gate(CTL, 'nmiIn', 'not', 'NMI: the pin is low', [nmiPinNet])
+  const irqSeen = flop('irqSeen', 'IRQ, as the last cycle saw it')
+  wire(irqIn, `${irqSeen}.D`)
+  const nmiSeen = flop('nmiSeen', 'NMI, as the last cycle saw it')
+  wire(nmiIn, `${nmiSeen}.D`)
+  const nmiEdge = gate(CTL, 'nmiEdge', 'and', 'NMI has just gone low', [nmiIn, `${nmiSeen}.NQ`])
+  const nmiWaiting = flop('nmiWaiting', 'NMI waiting to be taken')
+  wire(
+    gate(CTL, 'nmiWaitNext', 'and', 'waiting: new, or kept until the fetch', [
+      gate(CTL, 'nmiWaitOr', 'or', 'new, or kept', [nmiEdge, gate(CTL, 'nmiKept', 'and', 'kept until a fetch', [`${nmiWaiting}.Q`, gate(CTL, 'notFetch', 'not', 'not a fetch', [c('FETCH')])])]),
+      gate(CTL, 'notRst', 'not', 'not in reset', [RST]),
+    ]),
+    `${nmiWaiting}.D`,
+  )
+  const irqTake = gate(CTL, 'irqTake', 'and', 'IRQ, and I is 0', [`${irqSeen}.Q`, gate(CTL, 'notI', 'not', 'I is 0', [FI])])
+  const take = gate(CTL, 'take', 'or', 'TAKE: NMI, or IRQ with I = 0', [`${nmiWaiting}.Q`, irqTake])
+  const intr = flop('intr', 'INTR: this one is an interrupt')
+  const intrNext = pick('intrNext', 'INTR: TAKE at a fetch, else kept', `${intr}.Q`, take, c('FETCH'))
+  wire(intrNext, `${intr}.D`)
+  const nmiVec = flop('nmiVec', 'the vector is NMI’s')
+  wire(pick('nmiVecNext', 'the vector: NMI waiting at a fetch', `${nmiVec}.Q`, `${nmiWaiting}.Q`, c('FETCH')), `${nmiVec}.D`)
+  // What an interrupt changes: PC is not moved on (at the fetch, and in BRK's dummy read), IR takes 0 (BRK), B is pushed as 0, NMI has its vector.
+  wire(gate(CTL, 'incPc', 'and', 'PC + 1, unless an interrupt', [c('INC_PC'), gate(CTL, 'notIntr', 'not', 'not an interrupt', [intrNext])]), `${pcl}.EN`)
+  wire(mux(CTL, 'irD', 8, 'IR: the opcode, or 0 (BRK)', ['DI', zero8], take), `${ir}.D`)
+  wire(`${intr}.Q`, `${flagB}.S0`)
+  vecInt.forEach((m) => wire(`${nmiVec}.Q`, `${m}.S0`))
+  if (irqLine) wire(`${keys.terminal}.IRQB`, `${irqLine}.A`)
 
   // ---- Put the sections side by side ------------------------------------------------------------------------------------------
   let left = 0
