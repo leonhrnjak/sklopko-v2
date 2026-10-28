@@ -33,7 +33,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await search.fill('latch') // a search looks through every category
   await expect(tabs.getByRole('button', { pressed: true })).toHaveText(/^All/)
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(4) // the two latches, the flip-flop made of latches, the debouncer
-  await expect(gallery(page)).toContainText('4 of 60')
+  await expect(gallery(page)).toContainText('4 of 61')
   await search.fill('gamepad computers')
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(3) // pong, snake and the raycaster
   await search.fill('zzzz')
