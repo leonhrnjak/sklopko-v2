@@ -31,8 +31,10 @@ R/W, SYNC and the data written must match, and after every cycle so must A, X, Y
   read: the carry of the index is kept in CRS, and TH is fixed with its own incrementer), `(zp,X)`, `(zp),Y`, JMP indirect (with the NMOS
   page bug), read-modify-write (ASL LSR ROL ROR INC DEC with their dummy write; the value waits in DL), accumulator shifts (a shifter in
   the ALU). 134 of the 151 opcodes.
-- [ ] **3. The rest of the documented set**: the stack (PHA PLA PHP PLP, JSR RTS, BRK RTI, TSX TXS), BIT, the flag instructions (CLI SEI
-  CLD SED CLV), decimal mode. Check every opcode against the SingleStepTests vectors the core already passes.
+- [x] **3. The rest of the documented set**: the stack (PHA PLA PHP PLP, JSR RTS, BRK RTI, TSX TXS: SP has its own +1 and −1 adders, and
+  P loads from the result), BIT (N and V from the operand), the flag instructions (CLI SEI CLD SED CLV). All 151 opcodes.
+- [ ] **3b. Decimal mode** (the D flag is kept, but ADC and SBC are binary): not needed by BASIC. And the SingleStepTests vectors the core
+  already passes, run against the circuit.
 - [ ] **4. Interrupts**: IRQ and NMI through the same sequence as BRK.
 - [ ] **5. A board**: the same pins as the `cpu6502` part (or an IC with them), so that it can replace the part on the BASIC computer, and
   see how fast it runs.

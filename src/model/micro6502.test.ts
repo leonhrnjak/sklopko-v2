@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
 import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
 import { MICRO_OPCODES } from '../engine/micro6502'
-import { BY_OPCODE_6502 } from '../engine/opcodes6502'
+import { BY_OPCODE_6502, OPCODES_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { flatten } from './buses'
@@ -37,6 +37,13 @@ function start(rom: number[]) {
     },
   }
   return m
+}
+
+/** A program in 6502 assembly, as the bytes of the ROM from $F000. */
+function assembled(source: string): number[] {
+  const r = assemble6502(source, 0x1000)
+  expect(r.errors).toEqual([])
+  return r.bytes
 }
 
 /** A ROM image of 4 KB with `bytes` at $F000 and the reset vector at $F000. */
@@ -74,7 +81,12 @@ describe('the 6502 built from parts', () => {
   it('is a circuit that builds and routes', () => {
     const c = micro6502()
     expect(Object.keys(c.comps).length).toBeGreaterThan(100)
-    expect(Object.values(c.comps).filter((k) => k.type === 'rom')).toHaveLength(4)
+    expect(Object.values(c.comps).filter((k) => k.type === 'rom')).toHaveLength(5)
+  })
+
+  it('has microcode for every one of the 151 documented opcodes', () => {
+    expect(MICRO_OPCODES).toHaveLength(151)
+    expect(MICRO_OPCODES.sort()).toEqual(OPCODES_6502.map((o) => o.opcode).sort())
   })
 
   it('goes through the reset sequence on the bus as the core does, and starts at the vector', () => {
@@ -107,8 +119,12 @@ function prng(seed: number) {
 /** How many bytes an opcode takes. */
 const length = (op: number) => BY_OPCODE_6502[op]!.bytes
 
-/** The opcodes random programs are made of: JMP (indirect) is tested by hand, since its target is wherever the pointer says. */
-const RANDOM_OPCODES = MICRO_OPCODES.filter((op) => op !== 0x6c)
+/**
+ * The opcodes random programs are made of. Left to tests by hand: the ones whose target is wherever the stack or a pointer says
+ * (JMP indirect, JSR, RTS, BRK, RTI), PLP (it can load the decimal flag) and SED, since decimal arithmetic is not built yet.
+ */
+const BY_HAND = [0x6c, 0x20, 0x60, 0x00, 0x40, 0x28, 0xf8]
+const RANDOM_OPCODES = MICRO_OPCODES.filter((op) => !BY_HAND.includes(op))
 
 /** A program of random instructions (all of them ones the part has): branches and jumps land on the start of an instruction. */
 function randomProgram(seed: number, count: number): number[] {
@@ -202,7 +218,7 @@ describe('the 6502 built from parts, against the core', () => {
   })
 
   it('does JMP (indirect) as the NMOS chip does: a pointer at the end of a page takes its high byte from the start of the same page', () => {
-    const r0 = assemble6502(
+    const bytes = assembled(
       `.org $F000
         LDA #$20
         STA $02FF      ; the pointer's low byte, at the end of a page
@@ -217,12 +233,72 @@ describe('the 6502 built from parts, against the core', () => {
         JMP ($02FF)
 .org $F120
         LDX #$99`,
-      0x1000,
     )
-    expect(r0.errors).toEqual([])
-    const rom = image(r0.bytes)
+    const rom = image(bytes)
     const r = lockstep(rom, 120, 'jmp indirect')
     expect(r.ops.has(0x6c)).toBe(true)
+  })
+
+  it('calls a subroutine and returns, nests calls, and keeps the stack as the core does', () => {
+    const bytes = assembled(
+      `.org $F000
+        LDX #$FF
+        TXS
+        LDA #$05
+        JSR double
+        JSR double
+        PHA
+        PHP
+        LDA #$00
+        PLP
+        PLA
+        TSX
+        JMP end
+double: ASL A
+        PHA
+        JSR bump
+        PLA
+        RTS
+bump:   INX
+        RTS
+end:    NOP
+        BIT $0000
+        LDA #$C0
+        STA $10
+        BIT $10
+        CLV
+        SEI
+        CLI
+        SED
+        CLD
+        JMP end`,
+    )
+    const r = lockstep(image(bytes), 400, 'stack')
+    expect([0x20, 0x60, 0x48, 0x08, 0x68, 0x28, 0xba, 0x24, 0xb8, 0x78, 0x58, 0xf8, 0xd8].filter((op) => !r.ops.has(op))).toEqual([])
+  })
+
+  it('takes a BRK through the interrupt vector and comes back with RTI, flags and all', () => {
+    const bytes = assembled(
+      `.org $F000
+        LDX #$FF
+        TXS
+        SEC
+        LDA #$80
+        BRK
+        .byte $EA      ; the byte after BRK is skipped
+        LDX #$11
+        JMP $F000
+handler: PLA           ; the flags that were pushed, with the break flag
+        ORA #$41       ; (a plain program that changes them before it returns)
+        PHA
+        LDY #$22
+        RTI
+.org $FFFC
+        .word $F000
+        .word handler`,
+    )
+    const r = lockstep(image(bytes), 300, 'brk')
+    expect(r.ops.has(0x00) && r.ops.has(0x40)).toBe(true)
   })
 
   it('runs the demo program: the LEDs count in threes up to 63, and the RAM keeps the count', () => {
