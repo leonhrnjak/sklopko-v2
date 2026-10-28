@@ -4260,3 +4260,114 @@ button.linklike:hover {
 .arch-sigs .alu { color: var(--alu); }
 .arch-sigs .addr { color: var(--addr); }
 .arch-sigs .mem { color: var(--mem); }
+
+.status .guide-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  background: var(--accent);
+  border-color: var(--accent-strong);
+  color: var(--accent-ink);
+}
+.status .guide-btn:hover {
+  background: var(--accent-strong);
+}
+.arch-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 18px;
+  align-items: start;
+}
+.arch-text {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.arch-text p {
+  margin: 0;
+}
+.arch-note {
+  border-left: 3px solid var(--panel-border);
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.arch-note b {
+  font-family: ui-monospace, Menlo, monospace;
+  font-weight: 500;
+  color: var(--text);
+}
+.arch-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+.arch-chip {
+  font: 400 12px ui-monospace, Menlo, monospace;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--panel);
+}
+.arch-chip:hover,
+.arch-chip:focus-visible {
+  border-color: var(--text);
+  outline: none;
+}
+.arch-snaps {
+  display: grid;
+  gap: 8px;
+}
+.arch .snap {
+  display: block;
+  width: 100%;
+  background: var(--canvas);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+.arch .snap.minimap {
+  height: 74px;
+}
+.arch .snap.zoom {
+  aspect-ratio: 16 / 9;
+}
+.arch .snap .fr {
+  fill: none;
+  stroke: var(--panel-border);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+}
+.arch .snap .wr {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.6;
+}
+.arch .snap .p {
+  fill: var(--panel);
+  stroke: var(--muted);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.arch .snap .p.dim {
+  opacity: 0.2;
+}
+.arch .snap .p.hit {
+  fill: currentColor;
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.arch .snap .me {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+@media (max-width: 820px) {
+  .arch-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -5,6 +5,7 @@ import { MICRO_OPCODES, microRows, type Row } from '../engine/micro6502'
 import { BY_OPCODE_6502 } from '../engine/opcodes6502'
 import { Micro6502Diagram } from './Micro6502Diagram'
 import { focusFrame } from './canvas/viewport'
+import { snapshotOf, type Snapshot } from './micro6502-snapshot'
 
 const TABS: [ReferenceParts6502Tab, string][] = [
   ['machine', 'The machine'],
@@ -62,15 +63,35 @@ function says(row: Row): string {
   return out.join(' ')
 }
 
+/** The circuit drawn small: the frames, the routed wires and a box for every part, with the section being read in colour and the rest faded. */
+function Snap({ snap, shown, cls, zoom, hit }: { snap: Snapshot; shown: number; cls: Cls; zoom: boolean; hit: string | null }) {
+  const sec = snap.sections[shown]!
+  const pad = 70
+  const view = zoom ? `${sec.x - pad} ${sec.y - pad} ${sec.w + 2 * pad} ${sec.h + 2 * pad}` : `${snap.rect.x} ${snap.rect.y} ${snap.rect.w} ${snap.rect.h}`
+  return (
+    <svg className={`snap ${zoom ? 'zoom' : 'minimap'}`} viewBox={view} style={{ color: `var(--${cls})` }} role="img" aria-label={zoom ? 'The block in the circuit, zoomed in' : 'Where the block is in the whole circuit'}>
+      {snap.sections.map((f, i) => (
+        <rect key={i} className="fr" x={f!.x} y={f!.y} width={f!.w} height={f!.h} />
+      ))}
+      <path className="wr" d={snap.wires} />
+      {snap.parts.map((p) => (
+        <rect key={p.id} className={`p${p.s === shown ? '' : ' dim'}${p.id === hit ? ' hit' : ''}`} x={p.x} y={p.y} width={p.w} height={p.h} />
+      ))}
+      {!zoom && <rect className="me" x={sec.x - 20} y={sec.y - 20} width={sec.w + 40} height={sec.h + 40} />}
+    </svg>
+  )
+}
+
 const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0')
 
 export function ReferenceParts6502() {
   const open = useReference((s) => s.open && s.language === 'parts6502')
   const tab = useReference((s) => s.tab as ReferenceParts6502Tab)
-  const hasCpu = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'frame' && String(c.params.title).startsWith('THE 6502 CPU')))
   const [shown, setShown] = useState(4)
   const [op, setOp] = useState(0xa9)
   const [cycle, setCycle] = useState(0)
+  const [hit, setHit] = useState<string | null>(null)
+  const circuit = useStore((s) => s.circuit)
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && closeReference()
@@ -78,8 +99,12 @@ export function ReferenceParts6502() {
     return () => window.removeEventListener('keydown', key)
   }, [open])
   const rows = useMemo(() => microRows(op), [op])
+  const snap = useMemo(() => (open ? snapshotOf(circuit) : null), [open, circuit])
   if (!open) return null
   const sec = SECTIONS[shown]
+  const hasCpu = snap !== null
+  const mine = snap?.sections[shown]
+  const names = [...new Set(mine?.parts.map((p) => p.label).filter(Boolean))]
   const row = rows[Math.min(cycle, rows.length - 1)]
   const lit = new Set(Object.keys(row).map(blockOf))
   lit.add(0)
@@ -116,12 +141,52 @@ export function ReferenceParts6502() {
           </div>
           {tab === 'machine' ? (
             <div className="arch-detail" aria-live="polite">
-              <span className={`arch-tag ${sec.cls}`}>{sec.kind}</span>
-              <h3>{sec.name}</h3>
-              <p>{sec.blurb}</p>
-              <button onClick={showInCircuit} disabled={!hasCpu} title={hasCpu ? 'Close this window and zoom the canvas to this section' : 'Open the example 6502 from parts first'}>
-                Show in the circuit
-              </button>
+              <div className="arch-text">
+                <span className={`arch-tag ${sec.cls}`}>{sec.kind}</span>
+                <h3>{sec.name}</h3>
+                <p>{sec.blurb}</p>
+                {mine?.notes.map((n, i) => {
+                  const m = /^\(([a-f])\) /.exec(n)
+                  return (
+                    <p key={i} className="arch-note">
+                      {m && <b>({m[1]}) </b>}
+                      {m ? n.slice(4) : n}
+                    </p>
+                  )
+                })}
+                {mine && (
+                  <>
+                    <span className="muted">{mine.parts.length} parts in this section. Point at a name to find it in the picture.</span>
+                    <div className="arch-parts">
+                      {names.map((l) => (
+                        <span
+                          key={l}
+                          className="arch-chip"
+                          tabIndex={0}
+                          onMouseEnter={() => setHit(mine.parts.find((p) => p.label === l)?.id ?? null)}
+                          onFocus={() => setHit(mine.parts.find((p) => p.label === l)?.id ?? null)}
+                          onMouseLeave={() => setHit(null)}
+                          onBlur={() => setHit(null)}
+                        >
+                          {l}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div>
+                  <button onClick={showInCircuit} disabled={!hasCpu} title={hasCpu ? 'Close this window and zoom the canvas to this section' : 'Open the example 6502 from parts first'}>
+                    Show in the circuit
+                  </button>
+                </div>
+              </div>
+              {snap && (
+                <div className="arch-snaps">
+                  <Snap snap={snap} shown={shown} cls={sec.cls} zoom={false} hit={null} />
+                  <Snap snap={snap} shown={shown} cls={sec.cls} zoom hit={hit} />
+                  <p className="muted">The circuit you have open, drawn from the same parts and wires.</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="arch-cycles">

@@ -501,10 +501,12 @@ test('the 6502 built from parts: it resets itself, and after seven cycles of res
 
 test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycle, and a block shown in the real circuit', async ({ page }) => {
   await page.goto('/6502-parts', { waitUntil: 'networkidle' })
-  await chooseTool(page, '6502 from parts')
+  await page.getByRole('button', { name: 'How this CPU works' }).click() // a button on the example itself, and also in the Tools menu
   const guide = page.getByRole('dialog', { name: 'The 6502 from parts' })
   await guide.getByRole('button', { name: 'Registers' }).click()
   await expect(guide.getByRole('heading', { name: 'Registers' })).toBeVisible()
+  await expect(guide).toContainText('parts in this section') // from the circuit that is open: its parts and the notes above the section
+  await expect(guide.locator('svg.snap.zoom')).toBeVisible()
   await guide.getByRole('tab', { name: 'One instruction' }).click()
   await expect(guide.getByText('Reads the opcode at PC into IR.')).toBeVisible()
   await guide.getByRole('tab', { name: 'The machine' }).click()
@@ -514,6 +516,11 @@ test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycl
   await guide.getByRole('button', { name: 'Show in the circuit' }).click()
   await expect(guide).toBeHidden()
   await expect.poll(view).not.toBe(before)
+})
+
+test('the guide button is only on the 6502 from parts', async ({ page }) => {
+  await page.goto('/6502', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('button', { name: 'How this CPU works' })).toHaveCount(0)
 })
 
 test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
