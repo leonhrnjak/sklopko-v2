@@ -356,7 +356,7 @@ function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
     return p.bus ? <line className="sym-line bus-slash" x1={x - 2.5} y1={p.y + 4} x2={x + 2.5} y2={p.y - 4} /> : null
   }
   return (
-    <>
+    <g className="comb">
       <rect className="sym-hit" x={0} y={0} width={l.w} height={l.h} />
       <line className="sym-line bus" x1={trunk} y1={top} x2={trunk} y2={bottom} />
       <line className="sym-line bus" x1={whole.x} y1={whole.y} x2={trunk} y2={whole.y} />
@@ -373,7 +373,7 @@ function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
           </g>
         )
       })}
-    </>
+    </g>
   )
 }
 
