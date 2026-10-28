@@ -10,7 +10,7 @@ import { openLibraryDialog } from '../app/libraryUi'
 import { openMap, useDoneCount } from '../app/path'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
-import { open6502Reference, openBasicReference, openReference } from '../app/reference'
+import { open6502Reference, openBasicReference, openParts6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setHistoryOn, useHistoryOn } from '../app/stepback'
@@ -339,6 +339,10 @@ export function Toolbar() {
         BASIC
         <OpensWindow />
       </MenuItem>
+      <MenuItem onClick={() => openParts6502Reference()} title="How the 6502 built from parts works: its blocks, where they are in the circuit, and every instruction cycle by cycle">
+        6502 from parts
+        <OpensWindow />
+      </MenuItem>
       <MenuLabel>Show</MenuLabel>
       <MenuItem
         checked={historyOn}
@@ -537,6 +541,17 @@ function DocName() {
   )
 }
 
+/** On the 6502 built from parts, a button that opens the guide to how it works (its diagram, its blocks and an instruction cycle by cycle). */
+function GuideButton() {
+  const here = useStore((s) => Object.values(s.circuit.comps).some((c) => c.type === 'frame' && String(c.params.title).startsWith('THE 6502 CPU')))
+  if (!here) return null
+  return (
+    <button className="badge guide-btn" onClick={() => openParts6502Reference()} title="A diagram of this CPU, what each block does and where it is in the circuit, and every instruction cycle by cycle">
+      How this CPU works
+    </button>
+  )
+}
+
 /** While the inside of an IC is open: where it is (Main › Full adder › Half adder), and the way back. */
 function Crumbs() {
   const circuit = useStore((s) => s.circuit)
@@ -574,6 +589,7 @@ export function StatusBar() {
       <div className="status">
         <DocName />
         <Crumbs />
+        <GuideButton />
       </div>
       {empty && (
         <div className="empty-hint">
