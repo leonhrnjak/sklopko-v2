@@ -182,7 +182,7 @@ memory map of Ben Eater's breadboard computer. It boots to `OK`; type `10 PRINT 
 step-back history, a sixth or so of a real 6502's speed in a browser. The BASIC is Microsoft's own 1978 source (MIT licence), translated
 and built by `npm run build:basic`; *Tools ▾ → BASIC* lists its statements and functions and has programs to type in; `/6502-basic-lcd` adds the VIA and an LCD, which BASIC writes to with `POKE`.
 **`/6502-parts` is a 6502 built from our own parts**: registers, counters, multiplexers, an adder and a microcode ROM, one bus cycle per
-clock, with 59 opcodes so far (see `docs/plan-micro6502.md`); a test runs it next to the 6502 part and compares every cycle.
+clock, with 134 of the 151 opcodes so far (see `docs/plan-micro6502.md`); a test runs it next to the 6502 part and compares every cycle.
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.
