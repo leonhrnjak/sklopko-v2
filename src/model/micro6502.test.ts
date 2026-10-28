@@ -202,24 +202,25 @@ describe('the 6502 built from parts, against the core', () => {
   })
 
   it('does JMP (indirect) as the NMOS chip does: a pointer at the end of a page takes its high byte from the start of the same page', () => {
-    const { bytes } = assemble6502(
+    const r0 = assemble6502(
       `.org $F000
-        LDA #$10
+        LDA #$20
         STA $02FF      ; the pointer's low byte, at the end of a page
         LDA #$F0
         STA $0200      ; its high byte, where the chip looks (the start of the same page)
         LDA #$F1
         STA $0300      ; and where a chip without the bug would look
         JMP ($02FF)
-.org $F010
+.org $F020
         LDX #$77
         INX
         JMP ($02FF)
-.org $F110
+.org $F120
         LDX #$99`,
       0x1000,
     )
-    const rom = image(bytes)
+    expect(r0.errors).toEqual([])
+    const rom = image(r0.bytes)
     const r = lockstep(rom, 120, 'jmp indirect')
     expect(r.ops.has(0x6c)).toBe(true)
   })
