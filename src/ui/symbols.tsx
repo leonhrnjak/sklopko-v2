@@ -367,7 +367,7 @@ function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
           <g key={p.name}>
             <polyline className={cls} fill="none" points={`${trunk},${p.y + 8} ${trunk + s * 8},${p.y} ${p.x},${p.y}`} />
             {slash(p)}
-            <Txt x={trunk + s * 11} y={p.y - 7} anchor={merge ? 'end' : 'start'} className="pin-label">
+            <Txt x={trunk + s * 9} y={p.y - 7} anchor={merge ? 'end' : 'start'} className="pin-label">
               {p.label ?? p.name}
             </Txt>
           </g>
