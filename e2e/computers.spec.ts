@@ -486,6 +486,19 @@ test('the 6502 board: the CPU shows its registers, steps one instruction at a ti
   await expect(doing).toContainText('ASL A')
 })
 
+test('the 6502 built from parts: it resets itself, and after seven cycles of reset and a few instructions the accumulator holds 3', async ({ page }) => {
+  await page.goto('/6502-parts', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Reset' }).click()
+  const show = (label: string) => page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('text.bus-readout')
+  await expect(show('A')).toHaveText('00')
+  // Reset takes 7 cycles, then LDA #0, CLC and ADC #3 take 2 cycles each: 13 cycles, two clock edges each.
+  for (let i = 0; i < 26; i++) await page.getByRole('button', { name: 'Clock step' }).click()
+  await expect(show('A')).toHaveText('03')
+  await expect(show('PCH')).toHaveText('F0')
+  await expect(show('PCL')).toHaveText('05') // the next opcode, STA, is at $F005
+})
+
 test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
   await page.goto('/6502-hello', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Console \\$4001: prints what is written')
