@@ -83,6 +83,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('6502', '6502-ball', '6502 + screen + gamepad: a bouncing ball'),
   e('6502', '6502-via', '6502 + VIA: a timer interrupts the CPU, which counts on LEDs'),
   e('6502', '6502-lcd', '6502 + VIA + LCD: hello, world (Ben Eater’s)'),
+  e('6502', '6502-parts', '6502 from parts: registers, an adder and a microcode ROM (first steps)'),
   e('6502', '65c02', '65C02: a sweeping LED with SMB, RMB, STZ and BRA'),
   e('6502', '65c02-timer', '65C02 + timer: an interrupt wakes it from WAI'),
   e('BASIC computer', '6502-basic', 'BASIC computer: a 6502 that runs Microsoft BASIC'),

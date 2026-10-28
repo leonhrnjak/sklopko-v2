@@ -19,7 +19,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   expect(arithmetic).toBeLessThan(15)
   await expect(gallery(page).locator('.gallery-card b').first()).not.toHaveText('Basic gates')
   await tabs.getByRole('button', { name: /^All/ }).click()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(60)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(61)
   await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(12)
   await tabs.getByRole('button', { name: /^Start here/ }).click()
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
