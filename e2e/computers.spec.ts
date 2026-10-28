@@ -499,6 +499,23 @@ test('the 6502 built from parts: it resets itself, and after seven cycles of res
   await expect(show('PCL')).toHaveText('05') // the next opcode, STA, is at $F005
 })
 
+test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycle, and a block shown in the real circuit', async ({ page }) => {
+  await page.goto('/6502-parts', { waitUntil: 'networkidle' })
+  await chooseTool(page, '6502 from parts')
+  const guide = page.getByRole('dialog', { name: 'The 6502 from parts' })
+  await guide.getByRole('button', { name: 'Registers' }).click()
+  await expect(guide.getByRole('heading', { name: 'Registers' })).toBeVisible()
+  await guide.getByRole('tab', { name: 'One instruction' }).click()
+  await expect(guide.getByText('Reads the opcode at PC into IR.')).toBeVisible()
+  await guide.getByRole('tab', { name: 'The machine' }).click()
+  await guide.getByRole('button', { name: 'ALU and flags' }).click()
+  const view = () => page.getByTestId('zoom-level').getAttribute('aria-label')
+  const before = await view()
+  await guide.getByRole('button', { name: 'Show in the circuit' }).click()
+  await expect(guide).toBeHidden()
+  await expect.poll(view).not.toBe(before)
+})
+
 test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
   await page.goto('/6502-hello', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Console \\$4001: prints what is written')

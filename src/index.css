@@ -4090,3 +4090,173 @@ button.linklike:hover {
   font-family: var(--mono, monospace);
   font-size: 0.92em;
 }
+
+/* ---- The 6502 from parts: block diagram and cycle stepper ---- */
+
+.arch {
+  --seq: #2f6fb5;
+  --regs: #2f8a5b;
+  --alu: #b9801a;
+  --addr: #b8477a;
+  --mem: #1f8a8a;
+  --seq-bg: #e3edf8;
+  --regs-bg: #e1f1e8;
+  --alu-bg: #f6ecd6;
+  --addr-bg: #f6e2ec;
+  --mem-bg: #dff0f0;
+  --wire: #7d8a86;
+}
+@media (prefers-color-scheme: dark) {
+  .arch {
+    --seq: #6fa6e6;
+    --regs: #5fc08a;
+    --alu: #e0aa4c;
+    --addr: #e07aa8;
+    --mem: #55c1c1;
+    --seq-bg: #1a2a3d;
+    --regs-bg: #173325;
+    --alu-bg: #38300f;
+    --addr-bg: #3a1f2d;
+    --mem-bg: #123232;
+    --wire: #6f817c;
+  }
+}
+.arch-diagram {
+  overflow-x: auto;
+  margin: 8px 0 12px;
+}
+.arch-diagram svg {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+}
+.arch .block {
+  cursor: pointer;
+}
+.arch .block rect.box {
+  stroke-width: 1.5;
+}
+.arch .block.sel rect.box {
+  stroke-width: 3.5;
+}
+.arch .block:not(.lit) .box {
+  opacity: 1;
+}
+.arch .block.lit rect.box {
+  stroke-width: 3.5;
+}
+.arch .block:focus-visible rect.box {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.arch .block .title {
+  font: 600 14px system-ui, sans-serif;
+}
+.arch .block .mini {
+  fill: var(--panel);
+  stroke-width: 1;
+}
+.arch .block text.m {
+  font: 500 12px ui-monospace, Menlo, monospace;
+  fill: var(--text);
+}
+.arch .block text.s {
+  font: 400 11.5px system-ui, sans-serif;
+  fill: var(--muted);
+}
+.arch .wl {
+  font: 400 11.5px system-ui, sans-serif;
+  fill: var(--muted);
+}
+.arch .w {
+  stroke: var(--wire);
+  stroke-width: 2;
+  fill: none;
+}
+.arch .w.bus {
+  stroke-width: 4;
+}
+.arch .w.ctl {
+  stroke-dasharray: 6 5;
+  stroke-width: 1.6;
+}
+.arch .head {
+  fill: var(--wire);
+}
+.arch .seq rect.box { fill: var(--seq-bg); stroke: var(--seq); }
+.arch .seq .title { fill: var(--seq); }
+.arch .seq .mini { stroke: var(--seq); }
+.arch .regs rect.box { fill: var(--regs-bg); stroke: var(--regs); }
+.arch .regs .title { fill: var(--regs); }
+.arch .regs .mini { stroke: var(--regs); }
+.arch .alu rect.box { fill: var(--alu-bg); stroke: var(--alu); }
+.arch .alu .title { fill: var(--alu); }
+.arch .alu .mini { stroke: var(--alu); }
+.arch .addr rect.box { fill: var(--addr-bg); stroke: var(--addr); }
+.arch .addr .title { fill: var(--addr); }
+.arch .addr .mini { stroke: var(--addr); }
+.arch .mem rect.box { fill: var(--mem-bg); stroke: var(--mem); }
+.arch .mem .title { fill: var(--mem); }
+.arch .mem .mini { stroke: var(--mem); }
+.arch-detail h3 {
+  margin: 6px 0;
+  font-size: 18px;
+}
+.arch-detail p {
+  max-width: 70ch;
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.arch-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.arch-tag.seq { background: var(--seq); }
+.arch-tag.regs { background: var(--regs); }
+.arch-tag.alu { background: var(--alu); }
+.arch-tag.addr { background: var(--addr); }
+.arch-tag.mem { background: var(--mem); }
+.arch-cycles {
+  display: grid;
+  gap: 8px;
+}
+.arch-cycle {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.arch-cycle[aria-pressed='true'] {
+  border-color: var(--text);
+  box-shadow: inset 3px 0 0 var(--text);
+}
+.arch-cycle .t {
+  font: 600 13px ui-monospace, Menlo, monospace;
+  color: var(--muted);
+}
+.arch-sigs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.arch-sigs code {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 11.5px;
+}
+.arch-sigs .seq { color: var(--seq); }
+.arch-sigs .regs { color: var(--regs); }
+.arch-sigs .alu { color: var(--alu); }
+.arch-sigs .addr { color: var(--addr); }
+.arch-sigs .mem { color: var(--mem); }
