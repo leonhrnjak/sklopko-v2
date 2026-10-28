@@ -499,6 +499,33 @@ test('the 6502 built from parts: it resets itself, and after seven cycles of res
   await expect(show('PCL')).toHaveText('05') // the next opcode, STA, is at $F005
 })
 
+test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycle, and a block shown in the real circuit', async ({ page }) => {
+  await page.goto('/6502-parts', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'How this CPU works' }).click() // a button on the example itself, and also in the Tools menu
+  const guide = page.getByRole('dialog', { name: 'The 6502 from parts' })
+  await guide.getByRole('button', { name: 'Registers' }).click()
+  await expect(guide.getByRole('heading', { name: 'Registers' })).toBeVisible()
+  await expect(guide).toContainText('parts in this section') // from the circuit that is open: its parts and the notes above the section
+  await expect(guide.locator('svg.snap.zoom')).toBeVisible()
+  // The picture stays in view while the part names under the text are scrolled to, so a part you point at can be seen.
+  await guide.locator('.arch-chip').last().scrollIntoViewIfNeeded()
+  await expect(guide.locator('svg.snap.zoom')).toBeInViewport({ ratio: 0.9 })
+  await guide.getByRole('tab', { name: 'One instruction' }).click()
+  await expect(guide.getByText('Reads the opcode at PC into IR.')).toBeVisible()
+  await guide.getByRole('tab', { name: 'The machine' }).click()
+  await guide.getByRole('button', { name: 'ALU and flags' }).click()
+  const view = () => page.getByTestId('zoom-level').getAttribute('aria-label')
+  const before = await view()
+  await guide.getByRole('button', { name: 'Show in the circuit' }).click()
+  await expect(guide).toBeHidden()
+  await expect.poll(view).not.toBe(before)
+})
+
+test('the guide button is only on the 6502 from parts', async ({ page }) => {
+  await page.goto('/6502', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('button', { name: 'How this CPU works' })).toHaveCount(0)
+})
+
 test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
   await page.goto('/6502-hello', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Console \\$4001: prints what is written')
@@ -697,6 +724,7 @@ test('the BASIC computer: it starts by itself, and a program typed on its termin
 
 test('the BASIC computer with the 6502 built from parts: it boots to OK and runs what is typed on its terminal', async ({ page }) => {
   await page.goto('/6502-parts-basic', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Hide' }).click() // the board is far to the right of the CPU, under the help panel
   await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
   const screen = page.getByLabel('Screen text')
   await expect(screen).toContainText('SKLOPKO BASIC', { timeout: 90000 })
