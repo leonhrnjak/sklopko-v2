@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { assemble6502 } from '../engine/asm6502'
 import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
 import { MICRO_OPCODES } from '../engine/micro6502'
+import { BY_OPCODE_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { flatten } from './buses'
@@ -102,21 +104,17 @@ function prng(seed: number) {
   }
 }
 
-/** How many bytes an implemented opcode takes: 1 (implied), 2 (immediate, zero page, branch) or 3 (absolute, JMP). */
-function length(op: number): number {
-  if (op === 0x4c) return 3
-  if ((op & 0x1f) === 0x10) return 2 // the branches
-  if ((op & 0x1f) === 0x0c || (op & 0x1f) === 0x0d || (op & 0x1f) === 0x0e) return 3
-  if ((op & 0x1f) === 0x09 || (op & 0x1f) === 0x00 || (op & 0x1f) === 0x02) return 2 // immediate
-  if ((op & 0x1f) === 0x04 || (op & 0x1f) === 0x05 || (op & 0x1f) === 0x06) return 2 // zero page
-  return 1
-}
+/** How many bytes an opcode takes. */
+const length = (op: number) => BY_OPCODE_6502[op]!.bytes
+
+/** The opcodes random programs are made of: JMP (indirect) is tested by hand, since its target is wherever the pointer says. */
+const RANDOM_OPCODES = MICRO_OPCODES.filter((op) => op !== 0x6c)
 
 /** A program of random instructions (all of them ones the part has): branches and jumps land on the start of an instruction. */
 function randomProgram(seed: number, count: number): number[] {
   const rnd = prng(seed)
   const pick = <T>(xs: T[]) => xs[Math.floor(rnd() * xs.length)]
-  const ops = Array.from({ length: count }, () => pick(MICRO_OPCODES))
+  const ops = Array.from({ length: count }, () => pick(RANDOM_OPCODES))
   const at: number[] = []
   let pos = 0
   for (const op of ops) {
@@ -130,7 +128,7 @@ function randomProgram(seed: number, count: number): number[] {
     if (op === 0x4c) {
       const to = 0xf000 + at[Math.floor(rnd() * count)]
       bytes.push(to & 255, to >> 8)
-    } else if ((op & 0x1f) === 0x10) {
+    } else if (BY_OPCODE_6502[op]!.mode === 'rel') {
       // Mostly a near target (so that the loops are short and the branches both taken and not), sometimes the very next instruction.
       const to = at[Math.max(0, Math.min(count - 1, i + Math.floor(rnd() * 9) - 4))]
       const off = to - (at[i] + 2)
@@ -153,6 +151,7 @@ function lockstep(rom: number[], cycles: number, label: string) {
   const ref = reference(rom)
   const ops = new Set<number>()
   let writes = 0
+  let crossed = 0
   for (let n = 0; n < cycles; n++) {
     const c = ref.cpu
     const here = `${label}, cycle ${n}`
@@ -165,21 +164,30 @@ function lockstep(rom: number[], cycles: number, label: string) {
     }
     ref.step()
     m.cycle()
-    expect([m.reg('A'), m.reg('X'), m.reg('Y'), m.reg('SP'), m.reg('P'), m.pc()], here).toEqual([c.a, c.x, c.y, c.sp, c.p, c.pc])
-    if (c.prog >= 0 && c.prog < 256) ops.add(c.op)
+    expect([m.reg('A'), m.reg('X'), m.reg('Y'), m.reg('SP')], here).toEqual([c.a, c.x, c.y, c.sp])
+    // The flags and the program counter are compared between instructions: inside one, the circuit may update them a cycle earlier or
+    // later than the core does (a read-modify-write sets its flags as it writes the new value, the core as it writes the old one).
+    if (c.sync) expect([m.reg('P'), m.pc()], here).toEqual([c.p, c.pc])
+    if (c.prog >= 0 && c.prog < 256) {
+      ops.add(c.op)
+      if (c.cross && ['abx', 'aby', 'izy'].includes(BY_OPCODE_6502[c.op]!.mode)) crossed++
+    }
   }
-  return { ops, writes }
+  return { ops, writes, crossed }
 }
 
 describe('the 6502 built from parts, against the core', () => {
   // Every kind of instruction, each one many times over, with random operands.
   it('runs random programs cycle for cycle, and covers every opcode it has', () => {
     const seen = new Set<number>()
-    for (let seed = 1; seed <= 20; seed++) {
+    let crossed = 0
+    for (let seed = 1; seed <= 30; seed++) {
       const r = lockstep(image(randomProgram(seed, 200)), 2500, `seed ${seed}`)
       r.ops.forEach((op) => seen.add(op))
+      crossed += r.crossed
     }
-    expect(MICRO_OPCODES.filter((op) => !seen.has(op)).map((op) => op.toString(16))).toEqual([])
+    expect(crossed).toBeGreaterThan(50) // indexed accesses that crossed a page, with their extra cycle
+    expect(RANDOM_OPCODES.filter((op) => !seen.has(op)).map((op) => op.toString(16))).toEqual([])
   }, 60_000)
 
   it('takes a branch across a page boundary in four cycles, forwards and backwards', () => {
@@ -191,6 +199,30 @@ describe('the 6502 built from parts, against the core', () => {
     put(0x106, 0xd0, 0xf4) // BNE $F0FC: -12 from $F108 is $F0FC (and the flag is still clear)
     const r = lockstep(image([]).map((v, i) => program[i] ?? v), 120, 'page crossing')
     expect(r.ops.has(0xd0)).toBe(true)
+  })
+
+  it('does JMP (indirect) as the NMOS chip does: a pointer at the end of a page takes its high byte from the start of the same page', () => {
+    const r0 = assemble6502(
+      `.org $F000
+        LDA #$20
+        STA $02FF      ; the pointer's low byte, at the end of a page
+        LDA #$F0
+        STA $0200      ; its high byte, where the chip looks (the start of the same page)
+        LDA #$F1
+        STA $0300      ; and where a chip without the bug would look
+        JMP ($02FF)
+.org $F020
+        LDX #$77
+        INX
+        JMP ($02FF)
+.org $F120
+        LDX #$99`,
+      0x1000,
+    )
+    expect(r0.errors).toEqual([])
+    const rom = image(r0.bytes)
+    const r = lockstep(rom, 120, 'jmp indirect')
+    expect(r.ops.has(0x6c)).toBe(true)
   })
 
   it('runs the demo program: the LEDs count in threes up to 63, and the RAM keeps the count', () => {

@@ -1,5 +1,5 @@
 import { assemble6502 } from '../engine/asm6502'
-import { MICRO_ABITS, MICRO_ROM_BITS, MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3, hexRom, microcodeWords } from '../engine/micro6502'
+import { MICRO_ABITS, MICRO_ROM_BITS, MICRO_SIGNALS, hexRom, microSignal, microcodeWords } from '../engine/micro6502'
 import { parseSignals, splitPlan } from '../engine/signals'
 import { frameAround, note } from './annotate'
 import { CircuitBuilder } from './builder'
@@ -10,8 +10,8 @@ import { boundsRect, type Circuit } from './circuit'
  * on its pins, one bus access in every clock, but inside it is the plain textbook machine (see `engine/micro6502.ts` for the
  * microcode and the datapath), not the chip's 3,510 transistors.
  *
- * It is a first step: a few dozen opcodes (loads, stores, ADC, SBC, the logic operations, compares, increments, transfers, the
- * flag instructions, the branches and JMP), and the reset sequence. The memory map is that of the first 6502 board:
+ * It has 134 of the 151 documented opcodes (all but the stack, the interrupt instructions, BIT and the flag instructions that
+ * are not CLC and SEC), and the reset sequence. The memory map is that of the first 6502 board:
  *
  *     $0000–$3FFF  RAM (2 KB, repeated)          $4000–$7FFF  the LED register (write only)
  *     $8000–$FFFF  ROM (4 KB, repeated)          the CPU starts at the address stored in $FFFC–$FFFD
@@ -144,7 +144,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const romAddr = merger(SEQ, 'romAddr', 12, [3, 8, 1], 'microcode address: T, opcode, reset', [`${t}.Q`, `${ir}.Q`, RST])
   const words = microcodeWords()
   const bitsOfRom = MICRO_ROM_BITS
-  const signals = [MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3]
+  const signals = MICRO_SIGNALS
   const roms = words.map((w, i) =>
     part(ROMS, `micro${i + 1}`, 'rom', {
       params: { ...BUS, abits: MICRO_ABITS, dbits: bitsOfRom[i], data: hexRom(w, bitsOfRom[i] / 4), signals: signals[i] },
@@ -159,29 +159,48 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     const s = splitter(CTL, `ctl${i + 1}`, bitsOfRom[i], plan.widths, `control bits ${i + 1}`, `${roms[i]}.D`)
     return (name: string) => {
       const pin = `${s}.Y${plan.output[name]}`
-      named(pin, name, name === 'ASEL' || name === 'AIN' || name === 'BIN' ? 3 : name === 'OP' || name === 'CIN' || name === 'C_SRC' ? 2 : 1)
+      named(pin, name, microSignal(name).signal.width)
       return pin
     }
   })
-  const c = (name: string) => {
-    const i = [MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3].findIndex((text) => parseSignals(text).layout.signals.some((s) => s.name === name))
-    return control[i](name)
-  }
+  const c = (name: string) => control[microSignal(name).rom](name)
+
+  // Constants, and the carry an index added to the low byte of an address (an index that crossed a page changes what the next cycles do).
+  const one8 = busconst(ALU, 'one8', 8, 1, '1')
+  const minus1 = busconst(ALU, 'minus1', 8, 0xff, '−1')
+  const zero8 = busconst(ALU, 'zero8', 8, 0, '0')
+  const crs = part(REGS, 'crs', 'dff', { label: 'CRS: an index carried a page' })
+  wire(CLK, `${crs}.CLK`)
+  const CRS = `${crs}.Q`
+  // While an index has carried, the cycle that reads at the address before the fix does not do its operation.
+  const opOk = gate(CTL, 'opOk', 'not', 'the operation is not skipped', [gate(CTL, 'skipOp', 'and', 'XOP, and an index carried', [c('XOP'), CRS])])
+  const unlessSkipped = (name: string) => gate(CTL, `ok${name}`, 'and', `${name}, unless skipped`, [c(name), opOk])
 
   // ---- The registers ----------------------------------------------------------------------------------------------------
   // Every register loads the ALU's result R; `RESULT` is wired once the ALU exists.
   const R = 'R'
   const regs: Record<string, string> = {}
-  const rLoad: [string, string, string][] = [['A', 'A: accumulator', 'LD_A'], ['X', 'X', 'LD_X'], ['Y', 'Y', 'LD_Y'], ['SP', 'SP: stack pointer', 'LD_SP'], ['TL', 'TL: temporary, low', 'LD_TL'], ['TH', 'TH: temporary, high', 'LD_TH']]
+  const rLoad: [string, string, string][] = [['A', 'A: accumulator', 'LD_A'], ['X', 'X', 'LD_X'], ['Y', 'Y', 'LD_Y'], ['SP', 'SP: stack pointer', 'LD_SP'], ['TL', 'TL: temporary, low', 'LD_TL'], ['DL', 'DL: the value being changed', 'LD_DL']]
   const rFrom: string[] = []
   for (const [key, label, ld] of rLoad) {
     const r = part(REGS, key, 'busreg', { params: { bits: 8 }, label }, 20)
-    wire(c(ld), `${r}.LD`)
+    wire(['LD_A', 'LD_X', 'LD_Y'].includes(ld) ? unlessSkipped(ld) : c(ld), `${r}.LD`)
     wire(CLK, `${r}.CLK`)
     regs[key] = `${r}.Q`
     rFrom.push(`${r}.D`)
     show(REGS, `show${key}`, key, `${r}.Q`)
   }
+  // TH loads the result, the data bus, or itself plus the carry of an index (the high byte of the address, fixed).
+  const th = part(REGS, 'TH', 'busreg', { params: { bits: 8 }, label: 'TH: temporary, high' }, 20)
+  wire(c('LD_TH'), `${th}.LD`)
+  wire(CLK, `${th}.CLK`)
+  regs.TH = `${th}.Q`
+  show(REGS, 'showTH', 'TH', regs.TH)
+  const thPlus = part(REGS, 'thPlus', 'busadd', { params: { bits: 8 }, label: 'TH + the carry of the index' }, 20)
+  wire(regs.TH, `${thPlus}.A`)
+  wire(zero8, `${thPlus}.B`)
+  wire(CRS, `${thPlus}.Ci`)
+  wire(mux(REGS, 'thD', 8, 'TH loads R, the data bus, or TH + carry', [R, 'DI', `${thPlus}.S`, `${thPlus}.S`], c('THSRC')), `${th}.D`)
   // The program counter: two counters, the low one carrying into the high one as it wraps.
   const pcl = part(REGS, 'PCL', 'busctr', { params: { bits: 8 }, label: 'PCL: program counter, low' }, 20)
   const pch = part(REGS, 'PCH', 'busctr', { params: { bits: 8 }, label: 'PCH: program counter, high' }, 20)
@@ -203,10 +222,10 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   for (const [name, pin] of [['FLAG_C', FC], ['FLAG_Z', FZ], ['FLAG_N', FN]] as const) named(pin, name)
 
   // ---- The ALU: A input, B input, adder and logic, result -------------------------------------------------------------
-  const one8 = busconst(ALU, 'one8', 8, 1, '1')
-  const minus1 = busconst(ALU, 'minus1', 8, 0xff, '−1')
-  const zero8 = busconst(ALU, 'zero8', 8, 0, '0')
-  const aIn = mux(ALU, 'aIn', 8, 'ALU input A', [regs.A, regs.X, regs.Y, regs.SP, regs.PCL, regs.PCH, regs.TL, zero8], c('AIN'))
+  const ainSplit = splitter(ALU, 'ainSplit', 4, [3, 1], 'AIN: which, and which group', c('AIN'))
+  const aLow = mux(ALU, 'aLow', 8, 'A input: A X Y SP PCL PCH TL 0', [regs.A, regs.X, regs.Y, regs.SP, regs.PCL, regs.PCH, regs.TL, zero8], `${ainSplit}.Y0`)
+  const aHigh = mux(ALU, 'aHigh', 8, 'A input, second group: DL TH', [regs.DL, regs.TH, zero8, zero8, zero8, zero8, zero8, zero8], `${ainSplit}.Y0`)
+  const aIn = mux(ALU, 'aIn', 8, 'ALU input A', [aLow, aHigh], `${ainSplit}.Y1`)
   // The B input's select is BIN, except that PAGEFIX makes ONE into MINUS1 when the offset in TL is negative.
   const tls = splitter(ALU, 'tls', 8, [7, 1], 'TL: the offset’s sign', regs.TL)
   const TL7 = `${tls}.Y1`
@@ -214,7 +233,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const binSplit = splitter(ALU, 'binSplit', 3, [1, 2], 'BIN: bit 0, bits 1–2', c('BIN'))
   const bin0 = gate(ALU, 'bin0', 'or', 'BIN bit 0, or a backward page fix', [`${binSplit}.Y0`, gate(ALU, 'fixNeg', 'and', 'PAGEFIX and TL7', [c('PAGEFIX'), TL7])])
   const binSel = merger(ALU, 'binSel', 3, [1, 2], 'BIN', [bin0, `${binSplit}.Y1`])
-  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', [`DI`, regs.TL, one8, minus1, zero8, zero8, zero8, zero8], binSel)
+  const bIn = mux(ALU, 'bIn', 8, 'ALU input B', ['DI', regs.TL, one8, minus1, zero8, regs.TH, regs.DL, zero8], binSel)
   const nb = part(ALU, 'nb', 'busgate', { params: { bits: 8, op: 'not' }, label: 'B inverted' }, 20)
   wire(bIn, `${nb}.A`)
   const bx = mux(ALU, 'bx', 8, 'B, or its opposite (SBC, CMP)', [bIn, `${nb}.Y`], c('INVB'))
@@ -231,7 +250,14 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(bx, `${g}.B`)
     return `${g}.Y`
   })
-  const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [`${adder}.S`, ...logic], c('OP'))
+  // The shifter works on the A input: left (ASL, ROL) or right (LSR, ROR), the rotates taking the carry flag in.
+  const as = splitter(ALU, 'as', 8, [7, 1], 'A input: bit 7', aIn)
+  const as2 = splitter(ALU, 'as2', 8, [1, 7], 'A input: bit 0', aIn)
+  const ops = splitter(ALU, 'ops', 3, [1, 1, 1], 'OP: right, rotate', c('OP'))
+  const shiftIn = gate(ALU, 'shiftIn', 'and', 'a rotate takes the carry in', [`${ops}.Y1`, FC])
+  const shl = merger(ALU, 'shl', 8, [1, 7], 'A shifted left', [shiftIn, `${as}.Y0`])
+  const shr = merger(ALU, 'shr', 8, [7, 1], 'A shifted right', [`${as2}.Y1`, shiftIn])
+  const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [`${adder}.S`, ...logic, shl, shr, shl, shr], c('OP'))
   named(result, R, 8)
 
   // The flags: N and Z from the result, C from the adder, V from the signs of the operands and the result.
@@ -240,19 +266,22 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const zeroCmp = part(ALU, 'zeroCmp', 'buscmp', { params: { bits: 8 }, label: 'R is zero' }, 20)
   wire(result, `${zeroCmp}.A`)
   wire(zero8, `${zeroCmp}.B`)
-  const as = splitter(ALU, 'as', 8, [7, 1], 'A input: its sign', aIn)
   const bs = splitter(ALU, 'bs', 8, [7, 1], 'B input: its sign', bx)
   const overflow = gate(ALU, 'overflow', 'and', 'overflow: operands agree, result not', [
     gate(ALU, 'ovA', 'xor', 'A sign ≠ result sign', [`${as}.Y1`, R7]),
     gate(ALU, 'ovB', 'xor', 'B sign ≠ result sign', [`${bs}.Y1`, R7]),
   ])
   const cSrc = splitter(ALU, 'cSrc', 2, [1, 1], 'C_SRC', c('C_SRC'))
-  const cNew = part(ALU, 'cNew', 'mux', { params: { n: 4 }, label: 'the carry: adder, 0, 1' }, 20)
+  const cNew = part(ALU, 'cNew', 'mux', { params: { n: 4 }, label: 'the carry: adder, 0, 1, shifted' }, 20)
   const cOne = bit(ALU, 'cOne', 1)
   wire(`${adder}.Co`, `${cNew}.I0`)
   wire(bit(ALU, 'cZero', 0), `${cNew}.I1`)
   wire(cOne, `${cNew}.I2`)
-  wire(cOne, `${cNew}.I3`)
+  const shifted = part(ALU, 'shifted', 'mux', { params: { n: 2 }, label: 'the bit a shift moves out' }, 20)
+  wire(`${as}.Y1`, `${shifted}.I0`)
+  wire(`${as2}.Y0`, `${shifted}.I1`)
+  wire(`${ops}.Y0`, `${shifted}.S0`)
+  wire(`${shifted}.Y`, `${cNew}.I3`)
   wire(`${cSrc}.Y0`, `${cNew}.S0`)
   wire(`${cSrc}.Y1`, `${cNew}.S1`)
   const choose = (key: string, label: string, old: string, fresh: string, when: string) => {
@@ -262,17 +291,19 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(when, `${m}.S0`)
     return `${m}.Y`
   }
-  const nNext = choose('nNext', 'N: hold, or the sign of R', FN, R7, c('NZ'))
-  const zNext = choose('zNext', 'Z: hold, or R = 0', FZ, `${zeroCmp}.EQ`, c('NZ'))
-  const cNext = choose('cNext', 'C: hold, or the new carry', FC, `${cNew}.Y`, c('UPD_C'))
-  const vNext = choose('vNext', 'V: hold, or the overflow', FV, overflow, c('V'))
+  const nNext = choose('nNext', 'N: hold, or the sign of R', FN, R7, unlessSkipped('NZ'))
+  const zNext = choose('zNext', 'Z: hold, or R = 0', FZ, `${zeroCmp}.EQ`, unlessSkipped('NZ'))
+  const cNext = choose('cNext', 'C: hold, or the new carry', FC, `${cNew}.Y`, unlessSkipped('UPD_C'))
+  const vNext = choose('vNext', 'V: hold, or the overflow', FV, overflow, unlessSkipped('V'))
   const iNext = gate(ALU, 'iNext', 'or', 'I: set by the reset', [FI, c('SETI')])
   const pNext = merger(ALU, 'pNext', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'P: C Z I D – 1 V N', [cNext, zNext, iNext, FD, bit(ALU, 'bFlag', 0), bit(ALU, 'uFlag', 1), vNext, nNext])
   wire(pNext, `${p}.D`)
 
   // Every register loads R (the program counter's low byte may load TL instead).
   for (const d of rFrom) wire(R, d)
-  const pclD = mux(REGS, 'pclD', 8, 'PCL loads R, or TL (JMP, vectors)', [R, regs.TL], c('PCL_TL'))
+  const pclD = mux(REGS, 'pclD', 8, 'PCL loads R, TL or the data bus', [R, regs.TL, 'DI', 'DI'], c('PCL_FROM'))
+  // The crs flag keeps the carry out of the adder when an index is added.
+  wire(choose('crsNext', 'CRS: hold, or the adder’s carry', CRS, `${adder}.Co`, c('LD_CRS')), `${crs}.D`)
   wire(pclD, `${pcl}.D`)
   wire(R, `${pch}.D`)
 
@@ -328,7 +359,9 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const endBranch = gate(CTL, 'endBranch', 'and', 'a branch that is not taken ends', [c('BRANCH'), notTaken])
   const sameSign = gate(CTL, 'sameSign', 'xnor', 'no page crossed: carry = sign of offset', [`${adder}.Co`, TL7])
   const endNoCross = gate(CTL, 'endNoCross', 'and', 'no page crossed: the branch ends', [c('NOCROSS'), sameSign])
-  const end = gate(CTL, 'end', 'or', 'the instruction ends', [c('END'), endBranch, endNoCross])
+  const noIndexCarry = gate(CTL, 'noIndexCarry', 'not', 'no index carried', [CRS])
+  const endNoIndexCarry = gate(CTL, 'endNoIndexCarry', 'and', 'an index did not carry: it ends', [c('XEND'), noIndexCarry])
+  const end = gate(CTL, 'end', 'or', 'the instruction ends', [c('END'), endBranch, endNoCross, endNoIndexCarry])
   named(end, 'END_NOW')
   wire(end, `${t}.LD`)
   const nButton = gate(CTL, 'nButton', 'not', 'the button is not held', [`${reset}.Q`])

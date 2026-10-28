@@ -27,8 +27,10 @@ R/W, SYNC and the data written must match, and after every cycle so must A, X, Y
 - [x] **1. Datapath, reset, and 59 opcodes**: LDA LDX LDY (immediate, zero page, absolute), STA STX STY (zero page, absolute), ADC SBC AND
   ORA EOR CMP CPX CPY (the same three modes), INX INY DEX DEY, TAX TXA TAY TYA, CLC SEC, NOP, the eight branches, JMP absolute.
   Example `/6502-parts`.
-- [ ] **2. The other addressing modes**: absolute and zero page indexed (with the extra cycle when a page is crossed, and the dummy
-  read), `(zp,X)`, `(zp),Y`, JMP indirect, read-modify-write (ASL LSR ROL ROR INC DEC with their dummy write), accumulator shifts.
+- [x] **2. The other addressing modes**: absolute and zero page indexed (with the extra cycle when a page is crossed, and the dummy
+  read: the carry of the index is kept in CRS, and TH is fixed with its own incrementer), `(zp,X)`, `(zp),Y`, JMP indirect (with the NMOS
+  page bug), read-modify-write (ASL LSR ROL ROR INC DEC with their dummy write; the value waits in DL), accumulator shifts (a shifter in
+  the ALU). 134 of the 151 opcodes.
 - [ ] **3. The rest of the documented set**: the stack (PHA PLA PHP PLP, JSR RTS, BRK RTI, TSX TXS), BIT, the flag instructions (CLI SEI
   CLD SED CLV), decimal mode. Check every opcode against the SingleStepTests vectors the core already passes.
 - [ ] **4. Interrupts**: IRQ and NMI through the same sequence as BRK.
