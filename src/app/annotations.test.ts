@@ -66,7 +66,7 @@ describe('notes and frames in saved circuits', () => {
       version: 1,
       comps: [
         { id: 'n', type: 'note', x: 0, y: 0, params: { text: 'x'.repeat(601), cols: 3, color: 'purple' } },
-        { id: 'f', type: 'frame', x: 0, y: 0, params: { title: 'y'.repeat(41), w: 5000, h: 10, color: 7 } },
+        { id: 'f', type: 'frame', x: 0, y: 0, params: { title: 'y'.repeat(41), w: 20000, h: 10, color: 7 } },
       ],
       wires: [],
     })
