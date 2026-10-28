@@ -514,7 +514,7 @@ test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycl
   await expect(guide.getByText('Reads the opcode at PC into IR.')).toBeVisible()
   await guide.getByRole('tab', { name: 'The machine' }).click()
   await guide.getByRole('button', { name: 'ALU and flags' }).click()
-  const view = () => page.getByTestId('zoom-level').getAttribute('aria-label')
+  const view = () => page.locator('svg.canvas g[transform*="scale("]').first().getAttribute('transform')
   const before = await view()
   await guide.getByRole('button', { name: 'Show in the circuit' }).click()
   await expect(guide).toBeHidden()

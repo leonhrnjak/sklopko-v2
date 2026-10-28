@@ -63,10 +63,12 @@ CLRI           ; the interrupt-disable flag is cleared
 SETD           ; the decimal flag is set
 CLRD           ; ... and cleared
 CLV            ; the overflow flag is cleared
+DEC            ; ADC or SBC: with the decimal flag set, the result is a decimal (BCD) one
+_ 7
 `
 
 export const MICRO_SIGNALS = [MICRO_SIGNALS_1, MICRO_SIGNALS_2, MICRO_SIGNALS_3, MICRO_SIGNALS_4]
-export const MICRO_ROM_BITS = [16, 16, 16, 8]
+export const MICRO_ROM_BITS = [16, 16, 16, 16]
 export const MICRO_ABITS = 12
 
 const layouts = MICRO_SIGNALS.map((t) => {
@@ -112,8 +114,8 @@ const READ_OPS: Record<string, Row> = {
   AND: { AIN: 'A', BIN: 'DATA', OP: 'AND', LD_A: true, NZ: true },
   ORA: { AIN: 'A', BIN: 'DATA', OP: 'OR', LD_A: true, NZ: true },
   EOR: { AIN: 'A', BIN: 'DATA', OP: 'EOR', LD_A: true, NZ: true },
-  ADC: { AIN: 'A', BIN: 'DATA', CIN: 'FLAG', LD_A: true, NZ: true, UPD_C: true, C_SRC: 'ADDER', V: true },
-  SBC: { AIN: 'A', BIN: 'DATA', INVB: true, CIN: 'FLAG', LD_A: true, NZ: true, UPD_C: true, C_SRC: 'ADDER', V: true },
+  ADC: { AIN: 'A', BIN: 'DATA', CIN: 'FLAG', LD_A: true, NZ: true, UPD_C: true, C_SRC: 'ADDER', V: true, DEC: true },
+  SBC: { AIN: 'A', BIN: 'DATA', INVB: true, CIN: 'FLAG', LD_A: true, NZ: true, UPD_C: true, C_SRC: 'ADDER', V: true, DEC: true },
   CMP: { AIN: 'A', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },
   CPX: { AIN: 'X', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },
   CPY: { AIN: 'Y', BIN: 'DATA', INVB: true, CIN: 'ONE', NZ: true, UPD_C: true, C_SRC: 'ADDER' },

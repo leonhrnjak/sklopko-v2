@@ -11,8 +11,9 @@ import { boundsRect, type Circuit } from './circuit'
  * on its pins, one bus access in every clock, but inside it is the plain textbook machine (see `engine/micro6502.ts` for the
  * microcode and the datapath), not the chip's 3,510 transistors.
  *
- * It has all 151 documented opcodes and the reset sequence. Decimal mode is not built: SED and CLD set and clear the flag, but ADC and SBC
- * stay binary. IRQ and NMI (the pins IRQB and NMIB) and BRK work. The memory map is that of the first 6502 board:
+ * It has all 151 documented opcodes, the reset sequence and decimal mode (ADC and SBC with the D flag set work on two decimal digits, with
+ * the flags of the NMOS chip). IRQ and NMI (the pins IRQB and NMIB) and BRK work.
+ * The memory map is that of the first 6502 board:
  *
  *     $0000–$3FFF  RAM (2 KB, repeated)          $4000–$7FFF  the LED register (write only)
  *     $8000–$FFFF  ROM (4 KB, repeated)          the CPU starts at the address stored in $FFFC–$FFFD
@@ -377,14 +378,87 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const shl = merger(ALU, 'shl', 8, [1, 7], 'A shifted left', [shiftIn, `${as}.Y0`])
   const shr = merger(ALU, 'shr', 8, [7, 1], 'A shifted right', [`${as2}.Y1`, shiftIn])
   tag = ''
-  const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [`${adder}.S`, ...logic, shl, shr, shl, shr], c('OP'))
+  const resultBin = mux(ALU, 'resultBin', 8, 'R in binary, before any decimal fix', [`${adder}.S`, ...logic, shl, shr, shl, shr], c('OP'))
+
+  const choose = (key: string, label: string, old: string, fresh: string, when: string) => {
+    const m = part(ALU, key, 'mux', { params: { n: 2 }, label }, 20)
+    wire(old, `${m}.I0`)
+    wire(fresh, `${m}.I1`)
+    wire(when, `${m}.S0`)
+    return `${m}.Y`
+  }
+
+  // ---- Decimal mode: ADC and SBC with the D flag set work on two decimal digits (BCD) -----------------------------------------
+  noteIn(ALU, 'DECIMAL MODE. With the D flag set, an ADC or SBC (the DEC signal) gives a decimal result: two digits, each 0–9. ADC adds the low digits, and when that is 10 or more adds 6 and carries 1 into the high digits; the high digits are added and fixed the same way (a carry out is C). SBC subtracts as usual and takes 6 off a digit that borrowed. As on the NMOS chip, Z (and every flag of SBC) is that of the binary result.', 'yellow', 'g')
+  tag = 'g'
+  const bcdAdd = (key: string, label: string, a: string, b: string, ci: string) => {
+    const m = part(ALU, key, 'busadd', { params: { bits: 4 }, label }, 20)
+    wire(a, `${m}.A`)
+    wire(b, `${m}.B`)
+    wire(ci, `${m}.Ci`)
+    return m
+  }
+  const six = (key: string, label: string, when: string) => {
+    const m = part(ALU, key, 'busmux', { params: { bits: 4, n: 2 }, label }, 20)
+    wire(busconst(ALU, `${key}0`, 4, 0, '0'), `${m}.I0`)
+    wire(busconst(ALU, `${key}6`, 4, 6, '6'), `${m}.I1`)
+    wire(when, `${m}.S0`)
+    return `${m}.Y`
+  }
+  /** Ten or more: bit 4 of a five-bit sum, or bit 3 with bit 2 or bit 1. */
+  const tenOrMore = (key: string, label: string, sum: string, carry: string) => {
+    const bits = splitter(ALU, `${key}Bits`, 4, [1, 1, 1, 1], 'the sum’s bits', sum)
+    return {
+      bits,
+      big: gate(ALU, key, 'or', label, [carry, gate(ALU, `${key}Hi`, 'and', 'bit 3 and (bit 2 or 1)', [`${bits}.Y3`, gate(ALU, `${key}Mid`, 'or', 'bit 2 or bit 1', [`${bits}.Y2`, `${bits}.Y1`])])]),
+    }
+  }
+  const aNib = splitter(ALU, 'aNib', 8, [4, 4], 'A input: its two digits', aIn)
+  const bNib = splitter(ALU, 'bNib', 8, [4, 4], 'B input: its two digits', bx)
+  const lowSum = bcdAdd('lowSum', 'low digits + carry in', `${aNib}.Y0`, `${bNib}.Y0`, cin)
+  const lowTen = tenOrMore('lowTen', 'low digits: 10 or more', `${lowSum}.S`, `${lowSum}.Co`)
+  const lowFix = bcdAdd('lowFix', 'low digit, fixed (+6)', `${lowSum}.S`, six('lowSix', 'add 6 to the low digit?', lowTen.big), bit(ALU, 'lowFixCi', 0))
+  const highSum = bcdAdd('highSum', 'high digits + the low carry', `${aNib}.Y1`, `${bNib}.Y1`, lowTen.big)
+  const highTen = tenOrMore('highTen', 'high digits: 10 or more', `${highSum}.S`, `${highSum}.Co`)
+  const highFix = bcdAdd('highFix', 'high digit, fixed (+6)', `${highSum}.S`, six('highSix', 'add 6 to the high digit?', highTen.big), bit(ALU, 'highFixCi', 0))
+  const adcDecimal = merger(ALU, 'adcDec', 8, [4, 4], 'decimal ADC result', [`${lowFix}.S`, `${highFix}.S`])
+  // N is bit 3 of the high digits' sum, V their signed overflow, C that the high digits came to 10 or more.
+  const nDec = `${highTen.bits}.Y3`
+  const bx7 = splitter(ALU, 'bx7', 8, [7, 1], 'B input: bit 7', bx)
+  const vDec = gate(ALU, 'vDec', 'and', 'V: signs agree, sum’s sign differs', [gate(ALU, 'vDecSame', 'xnor', 'A and B have the same sign', [`${as}.Y1`, `${bx7}.Y1`]), gate(ALU, 'vDecDiff', 'xor', 'the sum has another sign', [`${as}.Y1`, nDec])])
+  const cDec = highTen.big
+  // SBC: the binary difference, with 6 taken off the low digit when it borrowed (no carry into bit 4), and 6 off the high digit when
+  // the high digits had nothing to give (the 4-bit sum of A's high digit, B's and that carry does not carry out). Each digit alone.
+  const rn = splitter(ALU, 'rn', 8, [4, 4], 'R in binary: its two digits', resultBin)
+  const rbit4 = splitter(ALU, 'rbit4', 8, [4, 1, 3], 'R in binary: bit 4', resultBin)
+  const a4 = splitter(ALU, 'a4', 8, [4, 1, 3], 'A input: bit 4', aIn)
+  const b4 = splitter(ALU, 'b4', 8, [4, 1, 3], 'B input: bit 4', bx)
+  const carry4 = gate(ALU, 'carry4', 'xor', 'the carry into bit 4', [gate(ALU, 'carry4a', 'xor', 'bit 4 of A xor B', [`${a4}.Y1`, `${b4}.Y1`]), `${rbit4}.Y1`])
+  const lowBorrow = gate(ALU, 'lowBorrow', 'not', 'the low digit borrowed', [carry4])
+  const highSub = bcdAdd('highSub', 'high digits, A + B + that carry', `${aNib}.Y1`, `${bNib}.Y1`, carry4)
+  const highBorrow = gate(ALU, 'highBorrow', 'not', 'the high digits borrowed', [`${highSub}.Co`])
+  const minus6 = (key: string, label: string, when: string) => {
+    const m = part(ALU, key, 'busmux', { params: { bits: 4, n: 2 }, label }, 20)
+    wire(busconst(ALU, `${key}0`, 4, 0, '0'), `${m}.I0`)
+    wire(busconst(ALU, `${key}A`, 4, 10, '−6'), `${m}.I1`)
+    wire(when, `${m}.S0`)
+    return `${m}.Y`
+  }
+  const lowSub = bcdAdd('lowSub', 'low digit, less 6 if it borrowed', `${rn}.Y0`, minus6('lowSub6', 'minus 6 for the low digit?', lowBorrow), bit(ALU, 'lowSubCi', 0))
+  const highFixSub = bcdAdd('highFixSub', 'high digit, less 6 if it borrowed', `${rn}.Y1`, minus6('highSub6', 'minus 6 for the high digit?', highBorrow), bit(ALU, 'highSubCi', 0))
+  const sbcDecimal = merger(ALU, 'sbcDec', 8, [4, 4], 'decimal SBC result', [`${lowSub}.S`, `${highFixSub}.S`])
+  const decimal = gate(ALU, 'decimal', 'and', 'decimal: ADC or SBC, and D', [c('DEC'), FD])
+  const adcDec = gate(ALU, 'adcDecOn', 'and', 'decimal ADC', [decimal, gate(ALU, 'notInvb', 'not', 'B is not inverted', [c('INVB')])])
+  const decResult = mux(ALU, 'decResult', 8, 'the decimal result: ADC or SBC', [adcDecimal, sbcDecimal], c('INVB'))
+  tag = ''
+  const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [resultBin, decResult], decimal)
   pin(result, R, 8)
 
   // The flags: N and Z from the result, C from the adder, V from the signs of the operands and the result.
-  const rs = splitter(ALU, 'rs', 8, [7, 1], 'R: its sign', result)
+  const rs = splitter(ALU, 'rs', 8, [7, 1], 'R: its sign', resultBin)
   const R7 = `${rs}.Y1`
   const zeroCmp = part(ALU, 'zeroCmp', 'buscmp', { params: { bits: 8 }, label: 'R is zero' }, 20)
-  wire(result, `${zeroCmp}.A`)
+  wire(resultBin, `${zeroCmp}.A`)
   wire(zero8, `${zeroCmp}.B`)
   noteIn(ALU, "FLAGS. N is bit 7 of R, Z says R is 0, C is the adder's carry (or the shifted-out bit, or 0 or 1 for CLC and SEC), V is signed overflow. A flag changes only when its control bit is on (NZ, UPD_C, V): each one has a hold-or-new multiplexer. BIT takes N and V from bits 7 and 6 of the operand. I and D are set and cleared by their own instructions.", 'yellow', 'f')
   tag = 'f'
@@ -397,7 +471,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const cSrc = splitter(ALU, 'cSrc', 2, [1, 1], 'C_SRC', c('C_SRC'))
   const cNew = part(ALU, 'cNew', 'mux', { params: { n: 4 }, label: 'the carry: adder, 0, 1, shifted' }, 20)
   const cOne = bit(ALU, 'cOne', 1)
-  wire(`${adder}.Co`, `${cNew}.I0`)
+  wire(choose('cAdj', 'the carry: adder’s, or decimal ADC’s', `${adder}.Co`, cDec, adcDec), `${cNew}.I0`)
   wire(bit(ALU, 'cZero', 0), `${cNew}.I1`)
   wire(cOne, `${cNew}.I2`)
   tag = 'e'
@@ -409,20 +483,13 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   tag = ''
   wire(`${cSrc}.Y0`, `${cNew}.S0`)
   wire(`${cSrc}.Y1`, `${cNew}.S1`)
-  const choose = (key: string, label: string, old: string, fresh: string, when: string) => {
-    const m = part(ALU, key, 'mux', { params: { n: 2 }, label }, 20)
-    wire(old, `${m}.I0`)
-    wire(fresh, `${m}.I1`)
-    wire(when, `${m}.S0`)
-    return `${m}.Y`
-  }
   const bit0 = () => bit(ALU, `bit0_${++fixed}`, 0)
   const bit1 = () => bit(ALU, `bit1_${++fixed}`, 1)
   // BIT takes N and V from bits 7 and 6 of the operand, and Z from A AND the operand.
   const isBit = c('BIT')
   const nzOrBit = gate(ALU, 'nzOrBit', 'or', 'N and Z change', [unlessSkipped('NZ'), isBit])
-  const nVal = choose('nVal', 'N: the sign of R, or BIT’s bit 7', R7, `${bs}.Y2`, isBit)
-  const vVal = choose('vVal', 'V: the overflow, or BIT’s bit 6', overflow, `${bs}.Y1`, isBit)
+  const nVal = choose('nVal', 'N: the sign of R, or BIT’s bit 7', choose('nAdj', 'N: R’s sign, or decimal ADC’s', R7, nDec, adcDec), `${bs}.Y2`, isBit)
+  const vVal = choose('vVal', 'V: the overflow, or BIT’s bit 6', choose('vAdj', 'V: the overflow, or decimal ADC’s', overflow, vDec, adcDec), `${bs}.Y1`, isBit)
   const nNext = choose('nNext', 'N: hold, or the new N', FN, nVal, nzOrBit)
   const zNext = choose('zNext', 'Z: hold, or R = 0', FZ, `${zeroCmp}.EQ`, nzOrBit)
   const cNext = choose('cNext', 'C: hold, or the new carry', FC, `${cNew}.Y`, unlessSkipped('UPD_C'))

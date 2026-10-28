@@ -179,9 +179,9 @@ const length = (op: number) => BY_OPCODE_6502[op]!.bytes
 
 /**
  * The opcodes random programs are made of. Left to tests by hand: the ones whose target is wherever the stack or a pointer says
- * (JMP indirect, JSR, RTS, BRK, RTI), PLP (it can load the decimal flag) and SED, since decimal arithmetic is not built yet.
+ * (JMP indirect, JSR, RTS, BRK, RTI). SED and PLP are in: with the decimal flag set, ADC and SBC work on decimal digits.
  */
-const BY_HAND = [0x6c, 0x20, 0x60, 0x00, 0x40, 0x28, 0xf8]
+const BY_HAND = [0x6c, 0x20, 0x60, 0x00, 0x40]
 const RANDOM_OPCODES = MICRO_OPCODES.filter((op) => !BY_HAND.includes(op))
 
 /** A program of random instructions (all of them ones the part has): branches and jumps land on the start of an instruction. */
@@ -274,6 +274,23 @@ describe('the 6502 built from parts, against the core', () => {
     expect(crossed).toBeGreaterThan(50) // indexed accesses that crossed a page, with their extra cycle
     expect(RANDOM_OPCODES.filter((op) => !seen.has(op)).map((op) => op.toString(16))).toEqual([])
   }, 60_000)
+
+  // Decimal mode: ADC and SBC on many pairs of bytes, valid decimal digits and not, with and without a carry in. The registers at every
+  // opcode fetch (A, and the flags N V Z C) must be the core's.
+  it('adds and subtracts decimal digits as the core does, with the flags of the NMOS chip', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const rnd = prng(seed * 104729)
+      const digit = () => (rnd() < 0.6 ? Math.floor(rnd() * 10) : Math.floor(rnd() * 16))
+      const byte = () => (digit() << 4) | digit()
+      const bytes = [0xf8] // SED
+      for (let i = 0; i < 280; i++) {
+        const sub = rnd() < 0.5
+        bytes.push(0xa9, byte(), rnd() < 0.5 ? 0x18 : 0x38, sub ? 0xe9 : 0x69, byte(), 0x85, 0x20) // LDA #a; CLC or SEC; SBC or ADC #m; STA $20
+      }
+      bytes.push(0x4c, 0x00 + bytes.length & 255, 0xf0 + (bytes.length >> 8)) // done: stay here
+      lockstep(image(bytes), 280 * 9 + 40, `decimal seed ${seed}`)
+    }
+  }, 120_000)
 
   // Interrupts: pins held low for a few cycles at random, while random programs run; the vectors lead to short handlers.
   it('takes IRQ and NMI exactly as the core does, whatever the program is doing', () => {

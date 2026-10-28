@@ -91,7 +91,7 @@ export const annotation: ComponentDef[] = [
         multiline: false,
         hint: 'At most 40 characters.',
       },
-      { key: 'w', label: 'Width', kind: 'number', min: 60, max: 10000, step: 10, default: 300 },
+      { key: 'w', label: 'Width', kind: 'number', min: 60, max: 16000, step: 10, default: 300 },
       { key: 'h', label: 'Height', kind: 'number', min: 40, max: 10000, step: 10, default: 200 },
       { ...colorParam, default: 'blue' },
     ],
