@@ -40,7 +40,10 @@ R/W, SYNC and the data written must match, and after every cycle so must A, X, Y
   P loads from the result), BIT (N and V from the operand), the flag instructions (CLI SEI CLD SED CLV). All 151 opcodes.
 - [ ] **3b. Decimal mode** (the D flag is kept, but ADC and SBC are binary): not needed by BASIC. And the SingleStepTests vectors the core
   already passes, run against the circuit.
-- [ ] **4. Interrupts**: IRQ and NMI through the same sequence as BRK.
+- [x] **4. Interrupts**: the pins IRQB and NMIB (low when asking) at the CPU's boundary, with two buttons on the board. Each cycle the CPU keeps
+  what it saw; NMI is an edge and is remembered until taken; at the next fetch TAKE (NMI, or IRQ while I is 0) throws the opcode away,
+  loads IR with 0 (BRK), keeps PC where it is, pushes the flags with B = 0 and reads $FFFA (NMI) or $FFFE (IRQ). No new microcode: the
+  BRK rows do it. The reset sequence ignores the pins. Example `/6502-parts-irq`; a lockstep test fires both at random against the core.
 - [x] **5. The BASIC board**: `/6502-parts-basic` is the BASIC computer with this CPU in place of the part: Ben Eater's memory map, the
   6551 terminal, Microsoft BASIC. The CPU now works on the falling clock edge (as the 6502 does on the fall of Φ2), because the terminal
   answers a read after the rising edge. A test compares the board with the `cpu6502` board cycle for cycle through the start of BASIC.

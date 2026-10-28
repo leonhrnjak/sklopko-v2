@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
-import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
+import { cycle as stepCore, newCpu, reset, setIrq, setNmi } from '../engine/cpu6502'
 import { MICRO_OPCODES, microRows } from '../engine/micro6502'
 import { BY_OPCODE_6502, OPCODES_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'
@@ -128,7 +128,7 @@ describe('the 6502 built from parts', () => {
         expect(new Set(ends.map(side)).has('cpu') && new Set(ends.map(side)).has('board'), `${name}: a wire from ${ends[0].type} ${ends[0].label ?? ''} to ${ends[1].type} ${ends[1].label ?? ''}`).toBe(false)
       }
       // The pins between them are nets with names, each with a Send label on the CPU's side and a Receive label on the board's.
-      for (const pin of ['ADDRESS', 'R', 'DI', 'RWB', 'SYNC', 'PHI2', 'RES']) {
+      for (const pin of ['ADDRESS', 'R', 'DI', 'RWB', 'SYNC', 'PHI2', 'RES', 'IRQB', 'NMIB']) {
         const named = comps.filter((k) => (k.type === 'netsend' || k.type === 'netrecv') && k.params.name === pin)
         expect(named.some((k) => k.type === 'netsend'), `${name}: pin ${pin} is sent`).toBe(true)
         expect(named.some((k) => k.type === 'netrecv'), `${name}: pin ${pin} is received`).toBe(true)
@@ -220,15 +220,25 @@ function randomProgram(seed: number, count: number): number[] {
  * Run the circuit and the core side by side from reset, for `cycles` clocks. In every cycle the address bus, R/W, SYNC and (when it
  * writes) the data must be the core's, and after every cycle so must the registers. Returns what ran, to see that a test covered something.
  */
-function lockstep(rom: number[], cycles: number, label: string) {
+function lockstep(rom: number[], cycles: number, label: string, pins?: (n: number) => { irq: boolean; nmi: boolean }) {
   const m = start(rom)
   const ref = reference(rom)
   const ops = new Set<number>()
   let writes = 0
   let crossed = 0
+  const taken = { irq: 0, nmi: 0 }
   for (let n = 0; n < cycles; n++) {
     const c = ref.cpu
     const here = `${label}, cycle ${n}`
+    if (pins) {
+      // The buttons hold IRQ and NMI low for this cycle; the core is told the same before the cycle ends.
+      const { irq, nmi } = pins(n)
+      m.sim.setState(m.keys.irqButton, { pressed: irq })
+      m.sim.setState(m.keys.nmiButton, { pressed: nmi })
+      m.sim.settle()
+      setIrq(c, irq)
+      setNmi(c, nmi)
+    }
     expect(m.addr(), here).toBe(c.addr)
     expect(m.writing(), here).toBe(c.read ? 0 : 1)
     expect(m.sync(), here).toBe(c.sync ? 1 : 0)
@@ -242,12 +252,13 @@ function lockstep(rom: number[], cycles: number, label: string) {
     // The flags and the program counter are compared between instructions: inside one, the circuit may update them a cycle earlier or
     // later than the core does (a read-modify-write sets its flags as it writes the new value, the core as it writes the old one).
     if (c.sync) expect([m.reg('P'), m.pc()], here).toEqual([c.p, c.pc])
+    if (c.prog === 256 && c.t === 0) taken[c.vec === 0xfffa ? 'nmi' : 'irq']++
     if (c.prog >= 0 && c.prog < 256) {
       ops.add(c.op)
       if (c.cross && ['abx', 'aby', 'izy'].includes(BY_OPCODE_6502[c.op]!.mode)) crossed++
     }
   }
-  return { ops, writes, crossed }
+  return { ops, writes, crossed, taken }
 }
 
 describe('the 6502 built from parts, against the core', () => {
@@ -263,6 +274,49 @@ describe('the 6502 built from parts, against the core', () => {
     expect(crossed).toBeGreaterThan(50) // indexed accesses that crossed a page, with their extra cycle
     expect(RANDOM_OPCODES.filter((op) => !seen.has(op)).map((op) => op.toString(16))).toEqual([])
   }, 60_000)
+
+  // Interrupts: pins held low for a few cycles at random, while random programs run; the vectors lead to short handlers.
+  it('takes IRQ and NMI exactly as the core does, whatever the program is doing', () => {
+    const IRQ_AT = 0xf800
+    const NMI_AT = 0xf820
+    const withHandlers = (bytes: number[]) => {
+      const rom = image(bytes)
+      const irq = assembled('.org $F800\n INC $10\n RTI')
+      const nmi = assembled('.org $F820\n INC $11\n RTI')
+      irq.slice(0x800).forEach((v, i) => (rom[0x800 + i] = v))
+      nmi.slice(0x820).forEach((v, i) => (rom[0x820 + i] = v))
+      // The reset vector leads to CLI and a jump to the program, so that IRQ can be taken (the reset sets I).
+      ;[0x58, 0x4c, 0x00, 0xf0].forEach((v, i) => (rom[0x7f0 + i] = v))
+      rom[0xffc] = 0xf0
+      rom[0xffd] = 0xf7
+      rom[0xffe] = IRQ_AT & 255
+      rom[0xfff] = IRQ_AT >> 8
+      rom[0xffa] = NMI_AT & 255
+      rom[0xffb] = NMI_AT >> 8
+      return rom
+    }
+    let irqs = 0
+    let nmis = 0
+    for (let seed = 1; seed <= 40; seed++) {
+      const rnd = prng(seed * 7919)
+      let irqLeft = 0
+      let nmiLeft = 0
+      // (Not while the reset sequence runs: the circuit forgets an NMI seen then, the core's model keeps it.)
+      const r = lockstep(withHandlers(randomProgram(seed, 150)), 2500, `seed ${seed}`, (n) => {
+        if (n < 8) return { irq: false, nmi: false }
+        if (irqLeft === 0 && rnd() < 1 / 40) irqLeft = 1 + Math.floor(rnd() * 6)
+        if (nmiLeft === 0 && rnd() < 1 / 90) nmiLeft = 1 + Math.floor(rnd() * 4)
+        const pins = { irq: irqLeft > 0, nmi: nmiLeft > 0 }
+        irqLeft = Math.max(0, irqLeft - 1)
+        nmiLeft = Math.max(0, nmiLeft - 1)
+        return pins
+      })
+      irqs += r.taken.irq
+      nmis += r.taken.nmi
+    }
+    expect(irqs, 'IRQs taken').toBeGreaterThan(20)
+    expect(nmis, 'NMIs taken').toBeGreaterThan(20)
+  }, 120_000)
 
   it('takes a branch across a page boundary in four cycles, forwards and backwards', () => {
     // At $F0FC: BNE +8 (taken, from $F0FE to $F106, into the next page); there: BNE -12 (to $F0FA, into the one before).
