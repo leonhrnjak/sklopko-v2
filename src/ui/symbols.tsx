@@ -349,7 +349,7 @@ function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
   const pieces = l.pins.filter((p) => p.side === side)
   const whole = l.pins.find((p) => p.side !== side)!
   const top = Math.min(...pieces.map((p) => p.y))
-  const bottom = Math.max(...pieces.map((p) => p.y)) + 6
+  const bottom = Math.max(...pieces.map((p) => p.y)) + 8
   // The slash goes on the stub outside the body, clear of the label.
   const slash = (p: PinDef) => {
     const x = (p.x + (p.side === 'l' ? 0 : l.w)) / 2
@@ -365,9 +365,9 @@ function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
         const cls = p.bus ? 'sym-line bus' : 'sym-line'
         return (
           <g key={p.name}>
-            <polyline className={cls} fill="none" points={`${trunk},${p.y + 6} ${trunk + s * 6},${p.y} ${p.x},${p.y}`} />
+            <polyline className={cls} fill="none" points={`${trunk},${p.y + 8} ${trunk + s * 8},${p.y} ${p.x},${p.y}`} />
             {slash(p)}
-            <Txt x={trunk + s * 11} y={p.y - 9} anchor={merge ? 'end' : 'start'} className="pin-label">
+            <Txt x={trunk + s * 11} y={p.y - 7} anchor={merge ? 'end' : 'start'} className="pin-label">
               {p.label ?? p.name}
             </Txt>
           </g>

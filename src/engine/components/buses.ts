@@ -37,8 +37,8 @@ const whole = (p: Params, name: string, dir: 'in' | 'out'): PinSpec => ({
  */
 function combWidth(p: Params): number {
   const offsets = splitOffsets(p)
-  const label = Math.max(...splitWidths(p).map((w, i) => range(offsets[i], w).length * 6))
-  return Math.max(40, Math.ceil((label + 26) / 20) * 20)
+  const label = Math.max(...splitWidths(p).map((w, i) => range(offsets[i], w).length * 5))
+  return Math.max(40, Math.ceil((label + 24) / 10) * 10)
 }
 
 export const buses: ComponentDef[] = [
