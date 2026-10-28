@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
 import { cycle as stepCore, newCpu, reset } from '../engine/cpu6502'
-import { MICRO_OPCODES } from '../engine/micro6502'
+import { MICRO_OPCODES, microRows } from '../engine/micro6502'
 import { BY_OPCODE_6502, OPCODES_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
@@ -102,6 +102,12 @@ describe('the 6502 built from parts', () => {
           if (k !== n) expect(touch(boundsRect(n), boundsRect(k)), `${name}: the note "${String(n.params.text).slice(0, 30)}…" is on ${k.type} ${k.label ?? k.id}`).toBe(false)
     }
   }, 60_000)
+
+  it('lists the rows of an instruction: the fetch, then its cycles', () => {
+    expect(microRows(0xa9)).toHaveLength(2) // LDA #: fetch, read the constant
+    expect(microRows(0xbd)).toHaveLength(5) // LDA abs,X: fetch, two address bytes, the read before the fix, the read after it
+    expect(microRows(0xbd)[0].FETCH).toBe(true)
+  })
 
   it('has microcode for every one of the 151 documented opcodes', () => {
     expect(MICRO_OPCODES).toHaveLength(151)
