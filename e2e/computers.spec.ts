@@ -714,6 +714,7 @@ test('the BASIC computer: it starts by itself, and a program typed on its termin
 
 test('the BASIC computer with the 6502 built from parts: it boots to OK and runs what is typed on its terminal', async ({ page }) => {
   await page.goto('/6502-parts-basic', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Hide' }).click() // the board is far to the right of the CPU, under the help panel
   await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
   const screen = page.getByLabel('Screen text')
   await expect(screen).toContainText('SKLOPKO BASIC', { timeout: 90000 })
