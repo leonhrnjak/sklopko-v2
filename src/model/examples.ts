@@ -6,7 +6,7 @@ import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
 import { board6502 } from './board6502'
 import { ball6502, basic6502, basicLcd6502, lcd6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
-import { micro6502, micro6502Basic } from './micro6502'
+import { MICRO_IRQ_SOURCE, micro6502, micro6502Basic } from './micro6502'
 import { computerBlocks, icAdder } from './ic-examples'
 import { hazard, ripple } from './timing-examples'
 import { generateFsm } from './fsm'
@@ -1129,6 +1129,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   '6502-echo': echo6502,
   '6502-echo-irq': echoIrq6502,
   '6502-parts': () => micro6502({ hz: 32 }),
+  '6502-parts-irq': () => micro6502({ hz: 32, source: MICRO_IRQ_SOURCE }),
   '6502-parts-basic': micro6502Basic,
   '65c02': sweep65c02,
   '65c02-timer': timer65c02,

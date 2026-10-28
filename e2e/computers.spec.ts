@@ -526,6 +526,22 @@ test('the guide button is only on the 6502 from parts', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'How this CPU works' })).toHaveCount(0)
 })
 
+test('the 6502 from parts takes an interrupt: pressing NMI adds one to the count the LEDs show', async ({ page }) => {
+  await page.goto('/6502-parts-irq', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Hide' }).click()
+  const leds = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^LEDs$/ }) }).locator('rect.seg')
+  const lit = async () => (await leds.evaluateAll((els) => els.map((e) => e.classList.contains('on')))).map(Number).join('')
+  await expect.poll(lit, { timeout: 60000 }).toBe('00000000') // the program runs: nothing counted yet
+  const button = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^NMI button/ }) }).locator('> g').first()
+  const box = (await button.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(400) // a few clock cycles: NMI is seen going low
+  await page.mouse.up()
+  // The NMI count is the top four bits of the LEDs: one press is 1, bit 4.
+  await expect.poll(lit, { timeout: 60000 }).toBe('00001000')
+})
+
 test('a 6502 example with a device: hello prints on the console', async ({ page }) => {
   await page.goto('/6502-hello', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Console \\$4001: prints what is written')

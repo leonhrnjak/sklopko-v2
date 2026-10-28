@@ -9,6 +9,7 @@ export const BLURBS: Record<string, string> = {
   '6502-keypad': 'Press a key on the keypad: the 6502 polls it, prints the key on the console and shows its code on the LEDs.',
   '6502-basic': 'A 6502 with RAM, ROM and a serial terminal runs Microsoft BASIC: type 10 PRINT "HELLO", then RUN.',
   '6502-parts': 'A 6502 made of registers, an adder and a microcode ROM: all 151 opcodes (binary only), one bus cycle per clock.',
+  '6502-parts-irq': 'The 6502 from parts with its IRQ and NMI pins: two buttons, and the LEDs count how often each interrupt was taken.',
   '6502-parts-basic': 'Microsoft BASIC on the 6502 built from parts: it boots to OK in a few seconds and runs what you type, slowly.',
   '6502-via': 'A 6522 VIA: its timer interrupts the 6502 once a second, and the interrupt routine counts on LEDs on port B.',
   '6502-lcd': 'A 6502 writes Hello, world! on a character LCD through a 6522 VIA, waiting for its busy flag, as in Ben Eater’s videos.',
