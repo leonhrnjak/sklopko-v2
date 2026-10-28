@@ -69,5 +69,17 @@ export function fitView() {
   setView({ zoom, x: (width - (x2 - x1) * zoom) / 2 - x1 * zoom, y: (height - (y2 - y1) * zoom) / 2 - y1 * zoom })
 }
 
+/** Zoom and pan to the frame whose title starts with `title`; false if the circuit has none. */
+export function focusFrame(title: string): boolean {
+  const frame = Object.values(useStore.getState().circuit.comps).find((c) => c.type === 'frame' && String(c.params.title).startsWith(title))
+  if (!frame || !svgEl) return false
+  const { width, height } = svgEl.getBoundingClientRect()
+  const b = boundsRect(frame)
+  const pad = 30
+  const zoom = Math.min(1.6, Math.max(MIN_ZOOM, Math.min((width - 2 * pad) / b.w, (height - 2 * pad) / b.h)))
+  setView({ zoom, x: (width - b.w * zoom) / 2 - b.x * zoom, y: (height - b.h * zoom) / 2 - b.y * zoom })
+  return true
+}
+
 registerFit(fitView)
 

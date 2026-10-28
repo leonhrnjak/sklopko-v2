@@ -10,7 +10,7 @@ import { openLibraryDialog } from '../app/libraryUi'
 import { openMap, useDoneCount } from '../app/path'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
-import { open6502Reference, openBasicReference, openReference } from '../app/reference'
+import { open6502Reference, openBasicReference, openParts6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setHistoryOn, useHistoryOn } from '../app/stepback'
@@ -337,6 +337,10 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => openBasicReference()} title="The BASIC of the BASIC computer: its statements, functions and errors, and programs to type in">
         BASIC
+        <OpensWindow />
+      </MenuItem>
+      <MenuItem onClick={() => openParts6502Reference()} title="How the 6502 built from parts works: its blocks, where they are in the circuit, and every instruction cycle by cycle">
+        6502 from parts
         <OpensWindow />
       </MenuItem>
       <MenuLabel>Show</MenuLabel>
