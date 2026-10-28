@@ -695,6 +695,17 @@ test('the BASIC computer: it starts by itself, and a program typed on its termin
   await expect(screen).toHaveText(/HELLO\s+OK\s*$/, { timeout: 60000 })
 })
 
+test('the BASIC computer with the 6502 built from parts: it boots to OK and runs what is typed on its terminal', async ({ page }) => {
+  await page.goto('/6502-parts-basic', { waitUntil: 'networkidle' })
+  await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
+  const screen = page.getByLabel('Screen text')
+  await expect(screen).toContainText('SKLOPKO BASIC', { timeout: 90000 })
+  await expect(screen).toContainText('OK', { timeout: 90000 })
+  await page.keyboard.type('print 2+2')
+  await page.keyboard.press('Enter')
+  await expect(screen).toHaveText(/PRINT 2\+2\s+4\s+OK\s*$/, { timeout: 90000 })
+})
+
 test('the BASIC reference: statements, functions and the programs to type in, from the Tools menu', async ({ page }) => {
   await freshEmpty(page)
   await chooseTool(page, 'BASIC')

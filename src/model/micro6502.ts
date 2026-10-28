@@ -1,4 +1,5 @@
 import { assemble6502 } from '../engine/asm6502'
+import { basicRomBytes } from './basic-rom'
 import { MICRO_ABITS, MICRO_ROM_BITS, MICRO_SIGNALS, hexRom, microSignal, microcodeWords } from '../engine/micro6502'
 import { parseSignals, splitPlan } from '../engine/signals'
 import { frameAround, note } from './annotate'
@@ -26,6 +27,11 @@ export interface Micro6502Options {
   source?: string
   /** The ROM's contents as hex text, instead of a program. */
   rom?: string
+  /**
+   * The memory and devices around the CPU. `'leds'` (the default): 2 KB of RAM, a 4 KB ROM and a register that drives eight LEDs.
+   * `'basic'`: Ben Eater's map, 16 KB of RAM at $0000, a serial terminal at $5000 and 16 KB of ROM at $8000 holding Microsoft BASIC.
+   */
+  board?: 'leds' | 'basic'
 }
 
 /** A program that counts on the LEDs: add 3 to the accumulator, show it, and go round again. */
@@ -42,6 +48,8 @@ loop:   ADC #$03       ; add three
         JMP start      ; start again
 .org $FFFC
 .word start`
+
+const hexBytes = (bytes: number[]) => bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' ')
 
 const romText = (o: Micro6502Options) => {
   if (o.rom) return o.rom
@@ -125,20 +133,29 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const clk = part(SEQ, 'clk', 'clock', { params: { hz: o.hz ?? 4 }, label: 'Clock' })
   const CLK = `${clk}.Q`
   named(CLK, 'CLK')
+  // The CPU works on the falling edge of the clock, as the 6502 does on the fall of Φ2: the address and the data to write are on the bus
+  // from the fall before, memory and devices take what is written at the rise in the middle of the cycle, and the CPU takes what is read
+  // (a chip like the terminal answers after that rise) as the cycle ends.
+  const nclk = part(SEQ, 'nclk', 'not', { label: 'the CPU works on the falling edge' })
+  wire(CLK, `${nclk}.A`)
+  const CPU_CLK = `${nclk}.Y`
+  named(CPU_CLK, 'CPU_CLK')
   const reset = part(SEQ, 'reset', 'button', { label: 'Reset (hold it for a clock or two)' })
   // Not ready: from power-on, and while the button is held, until the reset sequence has run its seven cycles.
   const ready = part(SEQ, 'ready', 'dff', { label: 'Ready: the reset sequence is over' })
   const RST = gate(SEQ, 'rst', 'or', 'reset: button or sequence running', [`${reset}.Q`, `${ready}.NQ`])
   named(RST, 'RST')
-  wire(CLK, `${ready}.CLK`)
+  wire(CPU_CLK, `${ready}.CLK`)
+
+  const nButton = gate(SEQ, 'nButton', 'not', 'the button is not held', [`${reset}.Q`])
 
   const t = part(SEQ, 't', 'busctr', { params: { bits: 3 }, label: 'T: the cycle of the instruction' })
   wire(busconst(SEQ, 'zero3', 3, 0), `${t}.D`)
-  wire(CLK, `${t}.CLK`)
+  wire(CPU_CLK, `${t}.CLK`)
   wire(`${reset}.Q`, `${t}.R`)
   show(SEQ, 'showT', 'T', `${t}.Q`, 3)
   const ir = part(SEQ, 'ir', 'busreg', { params: { bits: 8 }, label: 'IR: the opcode' })
-  wire(CLK, `${ir}.CLK`)
+  wire(CPU_CLK, `${ir}.CLK`)
   show(SEQ, 'showIR', 'IR', `${ir}.Q`, 8)
 
   const romAddr = merger(SEQ, 'romAddr', 12, [3, 8, 1], 'microcode address: T, opcode, reset', [`${t}.Q`, `${ir}.Q`, RST])
@@ -170,7 +187,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const minus1 = busconst(ALU, 'minus1', 8, 0xff, '−1')
   const zero8 = busconst(ALU, 'zero8', 8, 0, '0')
   const crs = part(REGS, 'crs', 'dff', { label: 'CRS: an index carried a page' })
-  wire(CLK, `${crs}.CLK`)
+  wire(CPU_CLK, `${crs}.CLK`)
   const CRS = `${crs}.Q`
   // While an index has carried, the cycle that reads at the address before the fix does not do its operation.
   const opOk = gate(CTL, 'opOk', 'not', 'the operation is not skipped', [gate(CTL, 'skipOp', 'and', 'XOP, and an index carried', [c('XOP'), CRS])])
@@ -185,7 +202,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   for (const [key, label, ld] of rLoad) {
     const r = part(REGS, key, 'busreg', { params: { bits: 8 }, label }, 20)
     wire(['LD_A', 'LD_X', 'LD_Y'].includes(ld) ? unlessSkipped(ld) : c(ld), `${r}.LD`)
-    wire(CLK, `${r}.CLK`)
+    wire(CPU_CLK, `${r}.CLK`)
     regs[key] = `${r}.Q`
     if (key === 'SP') {
       // SP loads the result (TXS), or itself plus one (a pull) or minus one (a push), by its own adders.
@@ -202,7 +219,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   // TH loads the result, the data bus, or itself plus the carry of an index (the high byte of the address, fixed).
   const th = part(REGS, 'TH', 'busreg', { params: { bits: 8 }, label: 'TH: temporary, high' }, 20)
   wire(c('LD_TH'), `${th}.LD`)
-  wire(CLK, `${th}.CLK`)
+  wire(CPU_CLK, `${th}.CLK`)
   regs.TH = `${th}.Q`
   show(REGS, 'showTH', 'TH', regs.TH)
   const thPlus = part(REGS, 'thPlus', 'busadd', { params: { bits: 8 }, label: 'TH + the carry of the index' }, 20)
@@ -213,8 +230,8 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   // The program counter: two counters, the low one carrying into the high one as it wraps.
   const pcl = part(REGS, 'PCL', 'busctr', { params: { bits: 8 }, label: 'PCL: program counter, low' }, 20)
   const pch = part(REGS, 'PCH', 'busctr', { params: { bits: 8 }, label: 'PCH: program counter, high' }, 20)
-  wire(CLK, `${pcl}.CLK`)
-  wire(CLK, `${pch}.CLK`)
+  wire(CPU_CLK, `${pcl}.CLK`)
+  wire(CPU_CLK, `${pch}.CLK`)
   wire(c('LD_PCL'), `${pcl}.LD`)
   wire(c('LD_PCH'), `${pch}.LD`)
   wire(c('INC_PC'), `${pcl}.EN`)
@@ -224,7 +241,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   regs.PCL = `${pcl}.Q`
   regs.PCH = `${pch}.Q`
   const p = part(REGS, 'P', 'busreg', { params: { bits: 8 }, label: 'P: flags N V – – D I Z C' }, 20)
-  wire(CLK, `${p}.CLK`)
+  wire(CPU_CLK, `${p}.CLK`)
   show(REGS, 'showP', 'P', `${p}.Q`, 8, 'bin')
   const ps = splitter(REGS, 'ps', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the flags', `${p}.Q`)
   const [FC, FZ, FI, FD, , , FV, FN] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `${ps}.Y${i}`)
@@ -340,30 +357,54 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const A = mux(ADDR, 'abus', 16, 'ADDRESS BUS', [pc, addr, stack, zp, ...vec], c('ASEL'))
   named(A, 'ADDRESS', 16)
 
-  // ---- Memory: RAM, ROM and the LED register --------------------------------------------------------------------------------
-  const split = splitter(MEM, 'split', 16, [11, 1, 1, 1, 1, 1], 'address: A0–A10, A11, A12, A13, A14, A15', A)
-  const A14 = `${split}.Y4`
-  const A15 = `${split}.Y5`
-  const romA = merger(MEM, 'romA', 12, [11, 1], 'A0–A11', [`${split}.Y0`, `${split}.Y1`])
-  const rom = part(MEM, 'rom', 'rom', { params: { ...BUS, abits: 12, dbits: 8, data: romText(o) }, label: 'ROM $F000 (4 KB, seen from $8000)' })
-  wire(romA, `${rom}.A`)
+  // ---- Memory: RAM and ROM, and the LED register or the terminal -----------------------------------------------------------------
+  const basic = o.board === 'basic'
+  const split = splitter(MEM, 'split', 16, basic ? [14, 1, 1] : [11, 1, 1, 1, 1, 1], basic ? 'address: A0–A13, A14, A15' : 'address: A0–A10, A11, A12, A13, A14, A15', A)
+  const A14 = `${split}.Y${basic ? 1 : 4}`
+  const A15 = `${split}.Y${basic ? 2 : 5}`
+  const rom = part(MEM, 'rom', 'rom', {
+    params: { ...BUS, abits: basic ? 14 : 12, dbits: 8, data: basic ? hexBytes(basicRomBytes()) : romText(o) },
+    label: basic ? 'ROM $8000 (16 KB, seen twice)' : 'ROM $F000 (4 KB, seen from $8000)',
+  })
+  if (basic) wire(`${split}.Y0`, `${rom}.A`)
+  else wire(merger(MEM, 'romA', 12, [11, 1], 'A0–A11', [`${split}.Y0`, `${split}.Y1`]), `${rom}.A`)
   const nA15 = gate(MEM, 'nA15', 'not', 'A15 = 0', [A15])
   const nA14 = gate(MEM, 'nA14', 'not', 'A14 = 0', [A14])
   const ramWe = gate(MEM, 'ramWe', 'and', 'write RAM', [c('WRITE'), nA15, nA14])
-  const ledWe = gate(MEM, 'ledWe', 'and', 'write the LEDs', [c('WRITE'), nA15, A14])
-  const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8, abits: 11 }, label: 'RAM $0000–$07FF' })
+  const ram = part(MEM, 'ram', 'ram', { params: { ...BUS, dbits: 8, abits: basic ? 14 : 11 }, label: basic ? 'RAM $0000–$3FFF (16 KB)' : 'RAM $0000–$07FF' })
   wire(`${split}.Y0`, `${ram}.A`)
   wire(R, `${ram}.D`)
   wire(ramWe, `${ram}.WE`)
   wire(CLK, `${ram}.CLK`)
-  const DI = mux(MEM, 'di', 8, 'what is read: RAM, or ROM if A15 = 1', [`${ram}.Q`, `${rom}.D`], A15)
+  let DI: string
+  if (basic) {
+    // The terminal is a 6551: A14 and A15 are its chip selects, A0 and A1 pick a register. What is read: the RAM, the ROM (A15 = 1,
+    // whatever A14 says) or the terminal (A15 = 0, A14 = 1).
+    const low = splitter(MEM, 'low', 16, [1, 1, 14], 'address: A0, A1, the rest', A)
+    const term = part(MEM, 'terminal', 'acia6551', { params: BUS, label: 'Terminal (6551) $5000–$5003' })
+    wire(CLK, `${term}.PHI2`)
+    wire(nButton, `${term}.RESB`)
+    wire(A14, `${term}.CS0`)
+    wire(A15, `${term}.CS1B`)
+    wire(`${low}.Y0`, `${term}.RS0`)
+    wire(`${low}.Y1`, `${term}.RS1`)
+    wire(gate(MEM, 'nWrite', 'not', 'read (R/W high)', [c('WRITE')]), `${term}.RWB`)
+    wire(R, `${term}.DI`)
+    const dsr = part(MEM, 'dsrSwitch', 'switch', { label: 'Ask the start-up questions (at Reset)' })
+    wire(`${dsr}.Q`, `${term}.DSRB`)
+    const sel = merger(MEM, 'sel', 2, [1, 1], 'A15, A14', [A15, A14])
+    DI = mux(MEM, 'di', 8, 'what is read: RAM, ROM or terminal', [`${ram}.Q`, `${rom}.D`, `${term}.D`, `${rom}.D`], sel)
+  } else {
+    DI = mux(MEM, 'di', 8, 'what is read: RAM, or ROM if A15 = 1', [`${ram}.Q`, `${rom}.D`], A15)
+    const ledWe = gate(MEM, 'ledWe', 'and', 'write the LEDs', [c('WRITE'), nA15, A14])
+    const leds = reg(MEM, 'ledReg', 'LED register $4000', R, ledWe, CLK)
+    const bar = part(MEM, 'bar', 'bar', { params: { bus: true, n: 8 }, label: 'LEDs' })
+    wire(leds, `${bar}.I`)
+  }
   named(DI, 'DI', 8)
   // `DI` is the ALU's B input and the instruction register's input.
   wire('DI', `${ir}.D`)
   wire(c('FETCH'), `${ir}.LD`)
-  const leds = reg(MEM, 'ledReg', 'LED register $4000', R, ledWe, CLK)
-  const bar = part(MEM, 'bar', 'bar', { params: { bus: true, n: 8 }, label: 'LEDs' })
-  wire(leds, `${bar}.I`)
   const sync = part(MEM, 'sync', 'led', { label: 'SYNC (the opcode is being read)' })
   wire(c('FETCH'), `${sync}.A`)
   const writing = part(MEM, 'writing', 'led', { label: 'writing', params: { color: 'red' } })
@@ -388,7 +429,6 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const end = gate(CTL, 'end', 'or', 'the instruction ends', [c('END'), endBranch, endNoCross, endNoIndexCarry])
   named(end, 'END_NOW')
   wire(end, `${t}.LD`)
-  const nButton = gate(CTL, 'nButton', 'not', 'the button is not held', [`${reset}.Q`])
   wire(gate(CTL, 'readyNext', 'and', 'ready, or the sequence ends; not held', [gate(CTL, 'endsReset', 'or', 'ready, or the reset ends', [`${ready}.Q`, c('END_RESET')]), nButton]), `${ready}.D`)
 
   // ---- Put the sections side by side ------------------------------------------------------------------------------------------
@@ -420,12 +460,27 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   frame(REGS, 'REGISTERS', 'green')
   frame(ALU, 'ALU and FLAGS', 'yellow')
   frame(ADDR, 'ADDRESS BUS: what goes on it', 'pink')
-  frame(MEM, 'MEMORY and the LEDs', 'green')
-  note(b, 0, -300, 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over.', 48)
+  frame(MEM, o.board === 'basic' ? 'MEMORY and the TERMINAL' : 'MEMORY and the LEDs', 'green')
+  note(
+    b,
+    0,
+    -300,
+    o.board === 'basic'
+      ? 'The BASIC computer with a 6502 built from registers, counters, multiplexers, an adder and a microcode ROM, instead of the 6502 part: Ben Eater’s memory map, Microsoft BASIC in the ROM and a serial terminal at $5000. It resets itself when it starts and then says OK; click the terminal’s screen and type. This CPU is very slow (the clock is as fast as the page can go, a few thousand cycles a second): give BASIC a minute to start, and expect a short program to take a while. Hold the Reset button for a clock to start over.'
+      : 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over.',
+    48,
+  )
   return { b, keys }
 }
 
 /** The microcoded 6502 running the demo program. */
 export function micro6502(o: Micro6502Options = {}): Circuit {
   return micro6502Builder(o).b.build(0)
+}
+
+/** The BASIC computer with this CPU in place of the 6502 part: Ben Eater's memory map, a terminal, Microsoft BASIC. */
+export function micro6502Basic(): Circuit {
+  const c = micro6502Builder({ hz: 1_000_000, board: 'basic' }).b.build(0)
+  c.history = false // stepping back over a BASIC interpreter teaches nothing, and the circuit runs faster without
+  return c
 }

@@ -36,9 +36,10 @@ R/W, SYNC and the data written must match, and after every cycle so must A, X, Y
 - [ ] **3b. Decimal mode** (the D flag is kept, but ADC and SBC are binary): not needed by BASIC. And the SingleStepTests vectors the core
   already passes, run against the circuit.
 - [ ] **4. Interrupts**: IRQ and NMI through the same sequence as BRK.
-- [ ] **5. A board**: the same pins as the `cpu6502` part (or an IC with them), so that it can replace the part on the BASIC computer, and
-  see how fast it runs.
+- [x] **5. The BASIC board**: `/6502-parts-basic` is the BASIC computer with this CPU in place of the part: Ben Eater's memory map, the
+  6551 terminal, Microsoft BASIC. The CPU now works on the falling clock edge (as the 6502 does on the fall of Φ2), because the terminal
+  answers a read after the rising edge. A test compares the board with the `cpu6502` board cycle for cycle through the start of BASIC.
 
 ## Speed
-A clock of this circuit is about 6,000 per second in the unit tests (about 12,000 clock edges), so a program of a few hundred
-instructions per second: enough for a counting loop, not for BASIC.
+Measured with the step-back history off: about 15,000 clocks per second in Node, so BASIC boots to `OK` (18,000 cycles) in a second or
+two, and `10 PRINT "HELLO"`, `RUN` and `PRINT 2+2` take another 24,000 cycles. A real 6502 does a million a second.
