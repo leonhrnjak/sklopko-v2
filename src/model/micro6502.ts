@@ -66,13 +66,16 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   // each at the right of the one before, so none can run into another.
   const sections = new Map<number, { col: number; y: number; ids: { id: string; x: number }[] }>()
   const COLUMN = 380
+  let tag = ''
   const MAX_HEIGHT = 1100
   /** Add a part at the next free spot of a section and remember it under `key`. */
   const part = (section: number, key: string, type: string, opts: Parameters<CircuitBuilder['add']>[3] = {}, gap = 40) => {
     const s = sections.get(section) ?? { col: 0, y: 0, ids: [] }
     sections.set(section, s)
-    if (opts.label && opts.label.length > 40) throw new Error(`Label too long: ${opts.label}`)
-    const id = b.add(type, 0, 0, opts)
+    // A part that a note explains carries the note's letter in its label: "(a) CRS…" is what note (a) is about.
+    const label = opts.label && tag ? `(${tag}) ${opts.label}` : opts.label
+    if (label && label.length > 40) throw new Error(`Label too long: ${label}`)
+    const id = b.add(type, 0, 0, label === opts.label ? opts : { ...opts, label })
     const h = boundsRect(b.c.comps[id]).h
     if (s.y > 0 && s.y + h > MAX_HEIGHT) {
       s.col++
@@ -126,20 +129,28 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     wire(from, `${d}.A`)
   }
 
+  // The notes that explain a section are collected here and put in a band above it, once the sections are in place: the router
+  // ignores notes, so one among the parts would have wires running across its text.
+  const pendingNotes: { section: number; text: string; color: string }[] = []
+  const noteIn = (section: number, text: string, color = 'yellow', letter = '') => void pendingNotes.push({ section, text: letter ? `(${letter}) ${text}` : text, color })
+
   // Columns, left to right.
   const [SEQ, ROMS, CTL, REGS, ALU, ADDR, MEM] = [0, 1, 2, 3, 4, 5, 6]
 
   // ---- The sequencer: the clock, the step counter T, the instruction register IR and the microcode ROMs -----------------------
+  noteIn(SEQ, 'SEQUENCER. It decides what the CPU does in every clock cycle. The clock ticks once per bus cycle. T counts the cycles of the instruction that is running (0 is the fetch of its opcode); IR holds the opcode. T, IR and a reset flag are the address of the microcode ROMs, which say what to do in this cycle. When an instruction is over, T goes back to 0 and the next opcode is fetched.', 'yellow')
   const clk = part(SEQ, 'clk', 'clock', { params: { hz: o.hz ?? 4 }, label: 'Clock' })
   const CLK = `${clk}.Q`
   named(CLK, 'CLK')
   // The CPU works on the falling edge of the clock, as the 6502 does on the fall of Φ2: the address and the data to write are on the bus
   // from the fall before, memory and devices take what is written at the rise in the middle of the cycle, and the CPU takes what is read
   // (a chip like the terminal answers after that rise) as the cycle ends.
+  noteIn(SEQ, 'The CPU works on the falling edge of the clock, as the real 6502 does on the fall of Φ2: the address and the data to write are on the bus from the fall before, memory and devices take a write at the rise in the middle of the cycle, and the CPU takes what it read (a chip like the terminal answers after that rise) as the cycle ends.', 'blue')
   const nclk = part(SEQ, 'nclk', 'not', { label: 'the CPU works on the falling edge' })
   wire(CLK, `${nclk}.A`)
   const CPU_CLK = `${nclk}.Y`
   named(CPU_CLK, 'CPU_CLK')
+  noteIn(SEQ, 'RESET. “Ready” is 0 at power-on and while the Reset button is held. That makes the microcode run its reset sequence (7 cycles: two dummy reads, three reads of the stack that count SP down, then the vector at $FFFC is read into PC). In its last cycle Ready becomes 1 and the program starts.', 'pink')
   const reset = part(SEQ, 'reset', 'button', { label: 'Reset (hold it for a clock or two)' })
   // Not ready: from power-on, and while the button is held, until the reset sequence has run its seven cycles.
   const ready = part(SEQ, 'ready', 'dff', { label: 'Ready: the reset sequence is over' })
@@ -149,6 +160,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
 
   const nButton = gate(SEQ, 'nButton', 'not', 'the button is not held', [`${reset}.Q`])
 
+  noteIn(SEQ, 'T counts 0, 1, 2… through the cycles of an instruction (at most 7). The END signal loads 0 into it: the instruction is over. IR loads the opcode when the microcode says FETCH (the SYNC LED).', 'yellow')
   const t = part(SEQ, 't', 'busctr', { params: { bits: 3 }, label: 'T: the cycle of the instruction' })
   wire(busconst(SEQ, 'zero3', 3, 0), `${t}.D`)
   wire(CPU_CLK, `${t}.CLK`)
@@ -162,6 +174,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const words = microcodeWords()
   const bitsOfRom = MICRO_ROM_BITS
   const signals = MICRO_SIGNALS
+  noteIn(ROMS, 'MICROCODE. Four ROMs of 4096 words, addressed by the reset flag, the opcode and T: one row for each cycle of each instruction. Every output bit is a control signal and has a name: for example LD_A loads A, ASEL chooses where the address comes from, AIN and BIN choose what goes into the ALU. Select a ROM to read the signals; the table in its inspector lists every row.', 'blue')
   const roms = words.map((w, i) =>
     part(ROMS, `micro${i + 1}`, 'rom', {
       params: { ...BUS, abits: MICRO_ABITS, dbits: bitsOfRom[i], data: hexRom(w, bitsOfRom[i] / 4), signals: signals[i] },
@@ -171,6 +184,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   roms.forEach((r) => wire(romAddr, `${r}.A`))
 
   // The control bits, one wire each (a field is a small bus). The signal lists say how the words are taken apart.
+  noteIn(CTL, 'CONTROL. The words of the microcode ROMs taken apart into single wires, each named like its signal. A name that goes to many parts is sent by a label (a Send label here, a Receive label at each part that uses it) instead of a wire.', 'blue')
   const control = signals.map((text, i) => {
     const plan = splitPlan(parseSignals(text).layout, bitsOfRom[i])
     const s = splitter(CTL, `ctl${i + 1}`, bitsOfRom[i], plan.widths, `control bits ${i + 1}`, `${roms[i]}.D`)
@@ -183,10 +197,15 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const c = (name: string) => control[microSignal(name).rom](name)
 
   // Constants, and the carry an index added to the low byte of an address (an index that crossed a page changes what the next cycles do).
+  noteIn(ALU, 'ALU. R = what the ALU does (OP) to its A and B inputs. A is a register chosen by AIN. B is the data bus, TL, TH, DL or a constant (0, 1, −1, $10), chosen by BIN, and INVB inverts it (SBC, CMP). The adder takes a carry in of 0, 1 or the carry flag (CIN). AND, OR, EOR and the shifter use the same inputs. R goes to every register, to memory when the cycle writes, and to the flag logic.', 'yellow')
   const one8 = busconst(ALU, 'one8', 8, 1, '1')
   const minus1 = busconst(ALU, 'minus1', 8, 0xff, '−1')
   const zero8 = busconst(ALU, 'zero8', 8, 0, '0')
+  noteIn(REGS, "REGISTERS. Each one loads R, the ALU's result, at the end of a cycle in which its LD signal is on. A, X and Y are the programmer's registers. SP is the stack pointer (the stack is page 1). TL and TH are temporary registers where an address is built a byte at a time. DL holds a value that an instruction changes in memory. PCL and PCH are the program counter. P holds the flags.", 'green')
+  noteIn(REGS, 'CRS remembers that adding an index (X or Y) to the low byte of an address carried. The cycle after reads at the address before the high byte is fixed, as the real chip does; then TH + CRS fixes it. An indexed read that did not carry is already done, and its operation runs in that cycle.', 'green', 'a')
+  tag = 'a'
   const crs = part(REGS, 'crs', 'dff', { label: 'CRS: an index carried a page' })
+  tag = ''
   wire(CPU_CLK, `${crs}.CLK`)
   const CRS = `${crs}.Q`
   // While an index has carried, the cycle that reads at the address before the fix does not do its operation.
@@ -200,23 +219,28 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const rLoad: [string, string, string][] = [['A', 'A: accumulator', 'LD_A'], ['X', 'X', 'LD_X'], ['Y', 'Y', 'LD_Y'], ['SP', 'SP: stack pointer', 'LD_SP'], ['TL', 'TL: temporary, low', 'LD_TL'], ['DL', 'DL: the value being changed', 'LD_DL']]
   const rFrom: string[] = []
   for (const [key, label, ld] of rLoad) {
+    tag = key === 'SP' ? 'c' : ''
     const r = part(REGS, key, 'busreg', { params: { bits: 8 }, label }, 20)
     wire(['LD_A', 'LD_X', 'LD_Y'].includes(ld) ? unlessSkipped(ld) : c(ld), `${r}.LD`)
     wire(CPU_CLK, `${r}.CLK`)
     regs[key] = `${r}.Q`
     if (key === 'SP') {
       // SP loads the result (TXS), or itself plus one (a pull) or minus one (a push), by its own adders.
+      noteIn(REGS, 'SP, the stack pointer (the stack is page 1), loads R (TXS), SP + 1 (a pull) or SP − 1 (a push) from two adders of its own, so a push can write the ALU result while SP counts down in the same cycle.', 'green', 'c')
       const up = part(REGS, 'spUp', 'busadd', { params: { bits: 8 }, label: 'SP + 1' }, 20)
       wire(`${r}.Q`, `${up}.A`)
       wire(one8, `${up}.B`)
       const down = part(REGS, 'spDown', 'busadd', { params: { bits: 8 }, label: 'SP − 1' }, 20)
       wire(`${r}.Q`, `${down}.A`)
       wire(minus1, `${down}.B`)
-      wire(mux(REGS, 'spD', 8, 'SP loads R, SP + 1 or SP − 1', [R, `${up}.S`, `${down}.S`, `${down}.S`], c('SPSRC')), `${r}.D`)
+      wire(mux(REGS, 'spD', 8, 'SP: R, SP + 1 or SP − 1', [R, `${up}.S`, `${down}.S`, `${down}.S`], c('SPSRC')), `${r}.D`)
     } else rFrom.push(`${r}.D`)
+    tag = ''
     show(REGS, `show${key}`, key, `${r}.Q`)
   }
   // TH loads the result, the data bus, or itself plus the carry of an index (the high byte of the address, fixed).
+  noteIn(REGS, 'TH, the high byte of an address being built, loads R, the data bus (the second byte of an instruction) or TH + CRS (the high byte, fixed after an index carried). Its own small adder adds CRS.', 'green', 'b')
+  tag = 'b'
   const th = part(REGS, 'TH', 'busreg', { params: { bits: 8 }, label: 'TH: temporary, high' }, 20)
   wire(c('LD_TH'), `${th}.LD`)
   wire(CPU_CLK, `${th}.CLK`)
@@ -226,7 +250,10 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   wire(regs.TH, `${thPlus}.A`)
   wire(zero8, `${thPlus}.B`)
   wire(CRS, `${thPlus}.Ci`)
-  wire(mux(REGS, 'thD', 8, 'TH loads R, the data bus, or TH + carry', [R, 'DI', `${thPlus}.S`, `${thPlus}.S`], c('THSRC')), `${th}.D`)
+  tag = ''
+  tag = 'b'
+  wire(mux(REGS, 'thD', 8, 'TH: R, the data bus, or TH + carry', [R, 'DI', `${thPlus}.S`, `${thPlus}.S`], c('THSRC')), `${th}.D`)
+  tag = ''
   // The program counter: two counters, the low one carrying into the high one as it wraps.
   const pcl = part(REGS, 'PCL', 'busctr', { params: { bits: 8 }, label: 'PCL: program counter, low' }, 20)
   const pch = part(REGS, 'PCH', 'busctr', { params: { bits: 8 }, label: 'PCH: program counter, high' }, 20)
@@ -240,8 +267,11 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   show(REGS, 'showPCH', 'PCH', `${pch}.Q`)
   regs.PCL = `${pcl}.Q`
   regs.PCH = `${pch}.Q`
+  noteIn(REGS, 'P, the flags N V – – D I Z C (bit 5 is always 1, and the break flag only exists in the copy that is pushed). The next value of each flag is worked out in the ALU section (f); PLP and RTI load the whole register from R.', 'green', 'd')
+  tag = 'd'
   const p = part(REGS, 'P', 'busreg', { params: { bits: 8 }, label: 'P: flags N V – – D I Z C' }, 20)
   wire(CPU_CLK, `${p}.CLK`)
+  tag = ''
   show(REGS, 'showP', 'P', `${p}.Q`, 8, 'bin')
   const ps = splitter(REGS, 'ps', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'the flags', `${p}.Q`)
   const [FC, FZ, FI, FD, , , FV, FN] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `${ps}.Y${i}`)
@@ -277,12 +307,15 @@ export function micro6502Builder(o: Micro6502Options = {}) {
     return `${g}.Y`
   })
   // The shifter works on the A input: left (ASL, ROL) or right (LSR, ROR), the rotates taking the carry flag in.
+  noteIn(ALU, 'SHIFTER. ASL and ROL move the A input one bit left, LSR and ROR one bit right. ROL and ROR bring the carry flag in; the bit that falls out becomes the new carry (C_SRC = SHIFTED).', 'yellow', 'e')
+  tag = 'e'
   const as = splitter(ALU, 'as', 8, [7, 1], 'A input: bit 7', aIn)
   const as2 = splitter(ALU, 'as2', 8, [1, 7], 'A input: bit 0', aIn)
   const ops = splitter(ALU, 'ops', 3, [1, 1, 1], 'OP: right, rotate', c('OP'))
   const shiftIn = gate(ALU, 'shiftIn', 'and', 'a rotate takes the carry in', [`${ops}.Y1`, FC])
   const shl = merger(ALU, 'shl', 8, [1, 7], 'A shifted left', [shiftIn, `${as}.Y0`])
   const shr = merger(ALU, 'shr', 8, [7, 1], 'A shifted right', [`${as2}.Y1`, shiftIn])
+  tag = ''
   const result = mux(ALU, 'result', 8, 'R: the ALU’s result', [`${adder}.S`, ...logic, shl, shr, shl, shr], c('OP'))
   named(result, R, 8)
 
@@ -292,6 +325,8 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const zeroCmp = part(ALU, 'zeroCmp', 'buscmp', { params: { bits: 8 }, label: 'R is zero' }, 20)
   wire(result, `${zeroCmp}.A`)
   wire(zero8, `${zeroCmp}.B`)
+  noteIn(ALU, "FLAGS. N is bit 7 of R, Z says R is 0, C is the adder's carry (or the shifted-out bit, or 0 or 1 for CLC and SEC), V is signed overflow. A flag changes only when its control bit is on (NZ, UPD_C, V): each one has a hold-or-new multiplexer. BIT takes N and V from bits 7 and 6 of the operand. I and D are set and cleared by their own instructions.", 'yellow', 'f')
+  tag = 'f'
   const bs = splitter(ALU, 'bs', 8, [6, 1, 1], 'B input: bits 6 and 7', bx)
   const overflow = gate(ALU, 'overflow', 'and', 'overflow: operands agree, result not', [
     gate(ALU, 'ovA', 'xor', 'A sign ≠ result sign', [`${as}.Y1`, R7]),
@@ -304,11 +339,13 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   wire(`${adder}.Co`, `${cNew}.I0`)
   wire(bit(ALU, 'cZero', 0), `${cNew}.I1`)
   wire(cOne, `${cNew}.I2`)
+  tag = 'e'
   const shifted = part(ALU, 'shifted', 'mux', { params: { n: 2 }, label: 'the bit a shift moves out' }, 20)
   wire(`${as}.Y1`, `${shifted}.I0`)
   wire(`${as2}.Y0`, `${shifted}.I1`)
   wire(`${ops}.Y0`, `${shifted}.S0`)
   wire(`${shifted}.Y`, `${cNew}.I3`)
+  tag = ''
   wire(`${cSrc}.Y0`, `${cNew}.S0`)
   wire(`${cSrc}.Y1`, `${cNew}.S1`)
   const choose = (key: string, label: string, old: string, fresh: string, when: string) => {
@@ -334,21 +371,27 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   const iNext = gate(ALU, 'iNext', 'and', 'I: set by SEI and reset, cleared by CLI', [gate(ALU, 'iSet', 'or', 'I set', [FI, c('SETI')]), gate(ALU, 'nClri', 'not', 'not CLI', [c('CLRI')])])
   const dNext = gate(ALU, 'dNext', 'and', 'D: set by SED, cleared by CLD', [gate(ALU, 'dSet', 'or', 'D set', [FD, c('SETD')]), gate(ALU, 'nClrd', 'not', 'not CLD', [c('CLRD')])])
   const pNext = merger(ALU, 'pNext', 8, [1, 1, 1, 1, 1, 1, 1, 1], 'P: C Z I D – 1 V N', [cNext, zNext, iNext, dNext, bit0(), bit1(), vNext, nNext])
+  tag = ''
   // PLP and RTI load the flags from the result (the break flag is not kept, and bit 5 is always 1).
   const rp = splitter(ALU, 'rp', 8, [4, 2, 2], 'R: the flags it holds', result)
   const pData = merger(ALU, 'pData', 8, [4, 1, 1, 2], 'P from R: D I Z C, –, 1, V N', [`${rp}.Y0`, bit0(), bit1(), `${rp}.Y2`])
+  tag = 'd'
   wire(mux(ALU, 'pLoad', 8, 'P: next flags, or R (PLP, RTI)', [pNext, pData], c('LD_P')), `${p}.D`)
+  tag = ''
 
 
   // Every register loads R (the program counter's low byte may load TL instead).
   for (const d of rFrom) wire(R, d)
   const pclD = mux(REGS, 'pclD', 8, 'PCL loads R, TL or the data bus', [R, regs.TL, 'DI', 'DI'], c('PCL_FROM'))
   // The crs flag keeps the carry out of the adder when an index is added.
+  tag = 'a'
   wire(choose('crsNext', 'CRS: hold, or the adder’s carry', CRS, `${adder}.Co`, c('LD_CRS')), `${crs}.D`)
+  tag = ''
   wire(pclD, `${pcl}.D`)
   wire(R, `${pch}.D`)
 
   // ---- The address bus ---------------------------------------------------------------------------------------------------
+  noteIn(ADDR, 'ADDRESS BUS. One multiplexer chooses the address of the cycle (ASEL): PC (fetching), TH:TL (an address being built), page 1 with SP (the stack), page 0 with TL (zero page), or one of the vectors at $FFFC–$FFFF.', 'pink')
   const pc = merger(ADDR, 'pc', 16, [8, 8], 'PC', [regs.PCL, regs.PCH])
   const addr = merger(ADDR, 'addrReg', 16, [8, 8], 'the address built in TL and TH', [regs.TL, regs.TH])
   const stack = merger(ADDR, 'stack', 16, [8, 8], 'stack: page 1 and SP', [regs.SP, busconst(ADDR, 'page1', 8, 1)])
@@ -359,6 +402,13 @@ export function micro6502Builder(o: Micro6502Options = {}) {
 
   // ---- Memory: RAM and ROM, and the LED register or the terminal -----------------------------------------------------------------
   const basic = o.board === 'basic'
+  noteIn(
+    MEM,
+    basic
+      ? 'MEMORY AND TERMINAL, Ben Eater’s map. Address lines A14 and A15 pick the part: RAM $0000–$3FFF (both 0), the 6551 terminal $5000 (A14 = 1, A15 = 0; A0 and A1 pick one of its four registers), ROM $8000–$FFFF (A15 = 1, seen twice). What the CPU reads comes back through DI; a write puts R on the data bus, and RAM or the terminal takes it at the rising clock edge. The ROM holds Microsoft BASIC.'
+      : 'MEMORY. Address lines A14 and A15 pick the part: RAM $0000 (both 0), the LED register $4000 (A14 = 1, A15 = 0, a write), ROM $F000 (A15 = 1, seen from $8000). What the CPU reads comes back through DI; a write puts R on the data bus, and RAM or the LED register takes it at the rising clock edge.',
+    'green',
+  )
   const split = splitter(MEM, 'split', 16, basic ? [14, 1, 1] : [11, 1, 1, 1, 1, 1], basic ? 'address: A0–A13, A14, A15' : 'address: A0–A10, A11, A12, A13, A14, A15', A)
   const A14 = `${split}.Y${basic ? 1 : 4}`
   const A15 = `${split}.Y${basic ? 2 : 5}`
@@ -412,6 +462,7 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   show(MEM, 'showAddr', 'address', A, 16)
 
   // ---- The sequencer's decisions: when the instruction ends -------------------------------------------------------------
+  noteIn(CTL, 'WHEN AN INSTRUCTION ENDS. END ends it. A branch that is not taken (BRANCH, and the flag the opcode asks for is not the value it wants) ends after 2 cycles; one that does not cross a page ends after 3 (NOCROSS); an indexed read that did not carry into the high byte ends a cycle early (XEND). The reset button also holds T at 0.', 'blue')
   const irs = splitter(CTL, 'irs', 8, [5, 1, 1, 1], 'IR: the branch bits', `${ir}.Q`)
   const flag = part(CTL, 'flag', 'mux', { params: { n: 4 }, label: 'the flag a branch looks at: N V C Z' }, 20)
   wire(FN, `${flag}.I0`)
@@ -433,10 +484,27 @@ export function micro6502Builder(o: Micro6502Options = {}) {
 
   // ---- Put the sections side by side ------------------------------------------------------------------------------------------
   let left = 0
+  const sectionLeft = new Map<number, number>()
   for (const section of [...sections.keys()].sort((a, b) => a - b)) {
     const { col, ids } = sections.get(section)!
+    sectionLeft.set(section, left)
     for (const { id, x } of ids) b.c.comps[id].x = x + left
     left += (col + 1) * COLUMN + 120
+  }
+  // The notes of a section stand in the band above its frame, side by side in the section's columns and stacked upwards.
+  const stackTop = new Map<string, number>()
+  const used = new Map<number, number>()
+  let highest = -100
+  for (const n of pendingNotes) {
+    const columns = sections.get(n.section)!.col + 1
+    const k = used.get(n.section) ?? 0
+    used.set(n.section, k + 1)
+    const key = `${n.section}.${k % columns}`
+    const id = b.add('note', sectionLeft.get(n.section)! + (k % columns) * COLUMN, 0, { params: { text: n.text, cols: 44, color: n.color } })
+    const y = Math.floor(((stackTop.get(key) ?? -110) - boundsRect(b.c.comps[id]).h) / 10) * 10
+    b.c.comps[id].y = y
+    stackTop.set(key, y - 20)
+    highest = Math.min(highest, y)
   }
 
   // ---- Wire everything: a signal that goes to three or more places is sent by name ---------------------------------------------
@@ -461,15 +529,16 @@ export function micro6502Builder(o: Micro6502Options = {}) {
   frame(ALU, 'ALU and FLAGS', 'yellow')
   frame(ADDR, 'ADDRESS BUS: what goes on it', 'pink')
   frame(MEM, o.board === 'basic' ? 'MEMORY and the TERMINAL' : 'MEMORY and the LEDs', 'green')
-  note(
+  const intro = note(
     b,
     0,
-    -300,
+    0,
     o.board === 'basic'
-      ? 'The BASIC computer with a 6502 built from registers, counters, multiplexers, an adder and a microcode ROM, instead of the 6502 part: Ben Eater’s memory map, Microsoft BASIC in the ROM and a serial terminal at $5000. It resets itself when it starts and then says OK; click the terminal’s screen and type. This CPU is very slow (the clock is as fast as the page can go, a few thousand cycles a second): give BASIC a minute to start, and expect a short program to take a while. Hold the Reset button for a clock to start over.'
-      : 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over.',
+      ? 'The BASIC computer with a 6502 built from registers, counters, multiplexers, an adder and a microcode ROM, instead of the 6502 part: Ben Eater’s memory map, Microsoft BASIC in the ROM and a serial terminal at $5000. It resets itself when it starts and then says OK; click the terminal’s screen and type. This CPU is very slow (the clock is as fast as the page can go, a few thousand cycles a second): give BASIC a minute to start, and expect a short program to take a while. Hold the Reset button for a clock to start over. Each part below is explained by the notes next to it.'
+      : 'A 6502 built from registers, counters, multiplexers, an adder and a microcode ROM. One clock is one bus cycle, as on the real chip: the microcode names, for every cycle of every opcode, which register goes on the ALU, what it does, and where the result goes. It resets itself when it starts; hold the Reset button for a clock to start over. To watch it work, press Pause and then Clock step: two steps are one cycle, one bus access. Each part below is explained by the notes next to it.',
     48,
   )
+  b.c.comps[intro].y = Math.floor((highest - 40 - boundsRect(b.c.comps[intro]).h) / 10) * 10
   return { b, keys }
 }
 
