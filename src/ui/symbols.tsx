@@ -337,29 +337,42 @@ function MuxSym({ l, title, demux }: { l: Layout; title: string; demux: boolean 
 }
 
 /**
- * Splitter and merger: a comb, not a gate. A thick spine takes the whole bus on one side and a tooth leads to each piece on the
- * other (thin for a single bit, thick with a slash for a smaller bus), with the bit range written on the tooth. No fill and
- * no title, so it reads as wiring.
+ * Splitter and merger: a trunk with bus entries, not a gate. A thick trunk takes the whole bus on one side; each piece leaves it
+ * on a 45 degree diagonal and runs straight to its pin (thin for a single bit, thick with a slash for a smaller bus), with the
+ * bit range written on the wire. No fill and no title, so it reads as wiring. A merger is the mirror image.
  */
 function CombSym({ l, merge }: { l: Layout; merge: boolean }) {
-  const spineX = merge ? l.w - 12 : 12
-  const ys = l.pins.map((p) => p.y)
-  const top = Math.min(...ys) - 6
-  const bottom = Math.max(...ys) + 6
+  const s = merge ? -1 : 1
+  const at = (k: number) => (merge ? l.w - k : k)
+  const trunk = at(10)
+  const side = merge ? 'l' : 'r'
+  const pieces = l.pins.filter((p) => p.side === side)
+  const whole = l.pins.find((p) => p.side !== side)!
+  const top = Math.min(...pieces.map((p) => p.y))
+  const bottom = Math.max(...pieces.map((p) => p.y)) + 6
+  // The slash goes on the stub outside the body, clear of the label.
+  const slash = (p: PinDef) => {
+    const x = (p.x + (p.side === 'l' ? 0 : l.w)) / 2
+    return p.bus ? <line className="sym-line bus-slash" x1={x - 2.5} y1={p.y + 4} x2={x + 2.5} y2={p.y - 4} /> : null
+  }
   return (
     <>
       <rect className="sym-hit" x={0} y={0} width={l.w} height={l.h} />
-      <line className="sym-line bus" x1={spineX} y1={top} x2={spineX} y2={bottom} />
-      {l.pins.map((p) => (
-        <Stub key={p.name} pin={p} inner={{ x: spineX, y: p.y }} />
-      ))}
-      {l.pins
-        .filter((p) => p.side === (merge ? 'l' : 'r'))
-        .map((p) => (
-          <Txt key={p.name} x={merge ? spineX - 5 : spineX + 5} y={p.y - 12} anchor={merge ? 'end' : 'start'} className="pin-label">
-            {p.label ?? p.name}
-          </Txt>
-        ))}
+      <line className="sym-line bus" x1={trunk} y1={top} x2={trunk} y2={bottom} />
+      <line className="sym-line bus" x1={whole.x} y1={whole.y} x2={trunk} y2={whole.y} />
+      {slash(whole)}
+      {pieces.map((p) => {
+        const cls = p.bus ? 'sym-line bus' : 'sym-line'
+        return (
+          <g key={p.name}>
+            <polyline className={cls} fill="none" points={`${trunk},${p.y + 6} ${trunk + s * 6},${p.y} ${p.x},${p.y}`} />
+            {slash(p)}
+            <Txt x={trunk + s * 11} y={p.y - 9} anchor={merge ? 'end' : 'start'} className="pin-label">
+              {p.label ?? p.name}
+            </Txt>
+          </g>
+        )
+      })}
     </>
   )
 }

@@ -32,13 +32,13 @@ const whole = (p: Params, name: string, dir: 'in' | 'out'): PinSpec => ({
 })
 
 /**
- * Width of the body: room for the spine on one side and the widest piece label on the other. The symbol is a comb, not a box
+ * Width of the body: room for the trunk and its diagonals on one side and the widest piece label on the other. The symbol is a trunk with bus entries, not a box
  * with a title, so it needs far less than a part with a label on every pin.
  */
 function combWidth(p: Params): number {
   const offsets = splitOffsets(p)
   const label = Math.max(...splitWidths(p).map((w, i) => range(offsets[i], w).length * 6))
-  return Math.max(40, Math.ceil((label + 24) / 20) * 20)
+  return Math.max(40, Math.ceil((label + 26) / 20) * 20)
 }
 
 export const buses: ComponentDef[] = [
