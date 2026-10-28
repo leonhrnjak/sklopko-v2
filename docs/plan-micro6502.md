@@ -38,8 +38,12 @@ R/W, SYNC and the data written must match, and after every cycle so must A, X, Y
   the ALU). 134 of the 151 opcodes.
 - [x] **3. The rest of the documented set**: the stack (PHA PLA PHP PLP, JSR RTS, BRK RTI, TSX TXS: SP has its own +1 and −1 adders, and
   P loads from the result), BIT (N and V from the operand), the flag instructions (CLI SEI CLD SED CLV). All 151 opcodes.
-- [ ] **3b. Decimal mode** (the D flag is kept, but ADC and SBC are binary): not needed by BASIC. And the SingleStepTests vectors the core
-  already passes, run against the circuit.
+- [x] **3b. Decimal mode**: a new microcode signal `DEC` on the ADC and SBC rows (the fourth ROM is 16 bits wide now) and, in the ALU, a decimal
+  unit that works on the two digits as the NMOS chip does. ADC: the low digits are added, 6 is added and a carry goes to the high digits
+  when the sum is 10 or more, and the high digits are the same; Z is that of the binary sum, N and V those of the high digits' sum before
+  its fix. SBC: the binary difference, less 6 for a digit that borrowed; all its flags are the binary ones. Tested against the core on
+  random programs (SED and PLP are in the opcode mix) and on 1,680 random ADC and SBC pairs, valid digits or not. Not done: the
+  SingleStepTests vectors on the circuit.
 - [x] **4. Interrupts**: the pins IRQB and NMIB (low when asking) at the CPU's boundary, with two buttons on the board. Each cycle the CPU keeps
   what it saw; NMI is an edge and is remembered until taken; at the next fetch TAKE (NMI, or IRQ while I is 0) throws the opcode away,
   loads IR with 0 (BRK), keeps PC where it is, pushes the flags with B = 0 and reads $FFFA (NMI) or $FFFE (IRQ). No new microcode: the
