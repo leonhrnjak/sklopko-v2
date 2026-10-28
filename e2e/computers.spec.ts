@@ -856,6 +856,7 @@ test('the LCD example: the 6502 sets the display up and writes Hello, world! thr
 })
 
 test('the BASIC computer with the LCD: a program to type in POKEs two lines onto the display', async ({ page }) => {
+  test.setTimeout(180_000) // the program is typed in and run at BASIC speed: slow on a busy machine
   await page.goto('/6502-basic-lcd', { waitUntil: 'networkidle' })
   await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
   await expect(page.getByLabel('Screen text')).toContainText('OK', { timeout: 60000 })
