@@ -4318,6 +4318,15 @@ button.linklike:hover {
 .arch-snaps {
   display: grid;
   gap: 8px;
+  /* stays in view while the notes and the part names beside it are scrolled, so a part you point at can be seen */
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+@media (max-width: 820px) {
+  .arch-snaps {
+    position: static;
+  }
 }
 .arch .snap {
   display: block;

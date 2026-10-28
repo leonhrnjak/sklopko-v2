@@ -507,6 +507,9 @@ test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycl
   await expect(guide.getByRole('heading', { name: 'Registers' })).toBeVisible()
   await expect(guide).toContainText('parts in this section') // from the circuit that is open: its parts and the notes above the section
   await expect(guide.locator('svg.snap.zoom')).toBeVisible()
+  // The picture stays in view while the part names under the text are scrolled to, so a part you point at can be seen.
+  await guide.locator('.arch-chip').last().scrollIntoViewIfNeeded()
+  await expect(guide.locator('svg.snap.zoom')).toBeInViewport({ ratio: 0.9 })
   await guide.getByRole('tab', { name: 'One instruction' }).click()
   await expect(guide.getByText('Reads the opcode at PC into IR.')).toBeVisible()
   await guide.getByRole('tab', { name: 'The machine' }).click()
