@@ -35,6 +35,6 @@ export default defineConfig({
     __PATH_STEP_COUNT__: pathStepCount(fileURLToPath(new URL('./src/model/path/steps', import.meta.url))),
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'api/src/**/*.test.ts'],
   },
 })

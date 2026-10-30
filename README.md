@@ -31,6 +31,28 @@ branch gets its own preview URL. Build settings:
 `public/_headers` sets caching (hashed assets cached forever, `index.html` always revalidated) and basic
 security headers.
 
+## Backend (the API Worker)
+
+`api/` is a Cloudflare Worker (Hono + D1) that answers `/api/v1/*` on the app's own domain: no CORS, no cross-site cookies. It
+is the start of accounts, cloud save and a public library (`docs/plan-backend.md`; this milestone, B1:
+`docs/spec-backend-m1-api-skeleton.md`). The app does not call it yet, and works without it. The contract is `api/openapi.yaml`.
+
+```sh
+npm run api:migrate   # create the local database (first time, and after a new file in api/migrations/)
+npm run api:dev       # the API on http://localhost:8787/api/v1/health
+npm test              # includes api/src/*.test.ts
+```
+
+One-time setup in Cloudflare (needs dashboard access; production is not touched from CI except the deploy):
+
+1. `npx wrangler login`, then `npx wrangler d1 create sklopko`; put the printed `database_id` in `api/wrangler.toml`.
+2. `npm run api:migrate:remote` (also after every new migration, before the Worker that needs it is deployed).
+3. Add the route `<your domain>/api/*` to the Worker (dashboard: Workers, sklopko-api, Settings, Domains & Routes, or `routes` in `api/wrangler.toml`).
+4. Add the repository secrets `CLOUDFLARE_API_TOKEN` (permission Workers Scripts: Edit) and `CLOUDFLARE_ACCOUNT_ID`; then
+   `.github/workflows/api-deploy.yml` deploys the Worker on every merge to `main` that touches `api/`. Without the secrets it does nothing.
+
+Local secrets go in `api/.dev.vars` (git-ignored); production secrets with `npx wrangler secret put NAME --config api/wrangler.toml`.
+
 ## Using it
 
 - **Add parts:** drag from the left panel, or click one and then click the canvas (Shift keeps placing).

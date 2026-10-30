@@ -26,3 +26,7 @@ dist-ssr
 # Playwright
 test-results
 playwright-report
+
+# Wrangler local state and secrets
+.wrangler
+.dev.vars

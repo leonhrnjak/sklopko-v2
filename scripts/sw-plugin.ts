@@ -29,6 +29,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
+  // The API is never cached or answered from the cache: its answers are about now.
+  if (url.pathname.startsWith('/api/')) return
   // A page (the app, or a short link like /dice): the network first, so a new deploy shows at once, else the cached app.
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match('/index.html', { ignoreVary: true })))

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 
 // The service worker exists only in the built app, so this spec runs against `vite preview` of `dist/` (CI builds before it
 // runs the end-to-end tests; locally, `npm run build` first).
@@ -44,7 +44,7 @@ test('after one visit the app opens and runs with no network: the page, a short 
   expect(cached.names).toBe(1)
   expect(cached.urls).toContain('/index.html')
   expect(cached.urls).toContain('/manifest.webmanifest')
-  expect(cached.urls.filter((u) => u.startsWith('/examples/') && u.endsWith('.json'))).toHaveLength(60)
+  expect(cached.urls.filter((u) => u.startsWith('/examples/') && u.endsWith('.json'))).toHaveLength(readdirSync('dist/examples').filter((f) => f.endsWith('.json')).length)
   expect(cached.urls.some((u) => /^\/assets\/index-.*\.js$/.test(u))).toBe(true)
 
   await context.setOffline(true)
@@ -71,4 +71,21 @@ test('the manifest names the app and its icons', async ({ request }) => {
   const manifest = await (await request.get(BASE + '/manifest.webmanifest')).json()
   expect(manifest).toMatchObject({ short_name: 'Sklopko', start_url: '/', display: 'standalone' })
   for (const icon of manifest.icons) expect((await request.get(BASE + icon.src)).ok(), icon.src).toBe(true)
+})
+
+test('the service worker leaves /api/ alone: no API answer is cached or served from the cache', async ({ page, context }) => {
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
+  const source = await page.evaluate(async () => (await fetch('/sw.js')).text())
+  expect(source).toContain("url.pathname.startsWith('/api/')")
+  const cachedApi = await page.evaluate(async () => {
+    const urls: string[] = []
+    for (const name of await caches.keys()) for (const req of await (await caches.open(name)).keys()) urls.push(new URL(req.url).pathname)
+    return urls.filter((p) => p.startsWith('/api/'))
+  })
+  expect(cachedApi).toEqual([])
+  await context.setOffline(true)
+  const failed = await page.evaluate(() => fetch('/api/v1/health').then(() => false, () => true))
+  expect(failed).toBe(true)
+  await context.setOffline(false)
 })

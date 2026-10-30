@@ -27,7 +27,7 @@ tests, what is out of scope). Open a PR with only the spec and **wait for explic
 
 Each is a spec PR, approval, then an implementation PR; stacked. The first implementation PR bumps the minor version.
 
-- [ ] B1 API skeleton and deploy (`docs/spec-backend-m1-api-skeleton.md`)
+- [ ] B1 API skeleton and deploy (built, in review) (`docs/spec-backend-m1-api-skeleton.md`)
 - [ ] B2 Auth (Google + password, sessions, Turnstile, account deletion)
 - [ ] B3 Cloud sync of My circuits and Learn progress
 - [ ] B4 Public library: publish, browse, search, duplicate

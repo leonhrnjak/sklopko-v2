@@ -1,0 +1,41 @@
+# The API's contract, kept by hand so the server stays swappable. Every route is under /api/v1 on the app's own domain.
+openapi: 3.0.3
+info:
+  title: Sklopko API
+  version: 0.5.0
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: Is the API up, which build, which database schema.
+      responses:
+        '200':
+          description: Up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: The database did not answer.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+components:
+  schemas:
+    Health:
+      type: object
+      required: [ok, version, schema]
+      properties:
+        ok: { type: boolean }
+        version: { type: string, description: The shown version (`0.5.3`), or `dev`. }
+        schema: { type: integer, nullable: true, description: The database schema version, null when unknown. }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, description: 'not_found, payload_too_large, internal, ...' }
+            message: { type: string }

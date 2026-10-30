@@ -1,0 +1,14 @@
+# The API Worker: one Hono app answering `/api/*` on the app's own domain (see docs/spec-backend-m1-api-skeleton.md).
+name = "sklopko-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Production: the route is set in the Cloudflare dashboard or here once the domain is known, for example
+# routes = [{ pattern = "example.com/api/*", zone_name = "example.com" }]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sklopko"
+# Replace with the id printed by `npx wrangler d1 create sklopko` (README, "Backend"). `wrangler dev` uses a local database whatever this is.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
