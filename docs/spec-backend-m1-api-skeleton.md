@@ -1,6 +1,6 @@
 # B1: API skeleton and deploy (spec)
 
-Status: **draft, waiting for approval.** No implementation until approved (see `docs/plan-backend.md`).
+Status: **approved** (Worker, decided with the user). No implementation until approved (see `docs/plan-backend.md`).
 
 ## Goal
 
@@ -12,10 +12,11 @@ development, so B2 (auth) and later milestones only add routes. No user-visible 
 1. **Layout.** A new `api/` directory in this repo with its own `tsconfig`, importing shared code from `src/model/` (validation) by
    relative path. No monorepo tooling; one `package.json` (new devDependencies: `wrangler`, `hono`, `@cloudflare/vitest-pool-workers`).
    Client bundle must not import anything from `api/`.
-2. **Routing on one origin.** The Pages project stays; `/api/*` is served by a Worker on the same domain, so there are no CORS
-   and no third-party-cookie problems. Pages Functions (`functions/api/[[route]].ts`) is the simplest way to do this
-   and avoids a separate route setup; a standalone Worker is the alternative. **Proposal: Pages Functions**, one Hono app.
-   Open: confirm the Pages project can bind D1/R2 in the dashboard.
+2. **Routing on one origin (decided: a standalone Worker).** The Pages project stays for the static app. The API is its own Worker
+   (`api/wrangler.toml`, one Hono app) with a route `<app domain>/api/*`, so the browser sees one origin: no CORS, no
+   third-party cookies. A Worker (not Pages Functions) because it keeps Cron Triggers, Queues and Durable Objects available,
+   and Cloudflare's newer features land there. Deploy with `wrangler deploy`; PR previews are `wrangler versions upload`
+   (preview URL, not on the production route).
 3. **Database.** D1 (SQLite). Migrations as numbered SQL files in `api/migrations/`, applied with `wrangler d1 migrations apply`.
    B1 creates one table (`meta(key, value)`, for a schema-version check) so the migration path is proven; real tables come with
    the milestone that needs them.
@@ -34,8 +35,8 @@ development, so B2 (auth) and later milestones only add routes. No user-visible 
   limits above.
 - D1 migration `0001_init.sql` and the `meta` table.
 - Local development: `npm run api:dev`, `npm run api:migrate`; README section.
-- CI: a job that type-checks `api/` and runs its tests; deploy stays Cloudflare's Git integration (migrations for production
-  applied by a documented manual step in B1, automated later).
+- CI: a job that type-checks `api/` and runs its tests; deploy of the Worker by `wrangler deploy` on merge to `main` (needs a `CLOUDFLARE_API_TOKEN` secret, set by the owner), migrations
+  for production applied by a documented manual step in B1, automated later.
 - No client code, no UI, no auth, no real data.
 
 ## Out of scope
@@ -60,8 +61,7 @@ Auth, users, sync, publishing, rate limits (B2 and later), analytics, email.
 
 No change to the client bundle or its budget. First implementation PR for B1 bumps `package.json` to the next minor version.
 
-## Questions for you
+## Still needed from the owner (not blocking the code)
 
-1. Pages Functions (proposed) or a standalone Worker?
-2. Do you already have the Cloudflare account/Pages project access needed to create D1 and R2 (I cannot do this from here)?
-3. Domain: same domain as the app (proposed) or `api.` subdomain?
+Creating the production D1 database and R2 bucket, the API token, and the `/api/*` route needs Cloudflare dashboard access; the
+README documents the exact steps. Until then everything runs and is tested locally and in CI.
