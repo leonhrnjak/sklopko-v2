@@ -21,6 +21,9 @@ each is one PR, stacked: its branch starts from the previous milestone's branch 
 when the one below merges), so each diff shows only its own work. A session's default branch, if it names one, does not change this:
 make the milestone branches from it. Without a PR (description, screenshots, CI) the work is not done.
 
+**Backend milestones (`docs/plan-backend.md`) start with a spec.** Write a detailed spec in `docs/`, open a PR with only that
+spec, and wait for the user's explicit approval before any implementation (no code branch, no new dependencies).
+
 1. Work on a feature branch (never commit to `main` directly), push it, and open a PR with `gh pr create`.
    **Every PR description has five parts** (the template is `.github/pull_request_template.md`): what it adds (short, for a
    reader who has not seen the code), how it works (short, technical), how to test it (numbered steps), screenshots, and the
