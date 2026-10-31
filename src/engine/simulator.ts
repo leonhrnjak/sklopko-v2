@@ -409,6 +409,11 @@ export class Simulator {
     this.fastAllowed = on
   }
 
+  /** Is the fast engine allowed (see `setFast`)? */
+  get fastOn() {
+    return this.fastAllowed
+  }
+
   /** Which engine settles the circuit now: 'fast', or 'exact' (the unit-delay engine). */
   get engine(): 'fast' | 'exact' {
     return this.fastAllowed && this.plan !== null && typeof this.plan !== 'string' && !this.capturing && this.forced === null ? 'fast' : 'exact'
@@ -494,6 +499,12 @@ export class Simulator {
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
+    if (this.usingFast) {
+      // Stepping gate delays one by one (the Step button) is what the exact engine is for: it takes over from here, and `settle` hands
+      // back to the fast engine at the next clock edge or switch change.
+      this.usingFast = false
+      this.markAll()
+    }
     const { values, stale, readerStart, readerPart, readerSlot, pins, changedNets, comps } = this
     // Parts flagged by the last tick's changes are evaluated now; flags raised while this tick commits belong to the next.
     const run = this.queue

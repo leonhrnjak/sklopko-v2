@@ -45,6 +45,8 @@ export interface SavedCircuit extends SavedBody {
   tests?: string
   /** Written, as `false`, only when the document runs without the history for stepping back (version 4). */
   history?: false
+  /** Written, as `true`, only when the document asks for exact gate timing (an additive field of version 4). */
+  exact?: true
 }
 
 /** The version `serialize` writes. */
@@ -108,6 +110,7 @@ export function serialize(circuit: Circuit): SavedCircuit {
     ...(ics.length ? { ics: ics.map((def) => ({ id: def.id, name: def.name, ...(def.symbol ? { symbol: def.symbol } : {}), ...serializeBody(def.circuit) })) } : {}),
     ...(c.tests ? { tests: c.tests } : {}),
     ...(c.history === false ? { history: false as const } : {}),
+    ...(c.exact ? { exact: true as const } : {}),
   }
 }
 
@@ -190,6 +193,7 @@ export function deserialize(data: unknown): Circuit {
   if (Object.keys(ics).length) c.ics = ics
   if (typeof d.tests === 'string' && d.tests.trim()) c.tests = d.tests.slice(0, MAX_TESTS)
   if (d.history === false) c.history = false
+  if (d.exact === true) c.exact = true
   for (const circuit of [c, ...Object.values(ics).map((def) => def.circuit)]) settleCircuit(circuit, ics)
   return c
 }

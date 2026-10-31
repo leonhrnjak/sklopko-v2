@@ -1514,6 +1514,10 @@ button.danger {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 600;
 }
+.run-engine {
+  color: var(--muted);
+  font-size: 0.85em;
+}
 .run-clock.slow {
   color: var(--danger);
 }

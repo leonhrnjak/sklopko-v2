@@ -72,7 +72,7 @@ export const chooseTool = (page: Page, item: string) => chooseFromMenu(page, 'To
 export const chooseFile = (page: Page, item: string) => chooseFromMenu(page, 'File', item)
 
 /** Switch a checkbox entry of the Tools menu (Waveforms, Timing, Step-back history), found by its test id. */
-export async function toggleTool(page: Page, testid: 'waves-toggle' | 'timing-toggle' | 'history-toggle') {
+export async function toggleTool(page: Page, testid: 'waves-toggle' | 'timing-toggle' | 'history-toggle' | 'exact-toggle') {
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await page.getByTestId(testid).click()
 }

@@ -1,6 +1,6 @@
 import { counterDisplay } from '../model/example-counter'
 import { WELCOME_ID, exampleFromPath, type ExampleInfo } from '../model/examples-index'
-import { historyOf } from '../model/ic'
+import { exactOf, historyOf } from '../model/ic'
 import { learnFromPath } from '../model/path'
 import { deserialize, fromShareHash, toJSON, toShareHash } from '../model/serialize'
 import type { Circuit } from '../model/circuit'
@@ -137,6 +137,12 @@ export async function startRuntime() {
     if (s.circuit === prev.circuit) return
     const on = historyOf(s.circuit)
     if (on !== sim.historyOn) sim.setHistory(on)
+    const fast = !exactOf(s.circuit)
+    if (fast !== sim.fastOn) {
+      sim.setFast(fast)
+      sim.settle()
+      sim.publish()
+    }
   })
 
   startAutosave()

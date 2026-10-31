@@ -13,7 +13,7 @@ import { openLogic } from '../app/logic'
 import { open6502Reference, openBasicReference, openParts6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
-import { setHistoryOn, useHistoryOn } from '../app/stepback'
+import { setExactOn, setHistoryOn, useExactOn, useHistoryOn } from '../app/stepback'
 import { setWaveOpen, toggleTiming, useWave } from '../app/waveform'
 import { sim } from '../app/sim'
 import {
@@ -242,6 +242,7 @@ export function Toolbar() {
 
   const canBack = useSyncExternalStore(sim.subscribe, () => sim.canStepBack())
   const historyOn = useHistoryOn()
+  const exactOn = useExactOn()
   const step = () => {
     sim.tick()
     sim.publish()
@@ -351,6 +352,14 @@ export function Toolbar() {
         testid="history-toggle"
       >
         Step-back history
+      </MenuItem>
+      <MenuItem
+        checked={exactOn}
+        onClick={() => setExactOn(!exactOn)}
+        title="Simulate every gate delay, tick by tick, instead of letting the fast engine settle each clock edge in one pass. Needed only for a circuit whose result depends on which signal is a gate delay ahead of another; the fast engine is chosen only for circuits where it gives the same result. Saved with the circuit."
+        testid="exact-toggle"
+      >
+        Exact gate timing
       </MenuItem>
       <MenuItem
         checked={waveOpen}
