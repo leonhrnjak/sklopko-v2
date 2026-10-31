@@ -115,4 +115,35 @@ describe('timing classes (docs/spec-sim-speed-tier2.md)', () => {
       }
     })
   }
+
+  for (const def of DEFS.filter((d) => d.risingClock)) {
+    it(`${def.type} only cares when its clock rises: a falling clock changes no output and only sets state.pc to 0`, () => {
+      const r = rng(def.type.length * 19 + def.type.charCodeAt(0))
+      for (const params of variants(def)) {
+        const { clock, mk } = make(def, params)
+        expect(clock.filter(Boolean).length, `${def.type} has one clock pin`).toBe(1)
+        const ck = clock.indexOf(true)
+        const zOk = !!def.acceptsZ
+        for (let run = 0; run < 20; run++) {
+          const inst = mk()
+          for (let step = 0; step < 12; step++) {
+            for (let i = 0; i < inst.ins.length; i++) if (i !== ck) inst.ins[i] = draw(r, zOk)
+            inst.ins[ck] = r() < 0.5 ? 0 : 1
+            def.evaluate(inst)
+            inst.ins[ck] = 1
+            def.evaluate(inst)
+            // The clock falls and nothing else changes: this is the evaluation the fast engine skips.
+            const outs = inst.outs.join('')
+            const before = JSON.parse(JSON.stringify(inst.state, (_, v) => (v instanceof Uint8Array ? Array.from(v) : v)))
+            before.pc = 0
+            inst.ins[ck] = 0
+            def.evaluate(inst)
+            const after = JSON.parse(JSON.stringify(inst.state, (_, v) => (v instanceof Uint8Array ? Array.from(v) : v)))
+            expect(inst.outs.join(''), `${def.type} ${JSON.stringify(params)} outputs, ins ${inst.ins.join('')}`).toBe(outs)
+            expect(after, `${def.type} ${JSON.stringify(params)} state`).toEqual(before)
+          }
+        }
+      }
+    })
+  }
 })
