@@ -155,3 +155,17 @@ part types (the same problem as `def.evaluate`), and a 2-input gate is cheaper t
 | gates only | 66,500 | 61,900 to 73,200 |
 
 No variant is faster than D2, so D3 is dropped, as the spec said it would be if it did not pay. The code is not merged.
+
+### D4 result: not built
+
+D4 (inline cases for the commonest part types) had to be worth more than 10% to be built. The most that it can give is bounded by the
+profile: the six gate types (`and`, `or`, `not`, `xor`, `xnor`, `buf`) are about 20 of the 90 evaluations a cycle, and time spent inside
+part `evaluate` functions is about 41% of the total (measured with a timer around each call). Making every gate evaluation free would save
+about 20/90 of 41%, **under 10%**, and only by keeping a second copy of the logic of each part. The bigger parts (`busreg`, `busmux`,
+`busadd`) have real work in them that inlining does not remove. D4 is dropped; what is left in the engine's time is scheduling, which is what
+the WebAssembly port (`docs/spec-sim-wasm.md`) removes.
+
+### Summary of phase D
+
+118.6 → 89.8 evaluations per cycle (-24%), cycles a second about 56,000-72,500 → 65,000-74,400 in Node (D0 and D2 medians:
+about 59,000 and 70,800). D1 and D2 are merged-ready PRs; D3 and D4 were measured and dropped.
