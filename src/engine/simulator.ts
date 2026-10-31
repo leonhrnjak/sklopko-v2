@@ -148,10 +148,21 @@ export class Simulator {
   private queued = 0
   /** The queue of the tick being run; the two swap each tick (a part is in a queue once, so each is as long as `comps`). */
   private running = new Int32Array(0)
-  /** What this tick's evaluations wrote: net, then value, for each output of each part evaluated. Applied after all have run. */
-  private writes = new Int32Array(0)
-  private written = 0
-  private readers: number[][] = []
+  /** The nets this tick's evaluations changed (each once: a net has one writer). `tick` passes the changes on to the pins that read them. */
+  private changedNets = new Int32Array(0)
+  private nChanged = 0
+  /**
+   * Which input pins read each net, flat: the readers of net `n` are the entries `readerStart[n] .. readerStart[n + 1])` of
+   * `readerPart` (the part), and `readerSlot` (where that pin lives in `pins`, times two, plus one if the part accepts Z).
+   */
+  private readerStart = new Int32Array(1)
+  private readerPart = new Int32Array(0)
+  private readerSlot = new Int32Array(0)
+  /**
+   * Every part's input pins, one after the other: a part's `inst.ins` is a view of its stretch of this. A net that changes writes its new
+   * value into the pins that read it as it is committed, so evaluating a part needs no gathering of its inputs.
+   */
+  private pins = new Uint8Array(0)
   /** A snapshot after each clock edge (and one before the first), for stepping back. */
   private history: Snapshot[] = []
   /** Which snapshot the simulation is at, when it has not moved on since (see `moved`). */
@@ -250,12 +261,26 @@ export class Simulator {
     }
 
     // Which parts read each net: when a net changes, only these need evaluating again.
-    this.readers = Array.from({ length: nets }, () => [] as number[])
-    for (const cc of this.comps) for (const n of new Set(cc.inNets)) if (n >= 0) this.readers[n].push(cc.index)
+    let pinCount = 0
+    for (const cc of this.comps) pinCount += cc.inNets.length
+    this.pins = new Uint8Array(pinCount)
+    const readers = Array.from({ length: nets }, () => [] as [number, number][])
+    let at = 0
+    for (const cc of this.comps) {
+      cc.inst.ins = this.pins.subarray(at, at + cc.inNets.length) as unknown as V[]
+      cc.inNets.forEach((n, i) => {
+        if (n >= 0) readers[n].push([cc.index, (at + i) * 2 + (cc.def.acceptsZ ? 1 : 0)])
+      })
+      at += cc.inNets.length
+    }
+    this.readerStart = new Int32Array(nets + 1)
+    for (let n = 0; n < nets; n++) this.readerStart[n + 1] = this.readerStart[n] + readers[n].length
+    this.readerPart = Int32Array.from(readers.flatMap((r) => r.map((e) => e[0])))
+    this.readerSlot = Int32Array.from(readers.flatMap((r) => r.map((e) => e[1])))
     this.stale = new Uint8Array(this.comps.length)
     this.queue = new Int32Array(this.comps.length)
     this.running = new Int32Array(this.comps.length)
-    this.writes = new Int32Array(2 * nets)
+    this.changedNets = new Int32Array(nets)
     this.markAll()
 
     this.values = new Uint8Array(nets).fill(X)
@@ -264,6 +289,7 @@ export class Simulator {
       if (v !== undefined) this.values[net] = v
     }
     this.applyForces()
+    this.syncPins()
     // A slow part starts out showing what its outputs show now, so loading a circuit does not make anything move.
     this.slow = this.comps.filter((cc) => cc.pipe)
     for (const cc of this.slow) this.fillPipe(cc)
@@ -301,6 +327,7 @@ export class Simulator {
     this.dropCapture()
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
+    this.syncPins()
     this.markAll()
     for (const cc of this.slow) this.fillPipe(cc)
     this.ticks = 0
@@ -319,36 +346,50 @@ export class Simulator {
     for (let k = 0; k < pipe.length; k++) pipe[k] = this.values[cc.outNets[k % n]]
   }
 
-  /** Run one part on the nets as they are, and queue its outputs (net, value) in `writes`. */
-  private evaluate(cc: CComp) {
-    const values = this.values
-    const { ins, outs } = cc.inst
-    const zOk = cc.def.acceptsZ
-    for (let i = 0; i < ins.length; i++) {
-      const n = cc.inNets[i]
-      const v = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
-      ins[i] = v === Z && !zOk ? X : v
+  /** Copy what the nets hold into every part's input pins (after the nets were set as a whole), and the defaults into the unconnected ones. */
+  private syncPins() {
+    for (const cc of this.comps) {
+      const { ins } = cc.inst
+      const zOk = cc.def.acceptsZ
+      for (let i = 0; i < ins.length; i++) {
+        const n = cc.inNets[i]
+        const v = n >= 0 ? (this.values[n] as V) : cc.inDefaults[i]
+        ins[i] = v === Z && !zOk ? X : v
+      }
     }
+  }
+
+  /**
+   * Run one part on its input pins and put its outputs on their nets, noting each net that changed in `changedNets`. The parts
+   * that read those nets still see the old values on their pins until `tick` has run every part (see `tick`).
+   * Every net has one writer, so writing at once cannot change what another part computes in the same tick.
+   */
+  private evaluate(cc: CComp) {
+    const { outs } = cc.inst
     cc.def.evaluate(cc.inst)
     const pipe = cc.pipe
-    const writes = this.writes
-    let w = this.written
-    if (pipe === undefined) {
-      for (let o = 0; o < outs.length; o++) {
-        writes[w++] = cc.outNets[o]
-        writes[w++] = outs[o]
+    const { values, forced, changedNets } = this
+    const outNets = cc.outNets
+    let c = this.nChanged
+    const n = outs.length
+    for (let o = 0; o < n; o++) {
+      const net = outNets[o]
+      let v: number = outs[o]
+      if (pipe !== undefined) {
+        // Commit what was computed `delay - 1` ticks ago (queue what was computed now, below).
+        v = pipe[o]
       }
-    } else {
-      // Commit what was computed `delay - 1` ticks ago, and queue what was computed now.
-      const n = outs.length
-      for (let o = 0; o < n; o++) {
-        writes[w++] = cc.outNets[o]
-        writes[w++] = pipe[o]
+      if (forced !== null && forced[net] >= 0) v = forced[net]
+      if (values[net] !== v) {
+        values[net] = v
+        changedNets[c++] = net
       }
+    }
+    if (pipe !== undefined) {
       pipe.copyWithin(0, n)
       for (let o = 0; o < n; o++) pipe[pipe.length - n + o] = outs[o]
     }
-    this.written = w
+    this.nChanged = c
   }
 
   /**
@@ -356,14 +397,14 @@ export class Simulator {
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
-    const { values, stale, readers, writes, comps } = this
+    const { values, stale, readerStart, readerPart, readerSlot, pins, changedNets, comps } = this
     // Parts flagged by the last tick's changes are evaluated now; flags raised while this tick commits belong to the next.
     const run = this.queue
     const count = this.queued
     this.queue = this.running
     this.running = run
     this.queued = 0
-    this.written = 0
+    this.nChanged = 0
     for (let k = 0; k < count; k++) {
       const i = run[k]
       const cc = comps[i]
@@ -375,18 +416,25 @@ export class Simulator {
       stale[cc.index] = 0
       this.evaluate(cc)
     }
-    // Commit every output at once, flagging the readers of each net that changed.
-    const forced = this.forced
-    let changed = false
-    for (let k = 0; k < this.written; k += 2) {
-      const net = writes[k]
-      const v = forced !== null && forced[net] >= 0 ? forced[net] : writes[k + 1]
-      if (values[net] !== v) {
-        values[net] = v
-        changed = true
-        for (const r of readers[net]) this.mark(r)
+    // Pass every change on to the pins that read the net, and flag those parts for the next tick.
+    const nChanged = this.nChanged
+    const queue = this.queue
+    let queued = 0
+    const changed = nChanged > 0
+    for (let k = 0; k < nChanged; k++) {
+      const net = changedNets[k]
+      const v = values[net]
+      for (let r = readerStart[net], end = readerStart[net + 1]; r < end; r++) {
+        const slot = readerSlot[r]
+        pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
+        const i = readerPart[r]
+        if (stale[i] === 0) {
+          stale[i] = 1
+          queue[queued++] = i
+        }
       }
     }
+    this.queued = queued
     this.ticks++
     if (changed) {
       this.dirty = true
@@ -400,7 +448,7 @@ export class Simulator {
       const n = cc.outNets.length
       for (let k = 0; k < pipe.length; k++) {
         const net = cc.outNets[k % n]
-        if (pipe[k] !== values[net] && !(forced !== null && forced[net] >= 0)) {
+        if (pipe[k] !== values[net] && !(this.forced !== null && this.forced[net] >= 0)) {
           pending = true
           break
         }
@@ -583,7 +631,11 @@ export class Simulator {
   private setNet(net: number, v: V) {
     if (this.values[net] === v) return
     this.values[net] = v
-    for (const r of this.readers[net]) this.mark(r)
+    for (let r = this.readerStart[net], end = this.readerStart[net + 1]; r < end; r++) {
+      const slot = this.readerSlot[r]
+      this.pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
+      this.mark(this.readerPart[r])
+    }
     this.unstable = false
     this.dirty = true
     this.moved = true
@@ -678,6 +730,7 @@ export class Simulator {
     const snap = this.history[target]
     if (snap.values.length !== this.values.length || snap.states.length !== this.comps.length) return false
     this.values.set(snap.values)
+    this.syncPins()
     this.comps.forEach((cc, i) => {
       if (cc.def.sample) cc.def.rewind?.(cc.inst, snap.time)
       else if (snap.states[i] !== undefined) cc.inst.state = cloneState(snap.states[i])
