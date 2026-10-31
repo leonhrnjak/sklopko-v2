@@ -137,3 +137,35 @@ Measured with `VITE_BENCH=1 npx vitest run src/engine/bench` (Vitest in Node, th
 | D0 (before) | 118.6 | 56% | 56,000 to 72,500 |
 | D1 (idle parts) | 108.8 | 52% | 55,900 to 62,700 |
 | D2 (rising edges only) | 89.8 | 41% | 65,100 to 70,000 |
+| D3 (quiet inputs), all four kinds | 81.6 | 35% | 57,000 to 59,000 (slower) |
+
+### D3 result: not kept
+
+The wake check was built for `and`/`or`/`nand`/`nor`, `mux` and `busmux` (a `quiet(inst, pin)` per part type, with a random-input test
+that a part says yes only when its outputs cannot change). It did what it should: evaluations per cycle went from 89.8 to 81.6. But the
+speed went **down**, because asking costs more than the evaluation it saves: the call goes through `cc.def.quiet`, one call site for many
+part types (the same problem as `def.evaluate`), and a 2-input gate is cheaper to evaluate than to ask about. Five runs each, alternating
+(median cycles a second, Vitest in Node):
+
+| Variant | Median | Runs |
+|---|---|---|
+| D2 (before) | 70,800 | 65,400 to 74,400 |
+| gates, `mux` and `busmux` | 58,800 | 58,100 to 69,800 |
+| gates and `mux` | 62,500 | 51,400 to 65,500 |
+| gates only | 66,500 | 61,900 to 73,200 |
+
+No variant is faster than D2, so D3 is dropped, as the spec said it would be if it did not pay. The code is not merged.
+
+### D4 result: not built
+
+D4 (inline cases for the commonest part types) had to be worth more than 10% to be built. The most that it can give is bounded by the
+profile: the six gate types (`and`, `or`, `not`, `xor`, `xnor`, `buf`) are about 20 of the 90 evaluations a cycle, and time spent inside
+part `evaluate` functions is about 41% of the total (measured with a timer around each call). Making every gate evaluation free would save
+about 20/90 of 41%, **under 10%**, and only by keeping a second copy of the logic of each part. The bigger parts (`busreg`, `busmux`,
+`busadd`) have real work in them that inlining does not remove. D4 is dropped; what is left in the engine's time is scheduling, which is what
+the WebAssembly port (`docs/spec-sim-wasm.md`) removes.
+
+### Summary of phase D
+
+118.6 → 89.8 evaluations per cycle (-24%), cycles a second about 56,000-72,500 → 65,000-74,400 in Node (D0 and D2 medians:
+about 59,000 and 70,800). D1 and D2 are merged-ready PRs; D3 and D4 were measured and dropped.
