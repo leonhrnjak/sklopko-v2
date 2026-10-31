@@ -1,5 +1,6 @@
 import { annotation } from './components/annotation'
 import { withBusModes } from './busmodes'
+import { withTiming } from './timing'
 import { buses } from './components/buses'
 import { cpus } from './components/cpu'
 import { arithmetic, coding, memoryRom, routing } from './components/combinational'
@@ -29,7 +30,7 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'annotation', name: 'Notes & frames' },
 ]
 
-export const DEFS: ComponentDef[] = withBusModes([
+export const DEFS: ComponentDef[] = withTiming(withBusModes([
   ...io,
   probe,
   breakpoint,
@@ -51,7 +52,7 @@ export const DEFS: ComponentDef[] = withBusModes([
   ...vias,
   ...lcds,
   ...annotation,
-])
+]))
 
 const byType = new Map(DEFS.map((d) => [d.type, d]))
 
