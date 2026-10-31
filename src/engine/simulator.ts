@@ -250,7 +250,7 @@ export class Simulator {
     const deferred: { sc: SimComp; src: PinRef }[] = []
 
     const wakes = (def: ComponentDef, pins: { name: string; clock?: boolean }[]) => {
-      const w = new Uint8Array(pins.length).fill(1)
+      const w = new Uint8Array(pins.length).fill(def.idle ? 0 : 1)
       if (def.timing === 'registered') pins.forEach((p, i) => (w[i] = p.clock || def.immediateIns?.includes(p.name) ? 1 : 0))
       return w
     }

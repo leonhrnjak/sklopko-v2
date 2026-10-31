@@ -135,3 +135,4 @@ Measured with `VITE_BENCH=1 npx vitest run src/engine/bench` (Vitest in Node, th
 | Step | Evaluations per cycle | Changed nothing | Cycles a second, fast engine |
 |---|---|---|---|
 | D0 (before) | 118.6 | 56% | 56,000 to 72,500 |
+| D1 (idle parts) | 108.8 | 52% | 55,900 to 62,700 |

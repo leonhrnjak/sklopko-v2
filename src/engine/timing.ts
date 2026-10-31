@@ -39,12 +39,16 @@ const SOURCE = 'switch button clock const hexin busin gamepad'
 /** Look at the settled values after each edge (`sample`) and put nothing on any net. */
 const SINK = 'probe breakpoint matrix speaker'
 
+/** No outputs, and an `evaluate` that does nothing: drawn from their pins, so a change there needs no evaluation (`ComponentDef.idle`). */
+const IDLE = new Set('netsend led seg7 hexdisp dicedisp bar busdisp note frame'.split(' '))
+
 const TABLE = new Map<string, NonNullable<ComponentDef['timing']>>()
 for (const [names, timing] of [[COMB, 'comb'], [MIXED, 'mixed'], [SOURCE, 'source'], [SINK, 'sink']] as const)
   for (const n of names.split(' ')) TABLE.set(n, timing)
 
 /** Give every part in the table its timing class (and a registered part its immediate inputs). */
 export const withTiming = (defs: ComponentDef[]): ComponentDef[] =>
-  defs.map((d) =>
-    REGISTERED[d.type] ? { ...d, timing: 'registered', immediateIns: REGISTERED[d.type] } : TABLE.has(d.type) ? { ...d, timing: TABLE.get(d.type) } : d,
-  )
+  defs.map((d) => {
+    const t = REGISTERED[d.type] ? { ...d, timing: 'registered' as const, immediateIns: REGISTERED[d.type] } : TABLE.has(d.type) ? { ...d, timing: TABLE.get(d.type) } : d
+    return IDLE.has(d.type) ? { ...t, idle: true } : t
+  })

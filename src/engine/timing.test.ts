@@ -97,4 +97,22 @@ describe('timing classes (docs/spec-sim-speed-tier2.md)', () => {
       }
     })
   }
+
+  for (const def of DEFS.filter((d) => d.idle)) {
+    it(`${def.type} is idle: it has no outputs and evaluating it changes nothing`, () => {
+      const r = rng(def.type.length * 13 + def.type.charCodeAt(0))
+      for (const params of variants(def)) {
+        const { mk } = make(def, params)
+        const inst = mk()
+        expect(inst.outs.length, `${def.type} ${JSON.stringify(params)} outputs`).toBe(0)
+        const zOk = !!def.acceptsZ
+        for (let step = 0; step < 20; step++) {
+          for (let i = 0; i < inst.ins.length; i++) inst.ins[i] = draw(r, zOk)
+          const before = JSON.stringify(inst)
+          def.evaluate(inst)
+          expect(JSON.stringify(inst), `${def.type} ${JSON.stringify(params)} step ${step}`).toBe(before)
+        }
+      }
+    })
+  }
 })
