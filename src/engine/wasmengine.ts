@@ -44,6 +44,7 @@ const KIND: Record<string, number> = {
   rom: 41, ram: 42,
   clock: 43, keypad: 44, framebuffer: 45, console: 46,
   acia6551: 47,
+  tribuf: 48, busjoin: 49,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -187,6 +188,11 @@ export class WasmEngine {
       } else if (type === 'shiftreg') {
         n = (st.bits as number[]).reduce((w, v, k) => w | (v << (2 * k)), 0)
         pc = st.pc
+      } else if (type === 'tribuf') p0 = Number(p.bits) || 1
+      else if (type === 'busjoin') {
+        p0 = Number(p.bits) || 1
+        p1 = Number(p.drivers)
+        p2 = p.pull === '0' ? 1 : p.pull === '1' ? 2 : 0
       } else if (type === 'mul' || type === 'decoder') p0 = Number(p.n)
       else if (type === 'encoder') p0 = Number(p.n)
       else if (type === 'bcd7') p0 = p.mode === 'hex' ? 1 : 0

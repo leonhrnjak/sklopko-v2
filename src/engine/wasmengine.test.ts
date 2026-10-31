@@ -314,6 +314,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     ['decoder', { n: 2 }], ['decoder', { n: 3 }], ['decoder', { n: 4 }], ['encoder', { n: 4 }], ['encoder', { n: 8 }],
     ['bcd7', { mode: 'bcd' }], ['bcd7', { mode: 'hex' }], ['bcddec', {}],
     ['halfadd', {}], ['fulladd', {}], ['halfsub', {}], ['fullsub', {}], ['sub4', {}], ['addsub4', {}],
+    ['tribuf', {}], ['tribuf', { bits: 4 }], ['busjoin', {}], ['busjoin', { drivers: 4, bits: 3, pull: '1' }], ['busjoin', { pull: '0' }],
     ['bcdadd', {}],
     ['bin2bcd', {}],
     ['tff', {}],
