@@ -3,7 +3,7 @@
 
 use crate::parts::acia::Acia;
 use crate::parts::util::{X, Z};
-use crate::parts::{self, Cell, Console, Shared, CONSOLE_EVENT_LIMIT};
+use crate::parts::{self, Cell, Console, Shared, Via, Lcd, CONSOLE_EVENT_LIMIT, LCD_FIELDS, VIA_FIELDS};
 
 pub struct Engine {
     values: Vec<u8>,
@@ -39,7 +39,7 @@ pub struct Engine {
     clock: usize,
     ticks: u64,
     outs: [u8; 64],
-    saved: Vec<[u8; 24]>,
+    saved: Vec<[u8; 64]>,
 }
 
 impl Engine {
@@ -63,6 +63,8 @@ impl Engine {
         let n_acia = next() as usize;
         let n_fb = next() as usize;
         let n_console = next() as usize;
+        let n_via = next() as usize;
+        let n_lcd = next() as usize;
         let values: Vec<u8> = (0..n_nets).map(|_| next() as u8).collect();
         let pins: Vec<u8> = (0..n_pins).map(|_| next() as u8).collect();
         let mut kind = vec![0; n_parts];
@@ -102,6 +104,8 @@ impl Engine {
         let ram: Vec<u8> = (0..n_ram).map(|_| next() as u8).collect();
         let fb: Vec<u8> = (0..n_fb).map(|_| next() as u8).collect();
         let consoles: Vec<Console> = (0..n_console).map(|_| Console { events: Vec::new(), taken: vec![0; CONSOLE_EVENT_LIMIT] }).collect();
+        let vias: Vec<Via> = (0..n_via).map(|_| Via::from_numbers(&(0..VIA_FIELDS).map(|_| next()).collect::<Vec<i32>>())).collect();
+        let lcds: Vec<Lcd> = (0..n_lcd).map(|_| Lcd::from_numbers(&(0..LCD_FIELDS).map(|_| next()).collect::<Vec<i32>>())).collect();
         let mut acias = Vec::with_capacity(n_acia);
         for _ in 0..n_acia {
             let reset_clears = next() != 0;
@@ -114,7 +118,7 @@ impl Engine {
         Engine {
             values, pins, kind, pin_start, n_ins, out_start, n_outs, p0, p1, p2, mem_off, st_n, st_pc, st_q, out_nets, reader_start,
             reader_part, reader_slot, reader_wake, order, rank,
-            shared: Shared { rom, ram, fb, acias, consoles },
+            shared: Shared { rom, ram, fb, acias, consoles, vias, lcds },
             rank_flag: vec![0; n_order],
             lo: n_order,
             hi: -1,
@@ -125,7 +129,7 @@ impl Engine {
             clock,
             ticks: 0,
             outs: [0; 64],
-            saved: vec![[0u8; 24]; n_parts],
+            saved: vec![[0u8; 64]; n_parts],
         }
     }
 
@@ -155,6 +159,12 @@ impl Engine {
     }
     pub fn fb_ptr(&mut self) -> *mut u8 {
         self.shared.fb.as_mut_ptr()
+    }
+    pub fn lcd_ptr(&mut self) -> *mut i32 {
+        self.shared.lcds.as_mut_ptr() as *mut i32
+    }
+    pub fn via_ptr(&mut self) -> *mut i32 {
+        self.shared.vias.as_mut_ptr() as *mut i32
     }
     pub fn console_take_events(&mut self, k: usize) -> usize {
         let c = &mut self.shared.consoles[k];

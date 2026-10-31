@@ -8,13 +8,17 @@ mod bus;
 mod coding;
 mod gates;
 mod io;
+mod lcd;
 mod memory;
 mod seq;
 mod terminal;
 mod tristate;
+mod via;
 pub mod util;
 
 use acia::Acia;
+pub use lcd::{Lcd, LCD_FIELDS};
+pub use via::{Via, VIA_FIELDS};
 
 /// The kinds of part. The numbers are the page's (`KIND` in src/engine/wasmengine.ts); a family has a range of them.
 pub mod kind {
@@ -67,6 +71,8 @@ pub mod kind {
     pub const ACIA: i32 = 47;
     pub const TRIBUF: i32 = 48;
     pub const BUSJOIN: i32 = 49;
+    pub const VIA6522: i32 = 50;
+    pub const LCD: i32 = 51;
 }
 
 /// The 7-segment patterns of 0 to F.
@@ -108,6 +114,8 @@ pub struct Shared {
     pub fb: Vec<u8>,
     pub acias: Vec<Acia>,
     pub consoles: Vec<Console>,
+    pub vias: Vec<Via>,
+    pub lcds: Vec<Lcd>,
 }
 
 /// Compute the outputs of a part of this kind.
@@ -123,6 +131,8 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         43..=46 => io::eval(kind, c, sh),
         47 => terminal::eval(kind, c, sh),
         48..=49 => tristate::eval(kind, c),
+        50 => via::eval(kind, c, sh),
+        51 => lcd::eval(kind, c, sh),
         _ => {}
     }
 }
