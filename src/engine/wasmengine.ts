@@ -38,6 +38,8 @@ export interface Compiled {
 const KIND: Record<string, number> = {
   and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9, busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14,
   buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20, bcdadd: 21, bin2bcd: 22, tff: 23, keypad: 24, framebuffer: 25, console: 26,
+  srlatch: 27, dlatch: 28, jkff: 29, counter: 30, counterld: 31, register: 32, shiftreg: 33, add4: 34, cmp4: 35, alu: 36, mul: 37,
+  decoder: 38, encoder: 39, bcd7: 40, bcddec: 41, halfadd: 42, fulladd: 43, halfsub: 44, fullsub: 45, sub4: 46, addsub4: 47,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -168,10 +170,23 @@ export class WasmEngine {
         p0 = Number(p.bits)
         n = st.n
         pc = st.pc
-      } else if (type === 'dff' || type === 'tff') {
+      } else if (type === 'dff' || type === 'tff' || type === 'srlatch' || type === 'dlatch' || type === 'jkff') {
         q = st.q
+        pc = st.pc ?? 0
+      } else if (type === 'counter') {
+        p0 = Number(p.mod)
+        n = st.n
         pc = st.pc
-      } else if (type === 'rom') {
+      } else if (type === 'counterld' || type === 'register') {
+        n = st.n
+        pc = st.pc
+      } else if (type === 'shiftreg') {
+        n = (st.bits as number[]).reduce((w, v, k) => w | (v << (2 * k)), 0)
+        pc = st.pc
+      } else if (type === 'mul' || type === 'decoder') p0 = Number(p.n)
+      else if (type === 'encoder') p0 = Number(p.n)
+      else if (type === 'bcd7') p0 = p.mode === 'hex' ? 1 : 0
+      else if (type === 'rom') {
         p0 = Number(p.abits)
         p1 = Number(p.dbits)
         p2 = p.table === 'on' ? 1 : 0
@@ -324,8 +339,15 @@ export class WasmEngine {
       if (type === 'busreg' || type === 'busctr') {
         st.n = n[i]
         st.pc = pc[i]
-      } else if (type === 'dff' || type === 'tff') {
+      } else if (type === 'dff' || type === 'tff' || type === 'jkff') {
         st.q = q[i]
+        st.pc = pc[i]
+      } else if (type === 'srlatch' || type === 'dlatch') st.q = q[i]
+      else if (type === 'counter' || type === 'counterld' || type === 'register') {
+        st.n = n[i]
+        st.pc = pc[i]
+      } else if (type === 'shiftreg') {
+        st.bits = [0, 1, 2, 3].map((k) => (n[i] >> (2 * k)) & 3)
         st.pc = pc[i]
       } else if (type === 'ram') st.pc = pc[i]
     })
