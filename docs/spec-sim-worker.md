@@ -33,6 +33,15 @@ A throw-away measurement in the browser, no merged code: per frame on the BASIC 
 React render plus paint take (`performance.mark`). If the simulation already gets more than 70% of each frame, a worker would
 not give 1.4x and this spec stops here (we say so, and drop it). The result is written into this file.
 
+**W0 result** (production build, headless Chromium with software rendering in a container, `/6502-parts-basic`, 1 MHz clock,
+8 s after warm-up; throw-away `performance.now()` timers in the run loop, not merged): 97 frames in 8.0 s (about 12 frames a second),
+so 83 ms a frame. The simulation took **41 ms (49%)** (the adaptive budget `workBudget` had raised it from 10 ms to 41 ms to match the
+time spent elsewhere), `publish` 1.3 ms, and drawing and painting the other **41 ms**. The page reported 46.6 kHz, against 103 kHz for the
+engine alone in Node. The gate was 70%: **it passes**, and a worker that simulates all the time could reach up to about 2x here.
+Caveat: this machine draws in software, so drawing is slower than on a computer with a GPU. There the simulation's share is
+higher and the gain smaller (at a 70% share a worker gives about 1.4x). The footer's "actual" readout on a normal computer
+would show which case is real.
+
 ## Design
 
 ### What runs where
