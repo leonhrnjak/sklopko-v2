@@ -137,15 +137,17 @@ describe('the Rust engine inside the Simulator', () => {
     expect(rust.wasmOn, 'and the Rust engine is back').toBe(true)
   }, 600000)
 
-  it('stays off where it must: with the history for stepping back, with a capture, and without a module', async () => {
+  it('stays off where it must: with a terminal and the history for stepping back, with a capture, and without a module', async () => {
     const x = await module()
     const rust = new Simulator()
     rust.setFast(true)
     rust.setWasm(openFor(x))
-    rust.load(flatten(micro6502()))
+    const basic = micro6502Basic()
+    delete basic.history // absent means on
+    rust.load(flatten(basic))
     rust.settle()
     for (let i = 0; i < 20; i++) rust.stepClock()
-    expect(rust.wasmOn, 'history is on').toBe(false)
+    expect(rust.wasmOn, 'a terminal and history on').toBe(false)
     rust.setHistory(false)
     rust.settle()
     for (let i = 0; i < 20; i++) rust.stepClock()
@@ -154,6 +156,49 @@ describe('the Rust engine inside the Simulator', () => {
     expect(rust.wasmOn, 'a capture needs the exact engine').toBe(false)
     expect(rust.engine).toBe('exact')
   })
+
+  it('steps back over clock edges in the Rust engine: the same nets, parts and RAM as the TypeScript engine, forward and back again', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      if (rust) sim.setWasm(openFor(x))
+      sim.load(flatten(micro6502()))
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    const look = (s: Simulator) => JSON.stringify([Array.from(s.viewValues()), s.time, s.ticks > 0, Object.fromEntries(s.idsOfType('ram').map((id) => [id, Array.from((s.state(id) as { mem: Uint8Array }).mem.slice(0, 64))]))])
+    const both = (f: (s: Simulator) => unknown) => [f(rust), f(plain)]
+    for (let i = 0; i < 80; i++) both((s) => s.stepClock())
+    expect(rust.wasmOn, 'the Rust engine runs with the history on').toBe(true)
+    expect(plain.wasmOn).toBe(false)
+    expect(look(rust)).toBe(look(plain))
+    for (let i = 0; i < 50; i++) {
+      const [a, b] = both((s) => s.stepBack())
+      expect(a).toBe(b)
+      expect(look(rust), `after ${i + 1} steps back`).toBe(look(plain))
+    }
+    // forward again from the middle of the history, and back once more
+    for (let i = 0; i < 30; i++) both((s) => s.stepClock())
+    expect(look(rust)).toBe(look(plain))
+    for (let i = 0; i < 20; i++) {
+      both((s) => s.stepBack())
+      expect(look(rust), `second walk back, step ${i + 1}`).toBe(look(plain))
+    }
+    expect(rust.wasmOn, 'still the Rust engine').toBe(true)
+    // Step (one gate delay) is for the exact engine, which takes the circuit and gives it back; going back works over snapshots of both kinds
+    both((s) => s.tick())
+    expect(rust.wasmOn, 'the exact engine has it').toBe(false)
+    for (let i = 0; i < 10; i++) both((s) => s.stepClock())
+    expect(rust.wasmOn, 'and the Rust engine again').toBe(true)
+    for (let i = 0; i < 40; i++) {
+      const [a, b] = both((s) => s.stepBack())
+      expect(a).toBe(b)
+      expect(look(rust), `third walk back, step ${i + 1}`).toBe(look(plain))
+    }
+  }, 120000)
 })
 
 describe('probes and breakpoints with the Rust engine', () => {

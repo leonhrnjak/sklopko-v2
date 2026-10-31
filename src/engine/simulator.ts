@@ -69,6 +69,8 @@ interface Snapshot {
   states: unknown[]
   /** Aligned with the compiled parts: the delay pipelines (copied), or undefined. */
   pipes: (Uint8Array | undefined)[]
+  /** Taken while the Rust engine ran the circuit: what it keeps (`WasmEngine.save`). `states` then holds only the clocks'. */
+  wasm?: Uint8Array
 }
 
 /**
@@ -710,7 +712,7 @@ export class Simulator {
       if (this.we) return this.settleWasm()
       const settled = this.settleFast(maxTicks)
       // Settled in the TypeScript engine, so everything is up to date to hand over to the Rust one.
-      if (settled && this.openWasm && !this.keepHistory) this.enterWasm()
+      if (settled && this.openWasm) this.enterWasm()
       return settled
     }
     this.leaveWasm()
@@ -769,6 +771,8 @@ export class Simulator {
   private enterWasm() {
     const c = this.compiled()
     if (!c || !this.openWasm) return
+    // A terminal's screen is replayed from a log in the page, which has no way back in time: its circuit keeps its history out of the module.
+    if (this.keepHistory && c.comps.some((cc) => cc.def.type === 'acia6551')) return
     const we = this.openWasm(c)
     if (!we) return
     this.we = we
@@ -783,12 +787,13 @@ export class Simulator {
     const settled = we.settle()
     this.values.set(we.values)
     const t = we.ticks
+    // Something happened only if the module ran a round: a settle that finds nothing to do (the one after an edge, in `stepClock`) is not "moved".
+    if (t !== this.weTicks) this.moved = true
     this.ticks += t - this.weTicks
     this.weTicks = t
     this.weStale = true
     this.unstable = !settled
     this.dirty = true
-    this.moved = true
     this.sample() // probes, breakpoints and displays that look at the settled nets stay in TypeScript
     return settled
   }
@@ -932,7 +937,7 @@ export class Simulator {
    */
   setHistory(on: boolean) {
     if (this.keepHistory === on) return
-    if (on) this.leaveWasm()
+    if (on && this.we && this.comps.some((cc) => cc.def.type === 'acia6551')) this.leaveWasm()
     this.keepHistory = on
     if (!on) {
       this.history = []
@@ -1042,14 +1047,21 @@ export class Simulator {
   private record() {
     if (!this.keepHistory) return
     if (this.cursor < this.history.length - 1) this.history.length = this.cursor + 1
-    this.history.push({
-      time: this.time,
-      ticks: this.ticks,
-      unstable: this.unstable,
-      values: this.values.slice(),
-      states: this.comps.map((cc) => (cc.def.sample || cc.inst.state === undefined ? undefined : cloneState(cc.inst.state))),
-      pipes: this.comps.map((cc) => cc.pipe?.slice()),
-    })
+    const we = this.we
+    if (we) {
+      // The Rust engine holds the parts' states: take its copy, and the clocks' (which the page keeps) by themselves.
+      const states = new Array<unknown>(this.comps.length)
+      for (const c of this.clocks) states[c.index] = cloneState(c.inst.state)
+      this.history.push({ time: this.time, ticks: this.ticks, unstable: this.unstable, values: this.values.slice(), states, pipes: [], wasm: we.save() })
+    } else
+      this.history.push({
+        time: this.time,
+        ticks: this.ticks,
+        unstable: this.unstable,
+        values: this.values.slice(),
+        states: this.comps.map((cc) => (cc.def.sample || cc.inst.state === undefined ? undefined : cloneState(cc.inst.state))),
+        pipes: this.comps.map((cc) => cc.pipe?.slice()),
+      })
     if (this.history.length > HISTORY_EDGES) this.history.shift()
     this.cursor = this.history.length - 1
     this.moved = false
@@ -1066,13 +1078,30 @@ export class Simulator {
    * that edge. Returns false if there is nothing to go back to.
    */
   stepBack(): boolean {
-    this.leaveWasm()
-    if (!this.canStepBack()) return false
+    if (!this.canStepBack()) {
+      this.leaveWasm()
+      return false
+    }
     const target = this.moved ? this.cursor : this.cursor - 1
     const snap = this.history[target]
-    if (snap.values.length !== this.values.length || snap.states.length !== this.comps.length) return false
-    this.values.set(snap.values)
-    this.syncPins()
+    if (snap.values.length !== this.values.length || snap.states.length !== this.comps.length) {
+      this.leaveWasm()
+      return false
+    }
+    if (snap.wasm) {
+      // Taken in the Rust engine: it takes the copy back (it is started for that if it is not running).
+      if (!this.we) this.enterWasm()
+      if (!this.we) return false
+      this.we.load(snap.wasm)
+      this.values.set(this.we.values)
+      this.pins.set(this.we.pins)
+      this.weStale = true
+      this.weTicks = this.we.ticks
+    } else {
+      this.leaveWasm()
+      this.values.set(snap.values)
+      this.syncPins()
+    }
     this.comps.forEach((cc, i) => {
       if (cc.def.sample) cc.def.rewind?.(cc.inst, snap.time)
       else if (snap.states[i] !== undefined) cc.inst.state = cloneState(snap.states[i])
