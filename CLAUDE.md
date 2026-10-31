@@ -68,6 +68,13 @@ Full suite (what CI runs), for reference: `npm test`, `npm run lint`, `npm run b
 If Playwright says its Chromium build is missing, point it at an installed one instead of downloading:
 `PW_CHROMIUM=/opt/pw-browsers/chromium npx playwright test ...`.
 
+## The Rust engine (WebAssembly)
+
+`engine-rs/` is the simulator's fast engine in Rust (`docs/spec-sim-wasm.md`); its built module is **committed** at
+`src/engine/wasm/engine.wasm`, so `npm run build` and the Cloudflare deploy need no Rust. After changing anything in `engine-rs/`, run
+`npm run build:wasm` (needs Rust; rustup installs the toolchain `engine-rs/rust-toolchain.toml` names) and commit the new file together
+with the source. CI runs `npm run build:wasm -- --check` and fails if the committed file is not what the source builds to.
+
 ## Current work
 
 The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,

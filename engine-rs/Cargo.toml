@@ -1,0 +1,18 @@
+[package]
+name = "sklopko-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# The fast engine of the simulator in Rust, compiled to WebAssembly (docs/spec-sim-wasm.md). No dependencies on purpose: the module
+# is built by `npm run build:wasm` and the built file is committed (src/engine/wasm/engine.wasm).
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
