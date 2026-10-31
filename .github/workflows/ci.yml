@@ -1,11 +1,13 @@
-# Full test suite for every pull request. Merging to main deploys to Cloudflare Pages.
+# Full test suite, run every night on main and on demand (Actions tab -> CI -> Run workflow, pick a branch).
+# Pull requests run no GitHub Actions: the Cloudflare Pages Git integration builds the preview deploy by itself.
 #
-# The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests split in four). The last job, `test`, waits
-# for all of them and is the one result to require: it keeps its name, so a branch rule on "test" keeps working.
+# The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests in one job (nightly, so speed matters less than setup cost)). The last job, `test`, waits
+# for all of them and keeps its name.
 name: CI
 
 on:
-  pull_request:
+  schedule:
+    - cron: '0 2 * * *' # 02:00 UTC every night, on the default branch
   workflow_dispatch:
 
 concurrency:
@@ -54,13 +56,9 @@ jobs:
       - run: npm run check:bundle
 
   e2e:
-    name: E2E ${{ matrix.shard }}
+    name: E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -68,10 +66,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # The offline spec tests the built app, so every shard builds it (about ten seconds).
+      # The offline spec tests the built app, so the job builds it (about ten seconds).
       - run: npm run build
       # The browser depends only on Playwright's version, so key the cache on that, not on the whole lockfile
-      # (any dependency change used to miss the cache and download Chromium again on every shard).
+      # (any dependency change used to miss the cache and download Chromium again on every run).
       - name: Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -88,13 +86,13 @@ jobs:
       - name: Install Chromium's system libraries
         if: steps.browser.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
-      - name: E2E (desktop + emulated phone), shard ${{ matrix.shard }}
-        run: npx playwright test --shard=${{ matrix.shard }}
+      - name: E2E (desktop + emulated phone)
+        run: npx playwright test
       - name: Upload Playwright results
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: playwright-results-${{ strategy.job-index }}
+          name: playwright-results
           path: test-results
           retention-days: 7
           if-no-files-found: ignore
