@@ -137,3 +137,21 @@ Measured with `VITE_BENCH=1 npx vitest run src/engine/bench` (Vitest in Node, th
 | D0 (before) | 118.6 | 56% | 56,000 to 72,500 |
 | D1 (idle parts) | 108.8 | 52% | 55,900 to 62,700 |
 | D2 (rising edges only) | 89.8 | 41% | 65,100 to 70,000 |
+| D3 (quiet inputs), all four kinds | 81.6 | 35% | 57,000 to 59,000 (slower) |
+
+### D3 result: not kept
+
+The wake check was built for `and`/`or`/`nand`/`nor`, `mux` and `busmux` (a `quiet(inst, pin)` per part type, with a random-input test
+that a part says yes only when its outputs cannot change). It did what it should: evaluations per cycle went from 89.8 to 81.6. But the
+speed went **down**, because asking costs more than the evaluation it saves: the call goes through `cc.def.quiet`, one call site for many
+part types (the same problem as `def.evaluate`), and a 2-input gate is cheaper to evaluate than to ask about. Five runs each, alternating
+(median cycles a second, Vitest in Node):
+
+| Variant | Median | Runs |
+|---|---|---|
+| D2 (before) | 70,800 | 65,400 to 74,400 |
+| gates, `mux` and `busmux` | 58,800 | 58,100 to 69,800 |
+| gates and `mux` | 62,500 | 51,400 to 65,500 |
+| gates only | 66,500 | 61,900 to 73,200 |
+
+No variant is faster than D2, so D3 is dropped, as the spec said it would be if it did not pay. The code is not merged.
