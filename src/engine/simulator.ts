@@ -771,8 +771,8 @@ export class Simulator {
   private enterWasm() {
     const c = this.compiled()
     if (!c || !this.openWasm) return
-    // A terminal's screen is replayed from a log in the page, which has no way back in time: its circuit keeps its history out of the module.
-    if (this.keepHistory && c.comps.some((cc) => cc.def.type === 'acia6551')) return
+    // A terminal's or a console's screen is replayed from a log in the page, which has no way back in time: its circuit keeps its history out of the module.
+    if (this.keepHistory && c.comps.some((cc) => cc.def.type === 'acia6551' || cc.def.type === 'console')) return
     const we = this.openWasm(c)
     if (!we) return
     this.we = we
@@ -937,7 +937,7 @@ export class Simulator {
    */
   setHistory(on: boolean) {
     if (this.keepHistory === on) return
-    if (on && this.we && this.comps.some((cc) => cc.def.type === 'acia6551')) this.leaveWasm()
+    if (on && this.we && this.comps.some((cc) => cc.def.type === 'acia6551' || cc.def.type === 'console')) this.leaveWasm()
     this.keepHistory = on
     if (!on) {
       this.history = []

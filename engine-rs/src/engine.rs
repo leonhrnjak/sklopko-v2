@@ -32,6 +32,20 @@ const ACIA: i32 = 20;
 const BCDADD: i32 = 21;
 const BIN2BCD: i32 = 22;
 const TFF: i32 = 23;
+const KEYPAD: i32 = 24;
+const FRAMEBUFFER: i32 = 25;
+const CONSOLE: i32 = 26;
+
+/// Pixels on a side of the pixel screen part.
+const FB_SIZE: usize = 16;
+/// Characters a text console can have waiting for the page.
+const CONSOLE_EVENT_LIMIT: usize = 1 << 16;
+
+/// A text console: what it prints is logged as character codes for the page to print (the text itself stays on the page).
+pub struct Console {
+    pub events: Vec<u16>,
+    pub taken: Vec<u16>,
+}
 
 // busgate operations (p1)
 const G_AND: i32 = 0;
@@ -105,6 +119,9 @@ pub struct Engine {
     rom: Vec<u16>,
     ram: Vec<u8>,
     acias: Vec<Acia>,
+    consoles: Vec<Console>,
+    /// The pixels of all pixel screens, 256 bytes each, in part order.
+    fb: Vec<u8>,
     rank_flag: Vec<u8>,
     lo: usize,
     hi: isize,
@@ -137,6 +154,8 @@ impl Engine {
         let n_ram = next() as usize;
         let clock = next() as usize;
         let n_acia = next() as usize;
+        let n_fb = next() as usize;
+        let n_console = next() as usize;
         let values: Vec<u8> = (0..n_nets).map(|_| next() as u8).collect();
         let pins: Vec<u8> = (0..n_pins).map(|_| next() as u8).collect();
         let mut kind = vec![0; n_parts];
@@ -174,6 +193,8 @@ impl Engine {
         let rank: Vec<i32> = (0..n_parts).map(|_| next()).collect();
         let rom: Vec<u16> = (0..n_rom).map(|_| next() as u16).collect();
         let ram: Vec<u8> = (0..n_ram).map(|_| next() as u8).collect();
+        let fb: Vec<u8> = (0..n_fb).map(|_| next() as u8).collect();
+        let consoles: Vec<Console> = (0..n_console).map(|_| Console { events: Vec::new(), taken: vec![0; CONSOLE_EVENT_LIMIT] }).collect();
         let mut acias = Vec::with_capacity(n_acia);
         for _ in 0..n_acia {
             let reset_clears = next() != 0;
@@ -185,7 +206,7 @@ impl Engine {
         }
         Engine {
             values, pins, kind, pin_start, n_ins, out_start, n_outs, p0, p1, p2, mem_off, st_n, st_pc, st_q, out_nets, reader_start,
-            reader_part, reader_slot, reader_wake, order, rank, rom, ram, acias,
+            reader_part, reader_slot, reader_wake, order, rank, rom, ram, acias, consoles, fb,
             rank_flag: vec![0; n_order],
             lo: n_order,
             hi: -1,
@@ -223,6 +244,19 @@ impl Engine {
     }
     pub fn ram_ptr(&mut self) -> *mut u8 {
         self.ram.as_mut_ptr()
+    }
+    pub fn fb_ptr(&mut self) -> *mut u8 {
+        self.fb.as_mut_ptr()
+    }
+    pub fn console_take_events(&mut self, k: usize) -> usize {
+        let c = &mut self.consoles[k];
+        let n = c.events.len();
+        c.taken[..n].copy_from_slice(&c.events);
+        c.events.clear();
+        n
+    }
+    pub fn console_events_ptr(&mut self, k: usize) -> *mut u16 {
+        self.consoles[k].taken.as_mut_ptr()
     }
     pub fn acia_regs_ptr(&mut self, k: usize) -> *mut u8 {
         self.acias[k].regs.as_mut_ptr()
@@ -517,6 +551,58 @@ impl Engine {
                 }
             }
             CLOCK => outs[0] = self.st_q[i],
+            KEYPAD => {
+                // p0: sticky, p1: the key pressed last, p2: a key is held. st_pc: held at the last look, st_q: latched.
+                let pressed = self.p2[i] == 1;
+                if pressed && self.st_pc[i] == 0 { self.st_q[i] = 1; }
+                self.st_pc[i] = pressed as u8;
+                if ins[0] == 1 { self.st_q[i] = 0; }
+                let key = self.p1[i];
+                for b in 0..4 { outs[b] = ((key >> b) & 1) as u8; }
+                outs[4] = if self.p0[i] == 1 { self.st_q[i] } else { pressed as u8 };
+            }
+            FRAMEBUFFER => {
+                // p0: bits per pixel (1 or 2), p1: 1 if a pixel can be read back.
+                let nd = self.p0[i] as usize;
+                let we = ins[8 + nd];
+                let clr = ins[9 + nd];
+                let clk = ins[10 + nd];
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                let base = self.mem_off[i] as usize;
+                if clr == 1 {
+                    for p in &mut self.fb[base..base + FB_SIZE * FB_SIZE] { *p = 0; }
+                } else if edge && we == 1 {
+                    let x = to_num(ins, 0, 4);
+                    let y = to_num(ins, 4, 4);
+                    let d = to_num(ins, 8, nd);
+                    if x >= 0 && y >= 0 && d >= 0 {
+                        self.fb[base + y as usize * FB_SIZE + x as usize] = d as u8;
+                    }
+                }
+                if self.p1[i] == 1 {
+                    let rx = to_num(ins, 11 + nd, 4);
+                    let ry = to_num(ins, 15 + nd, 4);
+                    if rx < 0 || ry < 0 {
+                        for b in 0..nd { outs[b] = X; }
+                    } else {
+                        write_num(outs, 0, nd, self.fb[base + ry as usize * FB_SIZE + rx as usize] as i32);
+                    }
+                }
+            }
+            CONSOLE => {
+                let clk = ins[9];
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                if edge && ins[8] == 1 {
+                    let code = to_num(ins, 0, 8);
+                    if code >= 0 {
+                        let c = &mut self.consoles[self.mem_off[i] as usize];
+                        if c.events.len() >= CONSOLE_EVENT_LIMIT { c.events.remove(0); }
+                        c.events.push(code as u16);
+                    }
+                }
+            }
             ACIA => {
                 let a = &mut self.acias[self.mem_off[i] as usize];
                 a.evaluate(ins);
