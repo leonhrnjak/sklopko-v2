@@ -10,7 +10,7 @@ mod engine;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -53,12 +53,16 @@ pub extern "C" fn edge(part: u32) -> u32 {
     eng().clock_edge(part as usize) as u32
 }
 
-/// Flag a part for evaluation at the next settle (the page changed something it reads), then settle. Returns 1 if it settled.
+/// Set the clock part's output to `phase` (0 or 1) and flag it for the next `settle`.
 #[unsafe(no_mangle)]
-pub extern "C" fn poke(part: u32) -> u32 {
-    let e = eng();
-    e.flag_part(part as usize);
-    e.settle() as u32
+pub extern "C" fn set_phase(part: u32, phase: u32) {
+    eng().set_phase(part as usize, phase as u8)
+}
+
+/// Settle the circuit. Returns 1 if it settled, 0 if it did not within 64 rounds.
+#[unsafe(no_mangle)]
+pub extern "C" fn settle() -> u32 {
+    eng().settle() as u32
 }
 
 /// Run `n` clock edges of the (only) clock part. Returns how many did not settle.
@@ -126,6 +130,11 @@ pub extern "C" fn acia_clear_keys(k: u32) {
 #[unsafe(no_mangle)]
 pub extern "C" fn acia_pending(k: u32) -> u32 {
     eng().acia_pending(k as usize) as u32
+}
+/// What waits on the keyboard of terminal `k`, as bytes at the returned address (`acia_pending` of them).
+#[unsafe(no_mangle)]
+pub extern "C" fn acia_queue_ptr(k: u32) -> *const u8 {
+    eng().acia_queue_ptr(k as usize)
 }
 /// The screen events of terminal `k` since the last call: 0 to 127 print this character, 256 wipe the screen. Written to the address
 /// returned by `acia_events_ptr`; the count is returned, and the list is emptied.

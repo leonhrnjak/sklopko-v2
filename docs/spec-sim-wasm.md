@@ -182,3 +182,24 @@ in it is ported. Of the 63 examples, 57 run on the TypeScript fast engine, and *
 the others out, with the number of examples using them: `hexdisp` 17, `breakpoint` 13, `cpu6502` 12, `counter` 9, `probe` 9, `framebuffer` 8,
 `hexin` 6, `console` 6, `register` 5, `decoder` 5, `bin2bcd` 5, `bcdadd` 5, `busjoin` 5, `gamepad` 4, `add4` 3, `tff` 3, `tribuf` 3, `keypad` 3,
 `via6522` 3. E4 ports them in that order, and the count is measured again after each batch.
+
+## End state: one implementation, in Rust
+
+Decided with Leon on 2026-10-31: the simulator should not stay a mix of TypeScript and Rust that is hard to maintain. The target is that
+**what a part does is written once, in Rust**.
+
+- **Rust:** the behaviour of every part (what `evaluate` does today), the fast engine, and the exact (unit-delay) engine, which the capture
+  view, forces and the Step button use. The CPU, VIA, LCD and terminal parts too.
+- **TypeScript stays** for what the editor needs at once and that is data, not behaviour: each part's name, pins, layout, parameters,
+  description and symbol (`ComponentDef` without `evaluate`), the loader and compiler that turns a drawing into tables, the worker and the UI.
+- **A frozen TypeScript reference** (the old simulator, as in `lockstep.test.ts`) stays in the tests only, as the oracle that the Rust
+  engines are checked against. It is not shipped.
+
+While the port is under way each ported part exists twice (the TypeScript `evaluate` and the Rust one), and the lockstep tests keep the two
+equal. That is the price of doing it in steps; it ends with two more steps after E4:
+
+- **E6: the exact engine in Rust.** Capture, forces and Step then use Rust too, so every circuit runs in Rust, whatever it contains.
+- **E7: remove the TypeScript engines.** `evaluate` is deleted from the part definitions (the frozen reference keeps its own copy for the
+  tests), together with `settleFast` and the TypeScript unit-delay engine.
+
+Until E7 a circuit with a part that is not ported yet runs on the TypeScript engines, so nothing is worse than today at any step.

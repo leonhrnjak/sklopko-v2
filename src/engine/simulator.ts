@@ -3,7 +3,7 @@ import { resolveLabels } from './netlabels'
 import { layoutOf } from './layoutcache'
 import { getDef, hasDef } from './registry'
 import { buildPlan, type Plan, type Rejected } from './fast'
-import type { Compiled } from './wasmengine'
+import type { Compiled, WasmEngine } from './wasmengine'
 import { X, Z, type ComponentDef, type Instance, type Params, type V } from './types'
 
 export interface SimComp {
@@ -121,6 +121,8 @@ export interface ViewSnapshot {
   unstable: boolean
   states: [number, unknown][]
   engine: 'fast' | 'exact'
+  /** The Rust engine is running the circuit (`Simulator.wasmOn`). */
+  wasm: boolean
   lagging: boolean
   offered: number
   skipped: number
@@ -205,6 +207,16 @@ export class Simulator {
   /** Whether the fast engine may be used at all (see `setFast`), the plan for the current circuit (or why there is none), and whether it is in use. */
   private fastAllowed = false
   private plan: Plan | Rejected = 'untimed'
+  /**
+   * The Rust engine (docs/spec-sim-wasm.md), when one was given (`setWasm`): `openWasm` makes one for a compiled circuit, or says no (null)
+   * when a part is missing in it. While `we` is set it runs the circuit: `values` follows it after every settle, and everything else
+   * (the part states, the input pins) is brought up to date from it when somebody needs it (`syncWasm`, `leaveWasm`).
+   */
+  private openWasm: ((c: Compiled) => WasmEngine | null) | null = null
+  private we: WasmEngine | null = null
+  /** The Rust engine's tick count at the last settle, and whether it has run since the part states were last brought up to date. */
+  private weTicks = 0
+  private weStale = false
   private usingFast = false
   /** Fast engine: flags per position in the plan's order, the range of positions flagged, and the registered parts woken. */
   private rankFlag = new Uint8Array(0)
@@ -232,6 +244,7 @@ export class Simulator {
   private late = false
 
   load(c: SimCircuit) {
+    this.we = null
     this.dropCapture()
     this.history = []
     this.cursor = -1
@@ -439,7 +452,40 @@ export class Simulator {
    * no loop of gates, no part with a delay and no race between a clock and its data, and while no signal is held and no capture is on.
    */
   setFast(on: boolean) {
+    this.leaveWasm()
     this.fastAllowed = on
+  }
+
+  /**
+   * Allow the Rust engine for circuits it can run (or not, with null): `open` gets a compiled circuit and returns the engine for it, or null.
+   * It runs a circuit that the fast engine accepts, when the history for stepping back is off. Given by whoever loaded the module.
+   */
+  setWasm(open: ((c: Compiled) => WasmEngine | null) | null) {
+    this.leaveWasm()
+    this.openWasm = open
+  }
+
+  /** Is the Rust engine running the circuit now? */
+  get wasmOn() {
+    return this.we !== null
+  }
+
+  /** Bring the parts' states, and the input pins, up to date from the Rust engine, and stop using it (the next settle may start it again). */
+  private leaveWasm() {
+    const we = this.we
+    if (!we) return
+    this.syncWasm()
+    this.pins.set(we.pins)
+    this.values.set(we.values)
+    this.we = null
+  }
+
+  /** Bring the parts' states up to date from the Rust engine (the nets always are). */
+  private syncWasm() {
+    if (this.we && this.weStale) {
+      this.we.syncOut()
+      this.weStale = false
+    }
   }
 
   /** Is the fast engine allowed (see `setFast`)? */
@@ -459,6 +505,7 @@ export class Simulator {
 
   /** Forget all values and internal state, as if the circuit was just switched on. */
   reset() {
+    this.we = null
     this.dropCapture()
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
@@ -532,6 +579,7 @@ export class Simulator {
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
+    this.leaveWasm()
     if (this.usingFast) {
       // Stepping gate delays one by one (the Step button) is what the exact engine is for: it takes over from here, and `settle` hands
       // back to the fast engine at the next clock edge or switch change.
@@ -605,6 +653,7 @@ export class Simulator {
 
   /** Start or stop recording the ticks of each settle (see `Capture`). Stopping forgets the last one. */
   setCapture(on: boolean) {
+    if (on) this.leaveWasm()
     this.capturing = on
     if (!on) this.dropCapture()
   }
@@ -657,7 +706,14 @@ export class Simulator {
       this.usingFast = fast
       this.markAll()
     }
-    if (fast) return this.settleFast(maxTicks)
+    if (fast) {
+      if (this.we) return this.settleWasm()
+      const settled = this.settleFast(maxTicks)
+      // Settled in the TypeScript engine, so everything is up to date to hand over to the Rust one.
+      if (settled && this.openWasm && !this.keepHistory) this.enterWasm()
+      return settled
+    }
+    this.leaveWasm()
     const cause = this.nextCause
     this.nextCause = 'input'
     const rec: Capture | null = this.capturing ? { frames: [this.values.slice()], truncated: false, time: this.time, cause } : null
@@ -706,6 +762,33 @@ export class Simulator {
     }
     this.unstable = !settled
     this.sample()
+    return settled
+  }
+
+  /** Hand the circuit to the Rust engine, if there is one and it has every part of this circuit. */
+  private enterWasm() {
+    const c = this.compiled()
+    if (!c || !this.openWasm) return
+    const we = this.openWasm(c)
+    if (!we) return
+    this.we = we
+    this.weTicks = we.ticks
+    this.weStale = false
+  }
+
+  /** The Rust engine's settle: the clocks' new phases were given to it by `advance`; the nets come back here. */
+  private settleWasm(): boolean {
+    const we = this.we!
+    this.nextCause = 'input'
+    const settled = we.settle()
+    this.values.set(we.values)
+    const t = we.ticks
+    this.ticks += t - this.weTicks
+    this.weTicks = t
+    this.weStale = true
+    this.unstable = !settled
+    this.dirty = true
+    this.moved = true
     return settled
   }
 
@@ -824,7 +907,8 @@ export class Simulator {
         if (st.elapsed >= c.def.clockHalfPeriod!(c.inst.params) - 1e-9) {
           st.elapsed = 0
           st.phase = st.phase === 1 ? 0 : 1
-          this.mark(c.index)
+          if (this.we) this.we.setPhase(c.index, st.phase)
+          else this.mark(c.index)
         }
       }
       this.nextCause = 'clock'
@@ -847,6 +931,7 @@ export class Simulator {
    */
   setHistory(on: boolean) {
     if (this.keepHistory === on) return
+    if (on) this.leaveWasm()
     this.keepHistory = on
     if (!on) {
       this.history = []
@@ -899,6 +984,7 @@ export class Simulator {
    * Returns false when the pin drives nothing here. The caller settles afterwards.
    */
   force(compId: string, pin: string, v: 0 | 1 | null): boolean {
+    this.leaveWasm()
     const key = pinKey(compId, pin)
     const net = this.netByOut.get(key)
     if (net === undefined) return false
@@ -928,6 +1014,7 @@ export class Simulator {
   /** Let every held signal go. */
   clearForces() {
     if (!this.forces.size) return
+    this.leaveWasm()
     const drivers = [...this.forces.keys()].map((k) => this.byId.get(k.slice(0, k.lastIndexOf(':'))))
     this.forces.clear()
     this.forced = null
@@ -978,6 +1065,7 @@ export class Simulator {
    * that edge. Returns false if there is nothing to go back to.
    */
   stepBack(): boolean {
+    this.leaveWasm()
     if (!this.canStepBack()) return false
     const target = this.moved ? this.cursor : this.cursor - 1
     const snap = this.history[target]
@@ -1047,8 +1135,20 @@ export class Simulator {
 
   /** What the page does to a terminal part's keyboard and screen: the part's state is changed here, where the simulation is. */
   terminal(compId: string, op: TerminalOp) {
-    const st = this.byId.get(compId)?.inst.state as AciaState | undefined
-    if (!st) return
+    const cc = this.byId.get(compId)
+    const st = cc?.inst.state as AciaState | undefined
+    if (!cc || !st) return
+    const k = this.we ? this.we.terminalOf(cc.index) : -1
+    if (this.we && k >= 0 && op.op !== 'clear') {
+      // The keyboard queue is in the Rust engine.
+      if (op.op === 'type') this.we.type(k, op.text, op.capitals)
+      else if (op.op === 'key') this.we.key(k, op.code)
+      else this.we.stop(k)
+      this.weStale = true
+      this.dirty = true
+      return
+    }
+    this.syncWasm()
     if (op.op === 'type') aciaType(st, op.text, op.capitals)
     else if (op.op === 'key') aciaKey(st, op.code)
     else if (op.op === 'break') aciaBreak(st)
@@ -1100,6 +1200,7 @@ export class Simulator {
   }
 
   state(compId: string): any {
+    this.syncWasm()
     return this.byId.get(compId)?.inst.state
   }
 
@@ -1108,6 +1209,7 @@ export class Simulator {
    * word size. Returns false if the part has no such word.
    */
   writeWord(compId: string, index: number, value: number): boolean {
+    this.leaveWasm()
     const cc = this.byId.get(compId)
     const mem = cc?.def.memory
     if (!cc || !mem || !(index >= 0 && index < mem.size(cc.inst))) return false
@@ -1120,6 +1222,7 @@ export class Simulator {
 
   /** Change params that don't affect the pin layout (switch position, input value, clock rate...). */
   setParams(compId: string, params: Params) {
+    this.leaveWasm()
     const cc = this.byId.get(compId)
     if (!cc) return
     cc.inst.params = params
@@ -1129,6 +1232,7 @@ export class Simulator {
   }
 
   setState(compId: string, patch: Record<string, unknown>) {
+    this.leaveWasm()
     const cc = this.byId.get(compId)
     if (!cc) return
     cc.inst.state = { ...cc.inst.state, ...patch }
@@ -1144,6 +1248,7 @@ export class Simulator {
 
   /** What a mirror needs to show the simulation as it is now. `sinceCapture` is the capture version the mirror already has. */
   viewSnapshot(sinceCapture: number): ViewSnapshot {
+    this.syncWasm()
     const states: [number, unknown][] = []
     this.comps.forEach((cc, i) => {
       if (cc.inst.state !== undefined) states.push([i, cc.inst.state])
@@ -1154,6 +1259,7 @@ export class Simulator {
       unstable: this.unstable,
       states,
       engine: this.engine,
+      wasm: this.we !== null,
       lagging: this.late,
       offered: this.offeredMs,
       skipped: this.skippedMs,
@@ -1174,6 +1280,7 @@ export class Simulator {
 
   /** Show what a `viewSnapshot` of the same circuit holds: the nets and part states are replaced, nothing is evaluated. */
   applyView(v: ViewSnapshot) {
+    this.leaveWasm()
     if (v.values.length !== this.values.length) return
     this.values.set(v.values)
     this.time = v.time
