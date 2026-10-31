@@ -39,7 +39,7 @@ const KIND: Record<string, number> = {
   buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
-const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar'])
+const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
 /** Parts with no outputs that look at the settled nets after every settle (`sample`): the Simulator runs them itself, on the page's side. */
 const SAMPLERS = new Set(['probe', 'breakpoint', 'matrix', 'speaker'])
 /** busgate's gates, as engine.rs numbers them. */
@@ -52,16 +52,16 @@ type TerminalState = AciaState & { pc: number; out: number }
 
 /** Can the module run this circuit? (Every part has a version in Rust, with the settings it handles.) */
 export function supports(c: Compiled): boolean {
-  let clocks = 0
-  for (const cc of c.comps) {
-    const type = cc.def.type
-    const p = cc.inst.params
-    if (type === 'clock') clocks++
-    else if (type === 'rom' && p.table === 'on') return false
-    else if (type === 'ram' && (Number(p.dbits) > 8 || Number(p.abits) > 15)) return false
-    else if (KIND[type] === undefined && !NOP.has(type) && !(SAMPLERS.has(type) && cc.inst.outs.length === 0)) return false
-  }
-  return clocks === 1
+  return c.comps.filter((cc) => cc.def.type === 'clock').length === 1 && c.comps.every(ported)
+}
+
+/** Does the module have this part (with these settings)? */
+export function ported(cc: CompiledPart): boolean {
+  const type = cc.def.type
+  const p = cc.inst.params
+  if (type === 'rom') return p.table !== 'on'
+  if (type === 'ram') return Number(p.dbits) <= 8 && Number(p.abits) <= 15
+  return type === 'clock' || KIND[type] !== undefined || NOP.has(type) || (SAMPLERS.has(type) && cc.inst.outs.length === 0)
 }
 
 const romCache = new WeakMap<Params, number[]>()

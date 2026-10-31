@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { flatten } from '../model/buses'
+import { EXAMPLES } from '../model/examples'
 import { micro6502, micro6502Basic } from '../model/micro6502'
 import { screenText } from './acia'
 import { Simulator } from './simulator'
 import { loadEngine } from './wasm'
-import { openFor, supports, WasmEngine } from './wasmengine'
+import { openFor, ported, supports, WasmEngine } from './wasmengine'
 
 /** The committed module, read from disk (a computed module name: the app's types do not include Node's). */
 async function module() {
@@ -245,4 +246,48 @@ describe('probes and breakpoints with the Rust engine', () => {
     expect(trace(rust)).toBe(trace(plain))
     expect(JSON.parse(trace(rust)).v.length, 'the probe saw SYNC change').toBeGreaterThan(2)
   })
+})
+
+describe('every example the Rust engine takes', () => {
+  /** How many examples the module takes, so that a part that loses its port (or a new one that gains it) shows up; raise it as parts are ported. */
+  const TAKEN_AT_LEAST = 7
+
+  it('gives the same nets as the TypeScript engine after every clock edge, for each example it takes', async () => {
+    const x = await module()
+    const taken: string[] = []
+    const missing = new Map<string, number>()
+    for (const ex of EXAMPLES) {
+      const mk = (rust: boolean) => {
+        const sim = new Simulator()
+        sim.setFast(true)
+        if (rust) sim.setWasm(openFor(x))
+        sim.load(flatten(ex.build()))
+        sim.settle()
+        return sim
+      }
+      const rust = mk(true)
+      const plain = mk(false)
+      if (plain.engine !== 'fast') continue
+      for (let i = 0; i < 40; i++) {
+        rust.stepClock()
+        plain.stepClock()
+      }
+      if (!rust.wasmOn) {
+        const c = plain.compiled()
+        if (c) for (const t of new Set(c.comps.filter((cc) => !ported(cc)).map((cc) => cc.def.type))) missing.set(t, (missing.get(t) ?? 0) + 1)
+        continue
+      }
+      taken.push(ex.id)
+      for (let i = 0; i < 200; i++) {
+        rust.stepClock()
+        plain.stepClock()
+        const a = rust.viewValues()
+        const b = plain.viewValues()
+        for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${ex.id}: net ${n} is ${a[n]} with Rust and ${b[n]} without, after ${i + 41} edges`)
+      }
+    }
+    console.log(`Rust engine takes ${taken.length} examples: ${taken.join(' ')}`)
+    console.log('parts that keep examples out:', [...missing].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${n}`).join(', '))
+    expect(taken.length).toBeGreaterThanOrEqual(TAKEN_AT_LEAST)
+  }, 600000)
 })
