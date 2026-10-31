@@ -61,25 +61,24 @@ runs ("fast engine" / "exact timing") next to the clock rate. Decision 1 below.
 A new optional field on `ComponentDef`:
 
 ```ts
-/**
- * How the outputs follow the inputs, for the fast engine.
- * 'comb':       a function of the inputs now (gates, mux, adder, decoder, ROM, bus junction, tri-state buffer...).
- * 'registered': a function of the state only; the state changes only when a clock input changes (dff, register, counter,
- *               cpu6502, via6522...). Breaks loops.
- * 'mixed':      reads some inputs at once and keeps state too (RAM: the read is combinational, the write is clocked; ACIA).
- *               Placed like 'comb'; its state changes when it is evaluated.
- */
-timing?: 'comb' | 'registered' | 'mixed'
+timing?: 'comb' | 'registered' | 'mixed' | 'source' | 'sink'
+immediateIns?: string[]   // registered parts only
 ```
+
+- `comb`: a function of the inputs now (gates, mux, adder, decoder, ROM, bus junction, tri-state buffer...).
+- `registered`: a function of the state; the state changes only when a clock input changes (dff, register, counter, `cpu6502`,
+  `via6522`, `acia6551`...). Breaks loops. **`immediateIns`** names the inputs besides the clock that reach the outputs at once:
+  a clear or preset (`R`, `S`, `CLR`), an enable that gates a carry out (`EN`, `UD`), the 65C02's `BE`. The levelizer treats those
+  pins as ordinary combinational edges and cuts a loop only at the clock and data pins. (Found by the test: the first draft had
+  no `immediateIns`, and every flip-flop with a clear failed it.)
+- `mixed`: keeps state and also follows its inputs at once (latches, RAM, the frame buffer's pixel read, the LCD). Placed like `comb`.
+- `source`: no inputs; its outputs come from its own settings or state (switch, button, clock, constants).
+- `sink`: only looks at the settled values (probe, breakpoint).
 
 Types with no class keep a circuit on Exact. The classes are checked by a unit test, not trusted: for each `registered` type,
 random states and inputs, then every input but the clock changed while the clock holds still, and the outputs must not change.
 
-Today's part types (about 75): the gates, routing, arithmetic, coding, word-wide (`bus*`) parts and the bus junction are `comb`;
-`dff`, `tff`, `register`, `counter`, `counterld`, `shiftreg`, `busreg`, `busctr`, `srlatch`, `dlatch` (as parts: their state is
-explicit), `cpu6502` and `via6522` are `registered` (to be confirmed by the test, part by part); `ram`, `acia6551`, `hd44780`,
-`console`, `keypad`, `gamepad`, `framebuffer`, `matrix`, `speaker` are `mixed`; `clock`, `button`, `switch` and the other inputs
-are sources; probes and breakpoints keep using `sample` after each edge as today.
+The table is in `src/engine/timing.ts` and `src/engine/timing.test.ts` checks it against every part type.
 
 ### Levelizing
 

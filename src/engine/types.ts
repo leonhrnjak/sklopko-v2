@@ -96,6 +96,15 @@ export interface ComponentDef {
   init?(p: Params): any
   /** Compute outputs from inputs (and state). Called once per tick. */
   evaluate(inst: Instance): void
+  /**
+   * How the outputs follow the inputs, for the fast engine (see docs/spec-sim-speed-tier2.md). Set from the table in `timing.ts`.
+   * 'comb': a function of the inputs now. 'registered': a function of the state; the state changes only when a clock input changes.
+   * 'mixed': keeps state and also follows its inputs at once (latches, memories, devices). 'source': no inputs, outputs from the part's
+   * settings or state. 'sink': only looks at the settled values. A part with none of these keeps a circuit on the exact engine.
+   */
+  timing?: 'comb' | 'registered' | 'mixed' | 'source' | 'sink'
+  /** For a registered part: the inputs, besides the clock, that change the outputs at once (a clear, a preset, an enable that gates a carry out). */
+  immediateIns?: string[]
   /** Text drawn inside generic box symbols. */
   title?: (p: Params) => string
   /**
