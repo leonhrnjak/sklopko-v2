@@ -86,6 +86,9 @@ function romWordsOf(def: CompiledPart['def'], p: Params): number[] {
   return words
 }
 
+/** What `Simulator.setWasm` takes: the engine for a compiled circuit, or null when a part of it is not in the module. */
+export const openFor = (x: EngineExports) => (c: Compiled) => (supports(c) ? new WasmEngine(x, c) : null)
+
 export class WasmEngine {
   private x: EngineExports
   private c: Compiled
