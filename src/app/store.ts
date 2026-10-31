@@ -352,7 +352,7 @@ export function resizeFrame(id: string, w: number, h: number) {
 
 /** Overwrite one word of a RAM in the running simulation (the memory editor). Not an undoable circuit change. */
 export function pokeWord(id: string, index: number, value: number) {
-  if (!sim.writeWord(id, index, value)) return
+  sim.writeWord(id, index, value) // (a word that does not exist is ignored: nothing to wait for or look at the answer of)
   sim.settle()
   sim.publish()
 }

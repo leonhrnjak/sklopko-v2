@@ -1,5 +1,5 @@
 import { GAMEPAD_BUTTONS } from '../engine/components/devices'
-import type { Simulator } from '../engine/simulator'
+import type { SimApi } from './sim'
 
 /** The button a keyboard key presses, by bit number (letters in lower case), or -1. */
 export function buttonOfKey(key: string): number {
@@ -12,7 +12,7 @@ export function buttonOfKey(key: string): number {
  * A and B. A key tapped for less than `minHoldMs` stays down until that time is up, because a slow program may look at the pad
  * only now and then. The keys are only taken (so the page does not scroll) when a gamepad is in the circuit and nothing is being typed.
  */
-export function installGamepadKeys(sim: Simulator, target: Window = window, minHoldMs = 0) {
+export function installGamepadKeys(sim: Pick<SimApi, 'idsOfType' | 'setState'>, target: Window = window, minHoldMs = 0) {
   let held = 0
   const pressedAt: number[] = []
   const release = new Map<number, ReturnType<typeof setTimeout>>()

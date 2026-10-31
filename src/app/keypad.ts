@@ -1,5 +1,5 @@
 import { keypadCodeOfKey } from '../engine/components/devices'
-import type { Simulator } from '../engine/simulator'
+import type { SimApi } from './sim'
 import { buttonOfKey } from './gamepad'
 import { useStore } from './store'
 
@@ -8,7 +8,7 @@ import { useStore } from './store'
  * the calculator keypad. A key is only taken when nothing is being typed, and the letters A–F are left to the editor's shortcuts
  * (F flips a selected part) while something is selected, and to a gamepad if there is one.
  */
-export function installKeypadKeys(sim: Simulator, target: Window = window) {
+export function installKeypadKeys(sim: Pick<SimApi, 'idsOfType' | 'setState'>, target: Window = window) {
   let down: string | null = null
   const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement | null)?.closest?.('input, select, textarea, [contenteditable="true"]')
   const press = (e: KeyboardEvent, on: boolean) => {

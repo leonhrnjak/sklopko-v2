@@ -113,7 +113,8 @@ acknowledges each frame it drew, so the worker never queues more than one). Betw
 ## Work, one PR each, stacked
 
 1. **W0: measure** (above). Decides whether to go on. Written into this file.
-2. **W1: the seam.** `SimClient` with an in-thread backend (same behaviour as today: it just calls `Simulator`), every UI
+2. **W1: the seam** (done: `SimApi` in `src/app/sim.ts`, the exact set of `Simulator` members the app uses, in three groups; the app is
+   type-checked against it; nothing waits for a command's answer any more). `SimClient` with an in-thread backend (same behaviour as today: it just calls `Simulator`), every UI
    and app file moved to it, the edit paths in `store.ts` turned into commands. No visible
    change, no worker yet. All unit and e2e specs pass.
 3. **W2: the worker backend.** The worker file, the messages, the mirror and the watch set; the run loop in the worker;
