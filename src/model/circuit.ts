@@ -64,6 +64,8 @@ export interface Circuit {
    * step back over, and the snapshots cost most of the time). Absent means on. Only the top-level circuit has it; see `Simulator.setHistory`.
    */
   history?: false
+  /** `true` when the document is simulated gate delay by gate delay, never by the fast engine (Tools → Exact gate timing). Absent means automatic. Only the top-level circuit has it. */
+  exact?: true
   /**
    * Set while the body of a custom IC is being edited: this circuit is that body, `def` is the IC and `outer` the circuit it is
    * placed in (which has its own `up` when that is an IC body too). `ics` is the document's table, shared by every level. See

@@ -17,6 +17,19 @@ describe('serialization', () => {
     expect(fromShareHash('#' + toShareHash(c))).toEqual(deserialize(serialize(c)))
   })
 
+  describe('the exact gate timing setting', () => {
+    const circuit = () => EXAMPLES[0].build()
+
+    it('is not written when automatic, and is written as true and read back when set, in a file and in a share link', () => {
+      expect('exact' in serialize(circuit())).toBe(false)
+      const c = { ...circuit(), exact: true as const }
+      const saved = JSON.parse(JSON.stringify(serialize(c)))
+      expect(saved.exact).toBe(true)
+      expect(deserialize(saved).exact).toBe(true)
+      expect(fromShareHash('#' + toShareHash(c))?.exact).toBe(true)
+    })
+  })
+
   describe('the history setting', () => {
     const circuit = () => EXAMPLES[0].build()
 

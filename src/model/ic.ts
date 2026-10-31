@@ -431,6 +431,13 @@ export function historyOf(c: Circuit): boolean {
   return top.history !== false
 }
 
+/** Must the document be simulated with exact gate timing (never the fast engine)? Belongs to the top level, like the history setting. */
+export function exactOf(c: Circuit): boolean {
+  let top = c
+  while (top.up) top = top.up.outer
+  return top.exact === true
+}
+
 /** The ids of the ICs between the top level and this circuit, outermost first (empty at the top level). */
 export function levelsOf(c: Circuit): string[] {
   const path: string[] = []

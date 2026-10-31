@@ -7,13 +7,15 @@ import { ZoomControls } from './ZoomControls'
 
 interface Stats {
   clock: ReturnType<typeof describeClock> | null
+  /** Which engine settles the circuit. */
+  engine: 'fast' | 'exact'
   /** Simulated time, only with a clock. */
   time: string | null
 }
 
 /** What the footer measures, looked at twice a second: the fastest clock and the simulated time. */
 function useStats(): Stats {
-  const [stats, setStats] = useState<Stats>({ clock: null, time: null })
+  const [stats, setStats] = useState<Stats>({ clock: null, time: null, engine: 'exact' })
   useEffect(() => {
     const meter = new ClockMeter()
     const look = () => {
@@ -24,6 +26,7 @@ function useStats(): Stats {
       const next: Stats = {
         clock: asked === null ? null : describeClock(asked * speed, running ? share : null),
         time: asked === null ? null : formatTime(sim.time),
+        engine: sim.engine,
       }
       setStats((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
     }
@@ -43,7 +46,7 @@ const breakpointIds = (comps: Record<string, { type: string }>) => Object.keys(c
  */
 export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onToggleLock: () => void }) {
   const running = useStore((s) => s.running)
-  const { clock, time } = useStats()
+  const { clock, time, engine } = useStats()
   const oscillating = useSimStatus() === 'u'
   const held = useForceCount()
   const breakpoints = useStore((s) => breakpointIds(s.circuit.comps))
@@ -76,6 +79,17 @@ export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onT
             )}
           </span>
         )}
+        <span
+          className="run-engine"
+          data-testid="engine"
+          title={
+            engine === 'fast'
+              ? 'The fast engine settles each clock edge in one pass. It is used for circuits where it gives the same result as exact timing. Tools → Exact gate timing turns it off.'
+              : 'Every gate delay is simulated tick by tick. This is used when the circuit has a loop of gates or a delay, while a signal is held or the glitch view is open, or when Tools → Exact gate timing is on.'
+          }
+        >
+          {engine === 'fast' ? 'fast engine' : 'exact timing'}
+        </span>
         <button
           className={`run-pill lock${lockEdits ? ' locked' : ''}`}
           onClick={onToggleLock}
