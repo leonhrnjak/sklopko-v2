@@ -31,8 +31,8 @@ spec, and wait for the user's explicit approval before any implementation (no co
    layout changed); if nothing can be seen, say "No visible change." The pictures live on the `pr-assets` branch, never on the
    feature branch or `main`: `.claude/skills/ship/SKILL.md` has the commands, and `scripts/screenshot.mjs` takes them.
 2. GitHub Actions (`.github/workflows/ci.yml`) no longer runs on PRs: it runs every night on `main` (and by hand from the
-   Actions tab, on any branch) as parallel jobs: unit tests, lint, build (with the bundle budget), and the e2e tests in four
-   shards; the last job, `test`, needs them all. A PR only gets the Cloudflare Pages preview deploy, so **the checks must be
+   Actions tab, on any branch) as parallel jobs: unit tests, lint, build (with the bundle budget), and the e2e tests in one job; the last job,
+   `test`, needs them all. A PR only gets the Cloudflare Pages preview deploy, so **the checks must be
    run locally before pushing** (see "Testing while making changes", and write the results in the PR).
 3. Ask the user whether to merge. Merge only on their yes.
 4. If the nightly run goes red, read the failing job's log (`gh run view --log-failed`), fix the cause in a PR, and re-run
