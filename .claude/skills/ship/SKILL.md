@@ -20,7 +20,7 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
      `-g`). If Playwright can't find its Chromium, prefix with `PW_CHROMIUM=/opt/pw-browsers/chromium`.
    Fix failures before going on. Report anything you could not run.
 4. **Commit and push.** Stage the changed files by name (no `git add -A` of unrelated files), commit with a descriptive message
-   that ends with the attribution line from the session's system reminder, then `git push -u origin <branch>`. Retry a failed
+   with no attribution trailers (see CLAUDE.md, "No Claude attribution on GitHub"), then `git push -u origin <branch>`. Retry a failed
    push on network errors only (2 s, 4 s, 8 s, 16 s).
 5. **Screenshots, then open the PR.**
    - **Screenshots** of everything the change makes visible (new screen, changed screen: before and after; a phone view when the layout
@@ -40,7 +40,7 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
    - **Open the PR** (`gh pr create`, or the GitHub tool when `gh` is not available). The title has no version.
      The body follows `.github/pull_request_template.md`, all five sections: *What this adds* (two or three sentences for someone who has
      not read the code), *How it works* (short, technical), *How to test* (numbered steps a person can follow), *Screenshots* (or "No
-     visible change." with a line why), *Checks* (what was run). Then the PR attribution line from the system reminder.
+     visible change." with a line why), *Checks* (what was run). No attribution footer or session link.
 6. **Wait for CI:** `gh pr checks --watch`.
    - **Red:** read the log (`gh run view --log-failed`), fix the cause, re-run only the failed tests locally (`-g`), push, and
      wait again. Repeat until green.
