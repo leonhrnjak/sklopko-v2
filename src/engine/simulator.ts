@@ -789,6 +789,7 @@ export class Simulator {
     this.unstable = !settled
     this.dirty = true
     this.moved = true
+    this.sample() // probes, breakpoints and displays that look at the settled nets stay in TypeScript
     return settled
   }
 
