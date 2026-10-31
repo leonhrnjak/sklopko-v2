@@ -103,6 +103,11 @@ export interface ComponentDef {
    * settings or state. 'sink': only looks at the settled values. A part with none of these keeps a circuit on the exact engine.
    */
   timing?: 'comb' | 'registered' | 'mixed' | 'source' | 'sink'
+  /**
+   * The part has no outputs and its `evaluate` does nothing (labels, displays drawn from their pins): the fast engine never wakes it
+   * (docs/spec-sim-evals.md, D1). Set from the table in `timing.ts`.
+   */
+  idle?: boolean
   /** For a registered part: the inputs, besides the clock, that change the outputs at once (a clear, a preset, an enable that gates a carry out). */
   immediateIns?: string[]
   /** Text drawn inside generic box symbols. */
