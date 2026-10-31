@@ -1,6 +1,7 @@
 # Simulator speed, tier 2: a compiled engine for clocked circuits (spec)
 
-Status: **for approval.** No code until approved. Tier 1 (`docs/spec-sim-speed-tier1.md`, PRs #164 to #166) is merged: the
+Status: **approved** (all three decisions as recommended: automatic choice with the footer word and the setting; Phases A and B now;
+the race check at load). Tier 1 (`docs/spec-sim-speed-tier1.md`, PRs #164 to #166) is merged: the
 6502-from-parts BASIC board went from about 30,000 to about 60,000 cycles a second (bundled, in Node), the board with the
 `cpu6502` part from about 375,000 to about 630,000. A real 6502 does 1,000,000.
 
