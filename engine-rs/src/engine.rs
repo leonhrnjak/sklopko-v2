@@ -29,6 +29,9 @@ const ROM: i32 = 17;
 const RAM: i32 = 18;
 const CLOCK: i32 = 19;
 const ACIA: i32 = 20;
+const BCDADD: i32 = 21;
+const BIN2BCD: i32 = 22;
+const TFF: i32 = 23;
 
 // busgate operations (p1)
 const G_AND: i32 = 0;
@@ -432,6 +435,43 @@ impl Engine {
                 outs[0] = q;
                 outs[1] = flip(q);
             }
+            TFF => {
+                let t = ins[0];
+                let clk = ins[1];
+                let s = ins[2];
+                let r = ins[3];
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                if r == 1 { self.st_q[i] = 0; }
+                else if s == 1 { self.st_q[i] = 1; }
+                else if edge {
+                    if t == X { self.st_q[i] = X; }
+                    else if t == 1 { self.st_q[i] = flip(self.st_q[i]); }
+                }
+                let q = self.st_q[i];
+                outs[0] = q;
+                outs[1] = flip(q);
+            }
+            BCDADD => {
+                if ins.iter().any(|&v| v == X) {
+                    for b in 0..5 { outs[b] = X; }
+                } else {
+                    let mut z = to_num(ins, 0, 4) + to_num(ins, 4, 4) + ins[8] as i32;
+                    if z > 9 { z += 6; }
+                    for b in 0..4 { outs[b] = ((z >> b) & 1) as u8; }
+                    outs[4] = (z > 15) as u8;
+                }
+            }
+            BIN2BCD => {
+                if ins.iter().any(|&v| v == X) {
+                    for b in 0..5 { outs[b] = X; }
+                } else {
+                    let n = to_num(ins, 0, 4);
+                    let o = n % 10;
+                    for b in 0..4 { outs[b] = ((o >> b) & 1) as u8; }
+                    outs[4] = (n >= 10) as u8;
+                }
+            }
             ROM => {
                 let abits = self.p0[i] as usize;
                 let dbits = self.p1[i] as usize;
@@ -441,6 +481,16 @@ impl Engine {
                 } else {
                     let w = self.rom[self.mem_off[i] as usize + addr as usize] as i32;
                     write_num(outs, 0, dbits, w);
+                }
+                // The table port: 256 bytes that follow the words (p2 is 1 when the part has it).
+                if self.p2[i] == 1 {
+                    let t = to_num(ins, abits, 8);
+                    if t < 0 {
+                        for b in 0..8 { outs[dbits + b] = X; }
+                    } else {
+                        let w = self.rom[self.mem_off[i] as usize + (1usize << abits) + t as usize] as i32;
+                        write_num(outs, dbits, 8, w);
+                    }
                 }
             }
             RAM => {

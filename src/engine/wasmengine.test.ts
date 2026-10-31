@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { flatten } from '../model/buses'
+import { CircuitBuilder } from '../model/builder'
 import { EXAMPLES } from '../model/examples'
 import { micro6502, micro6502Basic } from '../model/micro6502'
 import { screenText } from './acia'
+import { layoutOf } from './layoutcache'
 import { Simulator } from './simulator'
 import { loadEngine } from './wasm'
 import { openFor, ported, supports, WasmEngine } from './wasmengine'
@@ -250,7 +252,7 @@ describe('probes and breakpoints with the Rust engine', () => {
 
 describe('every example the Rust engine takes', () => {
   /** How many examples the module takes, so that a part that loses its port (or a new one that gains it) shows up; raise it as parts are ported. */
-  const TAKEN_AT_LEAST = 7
+  const TAKEN_AT_LEAST = 11
 
   it('gives the same nets as the TypeScript engine after every clock edge, for each example it takes', async () => {
     const x = await module()
@@ -290,4 +292,74 @@ describe('every example the Rust engine takes', () => {
     console.log('parts that keep examples out:', [...missing].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${n}`).join(', '))
     expect(taken.length).toBeGreaterThanOrEqual(TAKEN_AT_LEAST)
   }, 600000)
+})
+
+describe('single parts in the Rust engine, against the TypeScript engine, with unknown inputs and random switches', () => {
+  /** A deterministic random generator (mulberry32). */
+  const rng = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const CASES: [string, Record<string, string | number | boolean>][] = [
+    ['bcdadd', {}],
+    ['bin2bcd', {}],
+    ['tff', {}],
+    ['rom', { abits: 4, dbits: 8, data: '12 34 56 78 9A BC DE F0 01 23 45 67 89 AB CD EF', table: 'on', tdata: 'AA 55 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E' }],
+    ['rom', { abits: 6, dbits: 16, data: '1234 5678 9ABC DEF0', table: 'on', tdata: '10 20 30' }],
+  ]
+  for (const [type, params] of CASES) {
+    it(`${type} ${JSON.stringify(params).slice(0, 40)}`, async () => {
+      const x = await module()
+      for (let seed = 1; seed <= 6; seed++) {
+        const r = rng(seed * 7919)
+        const b = new CircuitBuilder()
+        const clk = b.add('clock', 0, 0)
+        const part = b.add(type, 200, 0, { params })
+        const pins = layoutOf(type, b.c.comps[part].params).pins
+        const switches: string[] = []
+        let clocked = false
+        for (const pin of pins.filter((q) => q.dir === 'in')) {
+          if (pin.clock && !clocked) {
+            b.wire(`${clk}.Q`, `${part}.${pin.name}`)
+            clocked = true
+          } else if (r() < 0.8) {
+            // (the rest stay unconnected: unknown, or the pin's own default)
+            const sw = b.add('switch', 0, 100 + switches.length * 40, { params: { on: r() < 0.5 } })
+            switches.push(sw)
+            b.wire(`${sw}.Q`, `${part}.${pin.name}`)
+          }
+        }
+        if (!clocked) {
+          const led = b.add('led', 100, 0)
+          b.wire(`${clk}.Q`, `${led}.A`)
+        }
+        const mk = (rust: boolean) => {
+          const sim = new Simulator()
+          sim.setFast(true)
+          sim.setHistory(false)
+          if (rust) sim.setWasm(openFor(x))
+          sim.load(flatten(b.c))
+          sim.settle()
+          return sim
+        }
+        const rust = mk(true)
+        const plain = mk(false)
+        for (let step = 0; step < 120; step++) {
+          if (step % 3 === 0 && switches.length) {
+            const sw = switches[Math.floor(r() * switches.length)]
+            const on = r() < 0.5
+            for (const sim of [rust, plain]) sim.setParams(sw, { on })
+          }
+          rust.stepClock()
+          plain.stepClock()
+          if (step === 0) expect(rust.wasmOn, `${type} is taken`).toBe(true)
+          const a = rust.viewValues()
+          const c = plain.viewValues()
+          for (let n = 0; n < a.length; n++) if (a[n] !== c[n]) throw new Error(`${type} seed ${seed} step ${step}: net ${n} is ${a[n]} with Rust and ${c[n]} without`)
+        }
+      }
+    })
+  }
 })
