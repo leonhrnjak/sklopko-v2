@@ -501,6 +501,9 @@ test('the 6502 built from parts: it resets itself, and after seven cycles of res
 
 test('the guide to the 6502 from parts: the blocks, an instruction cycle by cycle, and a block shown in the real circuit', async ({ page }) => {
   await page.goto('/6502-parts', { waitUntil: 'networkidle' })
+  // The example starts running, and the dev server's React needs most of a slow machine's main thread to draw the circuit each frame:
+  // the guide's window then waits to be drawn for ever. Pausing first makes the test about the guide, not about how fast the machine is.
+  await page.getByRole('button', { name: /Pause/ }).click()
   await page.getByRole('button', { name: 'How this CPU works' }).click() // a button on the example itself, and also in the Tools menu
   const guide = page.getByRole('dialog', { name: 'The 6502 from parts' })
   await guide.getByRole('button', { name: 'Registers' }).click()
