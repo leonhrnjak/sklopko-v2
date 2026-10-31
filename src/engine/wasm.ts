@@ -9,7 +9,7 @@
 export const engineUrl = new URL('./wasm/engine.wasm', import.meta.url)
 
 /** The version of the interface between this code and the module: engine-rs/src/lib.rs has the same number. */
-export const ABI_VERSION = 1
+export const ABI_VERSION = 2
 
 /** What the module exports. */
 export interface EngineExports {
@@ -17,6 +17,23 @@ export interface EngineExports {
   abi_version(): number
   alloc(len: number): number
   checksum(ptr: number, len: number): number
+  init(ptr: number, len: number): void
+  edge(part: number): number
+  poke(part: number): number
+  edges(n: number): number
+  ticks(): number
+  values_ptr(): number
+  pins_ptr(): number
+  st_n_ptr(): number
+  st_pc_ptr(): number
+  st_q_ptr(): number
+  ram_ptr(): number
+  acia_regs_ptr(k: number): number
+  acia_key(k: number, code: number): void
+  acia_clear_keys(k: number): void
+  acia_pending(k: number): number
+  acia_take_events(k: number): number
+  acia_events_ptr(k: number): number
 }
 
 /** Start the module from its bytes (or an already compiled `WebAssembly.Module`). Throws if it is not the module this code was written for. */

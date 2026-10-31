@@ -3,6 +3,7 @@ import { resolveLabels } from './netlabels'
 import { layoutOf } from './layoutcache'
 import { getDef, hasDef } from './registry'
 import { buildPlan, type Plan, type Rejected } from './fast'
+import type { Compiled } from './wasmengine'
 import { X, Z, type ComponentDef, type Instance, type Params, type V } from './types'
 
 export interface SimComp {
@@ -611,6 +612,25 @@ export class Simulator {
   /** The ticks of the latest settle in which anything changed, if recording is on and there has been one. */
   getCapture(): Capture | null {
     return this.lastCapture
+  }
+
+  /**
+   * The compiled circuit as the WebAssembly engine takes it (src/engine/wasmengine.ts), or null when the fast engine has no plan for it.
+   * The arrays are the simulator's own, not copies.
+   */
+  compiled(): Compiled | null {
+    if (typeof this.plan === 'string') return null
+    return {
+      comps: this.comps,
+      values: this.values,
+      pins: this.pins,
+      readerStart: this.readerStart,
+      readerPart: this.readerPart,
+      readerSlot: this.readerSlot,
+      readerWake: this.readerWake,
+      order: this.plan.order,
+      rank: this.plan.rank,
+    }
   }
 
   /** For each net, the output pin that drives it (`comp:pin`): the names used with a `Capture`. */

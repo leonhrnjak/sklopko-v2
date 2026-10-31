@@ -158,3 +158,27 @@ So E1 onward goes ahead.
 refuses a module whose interface number (`ABI_VERSION`) differs. The build is reproducible: the same source gave the same bytes in two
 different directories (the machine's paths are mapped out of the file). The CI job `wasm` rebuilds the file and fails if it differs from the
 committed one. `npm run build` and the Cloudflare deploy are unchanged.
+
+## E2a result: the engine and the parts of the BASIC board
+
+`engine-rs/` now has the engine (the tables, the settle loop, the wake rules of D1 and D2) and 21 part types: everything that the 6502
+from parts (the LED board and the BASIC board) uses, including the terminal. `src/engine/wasmengine.ts` loads a compiled circuit
+(`Simulator.compiled()`) into it, runs clock edges, and reads the nets, the parts' states and the RAM out of the module's memory. It is
+not yet used by the `Simulator` (that is E2b), so nothing changes in the app.
+
+- The terminal's registers and keyboard queue are in Rust; the screen stays on the page: what the program prints is logged as events
+  (print a character, wipe the screen), which `syncOut` replays on the page's `AciaState` with `aciaPut` and `aciaWipe`. Typing, a key and
+  a break go to the queue in Rust.
+- `src/engine/wasmengine.test.ts` runs the TypeScript fast engine and the Rust one side by side: the same 771 nets after each of 6,000
+  clock edges on the LED board; on the BASIC board the same nets for the first 4,000 edges, then the same screen text after every further
+  4,000 edges until the interpreter says `OK`, and after typing a program and `RUN` (it prints 1, 4, 9).
+- Speed on the BASIC board from parts (`VITE_BENCH=1 npx vitest run src/engine/bench -t WebAssembly`, five runs of 100,000 cycles, Node):
+  TypeScript fast engine 58,970 to 69,430 (median 67,300), WebAssembly 190,000 to 250,800 (median 199,300): **2.96x**.
+
+### Coverage after E2a (what makes the whole simulator faster)
+
+The engine is for every circuit, not for the BASIC example: BASIC is the benchmark. A circuit takes the new engine only if **every part**
+in it is ported. Of the 63 examples, 57 run on the TypeScript fast engine, and **7** consist of ported parts only. The parts that keep
+the others out, with the number of examples using them: `hexdisp` 17, `breakpoint` 13, `cpu6502` 12, `counter` 9, `probe` 9, `framebuffer` 8,
+`hexin` 6, `console` 6, `register` 5, `decoder` 5, `bin2bcd` 5, `bcdadd` 5, `busjoin` 5, `gamepad` 4, `add4` 3, `tff` 3, `tribuf` 3, `keypad` 3,
+`via6522` 3. E4 ports them in that order, and the count is measured again after each batch.
