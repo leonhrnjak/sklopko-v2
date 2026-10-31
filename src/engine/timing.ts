@@ -42,6 +42,9 @@ const SINK = 'probe breakpoint matrix speaker'
 /** No outputs, and an `evaluate` that does nothing: drawn from their pins, so a change there needs no evaluation (`ComponentDef.idle`). */
 const IDLE = new Set('netsend led seg7 hexdisp dicedisp bar busdisp note frame'.split(' '))
 
+/** Registered parts whose single clock pin only matters on a rising edge, and that keep the last clock level in `state.pc` (`ComponentDef.risingClock`). */
+const RISING = new Set('dff jkff tff counter counterld register shiftreg ringcounter busreg busctr'.split(' '))
+
 const TABLE = new Map<string, NonNullable<ComponentDef['timing']>>()
 for (const [names, timing] of [[COMB, 'comb'], [MIXED, 'mixed'], [SOURCE, 'source'], [SINK, 'sink']] as const)
   for (const n of names.split(' ')) TABLE.set(n, timing)
@@ -50,5 +53,6 @@ for (const [names, timing] of [[COMB, 'comb'], [MIXED, 'mixed'], [SOURCE, 'sourc
 export const withTiming = (defs: ComponentDef[]): ComponentDef[] =>
   defs.map((d) => {
     const t = REGISTERED[d.type] ? { ...d, timing: 'registered' as const, immediateIns: REGISTERED[d.type] } : TABLE.has(d.type) ? { ...d, timing: TABLE.get(d.type) } : d
-    return IDLE.has(d.type) ? { ...t, idle: true } : t
+    const u = IDLE.has(d.type) ? { ...t, idle: true } : t
+    return RISING.has(d.type) ? { ...u, risingClock: true } : u
   })

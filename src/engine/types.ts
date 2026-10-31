@@ -108,6 +108,12 @@ export interface ComponentDef {
    * (docs/spec-sim-evals.md, D1). Set from the table in `timing.ts`.
    */
   idle?: boolean
+  /**
+   * For a registered part: its one clock pin only matters when it goes to 1 (it uses `rising`, and `state.pc` holds the last clock
+   * level). The fast engine then skips the part when the clock falls, and only sets `state.pc` to 0
+   * (docs/spec-sim-evals.md, D2). Set from the table in `timing.ts`.
+   */
+  risingClock?: boolean
   /** For a registered part: the inputs, besides the clock, that change the outputs at once (a clear, a preset, an enable that gates a carry out). */
   immediateIns?: string[]
   /** Text drawn inside generic box symbols. */

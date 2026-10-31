@@ -136,3 +136,4 @@ Measured with `VITE_BENCH=1 npx vitest run src/engine/bench` (Vitest in Node, th
 |---|---|---|---|
 | D0 (before) | 118.6 | 56% | 56,000 to 72,500 |
 | D1 (idle parts) | 108.8 | 52% | 55,900 to 62,700 |
+| D2 (rising edges only) | 89.8 | 41% | 65,100 to 70,000 |

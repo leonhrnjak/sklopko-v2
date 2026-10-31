@@ -194,7 +194,7 @@ export class Simulator {
   private readerStart = new Int32Array(1)
   private readerPart = new Int32Array(0)
   private readerSlot = new Int32Array(0)
-  /** Per reader entry, for the fast engine: does a change on this pin wake the part (see `CComp.wakeIns`)? */
+  /** Per reader entry, for the fast engine: does a change on this pin wake the part (see `CComp.wakeIns`; 2 = only when it goes to anything but 0)? */
   private readerWake = new Uint8Array(0)
   /**
    * Every part's input pins, one after the other: a part's `inst.ins` is a view of its stretch of this. A net that changes writes its new
@@ -251,7 +251,8 @@ export class Simulator {
 
     const wakes = (def: ComponentDef, pins: { name: string; clock?: boolean }[]) => {
       const w = new Uint8Array(pins.length).fill(def.idle ? 0 : 1)
-      if (def.timing === 'registered') pins.forEach((p, i) => (w[i] = p.clock || def.immediateIns?.includes(p.name) ? 1 : 0))
+      // (2: a clock pin of a part that only cares when it rises, see `ComponentDef.risingClock` and `commitOuts`)
+      if (def.timing === 'registered') pins.forEach((p, i) => (w[i] = p.clock ? (def.risingClock ? 2 : 1) : def.immediateIns?.includes(p.name) ? 1 : 0))
       return w
     }
     const build = (sc: SimComp): CComp => {
@@ -740,7 +741,13 @@ export class Simulator {
       for (let r = readerStart[net], end = readerStart[net + 1]; r < end; r++) {
         const slot = readerSlot[r]
         pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
-        if (readerWake[r] === 1) this.flagFast(readerPart[r])
+        const wake = readerWake[r]
+        if (wake === 1) this.flagFast(readerPart[r])
+        else if (wake === 2) {
+          // A clock that only matters when it rises: when it falls, just remember that it did (what `rising` would have done).
+          if (v === 0) (this.comps[readerPart[r]].inst.state as { pc: V }).pc = 0
+          else this.flagFast(readerPart[r])
+        }
       }
     }
   }
