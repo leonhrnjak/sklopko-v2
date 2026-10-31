@@ -791,6 +791,7 @@ export class Simulator {
     const cc = this.byId.get(compId)
     if (!cc) return
     cc.inst.params = params
+    cc.inst.cfg = undefined
     this.touch(cc)
     this.dirty = true
   }
