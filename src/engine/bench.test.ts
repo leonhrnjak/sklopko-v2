@@ -7,6 +7,8 @@ import { COUNTER_SOURCE } from '../model/programs6502'
 import { micro6502Basic } from '../model/micro6502'
 import { basicRomBytes } from '../model/basic-rom'
 import { Simulator } from './simulator'
+import { loadEngine } from './wasm'
+import { WasmEngine } from './wasmengine'
 
 /**
  * Timings for the simulator, printed and never asserted. Skipped unless asked for: `VITE_BENCH=1 npx vitest run src/engine/bench`.
@@ -130,6 +132,34 @@ describe.skipIf(!on)('simulator timings', () => {
     const part = new Simulator()
     part.load(flatten(board6502Builder({ hz: 100, memory: 'big', rom: hex, devices: ['terminal'] }).b.build(false)))
     basicCycles('6502 part + BASIC', part, 400000)
+  })
+  it('BASIC from parts: the WebAssembly engine against the TypeScript fast engine', { timeout: 300000 }, async () => {
+    const fs = await import(/* @vite-ignore */ ['node', 'fs'].join(':'))
+    const x = await loadEngine(fs.readFileSync('src/engine/wasm/engine.wasm') as Uint8Array)
+    const make = () => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      sim.setHistory(false)
+      sim.load(flatten(micro6502Basic()))
+      sim.settle()
+      return sim
+    }
+    const ts: number[] = []
+    const rs: number[] = []
+    for (let r = 0; r < 5; r++) {
+      const sim = make()
+      for (let i = 0; i < 4000; i++) sim.stepClock()
+      let t0 = performance.now()
+      for (let i = 0; i < 200000; i++) sim.stepClock()
+      ts.push((100000 / (performance.now() - t0)) * 1000)
+      const w = new WasmEngine(x, make().compiled()!)
+      w.edges(4000)
+      t0 = performance.now()
+      w.edges(200000)
+      rs.push((100000 / (performance.now() - t0)) * 1000)
+    }
+    const med = (a: number[]) => [...a].sort((p, q) => p - q)[2]
+    console.log(`6502 from parts + BASIC, cycles/s: TypeScript fast engine ${med(ts).toFixed(0)} (${ts.map((v) => v.toFixed(0)).join(' ')}); WebAssembly ${med(rs).toFixed(0)} (${rs.map((v) => v.toFixed(0)).join(' ')}); ${(med(rs) / med(ts)).toFixed(2)}x`)
   })
   it('the 6502 board, with and without the history for stepping back', { timeout: 120000 }, () => {
     const five = ['screen', 'gamepad', 'leds', 'console', 'keypad'] as const

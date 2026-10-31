@@ -1,0 +1,294 @@
+import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from './acia'
+import type { EngineExports } from './wasm'
+import type { Instance, Params, ComponentDef } from './types'
+
+/**
+ * The simulator's fast engine in Rust (docs/spec-sim-wasm.md): `WasmEngine` loads a compiled circuit (`Simulator.compiled()`) into the
+ * WebAssembly module, runs clock edges there, and reads what changed out of the module's memory. It follows the TypeScript fast engine
+ * step for step (`settleFast`), so the two give the same nets after every clock edge; src/engine/lockstep.test.ts checks that.
+ *
+ * Only circuits made of parts that the module has are taken (`supports`): the others stay on the TypeScript engines.
+ */
+
+/** What the module needs to know of a compiled part. */
+interface CompiledPart {
+  id: string
+  def: Pick<ComponentDef, 'type' | 'evaluate'>
+  inst: Instance
+  inNets: Int32Array
+  outNets: Int32Array
+}
+
+/** The simulator's compiled circuit (see `Simulator.compiled`). */
+export interface Compiled {
+  comps: CompiledPart[]
+  values: Uint8Array
+  pins: Uint8Array
+  readerStart: Int32Array
+  readerPart: Int32Array
+  readerSlot: Int32Array
+  readerWake: Uint8Array
+  /** The plan: the parts that are not registered in order, and the position of each in it (-1 for a registered part). */
+  order: Int32Array
+  rank: Int32Array
+}
+
+/** The kinds of part, as engine-rs/src/engine.rs numbers them. */
+const KIND: Record<string, number> = {
+  and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9, busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14,
+  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20,
+}
+/** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
+const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar'])
+/** busgate's gates, as engine.rs numbers them. */
+const GATE: Record<string, number> = { and: 0, or: 1, xor: 2, nand: 3, nor: 4, xnor: 5, not: 6 }
+
+const log2 = (n: number) => Math.round(Math.log2(n))
+
+/** Terminal state, as the page keeps it for drawing (`TerminalState` in components/terminal.ts). */
+type TerminalState = AciaState & { pc: number; out: number }
+
+/** Can the module run this circuit? (Every part has a version in Rust, with the settings it handles.) */
+export function supports(c: Compiled): boolean {
+  let clocks = 0
+  for (const cc of c.comps) {
+    const type = cc.def.type
+    const p = cc.inst.params
+    if (type === 'clock') clocks++
+    else if (type === 'rom' && p.table === 'on') return false
+    else if (type === 'ram' && (Number(p.dbits) > 8 || Number(p.abits) > 15)) return false
+    else if (KIND[type] === undefined && !NOP.has(type)) return false
+  }
+  return clocks === 1
+}
+
+/** The words of a ROM, found by asking the part itself for each address. */
+function romWords(def: CompiledPart['def'], p: Params): number[] {
+  const abits = Number(p.abits)
+  const dbits = Number(p.dbits)
+  const words: number[] = []
+  for (let a = 0; a < 2 ** abits; a++) {
+    const ins = Array.from({ length: abits }, (_, b) => ((a >> b) & 1) as 0 | 1)
+    const outs = new Array<0 | 1 | 2 | 3>(dbits).fill(2)
+    def.evaluate({ ins, outs, state: undefined, params: p })
+    words.push(outs.reduce<number>((w, v, b) => w | (v << b), 0))
+  }
+  return words
+}
+
+export class WasmEngine {
+  private x: EngineExports
+  private c: Compiled
+  /** The part number of the clock. */
+  readonly clock: number
+  /** The terminals, in part order: the part, and its state (the screen is kept there). */
+  private terminals: { part: number; st: TerminalState }[] = []
+  /** The part number of each RAM, with where its words start in the module's RAM. */
+  private rams: { part: number; start: number }[] = []
+  private buffer: ArrayBuffer | null = null
+  private valuesView = new Uint8Array(0)
+  private pinsView = new Uint8Array(0)
+
+  constructor(x: EngineExports, c: Compiled) {
+    this.x = x
+    this.c = c
+    const img: number[] = []
+    const push = (v: number) => img.push(v)
+    const rom: number[] = []
+    const ram: number[] = []
+    const outNets: number[] = []
+    const rows: number[][] = []
+    let clock = -1
+    c.comps.forEach((cc, i) => {
+      const type = cc.def.type
+      const p = cc.inst.params
+      const st = cc.inst.state
+      let kind = 0
+      let p0 = 0
+      let p1 = 0
+      let p2 = 0
+      let memOff = 0
+      let n = 0
+      let pc = 0
+      let q = 0
+      if (type === 'mux') {
+        p0 = Number(p.n)
+        p1 = log2(p0)
+      } else if (type === 'busmux') {
+        p0 = Number(p.bits)
+        p1 = Number(p.n)
+        p2 = log2(p1)
+      } else if (type === 'busadd' || type === 'buscmp') p0 = Number(p.bits)
+      else if (type === 'busgate') {
+        p0 = Number(p.bits)
+        p1 = GATE[String(p.op)]
+      } else if (type === 'busreg' || type === 'busctr') {
+        p0 = Number(p.bits)
+        n = st.n
+        pc = st.pc
+      } else if (type === 'dff') {
+        q = st.q
+        pc = st.pc
+      } else if (type === 'rom') {
+        p0 = Number(p.abits)
+        p1 = Number(p.dbits)
+        memOff = rom.length
+        for (const w of romWords(cc.def, p)) rom.push(w)
+      } else if (type === 'ram') {
+        p0 = Number(p.dbits)
+        p1 = Number(p.abits)
+        memOff = ram.length
+        this.rams.push({ part: i, start: ram.length })
+        for (const w of st.mem as Uint8Array) ram.push(w)
+        pc = st.pc
+      } else if (type === 'clock') {
+        clock = i
+        q = st.phase
+      } else if (type === 'acia6551') {
+        memOff = this.terminals.length
+        this.terminals.push({ part: i, st })
+      }
+      kind = KIND[type] ?? 0
+      rows.push([kind, (cc.inst.ins as unknown as Uint8Array).byteOffset, cc.inNets.length, outNets.length, cc.outNets.length, p0, p1, p2, memOff, n, pc, q])
+      for (const net of cc.outNets) outNets.push(net)
+    })
+    this.clock = clock
+    push(c.comps.length)
+    push(c.values.length)
+    push(c.pins.length)
+    push(outNets.length)
+    push(c.readerPart.length)
+    push(c.order.length)
+    push(rom.length)
+    push(ram.length)
+    push(clock)
+    push(this.terminals.length)
+    for (const v of c.values) push(v)
+    for (const v of c.pins) push(v)
+    for (const r of rows) for (const v of r) push(v)
+    for (const v of outNets) push(v)
+    for (const v of c.readerStart) push(v)
+    for (const v of c.readerPart) push(v)
+    for (const v of c.readerSlot) push(v)
+    for (const v of c.readerWake) push(v)
+    for (const v of c.order) push(v)
+    for (const v of c.rank) push(v)
+    for (const v of rom) push(v)
+    for (const v of ram) push(v)
+    for (const { st, part } of this.terminals) {
+      push(c.comps[part].inst.params.resetClears === false ? 0 : 1)
+      for (const v of [st.command, st.control, st.rx, st.full ? 1 : 0, st.interrupt ? 1 : 0, st.pc, st.out]) push(v)
+    }
+    const image = Int32Array.from(img)
+    const ptr = x.alloc(image.byteLength)
+    new Int32Array(x.memory.buffer, ptr, image.length).set(image)
+    x.init(ptr, image.length)
+    // The keyboard: what waits in a terminal's buffer goes into the module's queue.
+    this.terminals.forEach(({ st }, k) => {
+      for (let i = st.next; i < st.keys.length; i++) x.acia_key(k, st.keys.charCodeAt(i))
+    })
+  }
+
+  /** The module's memory can move when it grows: views made on an old buffer are stale. */
+  private views() {
+    const buffer = this.x.memory.buffer
+    if (buffer !== this.buffer) {
+      this.buffer = buffer
+      this.valuesView = new Uint8Array(buffer, this.x.values_ptr(), this.c.values.length)
+      this.pinsView = new Uint8Array(buffer, this.x.pins_ptr(), this.c.pins.length)
+    }
+  }
+
+  /** The nets, in the module's memory (live: the next edge changes them). */
+  get values(): Uint8Array {
+    this.views()
+    return this.valuesView
+  }
+
+  /** The input pins of all parts, in the module's memory. */
+  get pins(): Uint8Array {
+    this.views()
+    return this.pinsView
+  }
+
+  /** The clock changes and the circuit settles. Returns false if it did not settle. */
+  edge(): boolean {
+    return this.x.edge(this.clock) === 1
+  }
+
+  /** `n` clock edges in a row. Returns how many did not settle. */
+  edges(n: number): number {
+    return this.x.edges(n)
+  }
+
+  /**
+   * What the page keeps of each part's state, brought up to date from the module (registers, counters, flip-flops, RAM, the terminals'
+   * registers), and the screen events printed. The nets are not copied: `values` is the module's own.
+   */
+  syncOut() {
+    const { x } = this
+    const buf = x.memory.buffer
+    const comps = this.c.comps
+    const n = new Int32Array(buf, x.st_n_ptr(), comps.length)
+    const pc = new Uint8Array(buf, x.st_pc_ptr(), comps.length)
+    const q = new Uint8Array(buf, x.st_q_ptr(), comps.length)
+    comps.forEach((cc, i) => {
+      const type = cc.def.type
+      const st = cc.inst.state
+      if (type === 'busreg' || type === 'busctr') {
+        st.n = n[i]
+        st.pc = pc[i]
+      } else if (type === 'dff') {
+        st.q = q[i]
+        st.pc = pc[i]
+      } else if (type === 'ram') st.pc = pc[i]
+    })
+    if (this.rams.length) {
+      const total = this.rams.reduce((t, r) => t + (comps[r.part].inst.state.mem as Uint8Array).length, 0)
+      const ram = new Uint8Array(buf, x.ram_ptr(), total)
+      for (const { part, start } of this.rams) {
+        const mem = comps[part].inst.state.mem as Uint8Array
+        mem.set(ram.subarray(start, start + mem.length))
+      }
+    }
+    this.terminals.forEach(({ st }, k) => {
+      const r = new Uint8Array(buf, x.acia_regs_ptr(k), 8)
+      st.command = r[0]
+      st.control = r[1]
+      st.rx = r[2]
+      st.full = r[3] !== 0
+      st.interrupt = r[4] !== 0
+      st.pc = r[5]
+      st.out = r[6]
+      const events = x.acia_take_events(k)
+      if (events) {
+        const list = new Uint16Array(x.memory.buffer, x.acia_events_ptr(k), events)
+        for (let i = 0; i < events; i++) {
+          if (list[i] === 256) aciaWipe(st)
+          else aciaPut(st, list[i])
+        }
+      }
+      // What waits on the keyboard is in the module; the page only needs how much (the inspector shows it).
+      st.keys = '\0'.repeat(x.acia_pending(k))
+      st.next = 0
+    })
+  }
+
+  /** Type or paste text on terminal `k`; returns how many characters were taken (`aciaType`, with the queue in the module). */
+  type(k: number, text: string, capitals = true): number {
+    const s = aciaAccepted({ keys: '\0'.repeat(this.x.acia_pending(k)), next: 0 } as AciaState, text, capitals)
+    for (let i = 0; i < s.length; i++) this.x.acia_key(k, s.charCodeAt(i))
+    return s.length
+  }
+
+  /** A key that is not a character (`aciaKey`). */
+  key(k: number, code: number) {
+    if (this.x.acia_pending(k) < KEYBOARD_MAX) this.x.acia_key(k, code)
+  }
+
+  /** Control+C (`aciaBreak`): what waits is thrown away, and the break is next. */
+  stop(k: number) {
+    this.x.acia_clear_keys(k)
+    this.x.acia_key(k, 3)
+  }
+}
