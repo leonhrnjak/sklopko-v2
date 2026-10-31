@@ -120,3 +120,41 @@ Each PR runs all unit tests, lint, type-check, the build with the bundle budget,
 3. **Where the `.wasm` is built:** (a) **CI builds it and the built file is committed** (recommended): `npm run build` and Cloudflare
    need nothing new, and a CI job fails if the committed file does not match the Rust source; or (b) every build compiles the Rust
    (Cloudflare's build must install Rust, which makes deploys slower and adds a way for them to fail).
+
+## E0 result: the gate is passed
+
+A throw-away prototype (508 lines of Rust, no dependencies, with a Vitest harness; not merged: it is on the branch `wasm-e0` and in the
+closed PR #187). It has the fast engine's settle loop, as it is on `main` with phase D (`settleFast`, `combPass`, `registeredRound`,
+`commitOuts`, the wake rules of D1 and D2), and the 20 part types that the microcoded 6502 board (`micro6502()`, the LED board with its
+demo program) uses: the gates, `mux`, `busmux`, `busadd`, `buscmp`, `busgate`, `busreg`, `busctr`, `dff`, `rom`, `ram` and the clock. The
+parts that put nothing on a net (labels, displays, constants) are not evaluated, as in the TypeScript engine. The loader stays in
+TypeScript: it exports the compiled circuit (nets, pins, readers, the plan, each part's state) to one array of integers that the Rust side
+reads.
+
+**Correct:** the Rust engine and the TypeScript fast engine agree on all 771 nets after each of the first 20,000 clock edges (the CPU
+runs its program the whole time), and on every register, counter, flip-flop and all 2,048 RAM words at the end.
+
+**Speed** (cycles a second, five runs of 100,000 cycles each, same process, Node; the same V8 as Chrome):
+
+| | Runs | Median |
+|---|---|---|
+| TypeScript fast engine | 56,000 to 60,600 | 57,600 |
+| Rust compiled to WebAssembly | 167,600 to 195,800 | 179,600 |
+
+**3.1x**, over the 1.8x bar. The module is 47 kB (15.6 kB gzip) with every part not yet ported missing, so a full engine will be larger,
+but well within the 50 to 150 kB the spec estimated.
+
+What the prototype leaves out, and so what the estimate has to allow for: the terminal, the ACIA, the VIA, the LCD and the CPU parts; the
+history for stepping back; the exact engine's handover; forces; and `sample` parts. None of them is in the inner loop (they are per edge or
+per part type), but the first real number for the BASIC board comes with E2 and E5. The BASIC board's mix of parts is the same as this
+board's apart from the ACIA (2 of 90 evaluations a cycle).
+
+So E1 onward goes ahead.
+
+## E1 result: the crate and the build
+
+`engine-rs/` (no dependencies, toolchain pinned to Rust 1.97.0 in `rust-toolchain.toml`) builds with `npm run build:wasm` to
+`src/engine/wasm/engine.wasm`, which is committed. It is 14 kB with the allocator and two functions; `src/engine/wasm.ts` loads it and
+refuses a module whose interface number (`ABI_VERSION`) differs. The build is reproducible: the same source gave the same bytes in two
+different directories (the machine's paths are mapped out of the file). The CI job `wasm` rebuilds the file and fails if it differs from the
+committed one. `npm run build` and the Cloudflare deploy are unchanged.

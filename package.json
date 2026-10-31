@@ -12,7 +12,8 @@
     "e2e": "playwright test",
     "lint": "oxlint",
     "check:bundle": "node scripts/check-bundle.mjs",
-    "build:basic": "vitest run src/model/basic-build --mode build-basic"
+    "build:basic": "vitest run src/model/basic-build --mode build-basic",
+    "build:wasm": "node scripts/build-wasm.mjs"
   },
   "dependencies": {
     "immer": "^11.2.7",

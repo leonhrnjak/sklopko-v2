@@ -55,6 +55,18 @@ jobs:
       - run: npm run build
       - run: npm run check:bundle
 
+  wasm:
+    name: WebAssembly engine is up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # rustup (on the runner) installs the toolchain that engine-rs/rust-toolchain.toml names, on the first cargo call.
+      - run: npm run build:wasm -- --check
+
   e2e:
     name: E2E
     runs-on: ubuntu-latest
@@ -100,10 +112,10 @@ jobs:
   test:
     name: test
     if: always()
-    needs: [unit, lint, build, e2e]
+    needs: [unit, lint, build, wasm, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: All checks passed
         run: |
-          echo "unit=${{ needs.unit.result }} lint=${{ needs.lint.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
-          test "${{ needs.unit.result }}" = success -a "${{ needs.lint.result }}" = success -a "${{ needs.build.result }}" = success -a "${{ needs.e2e.result }}" = success
+          echo "unit=${{ needs.unit.result }} lint=${{ needs.lint.result }} build=${{ needs.build.result }} wasm=${{ needs.wasm.result }} e2e=${{ needs.e2e.result }}"
+          test "${{ needs.unit.result }}" = success -a "${{ needs.lint.result }}" = success -a "${{ needs.build.result }}" = success -a "${{ needs.wasm.result }}" = success -a "${{ needs.e2e.result }}" = success
