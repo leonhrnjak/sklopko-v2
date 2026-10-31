@@ -155,3 +155,49 @@ describe('the Rust engine inside the Simulator', () => {
     expect(rust.engine).toBe('exact')
   })
 })
+
+describe('probes and breakpoints with the Rust engine', () => {
+  /** The 6502 from parts with a probe and a breakpoint on the SYNC line (the one the LED shows). */
+  function withProbes() {
+    const c = micro6502()
+    c.history = false
+    const wires = c.wires as unknown as Record<string, { id: string; from: { comp: string; pin: string }; to: { comp: string; pin: string }; path: unknown[] }>
+    const led = Object.values(c.comps).find((k) => k.type === 'led' && String(k.label).startsWith('SYNC'))!
+    const sync = Object.values(wires).find((w) => w.to.comp === led.id)!
+    const base = { x: 0, y: 0, rot: 0, flip: false } as const
+    const comps = c.comps as unknown as Record<string, unknown>
+    comps.zProbe = { ...base, id: 'zProbe', type: 'probe', params: { bits: 1 }, label: 'SYNC' }
+    comps.zStop = { ...base, id: 'zStop', type: 'breakpoint', params: { width: 1, when: 'equals', value: 1 }, label: 'stop' }
+    wires.zw1 = { id: 'zw1', from: sync.from, to: { comp: 'zProbe', pin: 'A' }, path: [] }
+    wires.zw2 = { id: 'zw2', from: sync.from, to: { comp: 'zStop', pin: 'A' }, path: [] }
+    return c
+  }
+  const trace = (s: Simulator) => JSON.stringify(s.state('zProbe'))
+
+  it('keeps the Rust engine on, and records the same trace and stops at the same edge as the TypeScript engine', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      sim.setHistory(false)
+      if (rust) sim.setWasm(openFor(x))
+      sim.load(flatten(withProbes()))
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    const hits: (string | null)[][] = [[], []]
+    for (let i = 0; i < 400; i++) {
+      for (const [k, sim] of [rust, plain].entries()) {
+        sim.stepClock()
+        hits[k].push(sim.takeBreak())
+      }
+    }
+    expect(rust.wasmOn, 'the Rust engine took the circuit with its probes').toBe(true)
+    expect(hits[0]).toEqual(hits[1])
+    expect(hits[0].some((h) => h === 'zStop'), 'the breakpoint fired').toBe(true)
+    expect(trace(rust)).toBe(trace(plain))
+    expect(JSON.parse(trace(rust)).v.length, 'the probe saw SYNC change').toBeGreaterThan(2)
+  })
+})

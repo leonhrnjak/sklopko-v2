@@ -40,6 +40,8 @@ const KIND: Record<string, number> = {
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar'])
+/** Parts with no outputs that look at the settled nets after every settle (`sample`): the Simulator runs them itself, on the page's side. */
+const SAMPLERS = new Set(['probe', 'breakpoint', 'matrix', 'speaker'])
 /** busgate's gates, as engine.rs numbers them. */
 const GATE: Record<string, number> = { and: 0, or: 1, xor: 2, nand: 3, nor: 4, xnor: 5, not: 6 }
 
@@ -57,7 +59,7 @@ export function supports(c: Compiled): boolean {
     if (type === 'clock') clocks++
     else if (type === 'rom' && p.table === 'on') return false
     else if (type === 'ram' && (Number(p.dbits) > 8 || Number(p.abits) > 15)) return false
-    else if (KIND[type] === undefined && !NOP.has(type)) return false
+    else if (KIND[type] === undefined && !NOP.has(type) && !(SAMPLERS.has(type) && cc.inst.outs.length === 0)) return false
   }
   return clocks === 1
 }
