@@ -10,7 +10,7 @@ mod engine;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 3;
+pub const ABI_VERSION: u32 = 4;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -145,4 +145,19 @@ pub extern "C" fn acia_take_events(k: u32) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn acia_events_ptr(k: u32) -> *mut u16 {
     eng().acia_events_ptr(k as usize)
+}
+
+/// The pixels of all pixel screens (256 bytes each, one byte per pixel), in part order.
+#[unsafe(no_mangle)]
+pub extern "C" fn fb_ptr() -> *mut u8 {
+    eng().fb_ptr()
+}
+/// The characters console `k` printed since the last call: written to the address `console_events_ptr` returns; the count is returned.
+#[unsafe(no_mangle)]
+pub extern "C" fn console_take_events(k: u32) -> u32 {
+    eng().console_take_events(k as usize) as u32
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn console_events_ptr(k: u32) -> *mut u16 {
+    eng().console_events_ptr(k as usize)
 }

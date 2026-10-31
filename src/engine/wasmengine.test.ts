@@ -252,7 +252,7 @@ describe('probes and breakpoints with the Rust engine', () => {
 
 describe('every example the Rust engine takes', () => {
   /** How many examples the module takes, so that a part that loses its port (or a new one that gains it) shows up; raise it as parts are ported. */
-  const TAKEN_AT_LEAST = 11
+  const TAKEN_AT_LEAST = 16
 
   it('gives the same nets as the TypeScript engine after every clock edge, for each example it takes', async () => {
     const x = await module()
@@ -287,6 +287,10 @@ describe('every example the Rust engine takes', () => {
         const b = plain.viewValues()
         for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${ex.id}: net ${n} is ${a[n]} with Rust and ${b[n]} without, after ${i + 41} edges`)
       }
+      // and the screens they drew
+      // (`rev` only says that something changed, so that the symbol is drawn again: the module's screen counts the changes between two looks as one)
+      const look = (s: Simulator, id: string) => JSON.stringify(s.state(id), (k, v) => (k === 'rev' ? undefined : v))
+      for (const type of ['framebuffer', 'console', 'keypad']) for (const id of plain.idsOfType(type)) expect(look(rust, id), `${ex.id} ${id}`).toBe(look(plain, id))
     }
     console.log(`Rust engine takes ${taken.length} examples: ${taken.join(' ')}`)
     console.log('parts that keep examples out:', [...missing].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${n}`).join(', '))
@@ -308,11 +312,16 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     ['tff', {}],
     ['rom', { abits: 4, dbits: 8, data: '12 34 56 78 9A BC DE F0 01 23 45 67 89 AB CD EF', table: 'on', tdata: 'AA 55 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E' }],
     ['rom', { abits: 6, dbits: 16, data: '1234 5678 9ABC DEF0', table: 'on', tdata: '10 20 30' }],
+    ['framebuffer', {}],
+    ['framebuffer', { colors: 4, read: 'on' }],
+    ['console', {}],
+    ['keypad', {}],
+    ['keypad', { sticky: true }],
   ]
   for (const [type, params] of CASES) {
     it(`${type} ${JSON.stringify(params).slice(0, 40)}`, async () => {
       const x = await module()
-      for (let seed = 1; seed <= 6; seed++) {
+      for (let seed = 1; seed <= 16; seed++) {
         const r = rng(seed * 7919)
         const b = new CircuitBuilder()
         const clk = b.add('clock', 0, 0)
@@ -352,9 +361,13 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
             const on = r() < 0.5
             for (const sim of [rust, plain]) sim.setParams(sw, { on })
           }
+          // (a keypad is pressed and let go from the page, which hands the circuit to the page for that moment)
+          if (type === 'keypad' && step % 5 === 1) for (const sim of [rust, plain]) sim.setState(part, { pressed: step % 10 === 1, key: step % 16 })
           rust.stepClock()
           plain.stepClock()
           if (step === 0) expect(rust.wasmOn, `${type} is taken`).toBe(true)
+          // what the part keeps (the screens, the keys) is the same, too
+          expect(JSON.stringify(rust.state(part)), `${type} seed ${seed} step ${step}: state`).toBe(JSON.stringify(plain.state(part)))
           const a = rust.viewValues()
           const c = plain.viewValues()
           for (let n = 0; n < a.length; n++) if (a[n] !== c[n]) throw new Error(`${type} seed ${seed} step ${step}: net ${n} is ${a[n]} with Rust and ${c[n]} without`)
@@ -362,4 +375,37 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
       }
     })
   }
+})
+
+describe('stepping back in the Rust engine over a pixel screen', () => {
+  it('computer-ant: the pixels and the nets go back with the clock, as in the TypeScript engine', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      if (rust) sim.setWasm(openFor(x))
+      sim.load(flatten(EXAMPLES.find((e) => e.id === 'computer-ant')!.build()))
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    const look = (s: Simulator) => JSON.stringify([Array.from(s.viewValues()), s.time, s.idsOfType('framebuffer').map((id) => (s.state(id) as { px: number[] }).px)])
+    const drawn = (sim: Simulator) => sim.idsOfType('framebuffer').some((id) => (sim.state(id) as { px: number[] }).px.some((v) => v > 0))
+    for (let i = 0; i < 6000 && !drawn(plain); i++) {
+      rust.stepClock()
+      plain.stepClock()
+    }
+    for (let i = 0; i < 200; i++) {
+      rust.stepClock()
+      plain.stepClock()
+    }
+    expect(drawn(plain), 'something was drawn').toBe(true)
+    expect(rust.wasmOn, 'the Rust engine runs it with the history on').toBe(true)
+    for (let i = 0; i < 300; i++) {
+      expect(rust.stepBack()).toBe(plain.stepBack())
+      if (i % 10 === 0) expect(look(rust), `step back ${i + 1}`).toBe(look(plain))
+    }
+    expect(look(rust)).toBe(look(plain))
+  }, 120000)
 })

@@ -1,4 +1,5 @@
 import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from './acia'
+import { consolePut, type ConsoleState, type FramebufferState } from './components/devices'
 import type { EngineExports } from './wasm'
 import type { Instance, Params, ComponentDef } from './types'
 
@@ -36,7 +37,7 @@ export interface Compiled {
 /** The kinds of part, as engine-rs/src/engine.rs numbers them. */
 const KIND: Record<string, number> = {
   and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9, busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14,
-  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20, bcdadd: 21, bin2bcd: 22, tff: 23,
+  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20, bcdadd: 21, bin2bcd: 22, tff: 23, keypad: 24, framebuffer: 25, console: 26,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -121,6 +122,10 @@ export class WasmEngine {
   private rams: { part: number; start: number }[] = []
   /** The bytes of all the RAMs together. */
   private ramBytes = 0
+  /** The pixel screens, in part order, with where each one's 256 pixels start in the module's array. */
+  private screens: { part: number; start: number }[] = []
+  /** The text consoles, in part order. */
+  private consoles: { part: number; st: ConsoleState }[] = []
   private buffer: ArrayBuffer | null = null
   private valuesView = new Uint8Array(0)
   private pinsView = new Uint8Array(0)
@@ -132,6 +137,7 @@ export class WasmEngine {
     const push = (v: number) => img.push(v)
     const rom: number[] = []
     const ram: number[] = []
+    const fb: number[] = []
     const outNets: number[] = []
     const rows: number[][] = []
     let clock = -1
@@ -181,6 +187,23 @@ export class WasmEngine {
         for (const w of st.mem as Uint8Array) ram.push(w)
         this.ramBytes += (st.mem as Uint8Array).length
         pc = st.pc
+      } else if (type === 'keypad') {
+        p0 = p.sticky === true ? 1 : 0
+        p1 = st.key
+        p2 = st.pressed ? 1 : 0
+        pc = st.prev ? 1 : 0
+        q = st.latched ? 1 : 0
+      } else if (type === 'framebuffer') {
+        p0 = Number(p.colors) === 4 ? 2 : 1
+        p1 = p.read === 'on' ? 1 : 0
+        memOff = fb.length
+        this.screens.push({ part: i, start: fb.length })
+        for (const v of st.px as number[]) fb.push(v)
+        pc = st.pc
+      } else if (type === 'console') {
+        memOff = this.consoles.length
+        this.consoles.push({ part: i, st })
+        pc = st.pc
       } else if (type === 'clock') {
         clock = i
         q = st.phase
@@ -203,6 +226,8 @@ export class WasmEngine {
     push(ram.length)
     push(clock)
     push(this.terminals.length)
+    push(fb.length)
+    push(this.consoles.length)
     for (const v of c.values) push(v)
     for (const v of c.pins) push(v)
     for (const r of rows) for (const v of r) push(v)
@@ -215,6 +240,7 @@ export class WasmEngine {
     for (const v of c.rank) push(v)
     for (const v of rom) push(v)
     for (const v of ram) push(v)
+    for (const v of fb) push(v)
     for (const { st, part } of this.terminals) {
       push(c.comps[part].inst.params.resetClears === false ? 0 : 1)
       for (const v of [st.command, st.control, st.rx, st.full ? 1 : 0, st.interrupt ? 1 : 0, st.pc, st.out]) push(v)
@@ -311,6 +337,33 @@ export class WasmEngine {
         mem.set(ram.subarray(start, start + mem.length))
       }
     }
+    comps.forEach((cc, i) => {
+      const type = cc.def.type
+      if (type === 'keypad') {
+        cc.inst.state.latched = q[i] !== 0
+        cc.inst.state.prev = pc[i] !== 0
+      } else if (type === 'framebuffer' || type === 'console') cc.inst.state.pc = pc[i]
+    })
+    if (this.screens.length) {
+      const pixels = new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256)
+      for (const { part, start } of this.screens) {
+        const st = comps[part].inst.state as FramebufferState
+        let changed = false
+        for (let k = 0; k < 256; k++) {
+          if (st.px[k] !== pixels[start + k]) {
+            st.px[k] = pixels[start + k]
+            changed = true
+          }
+        }
+        if (changed) st.rev++
+      }
+    }
+    this.consoles.forEach(({ st }, k) => {
+      const events = x.console_take_events(k)
+      if (!events) return
+      const list = new Uint16Array(x.memory.buffer, x.console_events_ptr(k), events)
+      for (let i = 0; i < events; i++) consolePut(st, list[i])
+    })
     this.terminals.forEach(({ st }, k) => {
       const r = new Uint8Array(buf, x.acia_regs_ptr(k), 8)
       st.command = r[0]
@@ -352,6 +405,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_pc_ptr(), n),
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
+      new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
     ]
     const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
     let at = 0
@@ -375,6 +429,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_pc_ptr(), n),
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
+      new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
     ]
     let at = 0
     for (const p of parts) {
