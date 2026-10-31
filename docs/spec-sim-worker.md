@@ -132,3 +132,17 @@ bundle budget; W2 and W3 report the benchmark.
 1. **Go on to W0?** (recommended: it is cheap, and it can stop this spec before the expensive part)
 2. **No `SharedArrayBuffer`** (recommended: no COOP/COEP headers, embedding keeps working), or accept the headers for a
    lower copy cost.
+
+## Result (W2 and W3, same container and build as W0)
+
+`/6502-parts-basic` at a 1 MHz clock, production build, 5 s of frame counting after a 3 s warm-up:
+
+| | Cycles a second (footer) | Frames a second |
+|---|---|---|
+| in the page (`?thread=main`) | 52.6 kHz | 11.6 |
+| in a worker (default) | **107 kHz** | **26.6** |
+
+So about **2x the speed and 2.3x the frames**; the engine alone does about 103 kHz in Node, so the worker has all but removed the
+page's share. A light circuit (`/counter`) still draws at 60 frames a second. Phase C is done; what is left is the engine's own
+speed (the profile is flat: 75 evaluations, 126 net changes and 330 pin updates per cycle) and drawing, which is now the part
+that limits the frame rate on this machine (software rendering). Word-wide nets (about 1.3x, estimated) were not built.
