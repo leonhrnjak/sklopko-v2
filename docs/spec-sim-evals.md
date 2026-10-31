@@ -127,3 +127,11 @@ one, the browser). The result is written into this file.
 
 1. **Go ahead with D0 to D3?** (recommended: low risk, each step measured)
 2. **D4 only if the numbers say so after D3** (recommended), or always, or never.
+
+## Results
+
+Measured with `VITE_BENCH=1 npx vitest run src/engine/bench` (Vitest in Node, this container; three runs each, the spread is wide):
+
+| Step | Evaluations per cycle | Changed nothing | Cycles a second, fast engine |
+|---|---|---|---|
+| D0 (before) | 118.6 | 56% | 56,000 to 72,500 |

@@ -71,11 +71,61 @@ function basicCycles(name: string, sim: Simulator, edges: number) {
   console.log(`${name}: ${((edges / 2 / took) * 1000).toFixed(0)} cycles/s, ${((sim.ticks - k0) / edges).toFixed(1)} ticks/edge`)
 }
 
+/**
+ * Part evaluations per clock cycle, by part type, and how many of them changed no output (docs/spec-sim-evals.md). Each part type's
+ * `evaluate` is wrapped while it runs, so the timing is off; only the counts are reported.
+ */
+function evaluationReport(name: string, sim: Simulator, edges: number) {
+  sim.setHistory(false)
+  sim.settle()
+  for (let i = 0; i < 3000; i++) sim.stepClock()
+  // oxlint-disable-next-line no-explicit-any
+  const comps = (sim as any).comps as { def: { type: string; evaluate: (inst: { outs: number[] }) => void } }[]
+  const evals = new Map<string, number>()
+  const idle = new Map<string, number>()
+  const wrapped = new Map<object, (inst: { outs: number[] }) => void>()
+  for (const { def } of comps) {
+    if (wrapped.has(def)) continue
+    const f = def.evaluate
+    wrapped.set(def, f)
+    def.evaluate = (inst) => {
+      const before = inst.outs.slice()
+      f(inst)
+      evals.set(def.type, (evals.get(def.type) ?? 0) + 1)
+      if (inst.outs.every((v, i) => v === before[i])) idle.set(def.type, (idle.get(def.type) ?? 0) + 1)
+    }
+  }
+  try {
+    for (let i = 0; i < edges; i++) sim.stepClock()
+  } finally {
+    for (const [def, f] of wrapped) (def as { evaluate: typeof f }).evaluate = f
+  }
+  const cycles = edges / 2
+  let all = 0
+  let none = 0
+  const rows = [...evals].sort((a, b) => b[1] - a[1]).map(([t, n]) => {
+    all += n
+    none += idle.get(t) ?? 0
+    return `  ${t.padEnd(12)} ${(n / cycles).toFixed(1).padStart(6)} per cycle, ${((((idle.get(t) ?? 0) / n) * 100).toFixed(0) + '%').padStart(4)} changed nothing`
+  })
+  console.log(`${name} (${sim.engine} engine): ${(all / cycles).toFixed(1)} evaluations per cycle, ${((none / all) * 100).toFixed(0)}% changed nothing\n${rows.join('\n')}`)
+}
+
 describe.skipIf(!on)('simulator timings', () => {
+  it('evaluations per cycle on the BASIC board from parts', { timeout: 120000 }, () => {
+    const sim = new Simulator()
+    sim.setFast(true)
+    sim.load(flatten(micro6502Basic()))
+    evaluationReport('6502 from parts + BASIC', sim, 20000)
+  })
   it('BASIC boards: the 6502 built from parts, and the 6502 part', { timeout: 300000 }, () => {
     const parts = new Simulator()
     parts.load(flatten(micro6502Basic()))
-    basicCycles('6502 from parts + BASIC', parts, 100000)
+    basicCycles('6502 from parts + BASIC, exact engine', parts, 100000)
+    const fast = new Simulator()
+    fast.setFast(true)
+    fast.load(flatten(micro6502Basic()))
+    basicCycles('6502 from parts + BASIC, fast engine', fast, 100000)
     const hex = basicRomBytes().map((b) => b.toString(16).padStart(2, '0')).join(' ')
     const part = new Simulator()
     part.load(flatten(board6502Builder({ hz: 100, memory: 'big', rom: hex, devices: ['terminal'] }).b.build(false)))
