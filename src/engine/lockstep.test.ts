@@ -62,6 +62,59 @@ describe('the simulator against the reference simulator', () => {
   }
 })
 
+/** A cheap fingerprint of a part's state (typed arrays are summed, not listed). */
+function digest(x: unknown): string {
+  if (ArrayBuffer.isView(x)) {
+    const a = x as unknown as ArrayLike<number>
+    let h = a.length
+    for (let i = 0; i < a.length; i++) h = (Math.imul(h, 31) + a[i]) | 0
+    return `#${h}`
+  }
+  if (Array.isArray(x)) return `[${x.map(digest).join(',')}]`
+  if (x && typeof x === 'object') return `{${Object.keys(x).sort().map((k) => `${k}:${digest((x as Record<string, unknown>)[k])}`).join(',')}}`
+  return String(x)
+}
+
+const statesOf = (s: Simulator | ReferenceSimulator) => (s as unknown as { comps: { id: string; inst: { state: unknown } }[] }).comps.map((c) => `${c.id}=${digest(c.inst.state)}`)
+
+describe('the fast engine against the reference simulator', () => {
+  const accepted: string[] = []
+  const staysExact: string[] = []
+  for (const ex of EXAMPLES) {
+    it(`${ex.id}: every net and every part's state agree after each clock edge`, { timeout: 120000 }, () => {
+      const circuit = flatten(ex.build())
+      const a = new Simulator()
+      a.setFast(true)
+      const b = new ReferenceSimulator()
+      a.load(circuit)
+      b.load(circuit)
+      a.settle()
+      b.settle()
+      if (a.engine === 'fast') accepted.push(ex.id)
+      else staysExact.push(ex.id)
+      const edges = circuit.comps.length > 1500 ? 60 : 300
+      const same = (where: string) => {
+        const x = Array.from(netsOf(a))
+        const y = Array.from(netsOf(b))
+        expect(x.map((v, k) => (v !== y[k] ? `${k}:${v}/${y[k]}` : '')).filter(Boolean), where).toEqual([])
+        expect(statesOf(a), where).toEqual(statesOf(b))
+        expect([a.time, a.unstable], where).toEqual([b.time, b.unstable])
+      }
+      same('after the first settle')
+      for (let i = 0; i < edges; i++) {
+        a.stepClock()
+        b.stepClock()
+        same(`edge ${i}`)
+      }
+    })
+  }
+  it('runs all but the loops and delays of the teaching circuits on the fast engine', () => {
+    // (65c02-timer and debounce have a second clock feeding the data of a part clocked by the first, e.g. the CPU's NMI: which edge comes first depends on gate depths, so it stays exact)
+    expect(staysExact.sort()).toEqual(['65c02-timer', 'd-latch', 'debounce', 'oscillator', 'ripple', 'sr-latch'])
+    expect(accepted.length).toBeGreaterThan(53)
+  })
+})
+
 describe('the parts against the reference parts', () => {
   const draw = (r: () => number, acceptsZ: boolean): V => {
     const x = r()
