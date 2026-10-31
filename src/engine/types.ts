@@ -79,6 +79,8 @@ export interface Instance {
   outs: V[]
   state: any
   params: Params
+  /** What a part works out from its params once (see `cfgOf` in nbit.ts). The simulator drops it when the params change. */
+  cfg?: unknown
 }
 
 /** `ic` is not in the palette's list: custom ICs are placed from their own section. */
