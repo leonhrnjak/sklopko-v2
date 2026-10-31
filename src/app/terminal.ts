@@ -1,4 +1,4 @@
-import { aciaBreak, aciaKey, aciaType, type AciaState } from '../engine/acia'
+import { aciaAccepted, aciaBreak, aciaKey, aciaType, type AciaState } from '../engine/acia'
 import { sim } from './sim'
 import { useStore } from './store'
 
@@ -19,27 +19,46 @@ export interface KeyLike {
 /** Capitals is a setting of the part (on by default, and Microsoft BASIC knows its words only in capitals). */
 export const capitalsOn = (id: string) => useStore.getState().circuit.comps[id]?.params.capitals !== false
 
+/** What typing does to the part: in the app it is sent to the simulation, in the tests it changes a state at hand. */
+export interface Keyboard {
+  key(code: number): void
+  type(text: string, capitals: boolean): void
+  stop(): void
+}
+
+const onState = (st: AciaState): Keyboard => ({
+  key: (code) => aciaKey(st, code),
+  type: (text, capitals) => void aciaType(st, text, capitals),
+  stop: () => aciaBreak(st),
+})
+
+const onSim = (id: string): Keyboard => ({
+  key: (code) => sim.terminal(id, { op: 'key', code }),
+  type: (text, capitals) => sim.terminal(id, { op: 'type', text, capitals }),
+  stop: () => sim.terminal(id, { op: 'break' }),
+})
+
 /** A key that is not a character. Returns true if it was taken (the page must not act on it as well). */
-export function terminalKey(st: AciaState, e: KeyLike): boolean {
+export function terminalKey(st: AciaState, e: KeyLike, keys: Keyboard = onState(st)): boolean {
   if (e.metaKey || e.altKey) return false
   if (e.ctrlKey) {
     // Control+C is the break; the other combinations (Control+V pastes) are left to the browser.
     if (e.key.toLowerCase() !== 'c') return false
-    aciaBreak(st)
+    keys.stop()
     return true
   }
   switch (e.key) {
     case 'Enter':
-      aciaKey(st, 13)
+      keys.key(13)
       return true
     case 'Backspace':
-      aciaKey(st, 8)
+      keys.key(8)
       return true
     case 'Delete':
-      aciaKey(st, 127)
+      keys.key(127)
       return true
     case 'Escape':
-      aciaBreak(st)
+      keys.stop()
       return true
     default:
       return false // letters arrive as input events; Tab leaves the terminal
@@ -47,9 +66,9 @@ export function terminalKey(st: AciaState, e: KeyLike): boolean {
 }
 
 /** Text from an `input` event: typed characters (a phone sends them this way), a line break, or a Backspace that had no `keydown`. */
-export function terminalInput(st: AciaState, text: string, inputType: string, capitals: boolean) {
-  if (inputType === 'deleteContentBackward') aciaKey(st, 8)
-  else aciaType(st, text, capitals)
+export function terminalInput(st: AciaState, text: string, inputType: string, capitals: boolean, keys: Keyboard = onState(st)) {
+  if (inputType === 'deleteContentBackward') keys.key(8)
+  else keys.type(text, capitals)
 }
 
 const stateOf = (id: string) => sim.state(id) as AciaState | undefined
@@ -75,21 +94,25 @@ export function focusTerminal(id: string, touch = false) {
 
 export function keyOnTerminal(id: string, e: KeyLike): boolean {
   const st = stateOf(id)
-  return !!st && terminalKey(st, e)
+  return !!st && terminalKey(st, e, onSim(id))
 }
 
 export function inputOnTerminal(id: string, text: string, inputType: string) {
   const st = stateOf(id)
-  if (st) terminalInput(st, text, inputType, capitalsOn(id))
+  if (st) terminalInput(st, text, inputType, capitalsOn(id), onSim(id))
 }
 
 /** Text typed or pasted into the box in the inspector, or pasted on the screen. Returns how many characters were taken. */
 export function typeOnTerminal(id: string, text: string): number {
   const st = stateOf(id)
-  return st ? aciaType(st, text, capitalsOn(id)) : 0
+  if (!st) return 0
+  const capitals = capitalsOn(id)
+  const taken = aciaAccepted(st, text, capitals).length
+  if (taken > 0) sim.terminal(id, { op: 'type', text, capitals })
+  return taken
 }
 
 export function breakOnTerminal(id: string) {
   const st = stateOf(id)
-  if (st) aciaBreak(st)
+  if (st) sim.terminal(id, { op: 'break' })
 }

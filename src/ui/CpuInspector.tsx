@@ -74,10 +74,10 @@ function doing(c: Cpu6502): string {
   return `${o.mnemonic}${mode ? ` ${mode}` : ''} ($${hex(c.op, 2)}), cycle ${c.t + 2} of ${o.cycles}${o.kind === 'read' && o.pageCross ? '+' : ''}`
 }
 
-/** Run the clock until `done` holds (at most `max` edges), then show where the circuit got to. */
-function stepUntil(done: () => boolean, max = 400) {
+/** Pause, and run the clock until the CPU has finished a cycle or is about to fetch the next instruction, then show where it got to. */
+function stepCpu(id: string, what: 'cycle' | 'instruction') {
   setRunning(false)
-  for (let i = 0; i < max && !done(); i++) sim.stepClock()
+  sim.stepCpu(id, what)
   sim.publish()
 }
 
@@ -87,7 +87,6 @@ export function CpuSection({ comp }: { comp: Comp }) {
   const rate = useCycleRate(st?.cpu.cycles)
   if (!st) return null
   const c = st.cpu
-  const live = () => sim.state(comp.id) as CpuState | undefined
   const flags: [string, number][] = [['N', 128], ['V', 64], ['D', 8], ['I', 4], ['Z', 2], ['C', 1]]
   const status = !st.started
     ? 'Not started: pull RES low and then high.'
@@ -98,17 +97,8 @@ export function CpuSection({ comp }: { comp: Comp }) {
         : st.stalled
           ? 'Stopped by RDY.'
           : doing(c)
-  const stepCycle = () => {
-    const before = live()?.cpu.cycles
-    stepUntil(() => live()?.cpu.cycles !== before)
-  }
-  const stepInstruction = () => {
-    const before = live()?.cpu.cycles
-    stepUntil(() => {
-      const now = live()
-      return !!now && now.cpu.cycles !== before && now.cpu.prog < 0 && now.cpu.sync
-    })
-  }
+  const stepCycle = () => stepCpu(comp.id, 'cycle')
+  const stepInstruction = () => stepCpu(comp.id, 'instruction')
   const reg = (name: string, value: string, title?: string) => (
     <div className="ram-word" title={title}>
       <span className="addr">{name}</span>

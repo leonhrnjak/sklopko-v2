@@ -1,3 +1,4 @@
+import { aciaBreak, aciaKey, aciaPut, aciaType, type AciaState } from './acia'
 import { resolveLabels } from './netlabels'
 import { layoutOf } from './layoutcache'
 import { getDef, hasDef } from './registry'
@@ -100,6 +101,36 @@ export interface Capture {
   time: number
   /** What started it: a clock edge, or something else (an input was operated, the circuit was loaded...). */
   cause: 'clock' | 'input'
+}
+
+/** What the page can do to a terminal part (see `Simulator.terminal`). */
+export type TerminalOp =
+  | { op: 'type'; text: string; capitals: boolean }
+  | { op: 'key'; code: number }
+  | { op: 'break' }
+  | { op: 'clear' }
+
+/**
+ * What a page that does not run the simulation itself needs to show it (see `engine/remote.ts`): the nets, the state of the parts
+ * that have one, and the numbers beside them. `states` has `[index of the part, its state]` pairs.
+ */
+export interface ViewSnapshot {
+  values: Uint8Array
+  time: number
+  unstable: boolean
+  states: [number, unknown][]
+  engine: 'fast' | 'exact'
+  lagging: boolean
+  offered: number
+  skipped: number
+  forces: [string, 0 | 1][]
+  historyOn: boolean
+  canBack: boolean
+  captureVersion: number
+  /** Only when it changed since the last snapshot sent. */
+  capture?: Capture | null
+  fastestHz: number | null
+  hit: string | null
 }
 
 /** How many clock edges the simulator can step back over. */
@@ -972,6 +1003,32 @@ export class Simulator {
     this.settle(this.budget())
   }
 
+  /**
+   * Clock edges until a 6502 part has finished a cycle (`'cycle'`) or is about to fetch the next instruction (`'instruction'`), at most
+   * `max` of them: the stepping buttons of the CPU inspector. It is here, and not a loop in the inspector, so that it can run next to the
+   * simulation, where the answer is at hand after every edge.
+   */
+  stepCpu(compId: string, what: 'cycle' | 'instruction', max = 400) {
+    const cpu = () => (this.byId.get(compId)?.inst.state as { cpu?: { cycles: number; prog: number; sync: boolean } } | undefined)?.cpu
+    const before = cpu()?.cycles
+    for (let i = 0; i < max; i++) {
+      const c = cpu()
+      if (c && c.cycles !== before && (what === 'cycle' || (c.prog < 0 && c.sync))) break
+      this.stepClock()
+    }
+  }
+
+  /** What the page does to a terminal part's keyboard and screen: the part's state is changed here, where the simulation is. */
+  terminal(compId: string, op: TerminalOp) {
+    const st = this.byId.get(compId)?.inst.state as AciaState | undefined
+    if (!st) return
+    if (op.op === 'type') aciaType(st, op.text, op.capitals)
+    else if (op.op === 'key') aciaKey(st, op.code)
+    else if (op.op === 'break') aciaBreak(st)
+    else aciaPut(st, 12) // clear the screen
+    this.dirty = true
+  }
+
   /** Ids of all components of a type, in circuit order. */
   idsOfType(type: string): string[] {
     return this.comps.filter((cc) => cc.def.type === type).map((cc) => cc.id)
@@ -1049,6 +1106,52 @@ export class Simulator {
     if (!cc) return
     cc.inst.state = { ...cc.inst.state, ...patch }
     this.touch(cc)
+    this.dirty = true
+  }
+
+  /** Always false here: the simulation of the canvas may run in a worker instead (`engine/remote.ts`), and says so. */
+  readonly threaded: boolean = false
+
+  /** Run the simulation by itself (a worker does) at a speed, or stop. Does nothing here: whoever drives this simulator calls `frame`. */
+  run(_running: boolean, _speed: number) {}
+
+  /** What a mirror needs to show the simulation as it is now. `sinceCapture` is the capture version the mirror already has. */
+  viewSnapshot(sinceCapture: number): ViewSnapshot {
+    const states: [number, unknown][] = []
+    this.comps.forEach((cc, i) => {
+      if (cc.inst.state !== undefined) states.push([i, cc.inst.state])
+    })
+    return {
+      values: this.values.slice(),
+      time: this.time,
+      unstable: this.unstable,
+      states,
+      engine: this.engine,
+      lagging: this.late,
+      offered: this.offeredMs,
+      skipped: this.skippedMs,
+      forces: [...this.forces],
+      historyOn: this.keepHistory,
+      canBack: this.canStepBack(),
+      captureVersion: this.captureVersion,
+      ...(this.captureVersion !== sinceCapture ? { capture: this.lastCapture } : {}),
+      fastestHz: this.fastestClockHz(),
+      hit: this.takeBreak(),
+    }
+  }
+
+  /** A copy of the nets, for `edgeHook` watchers on another thread. */
+  viewValues(): Uint8Array {
+    return this.values.slice()
+  }
+
+  /** Show what a `viewSnapshot` of the same circuit holds: the nets and part states are replaced, nothing is evaluated. */
+  applyView(v: ViewSnapshot) {
+    if (v.values.length !== this.values.length) return
+    this.values.set(v.values)
+    this.time = v.time
+    this.unstable = v.unstable
+    for (const [i, st] of v.states) if (this.comps[i]) this.comps[i].inst.state = st
     this.dirty = true
   }
 

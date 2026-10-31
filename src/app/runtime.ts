@@ -170,7 +170,9 @@ export async function startRuntime() {
     const otherMs = performance.now() - frameEnd // drawing the last frame, and waiting for this one
     const { running, speed } = useStore.getState()
     // Up to `workMs` of simulation work a frame, however many clock edges that is: 10 ms, more for a circuit too big for its clock.
-    if (running) {
+    if (sim.threaded) {
+      sim.run(running, speed) // the simulation runs by itself, in the worker
+    } else if (running) {
       sim.frame(dt * speed, workMs)
       workMs = workBudget(sim.lagging, otherMs)
     }
@@ -187,6 +189,10 @@ export async function startRuntime() {
     requestAnimationFrame(loop)
   }
   requestAnimationFrame(loop)
+  // A page that is hidden draws nothing, and the simulation in the worker must not go on running for nobody.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) sim.run(false, 1)
+  })
   window.addEventListener('pointerdown', unlockAudio)
   window.addEventListener('keydown', unlockAudio)
   installGamepadKeys(sim, window, 350)
