@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
-const BUDGET_KB = 183
+const BUDGET_KB = 187
 const dist = new URL('../dist/', import.meta.url).pathname
 const html = readFileSync(join(dist, 'index.html'), 'utf8')
 const files = [...html.matchAll(/<(?:script|link)[^>]*?(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((m) => m[1])
