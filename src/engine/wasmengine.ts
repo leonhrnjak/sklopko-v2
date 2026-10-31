@@ -100,6 +100,8 @@ export class WasmEngine {
   private terminals: { part: number; st: TerminalState }[] = []
   /** The part number of each RAM, with where its words start in the module's RAM. */
   private rams: { part: number; start: number }[] = []
+  /** The bytes of all the RAMs together. */
+  private ramBytes = 0
   private buffer: ArrayBuffer | null = null
   private valuesView = new Uint8Array(0)
   private pinsView = new Uint8Array(0)
@@ -155,6 +157,7 @@ export class WasmEngine {
         memOff = ram.length
         this.rams.push({ part: i, start: ram.length })
         for (const w of st.mem as Uint8Array) ram.push(w)
+        this.ramBytes += (st.mem as Uint8Array).length
         pc = st.pc
       } else if (type === 'clock') {
         clock = i
@@ -308,6 +311,54 @@ export class WasmEngine {
       st.keys = pending ? String.fromCharCode(...new Uint8Array(x.memory.buffer, x.acia_queue_ptr(k), pending)) : ''
       st.next = 0
     })
+  }
+
+  /**
+   * Everything the module keeps that changes while it runs, as one copy: the nets, the input pins, the registers, counters and
+   * flip-flops, and the RAM (not the terminals: a circuit with one does not keep its history in the module). It is what stepping back
+   * goes back to (`load`), and does not depend on this engine object, only on the circuit being the same.
+   */
+  save(): Uint8Array {
+    this.views()
+    const { x } = this
+    const buf = x.memory.buffer
+    const n = this.c.comps.length
+    const parts = [
+      this.valuesView,
+      this.pinsView,
+      new Uint8Array(buf, x.st_n_ptr(), n * 4),
+      new Uint8Array(buf, x.st_pc_ptr(), n),
+      new Uint8Array(buf, x.st_q_ptr(), n),
+      new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
+    ]
+    const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
+    let at = 0
+    for (const p of parts) {
+      out.set(p, at)
+      at += p.length
+    }
+    return out
+  }
+
+  /** Put back what `save` took (of this circuit). The nets and pins come back in `values` and `pins`. */
+  load(blob: Uint8Array) {
+    this.views()
+    const { x } = this
+    const buf = x.memory.buffer
+    const n = this.c.comps.length
+    const parts = [
+      this.valuesView,
+      this.pinsView,
+      new Uint8Array(buf, x.st_n_ptr(), n * 4),
+      new Uint8Array(buf, x.st_pc_ptr(), n),
+      new Uint8Array(buf, x.st_q_ptr(), n),
+      new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
+    ]
+    let at = 0
+    for (const p of parts) {
+      p.set(blob.subarray(at, at + p.length))
+      at += p.length
+    }
   }
 
   /** Type or paste text on terminal `k`; returns how many characters were taken (`aciaType`, with the queue in the module). */
