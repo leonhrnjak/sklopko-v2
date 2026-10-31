@@ -244,9 +244,14 @@ impl Engine {
         self.acias[k].taken.as_mut_ptr()
     }
 
-    /// Flag a part for the next settle (see `flagFast`).
-    pub fn flag_part(&mut self, i: usize) {
-        self.flag_fast(i);
+    /// The clock part shows `phase`, and is flagged for the next settle.
+    pub fn set_phase(&mut self, c: usize, phase: u8) {
+        self.st_q[c] = phase;
+        self.flag_fast(c);
+    }
+
+    pub fn acia_queue_ptr(&mut self, k: usize) -> *const u8 {
+        self.acias[k].queue_ptr()
     }
 
     /// The clock part changes its output; the circuit settles.

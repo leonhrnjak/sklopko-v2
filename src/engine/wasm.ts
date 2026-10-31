@@ -9,7 +9,7 @@
 export const engineUrl = new URL('./wasm/engine.wasm', import.meta.url)
 
 /** The version of the interface between this code and the module: engine-rs/src/lib.rs has the same number. */
-export const ABI_VERSION = 2
+export const ABI_VERSION = 3
 
 /** What the module exports. */
 export interface EngineExports {
@@ -19,7 +19,8 @@ export interface EngineExports {
   checksum(ptr: number, len: number): number
   init(ptr: number, len: number): void
   edge(part: number): number
-  poke(part: number): number
+  set_phase(part: number, phase: number): void
+  settle(): number
   edges(n: number): number
   ticks(): number
   values_ptr(): number
@@ -32,6 +33,7 @@ export interface EngineExports {
   acia_key(k: number, code: number): void
   acia_clear_keys(k: number): void
   acia_pending(k: number): number
+  acia_queue_ptr(k: number): number
   acia_take_events(k: number): number
   acia_events_ptr(k: number): number
 }

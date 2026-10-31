@@ -62,8 +62,18 @@ export function supports(c: Compiled): boolean {
   return clocks === 1
 }
 
-/** The words of a ROM, found by asking the part itself for each address. */
+const romCache = new WeakMap<Params, number[]>()
+
+/** The words of a ROM, found by asking the part itself for each address (kept for as long as the part's params are the same object). */
 function romWords(def: CompiledPart['def'], p: Params): number[] {
+  const known = romCache.get(p)
+  if (known) return known
+  const words = romWordsOf(def, p)
+  romCache.set(p, words)
+  return words
+}
+
+function romWordsOf(def: CompiledPart['def'], p: Params): number[] {
   const abits = Number(p.abits)
   const dbits = Number(p.dbits)
   const words: number[] = []
@@ -216,6 +226,26 @@ export class WasmEngine {
     return this.x.edge(this.clock) === 1
   }
 
+  /** The clock part (any clock; there is one) shows `phase`: it is evaluated at the next `settle`. */
+  setPhase(part: number, phase: number) {
+    this.x.set_phase(part, phase)
+  }
+
+  /** Settle the circuit. Returns false if it did not within 64 rounds. */
+  settle(): boolean {
+    return this.x.settle() === 1
+  }
+
+  /** How many registered rounds the module has run (the engine's `ticks`). */
+  get ticks(): number {
+    return this.x.ticks()
+  }
+
+  /** Which terminal of the module the part with this number in `comps` is, or -1. */
+  terminalOf(part: number): number {
+    return this.terminals.findIndex((t) => t.part === part)
+  }
+
   /** `n` clock edges in a row. Returns how many did not settle. */
   edges(n: number): number {
     return this.x.edges(n)
@@ -268,8 +298,9 @@ export class WasmEngine {
           else aciaPut(st, list[i])
         }
       }
-      // What waits on the keyboard is in the module; the page only needs how much (the inspector shows it).
-      st.keys = '\0'.repeat(x.acia_pending(k))
+      // What waits on the keyboard is in the module: the page keeps a copy of it (the inspector shows how much).
+      const pending = x.acia_pending(k)
+      st.keys = pending ? String.fromCharCode(...new Uint8Array(x.memory.buffer, x.acia_queue_ptr(k), pending)) : ''
       st.next = 0
     })
   }

@@ -51,6 +51,9 @@ impl Acia {
             self.keys.push_back(code);
         }
     }
+    pub fn queue_ptr(&mut self) -> *const u8 {
+        self.keys.make_contiguous().as_ptr()
+    }
     pub fn clear_keys(&mut self) {
         self.keys.clear();
     }

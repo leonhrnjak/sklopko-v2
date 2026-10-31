@@ -10,7 +10,7 @@ mod engine;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -19,13 +19,13 @@ fn eng() -> &'static mut Engine {
     unsafe { ENGINE.as_mut().expect("init was not called") }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn abi_version() -> u32 {
     ABI_VERSION
 }
 
 /// Memory the page can write into, kept for the life of the module.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let mut v = Vec::<u8>::with_capacity(len);
     let p = v.as_mut_ptr();
@@ -34,35 +34,39 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
 }
 
 /// The checksum of `len` bytes at `ptr`: a check that what the page wrote is what the module reads.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn checksum(ptr: *const u8, len: usize) -> u32 {
     let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
     bytes.iter().fold(0u32, |a, &b| a.wrapping_mul(31).wrapping_add(b as u32))
 }
 
 /// Build the engine from the image of a compiled circuit (see `Engine::from_image` and the exporter in wasmengine.ts).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn init(ptr: *const i32, len: usize) {
     let img = unsafe { std::slice::from_raw_parts(ptr, len) };
     unsafe { ENGINE = Some(Engine::from_image(img)) }
 }
 
 /// Flip the clock part `part` and settle the circuit. Returns 1 if it settled, 0 if it did not within 64 rounds.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn edge(part: u32) -> u32 {
     eng().clock_edge(part as usize) as u32
 }
 
-/// Flag a part for evaluation at the next settle (the page changed something it reads), then settle. Returns 1 if it settled.
-#[no_mangle]
-pub extern "C" fn poke(part: u32) -> u32 {
-    let e = eng();
-    e.flag_part(part as usize);
-    e.settle() as u32
+/// Set the clock part's output to `phase` (0 or 1) and flag it for the next `settle`.
+#[unsafe(no_mangle)]
+pub extern "C" fn set_phase(part: u32, phase: u32) {
+    eng().set_phase(part as usize, phase as u8)
+}
+
+/// Settle the circuit. Returns 1 if it settled, 0 if it did not within 64 rounds.
+#[unsafe(no_mangle)]
+pub extern "C" fn settle() -> u32 {
+    eng().settle() as u32
 }
 
 /// Run `n` clock edges of the (only) clock part. Returns how many did not settle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn edges(n: u32) -> u32 {
     let e = eng();
     let c = e.clock_part();
@@ -75,32 +79,32 @@ pub extern "C" fn edges(n: u32) -> u32 {
     bad
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn ticks() -> f64 {
     eng().ticks() as f64
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn values_ptr() -> *mut u8 {
     eng().values_ptr()
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn pins_ptr() -> *mut u8 {
     eng().pins_ptr()
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn st_n_ptr() -> *mut i32 {
     eng().st_n_ptr()
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn st_pc_ptr() -> *mut u8 {
     eng().st_pc_ptr()
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn st_q_ptr() -> *mut u8 {
     eng().st_q_ptr()
 }
 /// The RAM words (one byte each, the parts' memories one after the other, in part order).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn ram_ptr() -> *mut u8 {
     eng().ram_ptr()
 }
@@ -108,32 +112,37 @@ pub extern "C" fn ram_ptr() -> *mut u8 {
 // The terminals (the 6551 part): registers and keyboard in here, the screen on the page, which takes the `tx` events.
 
 /// The registers of terminal `k`: command, control, rx, full, interrupt, pc, out (7 bytes) at the returned address.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_regs_ptr(k: u32) -> *mut u8 {
     eng().acia_regs_ptr(k as usize)
 }
 /// Put a typed character in the keyboard queue of terminal `k`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_key(k: u32, code: u32) {
     eng().acia_key(k as usize, code as u8)
 }
 /// Throw away what waits on the keyboard of terminal `k` (a break does this, and then queues its own character).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_clear_keys(k: u32) {
     eng().acia_clear_keys(k as usize)
 }
 /// How many characters wait on the keyboard of terminal `k`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_pending(k: u32) -> u32 {
     eng().acia_pending(k as usize) as u32
 }
+/// What waits on the keyboard of terminal `k`, as bytes at the returned address (`acia_pending` of them).
+#[unsafe(no_mangle)]
+pub extern "C" fn acia_queue_ptr(k: u32) -> *const u8 {
+    eng().acia_queue_ptr(k as usize)
+}
 /// The screen events of terminal `k` since the last call: 0 to 127 print this character, 256 wipe the screen. Written to the address
 /// returned by `acia_events_ptr`; the count is returned, and the list is emptied.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_take_events(k: u32) -> u32 {
     eng().acia_take_events(k as usize) as u32
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn acia_events_ptr(k: u32) -> *mut u16 {
     eng().acia_events_ptr(k as usize)
 }
