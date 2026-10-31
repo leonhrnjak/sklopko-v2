@@ -4,6 +4,8 @@ import { CircuitBuilder } from '../model/builder'
 import { EXAMPLES } from '../model/examples'
 import { board6502Builder } from '../model/board6502'
 import { COUNTER_SOURCE } from '../model/programs6502'
+import { micro6502Basic } from '../model/micro6502'
+import { basicRomBytes } from '../model/basic-rom'
 import { Simulator } from './simulator'
 
 /**
@@ -57,7 +59,28 @@ function edgesPerSecond(name: string, o: Parameters<typeof board6502Builder>[0],
   console.log(`${name}: ${edges} edges in ${took.toFixed(0)} ms = ${((edges / took) * 1000).toFixed(0)} edges/s (${((edges / took) * 500).toFixed(0)} cycles/s)`)
 }
 
+/** Cycles per real second on a BASIC board, history off, after a warm-up: the number the speed work (docs/spec-sim-speed-tier1.md) is measured by. */
+function basicCycles(name: string, sim: Simulator, edges: number) {
+  sim.setHistory(false)
+  sim.settle()
+  for (let i = 0; i < 3000; i++) sim.stepClock()
+  const t0 = performance.now()
+  const k0 = sim.ticks
+  for (let i = 0; i < edges; i++) sim.stepClock()
+  const took = performance.now() - t0
+  console.log(`${name}: ${((edges / 2 / took) * 1000).toFixed(0)} cycles/s, ${((sim.ticks - k0) / edges).toFixed(1)} ticks/edge`)
+}
+
 describe.skipIf(!on)('simulator timings', () => {
+  it('BASIC boards: the 6502 built from parts, and the 6502 part', { timeout: 300000 }, () => {
+    const parts = new Simulator()
+    parts.load(flatten(micro6502Basic()))
+    basicCycles('6502 from parts + BASIC', parts, 100000)
+    const hex = basicRomBytes().map((b) => b.toString(16).padStart(2, '0')).join(' ')
+    const part = new Simulator()
+    part.load(flatten(board6502Builder({ hz: 100, memory: 'big', rom: hex, devices: ['terminal'] }).b.build(false)))
+    basicCycles('6502 part + BASIC', part, 400000)
+  })
   it('the 6502 board, with and without the history for stepping back', { timeout: 120000 }, () => {
     const five = ['screen', 'gamepad', 'leds', 'console', 'keypad'] as const
     for (const history of [true, false]) {
