@@ -36,7 +36,7 @@ export interface Compiled {
 /** The kinds of part, as engine-rs/src/engine.rs numbers them. */
 const KIND: Record<string, number> = {
   and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9, busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14,
-  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20,
+  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20, bcdadd: 21, bin2bcd: 22, tff: 23,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -59,12 +59,12 @@ export function supports(c: Compiled): boolean {
 export function ported(cc: CompiledPart): boolean {
   const type = cc.def.type
   const p = cc.inst.params
-  if (type === 'rom') return p.table !== 'on'
   if (type === 'ram') return Number(p.dbits) <= 8 && Number(p.abits) <= 15
   return type === 'clock' || KIND[type] !== undefined || NOP.has(type) || (SAMPLERS.has(type) && cc.inst.outs.length === 0)
 }
 
 const romCache = new WeakMap<Params, number[]>()
+const tableCache = new WeakMap<Params, number[]>()
 
 /** The words of a ROM, found by asking the part itself for each address (kept for as long as the part's params are the same object). */
 function romWords(def: CompiledPart['def'], p: Params): number[] {
@@ -75,15 +75,34 @@ function romWords(def: CompiledPart['def'], p: Params): number[] {
   return words
 }
 
+/** The 256 bytes behind a ROM's table port, found the same way. */
+function romTable(def: CompiledPart['def'], p: Params): number[] {
+  const known = tableCache.get(p)
+  if (known) return known
+  const abits = Number(p.abits)
+  const dbits = Number(p.dbits)
+  const bytes: number[] = []
+  for (let t = 0; t < 256; t++) {
+    const ins = [...new Array<0 | 1 | 2 | 3>(abits).fill(0), ...Array.from({ length: 8 }, (_, b) => ((t >> b) & 1) as 0 | 1)]
+    const outs = new Array<0 | 1 | 2 | 3>(dbits + 8).fill(2)
+    def.evaluate({ ins, outs, state: undefined, params: p })
+    bytes.push(outs.slice(dbits).reduce<number>((w, v, b) => w | (v << b), 0))
+  }
+  tableCache.set(p, bytes)
+  return bytes
+}
+
 function romWordsOf(def: CompiledPart['def'], p: Params): number[] {
   const abits = Number(p.abits)
   const dbits = Number(p.dbits)
   const words: number[] = []
   for (let a = 0; a < 2 ** abits; a++) {
-    const ins = Array.from({ length: abits }, (_, b) => ((a >> b) & 1) as 0 | 1)
-    const outs = new Array<0 | 1 | 2 | 3>(dbits).fill(2)
+    // (with a table port, its address is held at 0)
+    const ins: (0 | 1 | 2 | 3)[] = Array.from({ length: abits }, (_, b) => ((a >> b) & 1) as 0 | 1)
+    if (p.table === 'on') for (let b = 0; b < 8; b++) ins.push(0)
+    const outs = new Array<0 | 1 | 2 | 3>(dbits + (p.table === 'on' ? 8 : 0)).fill(2)
     def.evaluate({ ins, outs, state: undefined, params: p })
-    words.push(outs.reduce<number>((w, v, b) => w | (v << b), 0))
+    words.push(outs.slice(0, dbits).reduce<number>((w, v, b) => w | (v << b), 0))
   }
   return words
 }
@@ -143,14 +162,17 @@ export class WasmEngine {
         p0 = Number(p.bits)
         n = st.n
         pc = st.pc
-      } else if (type === 'dff') {
+      } else if (type === 'dff' || type === 'tff') {
         q = st.q
         pc = st.pc
       } else if (type === 'rom') {
         p0 = Number(p.abits)
         p1 = Number(p.dbits)
+        p2 = p.table === 'on' ? 1 : 0
         memOff = rom.length
         for (const w of romWords(cc.def, p)) rom.push(w)
+        // A table port (TA in, TD out) reads 256 more bytes, which follow the words.
+        if (p2) for (const w of romTable(cc.def, p)) rom.push(w)
       } else if (type === 'ram') {
         p0 = Number(p.dbits)
         p1 = Number(p.abits)
@@ -276,7 +298,7 @@ export class WasmEngine {
       if (type === 'busreg' || type === 'busctr') {
         st.n = n[i]
         st.pc = pc[i]
-      } else if (type === 'dff') {
+      } else if (type === 'dff' || type === 'tff') {
         st.q = q[i]
         st.pc = pc[i]
       } else if (type === 'ram') st.pc = pc[i]
