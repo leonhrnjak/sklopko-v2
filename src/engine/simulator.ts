@@ -1,6 +1,7 @@
 import { resolveLabels } from './netlabels'
 import { layoutOf } from './layoutcache'
 import { getDef, hasDef } from './registry'
+import { buildPlan, type Plan, type Rejected } from './fast'
 import { X, Z, type ComponentDef, type Instance, type Params, type V } from './types'
 
 export interface SimComp {
@@ -48,6 +49,10 @@ interface CComp {
   pipe?: Uint8Array
   /** Position in `comps` (-1 for a Receive label that only shares another part's net and is never evaluated). */
   index: number
+  /** For the fast engine, per input: 1 if a change there makes the part evaluate (always, but for a registered part's data pins). */
+  wakeIns: Uint8Array
+  /** Which inputs are clock pins. */
+  clockIns: number[]
 }
 
 const pinKey = (comp: string, pin: string) => `${comp}:${pin}`
@@ -158,11 +163,26 @@ export class Simulator {
   private readerStart = new Int32Array(1)
   private readerPart = new Int32Array(0)
   private readerSlot = new Int32Array(0)
+  /** Per reader entry, for the fast engine: does a change on this pin wake the part (see `CComp.wakeIns`)? */
+  private readerWake = new Uint8Array(0)
   /**
    * Every part's input pins, one after the other: a part's `inst.ins` is a view of its stretch of this. A net that changes writes its new
    * value into the pins that read it as it is committed, so evaluating a part needs no gathering of its inputs.
    */
   private pins = new Uint8Array(0)
+  /** Whether the fast engine may be used at all (see `setFast`), the plan for the current circuit (or why there is none), and whether it is in use. */
+  private fastAllowed = false
+  private plan: Plan | Rejected = 'untimed'
+  private usingFast = false
+  /** Fast engine: flags per position in the plan's order, the range of positions flagged, and the registered parts woken. */
+  private rankFlag = new Uint8Array(0)
+  private lo = 0
+  private hi = -1
+  private regList = new Int32Array(0)
+  private regCount = 0
+  private regQueued = new Uint8Array(0)
+  /** The registered parts evaluated in one round, whose outputs are committed together. */
+  private regRun = new Int32Array(0)
   /** A snapshot after each clock edge (and one before the first), for stepping back. */
   private history: Snapshot[] = []
   /** Which snapshot the simulation is at, when it has not moved on since (see `moved`). */
@@ -198,6 +218,11 @@ export class Simulator {
     const aliases = c.aliases ?? resolveLabels(c)
     const deferred: { sc: SimComp; src: PinRef }[] = []
 
+    const wakes = (def: ComponentDef, pins: { name: string; clock?: boolean }[]) => {
+      const w = new Uint8Array(pins.length).fill(1)
+      if (def.timing === 'registered') pins.forEach((p, i) => (w[i] = p.clock || def.immediateIns?.includes(p.name) ? 1 : 0))
+      return w
+    }
     const build = (sc: SimComp): CComp => {
       const def = getDef(sc.type)
       const layout = layoutOf(sc.type, sc.params)
@@ -222,6 +247,8 @@ export class Simulator {
         inDefaults: ins.map((p) => p.def ?? X),
         outNets: new Int32Array(outs.length),
         index: -1,
+        wakeIns: wakes(def, ins),
+        clockIns: ins.flatMap((p, i) => (p.clock ? [i] : [])),
         pipe: sc.delay && sc.delay > 1 && outs.length ? new Uint8Array((Math.min(MAX_DELAY, Math.round(sc.delay)) - 1) * outs.length) : undefined,
       }
     }
@@ -264,12 +291,12 @@ export class Simulator {
     let pinCount = 0
     for (const cc of this.comps) pinCount += cc.inNets.length
     this.pins = new Uint8Array(pinCount)
-    const readers = Array.from({ length: nets }, () => [] as [number, number][])
+    const readers = Array.from({ length: nets }, () => [] as [number, number, number][])
     let at = 0
     for (const cc of this.comps) {
       cc.inst.ins = this.pins.subarray(at, at + cc.inNets.length) as unknown as V[]
       cc.inNets.forEach((n, i) => {
-        if (n >= 0) readers[n].push([cc.index, (at + i) * 2 + (cc.def.acceptsZ ? 1 : 0)])
+        if (n >= 0) readers[n].push([cc.index, (at + i) * 2 + (cc.def.acceptsZ ? 1 : 0), cc.wakeIns[i]])
       })
       at += cc.inNets.length
     }
@@ -277,6 +304,7 @@ export class Simulator {
     for (let n = 0; n < nets; n++) this.readerStart[n + 1] = this.readerStart[n] + readers[n].length
     this.readerPart = Int32Array.from(readers.flatMap((r) => r.map((e) => e[0])))
     this.readerSlot = Int32Array.from(readers.flatMap((r) => r.map((e) => e[1])))
+    this.readerWake = Uint8Array.from(readers.flatMap((r) => r.map((e) => e[2])))
     this.stale = new Uint8Array(this.comps.length)
     this.queue = new Int32Array(this.comps.length)
     this.running = new Int32Array(this.comps.length)
@@ -295,6 +323,23 @@ export class Simulator {
     for (const cc of this.slow) this.fillPipe(cc)
     this.clocks = this.comps.filter((cc) => cc.def.clockHalfPeriod)
     this.samplers = this.comps.filter((cc) => cc.def.sample)
+    this.plan = buildPlan(
+      this.comps.map((cc) => ({
+        timing: cc.def.timing,
+        inNets: cc.inNets,
+        outNets: cc.outNets,
+        clockIns: cc.clockIns,
+        slow: !!cc.pipe,
+        ticking: !!cc.def.clockHalfPeriod,
+      })),
+      nets,
+    )
+    this.usingFast = false
+    this.rankFlag = new Uint8Array(typeof this.plan === 'string' ? 0 : this.plan.order.length)
+    this.regList = new Int32Array(this.comps.length)
+    this.regRun = new Int32Array(this.comps.length)
+    this.regQueued = new Uint8Array(this.comps.length)
+    this.markAll()
     this.dirty = true
   }
 
@@ -309,6 +354,10 @@ export class Simulator {
 
   /** Flag a part for evaluation at the next tick (once, however often it is flagged). */
   private mark(i: number) {
+    if (this.usingFast) {
+      this.flagFast(i)
+      return
+    }
     if (this.stale[i] === 0) {
       this.stale[i] = 1
       this.queue[this.queued++] = i
@@ -320,6 +369,54 @@ export class Simulator {
     for (let i = 0; i < this.comps.length; i++) this.queue[i] = i
     this.queued = this.comps.length
     this.stale.fill(1)
+    // (the fast engine's flags too: whichever engine runs next re-evaluates everything once)
+    this.rankFlag.fill(1)
+    this.lo = 0
+    this.hi = this.rankFlag.length - 1
+    this.regCount = 0
+    this.regQueued.fill(0)
+    if (typeof this.plan !== 'string' && this.plan.rank.length === this.comps.length) {
+      const rank = this.plan.rank
+      for (let i = 0; i < this.comps.length; i++) if (rank[i] < 0) this.wakeReg(i)
+    }
+  }
+
+  /** Flag a part for the fast engine: a part of the order by its position, a registered part in the list of those to evaluate. */
+  private flagFast(i: number) {
+    const plan = this.plan
+    if (typeof plan === 'string') return
+    const r = plan.rank[i]
+    if (r < 0) this.wakeReg(i)
+    else if (this.rankFlag[r] === 0) {
+      this.rankFlag[r] = 1
+      if (r < this.lo) this.lo = r
+      if (r > this.hi) this.hi = r
+    }
+  }
+
+  private wakeReg(i: number) {
+    if (this.regQueued[i] === 0) {
+      this.regQueued[i] = 1
+      this.regList[this.regCount++] = i
+    }
+  }
+
+  /**
+   * Allow the fast engine for circuits that can use it (see docs/spec-sim-speed-tier2.md), or not. It is used when the circuit has
+   * no loop of gates, no part with a delay and no race between a clock and its data, and while no signal is held and no capture is on.
+   */
+  setFast(on: boolean) {
+    this.fastAllowed = on
+  }
+
+  /** Which engine settles the circuit now: 'fast', or 'exact' (the unit-delay engine). */
+  get engine(): 'fast' | 'exact' {
+    return this.fastAllowed && this.plan !== null && typeof this.plan !== 'string' && !this.capturing && this.forced === null ? 'fast' : 'exact'
+  }
+
+  /** Why the fast engine cannot run this circuit, or null if it can. */
+  get fastRejected(): Rejected | null {
+    return typeof this.plan === 'string' ? this.plan : null
   }
 
   /** Forget all values and internal state, as if the circuit was just switched on. */
@@ -491,6 +588,13 @@ export class Simulator {
 
   /** Tick until nothing changes or the budget runs out. Returns true if the circuit settled. */
   settle(maxTicks = 1000): boolean {
+    const fast = this.engine === 'fast'
+    if (fast !== this.usingFast) {
+      // The other engine takes over: it re-evaluates every part once, which changes nothing in a circuit that is up to date.
+      this.usingFast = fast
+      this.markAll()
+    }
+    if (fast) return this.settleFast(maxTicks)
     const cause = this.nextCause
     this.nextCause = 'input'
     const rec: Capture | null = this.capturing ? { frames: [this.values.slice()], truncated: false, time: this.time, cause } : null
@@ -517,6 +621,86 @@ export class Simulator {
       this.dirty = true
     }
     return settled
+  }
+
+  /**
+   * The fast engine's settle (see docs/spec-sim-speed-tier2.md): rounds of one pass over the combinational parts that need it, in order,
+   * each evaluated once, and then the registered parts whose clock (or clear) changed, which all read their inputs before any writes.
+   */
+  private settleFast(maxRounds: number): boolean {
+    this.nextCause = 'input'
+    const plan = this.plan as Plan
+    const limit = Math.min(maxRounds, 64)
+    let settled = false
+    for (let round = 0; round < limit; round++) {
+      this.combPass(plan)
+      if (this.regCount === 0 && this.hi < this.lo) {
+        settled = true
+        break
+      }
+      this.ticks++
+      this.registeredRound()
+    }
+    this.unstable = !settled
+    this.sample()
+    return settled
+  }
+
+  /** Evaluate the flagged parts of the order, lowest position first; a part flags only parts after it. */
+  private combPass(plan: Plan) {
+    const order = plan.order
+    const flag = this.rankFlag
+    const comps = this.comps
+    while (this.lo <= this.hi) {
+      const lo = this.lo
+      const hi = this.hi
+      this.lo = flag.length
+      this.hi = -1
+      for (let r = lo; r <= hi; r++) {
+        if (flag[r] === 0) continue
+        flag[r] = 0
+        const cc = comps[order[r]]
+        cc.def.evaluate(cc.inst)
+        this.commitOuts(cc)
+      }
+    }
+  }
+
+  /** Evaluate the registered parts that were woken, all before any of them puts an output on a net, then commit the outputs. */
+  private registeredRound() {
+    const n = this.regCount
+    const run = this.regRun
+    for (let k = 0; k < n; k++) {
+      const i = this.regList[k]
+      run[k] = i
+      this.regQueued[i] = 0
+    }
+    this.regCount = 0
+    for (let k = 0; k < n; k++) {
+      const cc = this.comps[run[k]]
+      cc.def.evaluate(cc.inst)
+    }
+    for (let k = 0; k < n; k++) this.commitOuts(this.comps[run[k]])
+  }
+
+  /** Put a part's outputs on their nets; each net that changes updates the pins that read it and wakes the readers it should. */
+  private commitOuts(cc: CComp) {
+    const { values, pins, readerStart, readerPart, readerSlot, readerWake } = this
+    const outs = cc.inst.outs
+    const outNets = cc.outNets
+    for (let o = 0; o < outs.length; o++) {
+      const net = outNets[o]
+      const v = outs[o]
+      if (values[net] === v) continue
+      values[net] = v
+      this.dirty = true
+      this.moved = true
+      for (let r = readerStart[net], end = readerStart[net + 1]; r < end; r++) {
+        const slot = readerSlot[r]
+        pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
+        if (readerWake[r] === 1) this.flagFast(readerPart[r])
+      }
+    }
   }
 
   /** Let parts that record over time (probes, dot matrices) look at the settled values. */

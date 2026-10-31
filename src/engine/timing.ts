@@ -23,17 +23,21 @@ const REGISTERED: Record<string, string[]> = {
   ringcounter: ['R'],
   busreg: ['CLR'],
   busctr: ['R', 'EN'],
-  cpu6502: ['BE'], // (the 65C02 lets go of its buses while BE is low)
+  cpu6502: ['BE', 'NMIB'], // (the 65C02 lets go of its buses while BE is low; NMIB is edge-detected at once, so a short pulse between clocks counts)
   acia6551: [],
   via6522: ['RESB'],
   console: [],
+  // Memories and devices whose output follows an address or a strobe at once (a read), while writing waits for the clock.
+  ram: Array.from({ length: 20 }, (_, i) => `A${i}`),
+  framebuffer: ['CLR', ...Array.from({ length: 10 }, (_, i) => `RX${i}`), ...Array.from({ length: 10 }, (_, i) => `RY${i}`)],
+  hd44780: ['E', 'RW'],
 }
 /** Keep state and also answer their inputs at once: latches (level-sensitive), memories (a read follows the address), devices with registers. */
-const MIXED = 'srlatch dlatch ram hd44780 matrix keypad gamepad speaker framebuffer'
+const MIXED = 'srlatch dlatch keypad'
 /** No inputs: their outputs come from the part's own settings or state, which change from outside (a click, the clock running). */
-const SOURCE = 'switch button clock const hexin busin'
+const SOURCE = 'switch button clock const hexin busin gamepad'
 /** Look at the settled values after each edge (`sample`) and put nothing on any net. */
-const SINK = 'probe breakpoint'
+const SINK = 'probe breakpoint matrix speaker'
 
 const TABLE = new Map<string, NonNullable<ComponentDef['timing']>>()
 for (const [names, timing] of [[COMB, 'comb'], [MIXED, 'mixed'], [SOURCE, 'source'], [SINK, 'sink']] as const)
