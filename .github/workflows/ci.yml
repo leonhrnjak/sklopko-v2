@@ -1,11 +1,13 @@
-# Full test suite for every pull request. Merging to main deploys to Cloudflare Pages.
+# Full test suite, run every night on main and on demand (Actions tab -> CI -> Run workflow, pick a branch).
+# Pull requests run no GitHub Actions: the Cloudflare Pages Git integration builds the preview deploy by itself.
 #
 # The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests split in four). The last job, `test`, waits
-# for all of them and is the one result to require: it keeps its name, so a branch rule on "test" keeps working.
+# for all of them and keeps its name.
 name: CI
 
 on:
-  pull_request:
+  schedule:
+    - cron: '0 2 * * *' # 02:00 UTC every night, on the default branch
   workflow_dispatch:
 
 concurrency:
