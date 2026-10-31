@@ -140,6 +140,104 @@ describe('the Rust engine inside the Simulator', () => {
     expect(rust.wasmOn, 'and the Rust engine is back').toBe(true)
   }, 600000)
 
+  it('runs Microsoft BASIC on the cpu6502 part the same as the TypeScript engine, nets and screen, then a program', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      sim.setHistory(false)
+      if (rust) sim.setWasm(openFor(x))
+      sim.load(flatten(EXAMPLES.find((e) => e.id === '6502-basic')!.build()))
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    const both = (n: number) => {
+      for (let i = 0; i < n; i++) {
+        rust.stepClock()
+        plain.stepClock()
+      }
+    }
+    const same = (what: string) => {
+      const a = rust.viewValues()
+      const b = plain.viewValues()
+      for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${what}: net ${n} is ${a[n]} with Rust and ${b[n]} without`)
+    }
+    const id = plain.idsOfType('acia6551')[0]
+    const screen = (s: Simulator) => screenText(s.state(id) as Parameters<typeof screenText>[0])
+    both(10)
+    expect(rust.wasmOn).toBe(true)
+    for (let i = 0; i < 400 && !screen(plain).includes('OK'); i++) {
+      both(5000)
+      if (i % 20 === 0) same(`at ${i * 5000} edges`)
+    }
+    expect(screen(rust)).toContain('OK')
+    same('at the prompt')
+    for (const sim of [rust, plain]) sim.terminal(id, { op: 'type', text: '10 FOR I=1 TO 5:PRINT I*I;SQR(I):NEXT\rRUN\r', capitals: true })
+    for (let i = 0; i < 160; i++) {
+      both(5000)
+      if (i % 20 === 0) same(`running, ${i}`)
+    }
+    same('after RUN')
+    expect(screen(rust)).toBe(screen(plain))
+    expect(screen(rust)).toMatch(/ 25 /)
+    expect(rust.wasmOn).toBe(true)
+  }, 900000)
+
+  for (const chip of ['nmos', 'cmos']) {
+    it(`runs random opcodes on the ${chip} cpu6502 part the same as the TypeScript engine: every instruction, mode and interrupt`, async () => {
+      const x = await module()
+      for (let seed = 1; seed <= 6; seed++) {
+        let h = seed * 2654435761
+        const next = () => {
+          h = (Math.imul(h ^ (h >>> 15), 2246822507) + 0x9e3779b9) | 0
+          return (h >>> 8) & 255
+        }
+        const data = Array.from({ length: 4096 }, () => next().toString(16).padStart(2, '0')).join(' ')
+        const b = new CircuitBuilder()
+        const clk = b.add('clock', 0, 0)
+        const cpu = b.add('cpu6502', 200, 0, { params: { chip } })
+        const rom = b.add('rom', 600, 0, { params: { abits: 12, dbits: 8, data } })
+        // (the interrupt pins are driven by switches that change now and then)
+        const irq = b.add('switch', 0, 100, { params: { on: true } })
+        const nmi = b.add('switch', 0, 140, { params: { on: true } })
+        b.wire(`${clk}.Q`, `${cpu}.PHI2`)
+        b.wire(`${irq}.Q`, `${cpu}.IRQB`)
+        b.wire(`${nmi}.Q`, `${cpu}.NMIB`)
+        for (let i = 0; i < 12; i++) b.wire(`${cpu}.A${i}`, `${rom}.A${i}`)
+        for (let i = 0; i < 8; i++) b.wire(`${rom}.D${i}`, `${cpu}.DI${i}`)
+        const mk = (rust: boolean) => {
+          const sim = new Simulator()
+          sim.setFast(true)
+          sim.setHistory(false)
+          if (rust) sim.setWasm(openFor(x))
+          sim.load(flatten(b.c))
+          sim.settle()
+          return sim
+        }
+        const rust = mk(true)
+        const plain = mk(false)
+        for (let step = 0; step < 400; step++) {
+          if (step % 37 === 20) {
+            const on = step % 74 !== 20
+            for (const sim of [rust, plain]) sim.setParams(step % 2 ? irq : nmi, { on })
+          }
+          for (let i = 0; i < 50; i++) {
+            rust.stepClock()
+            plain.stepClock()
+          }
+          if (step === 0) expect(rust.wasmOn).toBe(true)
+          if (step === 399) expect((plain.state(cpu) as { cpu: { cycles: number } }).cpu.cycles, 'it ran').toBeGreaterThan(5000)
+          expect(JSON.stringify(rust.state(cpu)), `seed ${seed} step ${step}: state`).toBe(JSON.stringify(plain.state(cpu)))
+          const a = rust.viewValues()
+          const c = plain.viewValues()
+          for (let n = 0; n < a.length; n++) if (a[n] !== c[n]) throw new Error(`${chip} seed ${seed} step ${step}: net ${n} is ${a[n]} with Rust and ${c[n]} without`)
+        }
+      }
+    }, 600000)
+  }
+
   it('stays off where it must: with a terminal and the history for stepping back, with a capture, and without a module', async () => {
     const x = await module()
     const rust = new Simulator()
@@ -316,6 +414,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     ['halfadd', {}], ['fulladd', {}], ['halfsub', {}], ['fullsub', {}], ['sub4', {}], ['addsub4', {}],
     ['tribuf', {}], ['tribuf', { bits: 4 }], ['busjoin', {}], ['busjoin', { drivers: 4, bits: 3, pull: '1' }], ['busjoin', { pull: '0' }],
     ['via6522', {}],
+    ['cpu6502', {}], ['cpu6502', { chip: 'cmos' }], ['cpu6502', { tristate: true }],
     ['hd44780', {}], ['hd44780', { busy: 'short' }], ['hd44780', { busy: 'none' }],
     ['bcdadd', {}],
     ['bin2bcd', {}],

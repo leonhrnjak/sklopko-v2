@@ -9,7 +9,7 @@
 export const engineUrl = new URL('./wasm/engine.wasm', import.meta.url)
 
 /** The version of the interface between this code and the module: engine-rs/src/lib.rs has the same number. */
-export const ABI_VERSION = 7
+export const ABI_VERSION = 8
 
 /** What the module exports. */
 export interface EngineExports {
@@ -37,6 +37,7 @@ export interface EngineExports {
   fb_ptr(): number
   via_ptr(): number
   lcd_ptr(): number
+  cpu_ptr(): number
   console_take_events(k: number): number
   console_events_ptr(k: number): number
   acia_take_events(k: number): number
