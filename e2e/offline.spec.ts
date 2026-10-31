@@ -44,7 +44,7 @@ test('after one visit the app opens and runs with no network: the page, a short 
   expect(cached.names).toBe(1)
   expect(cached.urls).toContain('/index.html')
   expect(cached.urls).toContain('/manifest.webmanifest')
-  expect(cached.urls.filter((u) => u.startsWith('/examples/') && u.endsWith('.json'))).toHaveLength(60)
+  expect(cached.urls.filter((u) => u.startsWith('/examples/') && u.endsWith('.json'))).toHaveLength(63)
   expect(cached.urls.some((u) => /^\/assets\/index-.*\.js$/.test(u))).toBe(true)
 
   await context.setOffline(true)

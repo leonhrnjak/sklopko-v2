@@ -120,16 +120,21 @@ export function aciaWrite(st: AciaState, rs: number, value: number) {
   }
 }
 
+/** The part of `text` that `aciaType` would take (see there), without taking it. */
+export function aciaAccepted(st: AciaState, text: string, capitals = true): string {
+  let s = text.replace(/\r\n?|\n/g, '\r').replace(/\t/g, ' ').replace(/[^\r\x20-\x7e]/g, '')
+  if (capitals) s = s.toUpperCase()
+  const room = KEYBOARD_MAX - (st.keys.length - st.next)
+  return s.slice(0, Math.max(0, room))
+}
+
 /**
  * Type or paste text: it goes into the keyboard buffer. Line breaks become CR, a tab a space, and anything outside ASCII 32–126 is
  * dropped. With `capitals` letters are sent as capitals (Microsoft BASIC knows its words only in capitals). Returns how many
  * characters were taken (the buffer holds `KEYBOARD_MAX`).
  */
 export function aciaType(st: AciaState, text: string, capitals = true): number {
-  let s = text.replace(/\r\n?|\n/g, '\r').replace(/\t/g, ' ').replace(/[^\r\x20-\x7e]/g, '')
-  if (capitals) s = s.toUpperCase()
-  const room = KEYBOARD_MAX - (st.keys.length - st.next)
-  s = s.slice(0, Math.max(0, room))
+  const s = aciaAccepted(st, text, capitals)
   st.keys += s
   return s.length
 }

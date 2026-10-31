@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { breakOnTerminal, typeOnTerminal } from '../app/terminal'
 import { sim } from '../app/sim'
 import { showToast, useStore } from '../app/store'
-import { aciaPut, aciaStatus, interruptOn, receiverOn, screenText } from '../engine/acia'
+import { aciaStatus, interruptOn, receiverOn, screenText } from '../engine/acia'
 import type { TerminalState } from '../engine/components/terminal'
 import type { Comp } from '../model/circuit'
 import { hasBasic } from '../model/basic-programs'
@@ -67,9 +67,7 @@ export function TerminalSection({ comp }: { comp: Comp }) {
     }
   }
   const clear = () => {
-    const st = sim.state(comp.id) as TerminalState | undefined
-    if (!st) return
-    aciaPut(st, 12)
+    sim.terminal(comp.id, { op: 'clear' })
     sim.publish()
   }
   const send = () => {

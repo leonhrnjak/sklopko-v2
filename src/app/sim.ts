@@ -1,3 +1,4 @@
+import { WorkerSim, type Port } from '../engine/remote'
 import { Simulator } from '../engine/simulator'
 import { flatten } from '../model/buses'
 import type { Circuit } from '../model/circuit'
@@ -26,7 +27,10 @@ export type SimApi = Pick<
   | 'tick'
   | 'stepClock'
   | 'stepBack'
+  | 'stepCpu'
+  | 'terminal'
   | 'frame'
+  | 'run'
   | 'setParams'
   | 'setState'
   | 'writeWord'
@@ -61,10 +65,23 @@ export type SimApi = Pick<
   // notification
   | 'subscribe'
   | 'edgeHook'
+  | 'threaded'
 >
 
-/** The one simulator driving the canvas, seen only through `SimApi`. */
-export const sim: SimApi = new Simulator()
+/**
+ * The one simulator driving the canvas, seen only through `SimApi`. It runs in a Web Worker where there is one (docs/spec-sim-worker.md),
+ * otherwise, and with `?thread=main` in the address, on the page itself.
+ */
+function makeSim(): SimApi {
+  const inWorker = typeof Worker === 'function' && typeof location !== 'undefined' && !/[?&]thread=main\b/.test(location.search)
+  if (!inWorker) return new Simulator()
+  try {
+    return new WorkerSim(new Worker(new URL('../engine/sim.worker.ts', import.meta.url), { type: 'module' }) as unknown as Port)
+  } catch {
+    return new Simulator()
+  }
+}
+export const sim: SimApi = makeSim()
 
 export function loadIntoSim(c: Circuit) {
   sim.setHistory(historyOf(c))
