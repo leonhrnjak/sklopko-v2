@@ -4,13 +4,13 @@
 //! (`edge`), and reads the nets, the pins and the parts' states straight out of this module's memory. The engine follows the TypeScript
 //! fast engine (`settleFast` in src/engine/simulator.ts) step for step, so the two give the same nets after every clock edge.
 
-mod acia;
 mod engine;
+mod parts;
 
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 
 static mut ENGINE: Option<Engine> = None;
 

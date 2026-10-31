@@ -9,7 +9,7 @@
 export const engineUrl = new URL('./wasm/engine.wasm', import.meta.url)
 
 /** The version of the interface between this code and the module: engine-rs/src/lib.rs has the same number. */
-export const ABI_VERSION = 4
+export const ABI_VERSION = 5
 
 /** What the module exports. */
 export interface EngineExports {
