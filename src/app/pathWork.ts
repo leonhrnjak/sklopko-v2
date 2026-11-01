@@ -19,7 +19,7 @@ import { clearProject, useProject } from './pathProject'
 import { commitProgress } from './pathUnlock'
 import { loadCircuit, select, showToast, useStore } from './store'
 import { setWaveOpen } from './waveform'
-import { fitToScreen } from './view'
+import { fitToScreen, fitWhileResizing } from './view'
 
 /**
  * The work on the learning path's steps: opening one, checking it, showing a solution, going on. It loads with the map and the
@@ -31,6 +31,7 @@ const fitSoon = () => {
   requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
   // The panel under the canvas has not always taken its room by then (a step opened from its address): once more when it has.
   window.setTimeout(fitToScreen, 300)
+  fitWhileResizing(3000)
 }
 
 export const currentStep = (): Step | undefined => {

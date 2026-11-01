@@ -1,4 +1,4 @@
-import { registerFit } from '../../app/view'
+import { registerFit, registerRefit } from '../../app/view'
 import { setView, useStore } from '../../app/store'
 import { boundsRect } from '../../model/circuit'
 
@@ -82,4 +82,10 @@ export function focusFrame(title: string): boolean {
 }
 
 registerFit(fitView)
+registerRefit((ms) => {
+  if (!svgEl || typeof ResizeObserver === 'undefined') return
+  const ro = new ResizeObserver(() => fitView())
+  ro.observe(svgEl)
+  window.setTimeout(() => ro.disconnect(), ms)
+})
 

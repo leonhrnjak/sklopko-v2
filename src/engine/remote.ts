@@ -110,9 +110,11 @@ export class SimHost {
         break
       case 'setParams':
         s.setParams(m.id, m.params)
+        if (!this.running) s.settle() // (a paused simulation has no frame to carry the change through the circuit)
         break
       case 'setState':
         s.setState(m.id, m.patch)
+        if (!this.running) s.settle()
         break
       case 'writeWord':
         s.writeWord(m.id, m.index, m.value)
