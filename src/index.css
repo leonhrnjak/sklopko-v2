@@ -202,7 +202,7 @@ input:focus-visible {
   align-items: center;
 }
 /* Laptop widths: keep the whole toolbar on one row (the phone layout takes over below 1000px). */
-@media (min-width: 1001px) and (max-width: 1240px) {
+@media (min-width: 1001px) and (max-width: 1320px) {
   .brand-sub {
     display: none;
   }
