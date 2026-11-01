@@ -307,6 +307,13 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
   const CASES: [string, Record<string, string | number | boolean>][] = [
+    ['srlatch', {}], ['dlatch', {}], ['jkff', {}],
+    ['counter', { mod: 10 }], ['counter', { mod: 16 }], ['counter', { mod: 3 }],
+    ['counterld', {}], ['register', {}], ['shiftreg', {}],
+    ['add4', {}], ['cmp4', {}], ['alu', {}], ['mul', { n: 2 }], ['mul', { n: 4 }],
+    ['decoder', { n: 2 }], ['decoder', { n: 3 }], ['decoder', { n: 4 }], ['encoder', { n: 4 }], ['encoder', { n: 8 }],
+    ['bcd7', { mode: 'bcd' }], ['bcd7', { mode: 'hex' }], ['bcddec', {}],
+    ['halfadd', {}], ['fulladd', {}], ['halfsub', {}], ['fullsub', {}], ['sub4', {}], ['addsub4', {}],
     ['bcdadd', {}],
     ['bin2bcd', {}],
     ['tff', {}],

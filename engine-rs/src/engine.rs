@@ -35,6 +35,36 @@ const TFF: i32 = 23;
 const KEYPAD: i32 = 24;
 const FRAMEBUFFER: i32 = 25;
 const CONSOLE: i32 = 26;
+const SRLATCH: i32 = 27;
+const DLATCH: i32 = 28;
+const JKFF: i32 = 29;
+const COUNTER: i32 = 30;
+const COUNTERLD: i32 = 31;
+const REGISTER: i32 = 32;
+const SHIFTREG: i32 = 33;
+const ADD4: i32 = 34;
+const CMP4: i32 = 35;
+const ALU: i32 = 36;
+const MUL: i32 = 37;
+const DECODER: i32 = 38;
+const ENCODER: i32 = 39;
+const BCD7: i32 = 40;
+const BCDDEC: i32 = 41;
+const HALFADD: i32 = 42;
+const FULLADD: i32 = 43;
+const HALFSUB: i32 = 44;
+const FULLSUB: i32 = 45;
+const SUB4: i32 = 46;
+const ADDSUB4: i32 = 47;
+
+/// The 7-segment patterns of 0 to F.
+const SEG_HEX: [i32; 16] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71];
+
+/// Writes the low `n` bits of `v` (a plain number, as the page's `bitsOf` does).
+#[inline(always)]
+fn put_bits(outs: &mut [u8], n: usize, v: i32) {
+    for b in 0..n { outs[b] = ((v >> b) & 1) as u8; }
+}
 
 /// Pixels on a side of the pixel screen part.
 const FB_SIZE: usize = 16;
@@ -504,6 +534,218 @@ impl Engine {
                     let o = n % 10;
                     for b in 0..4 { outs[b] = ((o >> b) & 1) as u8; }
                     outs[4] = (n >= 10) as u8;
+                }
+            }
+            SRLATCH => {
+                let s = ins[0];
+                let r = ins[1];
+                if s == 1 && r == 1 {
+                    outs[0] = 0;
+                    outs[1] = 0;
+                } else {
+                    if s == 1 && r == 0 { self.st_q[i] = 1; }
+                    else if r == 1 && s == 0 { self.st_q[i] = 0; }
+                    let q = self.st_q[i];
+                    outs[0] = q;
+                    outs[1] = flip(q);
+                }
+            }
+            DLATCH => {
+                if ins[1] == 1 { self.st_q[i] = ins[0]; }
+                let q = self.st_q[i];
+                outs[0] = q;
+                outs[1] = flip(q);
+            }
+            JKFF => {
+                let (j, clk, k, s, r) = (ins[0], ins[1], ins[2], ins[3], ins[4]);
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                if r == 1 { self.st_q[i] = 0; }
+                else if s == 1 { self.st_q[i] = 1; }
+                else if edge {
+                    if j == X || k == X { self.st_q[i] = X; }
+                    else if j != 0 && k != 0 { self.st_q[i] = flip(self.st_q[i]); }
+                    else if j != 0 { self.st_q[i] = 1; }
+                    else if k != 0 { self.st_q[i] = 0; }
+                }
+                let q = self.st_q[i];
+                outs[0] = q;
+                outs[1] = flip(q);
+            }
+            COUNTER => {
+                let (clk, en, ud, r) = (ins[0], ins[1], ins[2], ins[3]);
+                let m = self.p0[i];
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                let mut n = self.st_n[i];
+                if r == 1 { n = 0; }
+                else if edge && en == 1 && ud != X {
+                    n = if ud != 0 { (n + 1) % m } else { (n + m - 1) % m };
+                }
+                n %= m;
+                self.st_n[i] = n;
+                write_num(outs, 0, 4, n);
+                outs[4] = if en == X || ud == X { X } else if n == (if ud != 0 { m - 1 } else { 0 }) && en == 1 { 1 } else { 0 };
+            }
+            COUNTERLD => {
+                let (ld, en, clk, r) = (ins[4], ins[5], ins[6], ins[7]);
+                let edge = self.st_pc[i] == 0 && clk == 1;
+                self.st_pc[i] = clk;
+                if r == 1 { self.st_n[i] = 0; }
+                else if edge {
+                    if ld == 1 {
+                        let d = to_num(ins, 0, 4);
+                        if d >= 0 { self.st_n[i] = d; }
+                    } else if ld == 0 && en == 1 {
+                        self.st_n[i] = (self.st_n[i] + 1) & 15;
+                    }
+                }
+                let n = self.st_n[i];
+                write_num(outs, 0, 4, n);
+                outs[4] = if en == X { X } else if n == 15 && en == 1 { 1 } else { 0 };
+            }
+            REGISTER => {
+                let edge = self.st_pc[i] == 0 && ins[5] == 1;
+                self.st_pc[i] = ins[5];
+                if ins[6] == 1 { self.st_n[i] = 0; }
+                else if edge && ins[4] == 1 { self.st_n[i] = to_num(ins, 0, 4); }
+                write_num(outs, 0, 4, self.st_n[i]);
+            }
+            SHIFTREG => {
+                // The four bits are kept two bits each in st_n (a bit can be 0, 1, X or Z).
+                let edge = self.st_pc[i] == 0 && ins[6] == 1;
+                self.st_pc[i] = ins[6];
+                let mut b = self.st_n[i];
+                let bit = |b: i32, k: i32| (b >> (2 * k)) & 3;
+                if ins[7] == 1 { b = 0; }
+                else if edge {
+                    if ins[5] == 1 {
+                        b = ins[1] as i32 | (ins[2] as i32) << 2 | (ins[3] as i32) << 4 | (ins[4] as i32) << 6;
+                    } else if ins[5] == 0 {
+                        b = ins[0] as i32 | bit(b, 0) << 2 | bit(b, 1) << 4 | bit(b, 2) << 6;
+                    }
+                }
+                self.st_n[i] = b;
+                for k in 0..4 { outs[k] = bit(b, k as i32) as u8; }
+            }
+            ADD4 => {
+                if ins.iter().any(|&v| v == X) { for b in 0..5 { outs[b] = X; } }
+                else { put_bits(outs, 5, to_num(ins, 0, 4) + to_num(ins, 4, 4) + ins[8] as i32); }
+            }
+            CMP4 => {
+                if ins.iter().any(|&v| v == X) { for b in 0..3 { outs[b] = X; } }
+                else {
+                    let a = to_num(ins, 0, 4);
+                    let b = to_num(ins, 4, 4);
+                    outs[0] = (a > b) as u8;
+                    outs[1] = (a == b) as u8;
+                    outs[2] = (a < b) as u8;
+                }
+            }
+            ALU => {
+                let a = to_num(ins, 0, 4);
+                let b = to_num(ins, 4, 4);
+                let op = to_num(ins, 8, 3);
+                let code = if op < 0 { -1 } else { ((op & 1) << 2) | (op & 2) | (op >> 2) };
+                if code < 0 || a < 0 || (code < 5 && b < 0) {
+                    for k in 0..6 { outs[k] = X; }
+                } else {
+                    let mut co = 0u8;
+                    let mut r;
+                    match code {
+                        0 => { r = a + b; co = (r > 15) as u8; }
+                        1 => { r = a - b; co = (r < 0) as u8; }
+                        2 => r = a & b,
+                        3 => r = a | b,
+                        4 => r = a ^ b,
+                        5 => r = !a,
+                        6 => { r = a + 1; co = (r > 15) as u8; }
+                        _ => { r = a - 1; co = (r < 0) as u8; }
+                    }
+                    r &= 15;
+                    write_num(outs, 0, 4, r);
+                    outs[4] = co;
+                    outs[5] = (r == 0) as u8;
+                }
+            }
+            MUL => {
+                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
+                else {
+                    let n = self.p0[i] as usize;
+                    put_bits(outs, 2 * n, to_num(ins, 0, n) * to_num(ins, n, n));
+                }
+            }
+            DECODER => {
+                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
+                else {
+                    let k = self.p0[i] as usize;
+                    let a = to_num(ins, 0, k);
+                    for b in 0..no { outs[b] = (ins[k] == 1 && b as i32 == a) as u8; }
+                }
+            }
+            ENCODER => {
+                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
+                else {
+                    let hi = ins.iter().rposition(|&v| v == 1).map_or(-1, |p| p as i32);
+                    put_bits(outs, no - 1, hi.max(0));
+                    outs[no - 1] = (hi >= 0) as u8;
+                }
+            }
+            BCD7 => {
+                if ins.iter().any(|&v| v == X) { for b in 0..7 { outs[b] = X; } }
+                else {
+                    let n = to_num(ins, 0, 4);
+                    let seg = if n >= 0 && (self.p0[i] == 1 || n < 10) { SEG_HEX[n as usize] } else { 0 };
+                    put_bits(outs, 7, seg);
+                }
+            }
+            BCDDEC => {
+                if ins.iter().any(|&v| v == X) { for b in 0..10 { outs[b] = X; } }
+                else {
+                    let n = to_num(ins, 0, 4);
+                    for b in 0..10 { outs[b] = (b as i32 == n) as u8; }
+                }
+            }
+            HALFADD => {
+                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
+                else { outs[0] = ((ins[0] ^ ins[1]) != 0) as u8; outs[1] = ((ins[0] & ins[1]) != 0) as u8; }
+            }
+            FULLADD => {
+                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
+                else { put_bits(outs, 2, ins[0] as i32 + ins[1] as i32 + ins[2] as i32); }
+            }
+            HALFSUB => {
+                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
+                else { outs[0] = ((ins[0] ^ ins[1]) != 0) as u8; outs[1] = (ins[0] == 0 && ins[1] != 0) as u8; }
+            }
+            FULLSUB => {
+                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
+                else {
+                    let d = ins[0] as i32 - ins[1] as i32 - ins[2] as i32;
+                    outs[0] = (d & 1) as u8;
+                    outs[1] = (d < 0) as u8;
+                }
+            }
+            SUB4 => {
+                if ins.iter().any(|&v| v == X) { for b in 0..5 { outs[b] = X; } }
+                else {
+                    let d = to_num(ins, 0, 4) - to_num(ins, 4, 4) - ins[8] as i32;
+                    put_bits(outs, 4, d & 15);
+                    outs[4] = (d < 0) as u8;
+                }
+            }
+            ADDSUB4 => {
+                if ins.iter().any(|&v| v == X) { for b in 0..6 { outs[b] = X; } }
+                else {
+                    let signed = |n: i32| if n & 8 != 0 { n - 16 } else { n };
+                    let a = to_num(ins, 0, 4);
+                    let bn = to_num(ins, 4, 4);
+                    let m = ins[8] as i32;
+                    let b = if m != 0 { !bn & 15 } else { bn };
+                    let r = a + b + m;
+                    let exact = if m != 0 { signed(a) - signed(bn) } else { signed(a) + signed(b) };
+                    put_bits(outs, 5, r);
+                    outs[5] = (exact < -8 || exact > 7) as u8;
                 }
             }
             ROM => {
