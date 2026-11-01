@@ -7,6 +7,7 @@ import { arithmetic, coding, memoryRom, routing } from './components/combination
 import { devices } from './components/devices'
 import { terminals } from './components/terminal'
 import { lcds } from './components/lcd'
+import { videos } from './components/video'
 import { vias } from './components/via'
 import { gates } from './components/gates'
 import { ic } from './components/ic'
@@ -54,6 +55,7 @@ export const DEFS = withTiming(withBusModes([
   ...terminals,
   ...vias,
   ...lcds,
+  ...videos,
   ...annotation,
 ])) as OracleDef[]
 

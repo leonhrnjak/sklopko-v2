@@ -12,6 +12,7 @@ export const BLURBS: Record<string, string> = {
   '6502-parts-irq': 'The 6502 from parts with its IRQ and NMI pins: two buttons, and the LEDs count how often each interrupt was taken.',
   '6502-parts-basic': 'Microsoft BASIC on the 6502 built from parts: it boots to OK in a few seconds and runs what you type, slowly.',
   '6502-via': 'A 6522 VIA: its timer interrupts the 6502 once a second, and the interrupt routine counts on LEDs on port B.',
+  '6502-video': 'A 6502 draws a 160×100, 16-colour test card through a video chip, one run of writes for each column.',
   '6502-lcd': 'A 6502 writes Hello, world! on a character LCD through a 6522 VIA, waiting for its busy flag, as in Ben Eater’s videos.',
   '6502-basic-lcd': 'The BASIC computer with a VIA and an LCD: a program to type in POKEs a message onto the display.',
   '6502-echo': 'A 6502 and a serial terminal: it prints HELLO, then sends back every key you type, polling the status register.',

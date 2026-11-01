@@ -62,7 +62,7 @@ show:   STA $4000   ; show it on the LEDs
 export const BLINK_BYTES = [0xa9, 0x01, 0x8d, 0x00, 0x40, 0x0a, 0xd0, 0xfa, 0x4c, 0x00, 0xf0]
 
 /** What can be on the board, at its memory-mapped addresses (see `programs6502.ts`). */
-export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal' | 'via' | 'lcd'
+export type Device6502 = 'leds' | 'console' | 'speaker' | 'keypad' | 'gamepad' | 'screen' | 'terminal' | 'via' | 'lcd' | 'video'
 
 export interface Board6502Options {
   /** Clock speed in Hz. */
@@ -120,9 +120,11 @@ export function board6502Builder(o: Board6502Options = {}) {
   const term = has.has('terminal')
   const via = has.has('via')
   // The terminal and the VIA decode their own addresses (A13 as well, when both are there) and answer in $4000–$7FFF: they go on the big board, with no other device.
-  const own = term || via
+  const video = has.has('video')
+  if (video && has.size > 1) throw new Error('The video chip is the only device on its board, for now.')
+  const own = term || via || video
   const lcd = has.has('lcd')
-  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via' || d === 'lcd'))) throw new Error("The terminal, the VIA and the LCD need memory: 'big' and can only have each other on their board.")
+  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via' || d === 'lcd' || d === 'video'))) throw new Error("The terminal, the VIA, the LCD and the video chip need memory: 'big' and can only have each other on their board.")
   if (lcd && !via) throw new Error('The LCD is wired to the VIA\u2019s ports, so the board needs the VIA too.')
   if (lcd && o.viaLeds) throw new Error('The LEDs and the LCD would share port B: pick one.')
   const wide = via // A13 is split off the address too: the VIA is at $6000–$7FFF and the terminal, with it, at $4000–$5FFF
@@ -198,7 +200,7 @@ export function board6502Builder(o: Board6502Options = {}) {
   if (via) {
     lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,1,1,12' }, label: 'address: A0, A1, A2, A3, the rest' })
     wire(`${cpu}.A`, `${lowSplit}.A`)
-  } else if (term) {
+  } else if (term || video) {
     lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,14' }, label: 'address: A0, A1, the rest' })
     wire(`${cpu}.A`, `${lowSplit}.A`)
   } else if (!simple) {
@@ -276,6 +278,18 @@ export function board6502Builder(o: Board6502Options = {}) {
       wire(`${sw}.Q`, `${t}.DSRB`)
     }
     readBus.push(`${t}.D`)
+  }
+  if (video) {
+    const vid = dev(DISPLAY, 'video', 'video', { params: { bus: true }, label: 'Video 160×100 $4000–$4003' })
+    wire(`${clk}.Q`, `${vid}.PHI2`)
+    wire(`${nreset}.Y`, `${vid}.RESB`)
+    wire(a14, `${vid}.CS0`)
+    wire(a15, `${vid}.CS1B`)
+    wire(`${lowSplit}.Y0`, `${vid}.RS0`)
+    wire(`${lowSplit}.Y1`, `${vid}.RS1`)
+    wire(`${cpu}.RWB`, `${vid}.RWB`)
+    wire(`${cpu}.D`, `${vid}.DI`)
+    readBus.push(`${vid}.D`)
   }
   if (via) {
     const v = dev(DISPLAY, 'via', 'via6522', { params: { bus: true }, label: 'VIA (6522) $6000–$600F' })

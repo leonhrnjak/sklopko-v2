@@ -4,7 +4,7 @@ use super::util::*;
 use super::kind::*;
 use super::Cell;
 use super::Shared;
-use super::{CONSOLE_EVENT_LIMIT, FB_SIZE};
+use super::{CONSOLE_EVENT_LIMIT, FB_SIZE, VIDEO_BYTES};
 
 #[allow(unused_variables)]
 #[inline(always)]
@@ -65,6 +65,60 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
                 con.events.push(code as u16);
                 }
             }
+        }
+        VIDEO => {
+            // The video chip: `ins` are PHI2, RESB, CS0, CS1B, RS0, RS1, RWB, DI0..7. The part's number packs the address register (bits 0 to 15), the
+            // hold flag (bit 16) and what the data pins show (bits 24 to 31). Like the other chips of a board, it answers at the rising edge of PHI2.
+            let phi2 = ins[0];
+            let rising = *c.pc == 0 && phi2 == 1;
+            if phi2 <= 1 { *c.pc = phi2; }
+            let packed = *c.n as u32;
+            let mut addr = (packed & 0xffff) as usize;
+            let mut hold = (packed >> 16) & 1;
+            let mut out = packed >> 24;
+            let base = c.mem_off;
+            if ins[1] == 0 {
+                addr = 0;
+                hold = 0;
+                out = 0;
+            } else if rising {
+                out = 0;
+                if ins[2] == 1 && ins[3] == 0 && ins[4] <= 1 && ins[5] <= 1 {
+                    let rs = ins[4] | (ins[5] << 1);
+                    let at = addr % VIDEO_BYTES;
+                    if ins[6] == 1 {
+                        out = match rs {
+                            0 => (addr & 255) as u32,
+                            1 => (addr >> 8) as u32,
+                            2 => {
+                                let v = sh.fb[base + at] as u32;
+                                if hold == 0 { addr = (at + 1) % VIDEO_BYTES; }
+                                v
+                            }
+                            _ => hold,
+                        };
+                    } else if ins[6] == 0 {
+                        let d = to_num(ins, 7, 8);
+                        if d >= 0 {
+                            let d = d as usize;
+                            match rs {
+                                0 => addr = (addr & 0xff00) | d,
+                                1 => addr = (addr & 0x00ff) | (d << 8),
+                                2 => {
+                                    sh.fb[base + at] = d as u8;
+                                    if hold == 0 { addr = (at + 1) % VIDEO_BYTES; }
+                                }
+                                _ => {
+                                    hold = (d & 1) as u32;
+                                    if d & 0x80 != 0 { for p in &mut sh.fb[base..base + VIDEO_BYTES] { *p = 0; } }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            *c.n = (addr as u32 | (hold << 16) | (out << 24)) as i32;
+            for b in 0..8 { outs[b] = ((out >> b) & 1) as u8; }
         }
         NETRECV => outs[0] = X,
         _ => {}

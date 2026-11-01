@@ -84,6 +84,7 @@ pub mod kind {
     pub const PARITY: i32 = 58;
     pub const LUT: i32 = 59;
     pub const NETRECV: i32 = 60;
+    pub const VIDEO: i32 = 61;
 }
 
 /// The 7-segment patterns of 0 to F.
@@ -91,6 +92,8 @@ pub const SEG_HEX: [i32; 16] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 
 
 /// Pixels on a side of the pixel screen part.
 pub const FB_SIZE: usize = 16;
+/// Bytes in the video chip's picture: 160 columns of 50 bytes (two pixels of 4 bits each), column by column.
+pub const VIDEO_BYTES: usize = 8000;
 /// Characters a text console can have waiting for the page.
 pub const CONSOLE_EVENT_LIMIT: usize = 1 << 16;
 
@@ -142,7 +145,7 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         25..=35 => arith::eval(kind, c),
         36..=40 | 57..=58 => coding::eval(kind, c),
         41..=42 | 59 => memory::eval(kind, c, sh),
-        43..=46 | 60 => io::eval(kind, c, sh),
+        43..=46 | 60..=61 => io::eval(kind, c, sh),
         47 => terminal::eval(kind, c, sh),
         48..=49 => tristate::eval(kind, c),
         50 => via::eval(kind, c, sh),

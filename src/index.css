@@ -4399,3 +4399,9 @@ button.linklike:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.video-canvas {
+  display: block;
+  image-rendering: pixelated;
+  background: #000;
+}

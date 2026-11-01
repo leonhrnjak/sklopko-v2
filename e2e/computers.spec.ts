@@ -880,3 +880,16 @@ test('the BASIC computer with the LCD: a program to type in POKEs two lines onto
   await expect(text).toContainText('HELLO FROM BASIC')
   await expect(text).toContainText('ON A 6502')
 })
+
+test('the video example: the 6502 draws a colour test card through the video chip', async ({ page }) => {
+  await page.goto('/6502-video', { waitUntil: 'networkidle' })
+  const canvas = page.getByTestId('canvas').locator('canvas.video-canvas')
+  await expect(canvas).toBeVisible()
+  const pixel = (x: number, y: number) =>
+    canvas.evaluate((c: HTMLCanvasElement, [px, py]) => Array.from(c.getContext('2d')!.getImageData(px, py, 1, 1).data), [x, y])
+  // the last column's bars are colour 15, white; the first column's are colour 0, black
+  await expect.poll(() => pixel(159, 0), { timeout: 30000 }).toEqual([255, 255, 255, 255])
+  expect(await pixel(0, 0)).toEqual([0, 0, 0, 255])
+  // column 55 has colour 5 (0x7a2e1f)
+  expect(await pixel(55, 40)).toEqual([0x7a, 0x2e, 0x1f, 255])
+})
