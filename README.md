@@ -231,3 +231,7 @@ npm run e2e        # browser tests: drag & drop, wiring, moving, reshaping, undo
 ```
 
 The first e2e run needs `npx playwright install chromium`.
+
+## License
+
+[MIT](LICENSE). The BASIC ROM is built from Microsoft's MIT-licensed source; its notice is in `src/model/LICENSE-BASIC`.
