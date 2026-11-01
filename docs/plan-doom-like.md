@@ -10,7 +10,9 @@
 > - [ ] D1b Column fill (**only if the D0 numbers say it pays**)
 > - [ ] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [ ] D3 The engine on the board: walls, doors, movement, shading
-> - [ ] D4 The game: enemies, sprites, a gun, one level, the example
+> - [ ] D4 The game: enemies, sprites, a gun, five levels, the example
+> - [ ] D4b (optional) Textured walls
+> - [ ] D4c (optional) A HUD with a face, and more enemy frames
 > - [ ] D5 Polish: reference page, README, e2e, a phone check
 
 ## Why, and what "Doom" means here
@@ -36,9 +38,8 @@ simulator's new speed.
    writes; the ROM at `$C000–$FFFF` is fixed (engine core, vectors). A data-bus multiplexer already picks "RAM or ROM" on the big
    board; it gets one more input. No new mapper part, the circuit is readable, and the ROM part stays at 16 KB (so the hex-text cap
    does not move). Fallback if the board gets too big to read: one 32 KB ROM and a smaller device block.
-7. **The engine's size budget** (the rule that stops the scope growing): one level (a 16×16 map), two enemy types, one weapon, no
-   textures in the first game (walls are flat colours shaded by distance and side; a texture pass is out of scope unless D3 leaves
-   room), a ROM of at most 48 KB, RAM of at most 16 KB.
+7. **The engine's size budget** (the rule that stops the scope growing): five levels (16×16 maps, about 400 bytes each), two enemy types, one weapon, no
+   textures in the first game (walls are flat colours shaded by distance and side); textures and a richer HUD are the optional D4b and D4c, a ROM of at most 48 KB, RAM of at most 16 KB.
 8. **The screen is 160×100, 16 colours (4 bits a pixel, 8,000 bytes)**, a fixed palette. The engine casts 80 or 160 columns, whichever the
    D0 numbers allow.
 
@@ -118,11 +119,24 @@ The unknown that matters is the cycles a frame. D0 answers it before any part is
   gamepad sequence); a headless run holds the frame rate the D0 table promised (within 25 percent); an e2e test walks to a door and opens it.
 
 ## D4 The game
-- Two enemy types (patrol and chase), scaled sprites with a depth buffer per column, a weapon with hit tests, health, one 16×16 level
-  with a start and an exit, a win and a lose screen. Art is our own, drawn as tables.
+- Two enemy types (patrol and chase), scaled sprites with a depth buffer per column, a weapon with hit tests, health, five 16×16 levels
+  in the banked ROM, each with a start, doors and an exit that loads the next, a win and a lose screen, and a HUD strip (health, ammo, level). Art is our own, drawn as tables.
 - Example `6502-doomlike` with a description saying the clock, the key map and the expected frame rate.
-- **Done when:** a scripted run (recorded gamepad input) kills both enemy types, takes damage, and reaches the exit, in a unit test on
+- **Done when:** a scripted run (recorded gamepad input) kills both enemy types, takes damage, and reaches the exit of each of the five levels, in a unit test on
   the bare core and in an e2e test on the board; ROM size is at most 48 KB; the frame rate with enemies on screen is recorded in the PR.
+
+## D4b (optional) Textured walls
+- 16 or 32 pixel-wide wall textures (two or three kinds), 4 bits a pixel, in ROM. Per-pixel texture lookups cost about 10 more cycles a
+  pixel, which the budget cannot take with plain writes, so this likely needs a **textured column command** in the video part (x,
+  top, bottom, texture, texture column) on top of D1b. D4b is built only if the D4 frame rate leaves room, and the PR says which way it went.
+- **Done when:** the textured picture equals the reference renderer at the 20 test positions, and the frame rate with enemies on screen is
+  recorded; if it falls under 10 fps at 1 MHz the milestone is dropped and the spec says so.
+
+## D4c (optional) A HUD with a face, and more enemy frames
+- A face widget that reacts to health and damage (about 5 frames), a weapon sprite with a fire animation, and 3 to 4 walk and attack
+  frames per enemy plus a death animation. Art is our own.
+- **Done when:** the frames are shown in a scripted run (walk, attack, die; take damage, face changes), unit-tested against the
+  reference, and ROM stays at most 48 KB.
 
 ## D5 Polish
 - A reference page (Tools), a README line, a phone layout check (the gamepad's touch buttons), a note in the architecture doc, and the
@@ -135,7 +149,7 @@ The unknown that matters is the cycles a frame. D0 answers it before any part is
   options untouched, all existing tests are the regression suite.
 - **Drawing cost in the page.** A 160×100 canvas 30 times a second through the worker's snapshot path is untested. D1's done condition measures it before D3 depends on it.
 - **Startup budget.** All new code (part definition, canvas, ROM data, example) must load on demand. If the startup chunk grows at all, stop and ask for the budget.
-- **Scope.** Fixed by decision 7: one level, two enemies, one weapon, no textures. Textures, music, more levels are a later spec.
+- **Scope.** Fixed by decision 7: five levels, two enemies, one weapon, no textures in the core game. Textures and the richer HUD are the optional D4b and D4c; music and more levels are a later spec.
 - **Licences.** No third-party code or art. If a technique from VIC Doom or Wolf64 is used, it is re-derived from the idea and noted in the PR.
 - **Playable on a phone?** A 1 MHz simulation may run slower on a phone; the game then runs in slow motion and stays correct. D5 states this on the example's page.
 
