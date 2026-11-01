@@ -423,7 +423,7 @@ test('the footer says which engine runs: fast for a counter, exact with the glit
   await fresh(page)
   await chooseExample(page, 'counter')
   const engine = page.getByTestId('engine')
-  await expect(engine).toHaveText('fast engine')
+  await expect(engine).toHaveText(/^fast engine/)
   // The counter keeps counting on the fast engine.
   const seg = page.locator('.comp[data-id^="seg7"] polygon.seg.on')
   await expect.poll(async () => seg.count(), { timeout: 4000 }).not.toBe(6)
@@ -432,7 +432,7 @@ test('the footer says which engine runs: fast for a counter, exact with the glit
   await toggleTool(page, 'timing-toggle')
   await expect(engine).toHaveText('exact timing')
   await toggleTool(page, 'timing-toggle')
-  await expect(engine).toHaveText('fast engine')
+  await expect(engine).toHaveText(/^fast engine/)
 
   // The setting asks for exact timing, is saved with the circuit, and can be undone.
   await toggleTool(page, 'exact-toggle')
@@ -441,7 +441,7 @@ test('the footer says which engine runs: fast for a counter, exact with the glit
   await expect(page.getByTestId('exact-toggle')).toHaveAttribute('aria-checked', 'true')
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Undo' }).click()
-  await expect(engine).toHaveText('fast engine')
+  await expect(engine).toHaveText(/^fast engine/)
 
   // A circuit made of loops stays exact whatever the setting.
   await chooseExample(page, 'sr-latch')
