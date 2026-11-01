@@ -4,6 +4,7 @@ import { renderDepth, type Pose } from './reference'
 import { drawSprites, project, type Drawn } from './sprites'
 import { SPRITE_EQUATES, spriteCode, spriteTables } from './spritecode'
 import { ART_BASE, artBankSource } from './sprites'
+import { drawGun, GUN_FRAMES, GUN_RECORD, GUN_W, GUN_X, GUN_Y, gunBytes, gunFrame, RECOIL_FROM, FLASH_FROM } from './gun'
 import { drawFace, FACE_ART, faceBytes, faceFrame, FACE_BYTES, FACE_FRAMES, FACE_W, FACE_X, FACE_Y, HURT_TICKS } from './face'
 
 /**
@@ -308,6 +309,7 @@ export function renderGame(s: GameState): Uint8Array {
     out[(HUD_ROW + 2) * w + x] = out[(HUD_ROW + 3) * w + x] = bottom[x]
   }
   drawFace(out, w, faceFrame(s.health, s.hurt))
+  drawGun(out, w, gunFrame(s.firecd))
   return out
 }
 
@@ -371,6 +373,8 @@ STIMER = $6A
 HUDDIRTY = $6B
 HURT = $B8
 FPTR = $B9
+GPTR = $BB
+GCNT = $BD
 TMP1 = $6C
 TMP2 = $6D
 GT = $6E
@@ -775,6 +779,23 @@ FPSET:
   STA FPTR+1
   RTS
 
+; The gun's frame (GPTR): the flash just after a shot, then the recoil, then at rest.
+GUNPREP:
+  LDX #0
+  LDA FIRECD
+  CMP #${RECOIL_FROM}
+  BCC GNSET
+  LDX #2
+  CMP #${FLASH_FROM}
+  BCC GNSET
+  LDX #1
+GNSET:
+  LDA GUNLO,X
+  STA GPTR
+  LDA GUNHI,X
+  STA GPTR+1
+  RTS
+
 ; The end screen: 20 stripes of 8 columns, two colours.
 ENDDRAW:
   LDA #8
@@ -866,6 +887,7 @@ TICKLP:
   STZ HUDDIRTY
 HUDOK:
   JSR FACEPREP
+  JSR GUNPREP
   JSR SPRPREP
   LDA ANYSPR
   BEQ NOART
@@ -908,6 +930,7 @@ export function gameTables(): string[] {
     for (let i = 0; i < values.length; i += 16) out.push(`  .byte ${values.slice(i, i + 16).map((v) => v & 255).join(',')}`)
     return out
   }
+  const guns = Array.from({ length: GUN_FRAMES }, (_, f) => gunBytes(f))
   const faces = FACE_ART.map((_, f) => faceBytes(f))
   const hud = Array.from({ length: 160 }, (_, x) => 50 * x + 48)
   return [
@@ -924,6 +947,14 @@ export function gameTables(): string[] {
     `  .byte ${faces.map((_, f) => `>FACE${f}`).join(',')}`,
     ...rows('FALO', Array.from({ length: FACE_W }, (_, u) => 50 * (FACE_X + u) + FACE_Y / 2)),
     ...rows('FAHI', Array.from({ length: FACE_W }, (_, u) => (50 * (FACE_X + u) + FACE_Y / 2) >> 8)),
+    'GUNLO:',
+    `  .byte ${guns.map((_, f) => `<GUN${f}`).join(',')}`,
+    'GUNHI:',
+    `  .byte ${guns.map((_, f) => `>GUN${f}`).join(',')}`,
+    ...rows('GOFF', Array.from({ length: GUN_W }, (_, u) => u * GUN_RECORD)),
+    ...rows('GALO', Array.from({ length: GUN_W }, (_, u) => 50 * (GUN_X + u) + GUN_Y / 2)),
+    ...rows('GAHI', Array.from({ length: GUN_W }, (_, u) => (50 * (GUN_X + u) + GUN_Y / 2) >> 8)),
+    ...guns.flatMap((g, n) => [`GUN${n}:`, ...rows('', g).slice(1)]),
     ...rows('FAOFF', Array.from({ length: FACE_W }, (_, u) => u * FACE_BYTES)),
     ...faces.flatMap((f, n) => [`FACE${n}:`, ...rows('', f).slice(1)]),
     ...rows('HPTAB', ENEMY_HP),

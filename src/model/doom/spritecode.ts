@@ -1,5 +1,6 @@
 import { DCOS, DSIN, UTAB_BASE } from './sprites'
-import { FACE_BYTES, FACE_W, FACE_X } from './face'
+import { FACE_BYTES, FACE_X } from './face'
+import { GUN_W, GUN_X } from './gun'
 
 /** The cells the sprite code uses (the zero page from $80 up, and a few pages of RAM named in `GAME_EQUATES`). */
 export const SPRITE_EQUATES = `
@@ -660,8 +661,8 @@ CEHUD:
   LDA COL
   CMP #${FACE_X}
   BCC CEXX
-  CMP #${FACE_X + FACE_W}
-  BCS CEXX
+  CMP #${GUN_X}
+  BCS CEGUN
   SEC
   SBC #${FACE_X}
   TAX
@@ -671,6 +672,33 @@ CEHUD:
   STA VADDRH
   LDY FAOFF,X
 ${Array.from({ length: FACE_BYTES }, () => '  LDA (FPTR),Y\n  STA VDATA').join('\n  INY\n')}
+  RTS
+CEGUN:
+  CMP #${GUN_X + GUN_W}
+  BCS CEXX
+  SEC
+  SBC #${GUN_X}
+  TAX
+  LDY GOFF,X
+  LDA (GPTR),Y
+  BEQ CEXX
+  STA GCNT
+  INY
+  LDA (GPTR),Y
+  CLC
+  ADC GALO,X
+  STA VADDRL
+  LDA GAHI,X
+  ADC #0
+  STA VADDRH
+  INY
+  LDX GCNT
+CEGL:
+  LDA (GPTR),Y
+  STA VDATA
+  INY
+  DEX
+  BNE CEGL
 CEXX:
   RTS
 

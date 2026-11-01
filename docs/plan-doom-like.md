@@ -228,7 +228,7 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 
 ### D4c split (three PRs, stacked on the D4 stack)
 - **D4c.1 the face:** `face.ts`, a 16 × 12 face at columns 56 to 71 (rows 88 to 99), five pictures: well (health 70 and up), scratched (40 to 69), hurt (20 to 39), nearly gone (under 20), and a wince for 20 ticks after every hit (`HURT`, `$B8`). It is written into the video memory in `COLEXTRA`, six bytes a column for 16 columns, from art kept in the fixed ROM. Cost on the D4 stack: see D4c.1 result.
-- **D4c.2 the gun:** a weapon sprite at the bottom middle with a fire animation (idle, flash, recoil from `FIRECD`).
+- **D4c.2 the gun:** `gun.ts`, a 16 × 16 weapon at columns 72 to 87 (rows 80 to 95), three pictures chosen from the gun delay `FIRECD`: a flash for the first ticks after a shot (18 to 16), the recoil (15 to 10), then at rest. It is transparent, so each column is kept as a count, a first row pair and the bytes from there down (the art is solid from a column's first pixel to the bottom, and `COLEXTRA` writes those bytes after the HUD and face); ROM 480 bytes.
 - **D4c.3 enemy frames:** walk, attack and death frames for both enemies.
 
 ### D4c.1 result
