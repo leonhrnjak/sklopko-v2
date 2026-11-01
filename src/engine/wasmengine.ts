@@ -2,6 +2,7 @@ import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from '.
 import { consolePut, type ConsoleState, type FramebufferState } from './components/devices'
 import type { CpuState } from './components/cpu'
 import { parseWords } from './components/memory'
+import { ramBits } from './components/sequential'
 import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
@@ -356,6 +357,13 @@ export class WasmEngine {
         p1 = Number(p.abits)
         memOff = ram.length
         this.rams.push({ part: i, start: ram.length })
+        // The words kept from before the address size was changed are cut or padded with zeros (the part's own evaluate did this).
+        const words = 2 ** ramBits(p)
+        if ((st.mem as Uint8Array).length !== words) {
+          const resized = new Uint8Array(words)
+          resized.set((st.mem as Uint8Array).subarray(0, words))
+          st.mem = resized
+        }
         for (const w of st.mem as Uint8Array) ram.push(w)
         this.ramBytes += (st.mem as Uint8Array).length
         pc = st.pc
