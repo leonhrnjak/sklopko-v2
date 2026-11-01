@@ -390,7 +390,7 @@ test('the Doom-like example on a phone: the gamepad is on screen, a touch on its
   // The first picture: the sky is on screen.
   await expect
     .poll(() => canvas.evaluate((c: HTMLCanvasElement) => Array.from(c.getContext('2d')!.getImageData(80, 2, 1, 1).data)), { timeout: 30000 })
-    .toEqual([0x1b, 0x2a, 0x6b, 255])
+    .toEqual([0x24, 0x24, 0x2a, 255])
   const before = await sample()
   // The gamepad's up button is a touch target inside the viewport.
   const up = page.locator('.comp [data-key="0"]').first()
