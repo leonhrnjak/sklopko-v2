@@ -85,6 +85,26 @@ The unknown that matters is the cycles a frame. D0 answers it before any part is
   go on without a column fill; **(2)** between 60,000 and 120,000, D1b is added, and the screen drops to 80 columns if needed;
   **(3)** above 120,000 after both, stop and rethink (smaller screen, hardware help) before building D1.
 
+### D0 result (measured, 20 poses, `src/model/doom/doom.test.ts`)
+The spike is a 65C02 program of 440 bytes of code and about 3.7 KB of tables (quarter squares 1 KB, ray set-up per angle 1.5 KB, the map 256 bytes
+and the rest), run on the bare core. It draws the same picture as `reference.ts` at all 20 poses, for 160 and 80 columns, through the port and by
+fill. Walls are in steps of 4 pixels in height (25 levels), which keeps every run on a whole byte.
+
+| Columns | Rays only | Rays + port writes (whole column, sky and floor too) | Rays + column fill |
+|---|---|---|---|
+| 160 | 122,800 cycles (96k to 160k) | 178,900 (152k to 215k) = 5.6 fps | 130,300 (104k to 166k) = 7.7 fps |
+| 80 | 61,500 (48k to 80k) | 117,600 (105k to 136k) = 8.5 fps | **65,400 (52k to 83k) = 15.3 fps** |
+
+What the numbers say:
+- A ray costs about 770 cycles and most of that is set-up, not stepping: the 20 poses average only 2.5 DDA steps a ray. Estimated per ray, the four
+  quarter-square multiplies for the first edge distances are about 280 cycles, the rest of the set-up about 150, one DDA step about 55.
+- Per-pixel drawing through the port is as costly as the rays (a whole 80-column frame is 56,000 cycles of `STA`), so the column fill pays.
+- **Gate:** 160 columns is above 120,000 even with the fill: out. 80 columns with the fill is 65,400 on average, 83,000 at worst: **band 2**
+  (60,000 to 120,000), so D1b is in and the screen is 80 columns wide. Cheaper set-up (a sparse reciprocal-times-fraction table instead of the
+  multiplies) could bring it under 60,000; that is a D3 optimisation and not needed for the gate.
+- The model: the fill takes no time on the part's side; the framebuffer is stored column by column (a column is 50 bytes), which makes a column
+  one run of the auto-increment port. D1 should store it that way (the canvas transposes it).
+
 ## D1 Video
 - A part `Framebuffer 160×100` (name to settle in the PR): pins `CLK`, `WE`, `RS0`, `RS1`, data `D0–D7`, `RST`; the registers of the table
   above; 16 fixed colours. Reads auto-increment too. Out-of-range addresses wrap.
