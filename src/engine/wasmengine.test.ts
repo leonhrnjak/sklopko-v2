@@ -644,6 +644,11 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
           }
           // (a keypad is pressed and let go from the page, which hands the circuit to the page for that moment)
           if (type === 'keypad' && step % 5 === 1) for (const sim of [rust, plain]) sim.setState(part, { pressed: step % 10 === 1, key: step % 16 })
+          // a quick tap: down and up again before anything was evaluated (the canvas says so with `tapped`)
+          if (type === 'keypad' && step % 7 === 3) for (const sim of [rust, plain]) {
+            sim.setState(part, { pressed: true, tapped: true, key: step % 16 })
+            sim.setState(part, { pressed: false })
+          }
           rust.stepClock()
           plain.stepClock()
           if (step === 0) expect(rust.wasmOn, `${type} is taken`).toBe(true)
