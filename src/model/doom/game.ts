@@ -4,6 +4,7 @@ import { renderDepth, type Pose } from './reference'
 import { drawSprites, project, type Drawn } from './sprites'
 import { SPRITE_EQUATES, spriteCode, spriteTables } from './spritecode'
 import { ART_BASE, artBankSource } from './sprites'
+import { drawFace, FACE_ART, faceBytes, faceFrame, FACE_BYTES, FACE_FRAMES, FACE_W, FACE_X, FACE_Y, HURT_TICKS } from './face'
 
 /**
  * The game's rules, in TypeScript (the reference) and as 65C02 assembly (the program): one *tick* of 1/60 s changes the pose from the
@@ -81,6 +82,8 @@ export interface GameState {
   /** The wall's `q` in the middle column of the last picture: a sprite nearer than that can be shot. */
   zq80: number
   firecd: number
+  /** Ticks left of the face's wince after a hit. */
+  hurt: number
   /** Ticks played, counted modulo 256: the enemies move on some of them. */
   gt: number
   kills: number
@@ -107,11 +110,12 @@ export function startGame(s: GameState): void {
   s.health = MAX_HEALTH
   s.state = STATE.play
   s.stimer = 0
+  s.hurt = 0
   loadLevel(s)
 }
 
 export const newGame = (): GameState => {
-  const s: GameState = { pose: { xCell: 0, xFrac: 0, yCell: 0, yFrac: 0, angle: 0 }, map: [], level: 0, health: 0, ammo: 0, state: 0, stimer: 0, enemies: [], seen: [], zq80: 0, firecd: 0, gt: 0, kills: 0 }
+  const s: GameState = { pose: { xCell: 0, xFrac: 0, yCell: 0, yFrac: 0, angle: 0 }, map: [], level: 0, health: 0, ammo: 0, state: 0, stimer: 0, enemies: [], seen: [], zq80: 0, firecd: 0, hurt: 0, gt: 0, kills: 0 }
   startGame(s)
   return s
 }
@@ -135,6 +139,7 @@ export function tick(s: GameState, pad: number): void {
   const p = s.pose
   s.gt = (s.gt + 1) & 255
   if (s.firecd) s.firecd--
+  if (s.hurt) s.hurt--
   let dx = 0
   let dy = 0
   const a = p.angle
@@ -254,6 +259,7 @@ function updateEnemies(s: GameState): void {
         s.state = STATE.dead
         s.stimer = END_DELAY
       } else s.health -= damage
+      s.hurt = HURT_TICKS
       e.cd = ATTACK_DELAY
     }
   }
@@ -301,6 +307,7 @@ export function renderGame(s: GameState): Uint8Array {
     out[HUD_ROW * w + x] = out[(HUD_ROW + 1) * w + x] = top[x]
     out[(HUD_ROW + 2) * w + x] = out[(HUD_ROW + 3) * w + x] = bottom[x]
   }
+  drawFace(out, w, faceFrame(s.health, s.hurt))
   return out
 }
 
@@ -362,6 +369,8 @@ LEVEL = $68
 STATE = $69
 STIMER = $6A
 HUDDIRTY = $6B
+HURT = $B8
+FPTR = $B9
 TMP1 = $6C
 TMP2 = $6D
 GT = $6E
@@ -381,7 +390,7 @@ ${SPRITE_EQUATES}
 `
 
 /** Where the program keeps what a test reads: frames drawn (16 bits), the pose and tick count of the last finished picture, and the game's counters. */
-export const GAME_CELLS = { frames: 0x56, shown: 0x60, shownTicks: 0x65, ticks: 0x51, pad: 0x50, used: 0x54, health: 0x66, ammo: 0x67, level: 0x68, state: 0x69, stimer: 0x6a, gt: 0x6e, firecd: 0x6f, kills: 0x70, pose: 0x10, enemies: 0x500, seen: 0x530 } as const
+export const GAME_CELLS = { frames: 0x56, shown: 0x60, shownTicks: 0x65, ticks: 0x51, pad: 0x50, used: 0x54, health: 0x66, ammo: 0x67, level: 0x68, state: 0x69, stimer: 0x6a, gt: 0x6e, firecd: 0x6f, hurt: 0xb8, kills: 0x70, pose: 0x10, enemies: 0x500, seen: 0x530 } as const
 
 /** One axis of the walk: add the step to the position, look at the cell `MARGIN` ahead, and move only if it is empty. */
 function walkAxis(axis: 'X' | 'Y'): string {
@@ -482,6 +491,10 @@ LPLAY:
   BEQ LNOCD
   DEC FIRECD
 LNOCD:
+  LDA HURT
+  BEQ LNOHURT
+  DEC HURT
+LNOHURT:
   STZ DXV
   STZ DYV
   LDX ANG
@@ -585,6 +598,7 @@ NEWGAME:
   STA HEALTH
   STZ STATE
   STZ STIMER
+  STZ HURT
 LOADLEVEL:
   LDA LEVEL
   CLC
@@ -738,6 +752,29 @@ HBP1:
   BNE HBP0
   RTS
 
+; The face to show (FPTR): the wince while HURT counts, else by health.
+FACEPREP:
+  LDX #${FACE_FRAMES - 1}
+  LDA HURT
+  BNE FPSET
+  LDA HEALTH
+  LDX #0
+  CMP #70
+  BCS FPSET
+  INX
+  CMP #40
+  BCS FPSET
+  INX
+  CMP #20
+  BCS FPSET
+  INX
+FPSET:
+  LDA FACELO,X
+  STA FPTR
+  LDA FACEHI,X
+  STA FPTR+1
+  RTS
+
 ; The end screen: 20 stripes of 8 columns, two colours.
 ENDDRAW:
   LDA #8
@@ -828,6 +865,7 @@ TICKLP:
   JSR HUDBUILD
   STZ HUDDIRTY
 HUDOK:
+  JSR FACEPREP
   JSR SPRPREP
   LDA ANYSPR
   BEQ NOART
@@ -870,6 +908,7 @@ export function gameTables(): string[] {
     for (let i = 0; i < values.length; i += 16) out.push(`  .byte ${values.slice(i, i + 16).map((v) => v & 255).join(',')}`)
     return out
   }
+  const faces = FACE_ART.map((_, f) => faceBytes(f))
   const hud = Array.from({ length: 160 }, (_, x) => 50 * x + 48)
   return [
     ...rows('MVX', MVX),
@@ -879,6 +918,14 @@ export function gameTables(): string[] {
     ...rows('HUDLO', hud.map((v) => v & 255)),
     ...rows('HUDHI', hud.map((v) => v >> 8)),
     ...rows('ENDCOL', END_COLOURS),
+    'FACELO:',
+    `  .byte ${faces.map((_, f) => `<FACE${f}`).join(',')}`,
+    'FACEHI:',
+    `  .byte ${faces.map((_, f) => `>FACE${f}`).join(',')}`,
+    ...rows('FALO', Array.from({ length: FACE_W }, (_, u) => 50 * (FACE_X + u) + FACE_Y / 2)),
+    ...rows('FAHI', Array.from({ length: FACE_W }, (_, u) => (50 * (FACE_X + u) + FACE_Y / 2) >> 8)),
+    ...rows('FAOFF', Array.from({ length: FACE_W }, (_, u) => u * FACE_BYTES)),
+    ...faces.flatMap((f, n) => [`FACE${n}:`, ...rows('', f).slice(1)]),
     ...rows('HPTAB', ENEMY_HP),
     ...spriteTables(),
   ]
@@ -1163,6 +1210,8 @@ EDEAD:
   LDA #${END_DELAY}
   STA STIMER
 EDH:
+  LDA #${HURT_TICKS}
+  STA HURT
   LDA #${ATTACK_DELAY}
   STA ENC,X
   LDA #1

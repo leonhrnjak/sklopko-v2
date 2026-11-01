@@ -1,6 +1,7 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
+import { assemble6502 } from '../engine/asm6502'
 import { doomSource } from './doom/source'
 import { ART_BANK_SOURCE, levelBankSource } from './doom/game'
 import { BALL_SOURCE, GAME_BANK0_SOURCE, GAME_BANK1_SOURCE, GAME_TEST_SOURCE, VIDEO_CARD_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
@@ -229,15 +230,18 @@ export const gameBoard6502 = (): Circuit => {
 }
 
 const DOOM_DEVICES =
-  'The game is the whole ROM: a main loop paced by the VIA\u2019s timer (60 ticks a second), the rules, and the raycaster. Each picture it reads the gamepad once and runs a step of the rules for every tick since the last, so you walk at the same speed however long a picture takes (about 100,000 cycles). Arrows walk and turn; hold A (Z) to slide sideways. B (X) opens a door, presses the cyan exit switch, or fires: a patrol takes two hits and a chaser three; touching one costs 5 or 10 health. The HUD shows health, ammunition and the level. RAM: map $0200 (doors 64, exit 128), monsters $0500.'
+  'The whole ROM is the game: a main loop paced by the VIA\u2019s timer (60 ticks a second), the rules, and the raycaster. A picture takes about 110,000 cycles (eight or nine a second at 1 MHz), and the rules run once for every tick since the last. A patrol takes two hits and a chaser three; a touch costs 5 or 10 health, and the face winces. The strip at the bottom shows health, ammunition and the level. The gun flashes and kicks, and dead monsters stay down. The RAM holds the map ($0200) and the monsters ($0500). The step-back history is off.'
 
 /** The Doom-like on the game board: five levels with monsters, a gun, doors and an exit switch at the end of each. */
 export const doomLike6502 = (): Circuit => {
+  // The program is too long for a ROM part's source text (9,000 characters), so the ROM holds the assembled bytes only.
+  const assembled = assemble6502(doomSource(160, 'fill', true), 0x4000, true)
+  if (assembled.errors.length) throw new Error(`The game does not assemble: line ${assembled.errors[0].line}: ${assembled.errors[0].message}`)
   const c = boardExample(
-    { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, source: doomSource(160, 'fill', true), bankSources: [levelBankSource(), ART_BANK_SOURCE] },
+    { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, rom: assembled.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' '), bankSources: [levelBankSource(), ART_BANK_SOURCE] },
     {
       intro:
-        'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns, finds the wall with no multiplications (tables of logarithms and exponentials) and tells the video chip to fill the column; then it scales the monsters\u2019 pictures over the walls. Walk with the arrows, slide with Z, press X at a door to open it, at the cyan switch to reach the next of five levels, anywhere else to shoot. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program, the screen to see it large.',
+        'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns of the screen, finds the wall with no multiplications (tables of logarithms and exponentials), tells the video chip to fill the column, and draws the monsters over it. Arrow keys walk and turn, Z slides sideways, X opens a door, presses the cyan exit switch (five levels) or fires. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program and the screen to see it large.',
       decode: GAME_DECODE,
       memory: GAME_MEMORY,
       devices: DOOM_DEVICES,

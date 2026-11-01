@@ -6,7 +6,8 @@ import { openFor } from '../../engine/wasmengine'
 import { loadEngine } from '../../engine/wasm'
 import { assemble6502 } from '../../engine/asm6502'
 import { doomSource } from './source'
-import { ART_BANK_SOURCE, ATTACK_DELAY, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
+import { ART_BANK_SOURCE, ATTACK_DELAY, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, playerCell, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
+import { FACE_ART, FACE_BYTES, FACE_OUCH, FACE_ROWS, FACE_W, faceBytes, faceFrame, HURT_TICKS } from './face'
 import { columnRuns, project, spriteWidth, texelRow } from './sprites'
 import { CHASE, PATROL } from './levels'
 import { GameMachine } from './gamemachine'
@@ -282,7 +283,7 @@ function compare(m: GameMachine, ref: GameState, what: string) {
   expect(pose, `${what}: pose`).toEqual([ref.pose.xFrac, ref.pose.xCell, ref.pose.yFrac, ref.pose.yCell, ref.pose.angle])
   expect([r[c.level], r[c.health], r[c.ammo], r[c.state]], `${what}: level, health, ammo, state`).toEqual([ref.level, ref.health, ref.ammo, ref.state])
   expect(Array.from(r.slice(0x200, 0x300)), `${what}: map`).toEqual(ref.map)
-  expect([r[c.gt], r[c.firecd], r[c.kills]], `${what}: tick count, gun delay, kills`).toEqual([ref.gt, ref.firecd, ref.kills])
+  expect([r[c.gt], r[c.firecd], r[c.hurt], r[c.kills]], `${what}: tick count, gun delay, wince, kills`).toEqual([ref.gt, ref.firecd, ref.hurt, ref.kills])
   const field = (base: number, i: number) => r[c.enemies + base + i]
   for (let i = 0; i < ref.enemies.length; i++) {
     const e = ref.enemies[i]
@@ -295,6 +296,29 @@ function compare(m: GameMachine, ref: GameState, what: string) {
   }
   expect(Array.from(m.picture()), `${what}: picture`).toEqual(Array.from(expected))
 }
+
+describe('the face', () => {
+  it('has five 16 × 12 pictures, and shows the wince for a while after a hit, else a face by health', () => {
+    expect(FACE_ART).toHaveLength(5)
+    for (const f of FACE_ART) {
+      expect(f).toHaveLength(FACE_ROWS)
+      for (const row of f) expect(row).toHaveLength(FACE_W)
+    }
+    for (let f = 0; f < 5; f++) expect(faceBytes(f)).toHaveLength(FACE_W * FACE_BYTES)
+    expect([100, 70, 69, 40, 39, 20, 19, 1].map((h) => faceFrame(h, 0))).toEqual([0, 0, 1, 1, 2, 2, 3, 3])
+    expect(faceFrame(100, 1)).toBe(FACE_OUCH)
+    const g = newGame()
+    g.enemies[0] = { kind: PATROL, x: 0, y: 0, hp: 2, aux: 0, cd: 0 }
+    const [px, py] = playerCell(g.pose)
+    g.enemies[0].x = px
+    g.enemies[0].y = py
+    tick(g, 0)
+    expect(g.health).toBe(95)
+    expect(g.hurt).toBe(HURT_TICKS)
+    for (let i = 0; i < HURT_TICKS; i++) tick(g, 0)
+    expect(g.hurt).toBe(0)
+  })
+})
 
 describe('the game on the bare core', () => {
   it('fits: the fixed ROM leaves room, and the banks hold the levels', () => {
@@ -314,6 +338,7 @@ describe('the game on the bare core', () => {
     let minHealth = MAX_HEALTH
     let pictures = 0
     let t0 = 0
+    const faces = new Set<number>()
     m.runTo('PADRD')
     for (let f = 0; f < 3000 && ref.state === STATE.play; f++) {
       // The pad is read right after this point; the ticks of the coming picture are already known.
@@ -336,6 +361,7 @@ describe('the game on the bare core', () => {
       m.runTo('PADRD')
       pictures++
       compare(m, ref, `picture ${f}`)
+      if (ref.state === STATE.play) faces.add(faceFrame(ref.health, ref.hurt))
     }
     console.log(`bare core: ${pictures} pictures, ${Math.round((m.cycles - t0) / pictures)} cycles a picture on average; killed ${killed[1]} patrols and ${killed[2]} chasers; lowest health ${minHealth}`)
     expect(ref.state).toBe(STATE.won)
@@ -344,6 +370,8 @@ describe('the game on the bare core', () => {
     expect(killed[2]).toBeGreaterThan(0)
     expect(minHealth).toBeLessThan(MAX_HEALTH)
     expect(minHealth).toBeGreaterThan(0)
+    // The face changed with the damage: well, then scratched, and the wince after each hit.
+    expect(faces.has(0) && faces.has(1) && faces.has(FACE_OUCH)).toBe(true)
     expect(record.every((p) => p === (up | b))).toBe(true)
     // The win screen: stripes. B restarts after the delay.
     expect(Array.from(m.picture().slice(0, 16))).toEqual([12, 12, 12, 12, 12, 12, 12, 12, 4, 4, 4, 4, 4, 4, 4, 4])

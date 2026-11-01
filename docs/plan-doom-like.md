@@ -226,6 +226,14 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 - **Done when:** the frames are shown in a scripted run (walk, attack, die; take damage, face changes), unit-tested against the
   reference, and ROM stays at most 48 KB.
 
+### D4c split (three PRs, stacked on the D4 stack)
+- **D4c.1 the face:** `face.ts`, a 16 × 12 face at columns 56 to 71 (rows 88 to 99), five pictures: well (health 70 and up), scratched (40 to 69), hurt (20 to 39), nearly gone (under 20), and a wince for 20 ticks after every hit (`HURT`, `$B8`). It is written into the video memory in `COLEXTRA`, six bytes a column for 16 columns, from art kept in the fixed ROM. Cost on the D4 stack: see D4c.1 result.
+- **D4c.2 the gun:** a weapon sprite at the bottom middle with a fire animation (idle, flash, recoil from `FIRECD`).
+- **D4c.3 enemy frames:** walk, attack and death frames for both enemies.
+
+### D4c.1 result
+- The scripted run compares all 16,000 pixels with the reference every picture as before, now with the face in them, and also compares the wince counter; the run shows the well, scratched and wince faces.
+
 ## D5 Polish
 - A reference page (Tools), a README line, a phone layout check (the gamepad's touch buttons), a note in the architecture doc, and the
   final frame-rate table in this doc. No new features.
