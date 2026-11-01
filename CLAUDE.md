@@ -35,7 +35,7 @@ make the milestone branches from it. Without a PR (description, screenshots, CI)
    feature branch or `main`: `.claude/skills/ship/SKILL.md` has the commands, and `scripts/screenshot.mjs` takes them.
 2. GitHub Actions (`.github/workflows/ci.yml`) runs on every PR, every night on `main`, and by hand from the Actions tab on any
    branch, as parallel jobs: unit tests, lint, build (with the bundle budget), the WebAssembly check, and the e2e tests in four shards (the browser is cached by a job of its own before they start); the last job,
-   `test`, needs them all. A merge to `main` does not run it again (the nightly run catches what slipped through). The PR also gets the
+   `test`, needs them all. A PR that changes only documentation (`docs/`, `*.md`, `LICENSE`) skips the code checks, and `test` still passes. A merge to `main` does not run it again (the nightly run catches what slipped through). The PR also gets the
    Cloudflare Pages preview deploy. Still run the checks locally before pushing (see "Testing while making changes"), so CI is not
    the first place a failure shows, and write the results in the PR.
 3. Ask the user whether to merge. Merge only on their yes.
