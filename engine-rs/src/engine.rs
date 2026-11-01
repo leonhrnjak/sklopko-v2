@@ -291,6 +291,11 @@ impl Engine {
     /// Evaluate a part on its pins into `self.outs`.
     #[inline(always)]
     fn evaluate(&mut self, i: usize) {
+        // A receive label that nothing publishes sets its first output only: the others stay as they are.
+        if self.kind[i] == parts::kind::NETRECV {
+            let os = self.out_start[i] as usize;
+            for o in 0..self.n_outs[i] as usize { self.outs[o] = self.values[self.out_nets[os + o] as usize]; }
+        }
         let ps = self.pin_start[i] as usize;
         let ni = self.n_ins[i] as usize;
         let mut cell = Cell {
