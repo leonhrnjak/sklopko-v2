@@ -193,10 +193,10 @@ the others out, with the number of examples using them: `hexdisp` 17, `breakpoin
 - **Structure.** `engine-rs/src/engine.rs` is the core (tables, settle loop). `engine-rs/src/parts/` has one file per family of parts; a part
   is a function of its `Cell` (inputs, outputs, its state, its parameters) and, if it needs them, `Shared` (memories, screens, chips). How to add
   a part is at the top of `parts/mod.rs`.
-- **Coverage.** Of the 63 examples, 45 are circuits the fast engine can take (one clock, no loop); all 45 now run on Rust and match the
-  TypeScript engine net for net after every clock edge. The 18 that do not: 12 with no clock, `uart` with two clocks, and five with a
-  feedback loop or delay (`sr-latch`, `d-latch`, `ripple`, `oscillator`, `debounce`, `65c02-timer`). Two clocks in the fast engine, and the
-  exact engine, are E6.
+- **Coverage.** Of the 63 examples, 45 run on Rust with the step-back history off (with it on, a circuit with a terminal or a text console stays
+  on the TypeScript engine, because their screens are replayed from event logs) and match the TypeScript engine net for net after every
+  clock edge. The other 18 have no clock (15: gates, adders, latches, `ripple`, `oscillator` and the like, which settle once and gain nothing),
+  or two clocks (`uart`, `debounce`, `65c02-timer`). Two clocks in the fast engine, and the exact engine, are E6.
 - **Tests.** A single-part test with unknown inputs and random switches for every part (16 seeds of 120 edges); the all-examples comparison;
   the Simulator-level tests (history, probes, breakpoints, terminal, screens); random opcodes on both CPU chips; Microsoft BASIC on the
   `cpu6502` board.
