@@ -10,7 +10,7 @@
 > - [x] D1b Column fill (the D0 numbers said it pays)
 > - [x] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [x] D3 The engine on the board: walls, doors, movement, shading
-> - [ ] D4 The game: enemies, sprites, a gun, five levels, the example
+> - [x] D4 The game: enemies, sprites, a gun, five levels, the example
 > - [ ] D4b (optional) Textured walls
 > - [ ] D4c (optional) A HUD with a face, and more enemy frames
 > - [ ] D5 Polish: reference page, README, e2e, a phone check
@@ -185,7 +185,7 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 ### D4 split (three PRs, stacked on the D3 stack)
 - **D4.1 Levels, exit and HUD** (`doom-d4a-levels`): five levels in bank 0, an exit switch that loads the next level, a HUD strip, a win screen, and a test machine for the bare core.
 - **D4.2 Enemies and the gun** (`doom-d4b-enemies`): the two enemy types, scaled sprites with a depth buffer, the weapon, damage and the lose screen.
-- **D4.3 The scripted runs and the example** (`doom-d4c-example`): the run to every exit with kills and damage, in a unit test and in an e2e test; the example's text; this document.
+- **D4.3 The scripted runs and the example** (`doom-d4c-example`): the run to every exit with kills and damage, in a unit test and in an e2e test; this document.
 
 ### D4.1 result
 - **Levels** (`levels.ts`): one floor plan, furnished and turned five ways (doors and walls changed, mirrored, turned by quarter turns). A long corridor runs from the start to an **exit switch** (map byte 128, a wall cell drawn in cyan; B in front of it loads the next level), so the route is a straight line: held Up and B walks a level, and the enemies of D4.2 stand in the line of fire. The maps and the start poses are in **bank 0** (`levelBankSource`); bank 1 is still an empty stub (the sprites' art, D4.2). A test checks that every level is walled in, has its exit straight ahead of the start, and can be reached.
@@ -199,8 +199,14 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 - **The gun:** B with no door or exit in reach fires, if there is ammunition and 18 ticks have passed since the last shot (about three a second). It hits the nearest monster that the last picture showed in the middle column (the white mark) and was nearer than the wall there, so a monster behind a wall or a closed door is safe.
 - **Sprites** (`sprites.ts`, `spritecode.ts`): each monster is projected from its place: the depth and the sideways offset by four signed 16 × 8 multiplies (shift and add), the screen column by one 16-bit division, and the size `q` by the same height table as the walls, so a sprite as near as a wall has the wall's height (`4·q` rows tall, `2.5·q` columns wide). The art is eight columns of runs of one colour (a 16-byte record each, at most five runs) in **bank 1**, with a table of the texture column of each sprite column for every `q`; the program switches the bank in only while it draws. Rows are even, so a run is whole bytes through the video port.
 - **Drawn column by column.** The video part has no second buffer, and the picture is drawn over the one before, so a sprite drawn after all the walls would show for a fraction of each picture (the canvas takes snapshots at random). Instead the program projects and orders the monsters before the walls (`SPRPREP`: far to near, a bit of a mask for every column a sprite covers) and finishes each column right after its wall fill (`COLEXTRA`): the sprites there that are nearer than the wall, the crosshair in columns 79 and 80, and the column's two HUD bytes. A column is whole again a few hundred cycles after the fill.
-- **Cost:** with no monster on screen a picture takes about 94,000 cycles; with one or more about 110,000 on average over a run of the five levels (nine pictures a second) and 200,000 at worst (a monster face to face, five a second). The run through the five levels holding Up and B kills nine of the monsters and the lowest health on the way is 45. The fixed ROM is about 11 KB of its 16 KB.
+- **Cost:** with no monster on screen a picture takes about 94,000 cycles; with one or more about 110,000 on average over a run of the five levels (nine pictures a second) and 200,000 at worst (a monster face to face, five a second). The run through the five levels holding Up and B kills eight of the monsters and the lowest health on the way is 45. The fixed ROM is about 12.3 KB of its 16 KB.
 - **Tests:** the reference tests the projection, the art, the gun, the patrol and the chaser and the touch; the bare-core machine plays all five levels (every picture, with the monsters, the counters and the sprites' columns checked against the reference) and dies in level four, shows the lose screen, and starts again; the real board is checked through level one.
+
+### D4.3 result (PRs #244, #245 and this one)
+- **The scripted run** is the recording of held Up and B (the levels are straight lines, so no steering is needed; the doors and exits open on B, and B fires when nothing is in reach). `game.test.ts` plays it on the bare core through all five levels: 364 pictures, every one equal to the reference in pose, counters, monsters and all 16,000 pixels; it kills 6 patrols and 2 chasers, the lowest health on the way is 45, and the five exits are pressed in order. The same ROM is checked on the real board through level one, and a second run dies in level four and restarts.
+- **The e2e test** (`computers.spec.ts`) holds Up and X in the page: the door opens, and the HUD's lights for levels two to five come on one after another, then the yellow and green stripes show. It takes about two minutes in a browser.
+- **Frame rate** (bare core, whole run): about 94,000 cycles a picture with no monster on screen, 110,000 with monsters (nine a second), 200,000 at worst (a monster face to face, five a second). **ROM:** fixed 12.3 KB of 16 KB, bank 0 the maps and monsters (1.4 KB), bank 1 the art (1.9 KB): about 15.6 KB of the 48 KB allowed.
+- **Differs from the spec:** the levels share one floor plan (a straight corridor between two halls), turned and furnished five ways, which is what lets a held key finish them; no pickups (ammunition is refilled and 40 health added at each new level); the sprites are drawn column by column with the walls (D4.2) because the video chip has one buffer. Later work, if wanted: a weapon sprite, a face, walk frames (D4c), steering levels and pickups.
 
 ## D4b (optional) Textured walls
 - 16 or 32 pixel-wide wall textures (two or three kinds), 4 bits a pixel, in ROM. Per-pixel texture lookups cost about 10 more cycles a
