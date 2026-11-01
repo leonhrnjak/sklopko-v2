@@ -1,6 +1,6 @@
 import { assemble6502 } from '../../engine/asm6502'
 import { cycle, newCpu, reset } from '../../engine/testdata/oracle/cpu6502'
-import { FLOOR, SCREEN_H, screenWidth, SKY } from './tables'
+import { SCREEN_H, screenWidth } from './tables'
 import { unpackColumns, type Pose } from './reference'
 import { doomSource, POSE, ROM_BASE, ROM_SIZE, VIDEO, type DrawMode } from './source'
 import { COLUMN_BYTES, SCREEN_W } from './tables'
@@ -18,7 +18,7 @@ export class DoomMachine {
   /** Bytes of the ROM taken by code and by data (tables), from the assembler's listing. */
   size: { code: number; data: number }
   private vaddr = 0
-  private fill = { cx: 0, top: 0, bottom: 0, width: 1 }
+  private fill = { cx: 0, top: 0, bottom: 0, width: 1, sky: 0, floor: 0 }
   private cpu = newCpu(true)
   private columns: number
 
@@ -50,11 +50,13 @@ export class DoomMachine {
     else if (a === VIDEO.top) this.fill.top = v
     else if (a === VIDEO.bottom) this.fill.bottom = v
     else if (a === VIDEO.width) this.fill.width = v
+    else if (a === VIDEO.sky) this.fill.sky = v & 15
+    else if (a === VIDEO.floor) this.fill.floor = v & 15
     else if (a === VIDEO.colour) {
       for (let k = 0; k < this.fill.width; k++)
         for (let y = 0; y < SCREEN_H; y += 2) {
-          const px = (yy: number) => (yy < this.fill.top ? SKY : yy < this.fill.bottom ? v & 15 : FLOOR)
-          this.fb[(this.fill.cx + k) * COLUMN_BYTES + (y >> 1)] = px(y) | (px(y + 1) << 4)
+          const px = (yy: number) => (yy < this.fill.top ? this.fill.sky : yy < this.fill.bottom ? v & 15 : this.fill.floor)
+          this.fb[(this.fill.cx + k) * COLUMN_BYTES + (y >> 1)] = (px(y) << 4) | px(y + 1)
         }
     }
   }

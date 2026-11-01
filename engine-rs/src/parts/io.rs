@@ -4,7 +4,7 @@ use super::util::*;
 use super::kind::*;
 use super::Cell;
 use super::Shared;
-use super::{CONSOLE_EVENT_LIMIT, FB_SIZE, VIDEO_BYTES};
+use super::{CONSOLE_EVENT_LIMIT, FB_SIZE, VIDEO_BYTES, VIDEO_REGS};
 
 #[allow(unused_variables)]
 #[inline(always)]
@@ -67,8 +67,9 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
             }
         }
         VIDEO => {
-            // The video chip: `ins` are PHI2, RESB, CS0, CS1B, RS0, RS1, RWB, DI0..7. The part's number packs the address register (bits 0 to 15), the
+            // The video chip: `ins` are PHI2, RESB, CS0, CS1B, RS0..RS3, RWB, DI0..7. The part's number packs the address register (bits 0 to 15), the
             // hold flag (bit 16) and what the data pins show (bits 24 to 31). Like the other chips of a board, it answers at the rising edge of PHI2.
+            // After the picture's bytes come the column-fill registers: x, top, bottom, colour, width, sky, floor.
             let phi2 = ins[0];
             let rising = *c.pc == 0 && phi2 == 1;
             if phi2 <= 1 { *c.pc = phi2; }
@@ -77,16 +78,19 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
             let mut hold = (packed >> 16) & 1;
             let mut out = packed >> 24;
             let base = c.mem_off;
+            let regs = base + VIDEO_BYTES;
             if ins[1] == 0 {
                 addr = 0;
                 hold = 0;
                 out = 0;
+                for k in 0..VIDEO_REGS { sh.fb[regs + k] = 0; }
+                sh.fb[regs + 4] = 1;
             } else if rising {
                 out = 0;
-                if ins[2] == 1 && ins[3] == 0 && ins[4] <= 1 && ins[5] <= 1 {
-                    let rs = ins[4] | (ins[5] << 1);
+                if ins[2] == 1 && ins[3] == 0 && ins[4] <= 1 && ins[5] <= 1 && ins[6] <= 1 && ins[7] <= 1 {
+                    let rs = (ins[4] | (ins[5] << 1) | (ins[6] << 2) | (ins[7] << 3)) as usize;
                     let at = addr % VIDEO_BYTES;
-                    if ins[6] == 1 {
+                    if ins[8] == 1 {
                         out = match rs {
                             0 => (addr & 255) as u32,
                             1 => (addr >> 8) as u32,
@@ -95,10 +99,12 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
                                 if hold == 0 { addr = (at + 1) % VIDEO_BYTES; }
                                 v
                             }
-                            _ => hold,
+                            3 => hold,
+                            4..=10 => sh.fb[regs + rs - 4] as u32,
+                            _ => 0,
                         };
-                    } else if ins[6] == 0 {
-                        let d = to_num(ins, 7, 8);
+                    } else if ins[8] == 0 {
+                        let d = to_num(ins, 9, 8);
                         if d >= 0 {
                             let d = d as usize;
                             match rs {
@@ -108,10 +114,25 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
                                     sh.fb[base + at] = d as u8;
                                     if hold == 0 { addr = (at + 1) % VIDEO_BYTES; }
                                 }
-                                _ => {
+                                3 => {
                                     hold = (d & 1) as u32;
                                     if d & 0x80 != 0 { for p in &mut sh.fb[base..base + VIDEO_BYTES] { *p = 0; } }
                                 }
+                                4..=10 => {
+                                    sh.fb[regs + rs - 4] = d as u8;
+                                    // Writing the colour starts the fill: `width` columns from x, each sky above `top`, the colour from `top` to `bottom`, floor below.
+                                    if rs == 7 {
+                                        let (x, top, bottom) = (sh.fb[regs] as usize, sh.fb[regs + 1] as usize, sh.fb[regs + 2] as usize);
+                                        let (col, width) = ((d & 15) as u8, sh.fb[regs + 4] as usize);
+                                        let (sky, floor) = (sh.fb[regs + 5] & 15, sh.fb[regs + 6] & 15);
+                                        let px = |y: usize| if y < top { sky } else if y < bottom { col } else { floor };
+                                        for k in 0..width {
+                                            let column = base + ((x + k) % 160) * 50;
+                                            for j in 0..50 { sh.fb[column + j] = (px(2 * j) << 4) | px(2 * j + 1); }
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }

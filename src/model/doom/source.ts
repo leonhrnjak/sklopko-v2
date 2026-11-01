@@ -9,8 +9,8 @@ export const ROM_SIZE = 0x4000
 /** The zero-page cells the harness fills in before a frame. */
 export const POSE = { xFrac: 0x10, xCell: 0x11, yFrac: 0x12, yCell: 0x13, angle: 0x14 } as const
 
-/** The addresses of the video port and of the column-fill command (a model of the part D1 will build). */
-export const VIDEO = { addrLo: 0x4000, addrHi: 0x4001, data: 0x4002, ctrl: 0x4003, cx: 0x4004, top: 0x4005, bottom: 0x4006, colour: 0x4007, width: 0x4008 } as const
+/** The addresses of the video port and of the column-fill command (a model of the part: D1b built it, with the same registers). */
+export const VIDEO = { addrLo: 0x4000, addrHi: 0x4001, data: 0x4002, ctrl: 0x4003, cx: 0x4004, top: 0x4005, bottom: 0x4006, colour: 0x4007, width: 0x4008, sky: 0x4009, floor: 0x400a } as const
 
 const bytes = (name: string, values: number[], perLine = 16): string[] => {
   const rows: string[] = [`${name}:`]
@@ -164,12 +164,14 @@ CMTOP = $4005
 CMBOT = $4006
 CMCOL = $4007
 CMW = $4008
+CMSKY = $4009
+CMFLOOR = $400A
 
   .org $C000
 RENDER:
   SEI
   CLD
-${draw === 'port' ? '  STZ VADDRL\n  STZ VADDRH' : ''}${draw === 'fill' ? `  LDA #${repeat}\n  STA CMW` : ''}
+${draw === 'port' ? '  STZ VADDRL\n  STZ VADDRH' : ''}${draw === 'fill' ? `  LDA #${repeat}\n  STA CMW\n  LDA #${SKY}\n  STA CMSKY\n  LDA #${FLOOR}\n  STA CMFLOOR` : ''}
   LDX ANG
   LDA R0XT,X
   STA RDXH

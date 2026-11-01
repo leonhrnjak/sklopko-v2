@@ -149,4 +149,58 @@ fill:   TXA
     }
     for (const x of [0, 3, 77, 159]) for (let j = 0; j < 10; j++) expect(at(x, 80 + 2 * j)).toBe((x + j) & 15)
   })
+  it('fills a wall column in one write: sky, the wall colour, floor, in as many columns as the width says, wrapping past the last', async () => {
+    const { video, ram } = await run(
+      HEAD +
+        `FILLX = $4004
+FILLTOP = $4005
+FILLBOT = $4006
+FILLCOL = $4007
+FILLW   = $4008
+SKY     = $4009
+FLOOR   = $400A
+        LDA #1
+        STA SKY
+        LDA #2
+        STA FLOOR
+        LDA #3
+        STA FILLX
+        LDA #11         ; odd rows: a wall edge inside a byte
+        STA FILLTOP
+        LDA #70
+        STA FILLBOT
+        LDA #$FE        ; only the low nibble counts
+        STA FILLCOL     ; this write draws column 3
+        LDA #2
+        STA FILLW
+        LDA #159
+        STA FILLX
+        LDA #0
+        STA FILLTOP
+        LDA #100
+        STA FILLBOT
+        LDA #5
+        STA FILLCOL     ; columns 159 and 0, all wall
+        LDA FILLW
+        STA $10
+        LDA SKY
+        STA $11
+        LDA FILLBOT
+        STA $12
+        LDA VADDR_L     ; the plain port is not moved by a fill
+        STA $13
+` +
+        TAIL,
+      2,
+    )
+    const at = (x: number, row: number) => (video.px[x * 50 + (row >> 1)] >> (row & 1 ? 0 : 4)) & 15
+    for (let row = 0; row < 100; row++) expect(at(3, row), `row ${row}`).toBe(row < 11 ? 1 : row < 70 ? 14 : 2)
+    for (let row = 0; row < 100; row++) {
+      expect(at(159, row)).toBe(5)
+      expect(at(0, row)).toBe(5)
+    }
+    expect(at(1, 50)).toBe(0)
+    expect(at(158, 50)).toBe(0)
+    expect([0x10, 0x11, 0x12, 0x13].map((a) => ram[a])).toEqual([2, 1, 100, 0])
+  })
 })
