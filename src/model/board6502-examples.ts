@@ -1,7 +1,7 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, VIDEO_CARD_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, GAME_BANK0_SOURCE, GAME_BANK1_SOURCE, GAME_TEST_SOURCE, VIDEO_CARD_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -195,6 +195,31 @@ export const video6502 = (): Circuit => {
         'A 6502 draws a test card on a 160 \u00d7 100 screen of 16 colours, through a video chip: it sets the address to 0 and then writes 50 bytes for each of the 160 columns, a bar of one colour for the upper 80 rows and a diagonal pattern in the last 20. The write port counts the address up by itself, so the program is two small loops. Select the ROM to read it.',
       decode: VIDEO_DECODE,
       devices: VIDEO_DEVICES,
+    },
+  )
+  c.history = false
+  return c
+}
+
+const GAME_DECODE =
+  'Four slots in the device block, told apart by A13 and A12 (A15 = 0, A14 = 1): the video chip at $4000 (its chip select is A14 and not A13 and not A12), the gamepad register and the bank latch at $5000 and $5001, and the VIA at $6000. RAM is $0000\u2013$3FFF. The ROM is $8000\u2013$FFFF: the top half, $C000\u2013$FFFF, is one fixed ROM with the vectors; the bottom half, $8000\u2013$BFFF, is one of two banks.'
+
+const GAME_MEMORY =
+  'Three ROMs of 16 KB. The fixed one holds the program and the vectors, so a bank switch never pulls the code from under the CPU. The two banks share the address range $8000\u2013$BFFF: a multiplexer, steered by bit 0 of the bank latch, chooses which one the CPU reads. The second multiplexer is the usual one (RAM, ROM or devices).'
+
+const GAME_DEVICES =
+  'The test program copies the first eight bytes of bank 0 into the video chip\u2019s first column, switches the bank by writing 1 to $5001, and copies bank 1\u2019s eight bytes into the second column, so the two bars differ. Then the VIA\u2019s timer 1 interrupts the CPU every 16,667 cycles (60 times a second at 1 MHz), and the interrupt routine counts frames in the RAM ($0000 and $0001). The main loop copies the gamepad (up, down, left, right, A, B in bits 0 to 5) to $0002: click its buttons, or use the arrow keys, Z and X. The step-back history is off.'
+
+/** The game board of the Doom-like: video, gamepad, bank latch and VIA, with a test program. */
+export const gameBoard6502 = (): Circuit => {
+  const c = boardExample(
+    { hz: 1_000_000, memory: 'big', game: true, source: GAME_TEST_SOURCE, bankSources: [GAME_BANK0_SOURCE, GAME_BANK1_SOURCE] },
+    {
+      intro:
+        'The computer the Doom-like will run on, with a test program instead of the game: a 6502, 16 KB of RAM, 48 KB of ROM in three pieces (one fixed, two that take turns at $8000), a 160 \u00d7 100 video chip, a gamepad, and a 6522 VIA whose timer ticks the frames. Select the ROM to read the program, the screen to see the two colour bars it copied out of the two banks, and the RAM to watch the frame counter.',
+      decode: GAME_DECODE,
+      memory: GAME_MEMORY,
+      devices: GAME_DEVICES,
     },
   )
   c.history = false

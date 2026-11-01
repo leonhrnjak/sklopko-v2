@@ -8,7 +8,7 @@
 > - [x] D0 The spike: a raycaster in 6502 assembly on the bare core, measured (no app change)
 > - [ ] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
 > - [x] D1b Column fill (the D0 numbers said it pays)
-> - [ ] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
+> - [x] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [ ] D3 The engine on the board: walls, doors, movement, shading
 > - [ ] D4 The game: enemies, sprites, a gun, five levels, the example
 > - [ ] D4b (optional) Textured walls
@@ -153,6 +153,16 @@ per column the model already counted, so the D0 table (130,300 cycles mean for 1
 - **Done when:** a test boots the board, switches banks, reads the gamepad bits, and takes 60 timer interrupts at the right cycle
   counts; every existing board test and example still passes unchanged; the board runs without step-back history; an e2e test
   opens the example in the browser and sees the bank-switch output.
+
+### D2 result
+`board6502Builder` takes `game: true` (with `memory: 'big'`; no `devices`). The map is the spec's: video chip `$4000–$400F` (its chip select is A14 and not A13 and not A12, so it no longer repeats
+through the block), gamepad register `$5000` (read), ROM bank latch `$5001` (write, bit 0), VIA `$6000`, RAM `$0000–$3FFF`, banked ROM `$8000–$BFFF`, fixed ROM `$C000–$FFFF`.
+Wiring: the address splitter now cuts A0–A11, A12, A13, A14, A15; a 4-input AND gives the gamepad/latch slot and a 3-input AND the latch's load strobe; a bus multiplexer picks bank 0 or 1 by the latch
+bit into the existing ROM input of the memory multiplexer, and a second one picks video, gamepad or VIA by A12/A13. The banks are the options `banks` (hex) or `bankSources` (assembly beginning at `$8000`);
+`rom` or `source` is the fixed ROM. Differs from the spec: `romImage` is unchanged (a new `bankImage` makes the banked images, which have no vector), and the ROM data is not yet a generated on-demand
+module, because D2's test program is a few dozen bytes inline in `programs6502.ts`; the game's ROM build script and its generated module come with D3, when there is a real engine.
+`gameboard.test.ts` (Rust engine): the same address gives different bytes in the two banks and both reach the video chip; the six gamepad bits read back at `$5000`; the VIA timer, loaded with 16,665,
+interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 60 after 60 × 16,667 + 800). The example `6502-gameboard` runs without step-back history; its e2e test sees the two banks' bars.
 
 ## D3 The engine on the board
 - The D0 renderer, hardened: map, collision, strafe and turn, door opening, distance and side shading, frame pacing from the VIA timer.

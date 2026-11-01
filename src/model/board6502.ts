@@ -85,6 +85,16 @@ export interface Board6502Options {
   chip?: 'nmos' | 'cmos'
   /** A timer that interrupts the CPU (NMI) this many times a second. */
   timer?: number
+  /**
+   * The game board (Doom-like, `docs/plan-doom-like.md` D2): the video chip at `$4000`, a gamepad register at `$5000`, a ROM bank latch at
+   * `$5001`, the VIA at `$6000`, 16 KB of RAM, two banked 16 KB ROMs seen at `$8000` and a fixed one at `$C000`. Needs `memory: 'big'`;
+   * `rom`/`source` is the fixed ROM, `banks` or `bankSources` the two banked ones. No other devices.
+   */
+  game?: boolean
+  /** The game board's banked ROMs as hex text (16 KB each, seen at `$8000`). */
+  banks?: [string, string]
+  /** The game board's banked ROMs as assembly (each begins at `$8000`). */
+  bankSources?: [string, string]
   /** Probes on the clock, the address bus, the data it reads, R/W and SYNC, ready for the timing view and the waveform panel. */
   probes?: boolean
 }
@@ -103,6 +113,25 @@ function programParams(o: Board6502Options): Params {
   return { isa: cmos ? '65c02' : '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
 }
 
+/** The bytes of a banked ROM (16 KB, from `$8000`) as hex text: the same layout as `romImage`, with no reset vector. */
+export function bankImage(bytes: number[], size = BIG_ROM_SIZE): string {
+  const image = new Array<number>(size).fill(0)
+  bytes.forEach((b, i) => (image[i] = b))
+  return image.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')
+}
+
+/** The game board's banked ROM `i`: given as hex text, or assembled from its source (which must begin at `$8000`). */
+function bankParams(o: Board6502Options, i: 0 | 1): Params {
+  if (o.banks) return { data: o.banks[i] }
+  const source = o.bankSources?.[i]
+  if (source === undefined) throw new Error('The game board needs its two banked ROMs (banks or bankSources).')
+  const cmos = o.chip === 'cmos'
+  const r = assemble6502(source, BIG_ROM_SIZE, cmos)
+  if (r.errors.length) throw new Error(`Bank ${i} does not assemble: line ${r.errors[0].line}: ${r.errors[0].message}`)
+  if (r.base !== 0x8000) throw new Error(`Bank ${i} starts at $${r.base.toString(16).toUpperCase()}, but a banked ROM begins at $8000.`)
+  return { isa: cmos ? '65c02' : '6502', source, data: r.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ') }
+}
+
 /** The board's parts and wires, and the id of each named part. */
 export function board6502Builder(o: Board6502Options = {}) {
   const b = new CircuitBuilder()
@@ -116,15 +145,17 @@ export function board6502Builder(o: Board6502Options = {}) {
   }
   const mem = memoryOf(o.memory)
   const big = o.memory === 'big'
-  const has = new Set(o.devices ?? ['leds'])
+  const game = !!o.game
+  if (game && (!big || o.devices)) throw new Error("The game board needs memory: 'big' and brings its own devices.")
+  const has = new Set<string>(game ? ['video', 'gamepad', 'via'] : (o.devices ?? ['leds']))
   const term = has.has('terminal')
   const via = has.has('via')
   // The terminal and the VIA decode their own addresses (A13 as well, when both are there) and answer in $4000–$7FFF: they go on the big board, with no other device.
   const video = has.has('video')
-  if (video && has.size > 1) throw new Error('The video chip is the only device on its board, for now.')
+  if (video && has.size > 1 && !game) throw new Error('The video chip is the only device on its board, for now.')
   const own = term || via || video
   const lcd = has.has('lcd')
-  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via' || d === 'lcd' || d === 'video'))) throw new Error("The terminal, the VIA, the LCD and the video chip need memory: 'big' and can only have each other on their board.")
+  if (own && !(big && [...has].every((d) => d === 'terminal' || d === 'via' || d === 'lcd' || d === 'video' || (game && d === 'gamepad')))) throw new Error("The terminal, the VIA, the LCD and the video chip need memory: 'big' and can only have each other on their board.")
   if (lcd && !via) throw new Error('The LCD is wired to the VIA\u2019s ports, so the board needs the VIA too.')
   if (lcd && o.viaLeds) throw new Error('The LEDs and the LCD would share port B: pick one.')
   const wide = via // A13 is split off the address too: the VIA is at $6000–$7FFF and the terminal, with it, at $4000–$5FFF
@@ -160,20 +191,24 @@ export function board6502Builder(o: Board6502Options = {}) {
 
   // Address decoding: the address bus is cut into the low bits (inside the RAM and the ROM) and the top wires, one each: A14 and
   // A15 say which chip is meant. The small board also splits A11–A13 off, for the ROM's smaller size.
-  const split = part(DECODE, 'split', 'splitter', wide
+  const split = part(DECODE, 'split', 'splitter', game
+    ? { params: { bits: 16, split: '12,1,1,1,1' }, label: 'address: A0–A11, A12, A13, A14, A15' }
+    : wide
     ? { params: { bits: 16, split: '13,1,1,1' }, label: 'address: A0–A12, A13, A14, A15' }
     : big
       ? { params: { bits: 16, split: '14,1,1' }, label: 'address: A0–A13, A14, A15' }
       : { params: { bits: 16, split: '11,1,1,1,1,1' }, label: 'address: A0–A10, A11, A12, A13, A14, A15' })
   wire(`${cpu}.A`, `${split}.A`)
-  const a14 = `${split}.${wide ? 'Y2' : big ? 'Y1' : 'Y4'}`
-  const a15 = `${split}.${wide ? 'Y3' : big ? 'Y2' : 'Y5'}`
+  const a14 = `${split}.${game ? 'Y3' : wide ? 'Y2' : big ? 'Y1' : 'Y4'}`
+  const a15 = `${split}.${game ? 'Y4' : wide ? 'Y3' : big ? 'Y2' : 'Y5'}`
+  const a13 = `${split}.${game ? 'Y2' : 'Y1'}`
   // The memory takes A0–A13: straight from the splitter, or put back together from A0–A12 and A13.
   let lowAddr = `${split}.Y0`
   if (wide) {
-    const low = part(DECODE, 'lowAddr', 'merger', { params: { bits: 14, split: '13,1' }, label: 'A0–A13 (to the memory)' })
+    const low = part(DECODE, 'lowAddr', 'merger', { params: { bits: 14, split: game ? '12,1,1' : '13,1' }, label: 'A0–A13 (to the memory)' })
     wire(`${split}.Y0`, `${low}.A0`)
     wire(`${split}.Y1`, `${low}.A1`)
+    if (game) wire(`${split}.Y2`, `${low}.A2`)
     lowAddr = `${low}.Y`
   }
   const nrw = part(DECODE, 'nrw', 'not', { label: 'writing' })
@@ -217,11 +252,50 @@ export function board6502Builder(o: Board6502Options = {}) {
     strobe = (n) => `${dec}.Y${n}`
   }
 
+  // The game board's slots in the device block: A12 and A13 pick the video chip ($4000, 00), the gamepad and the bank latch ($5000, 01) or
+  // the VIA ($6000, 1x); the latch's bit 0 chooses which ROM is seen at $8000.
+  let nA13g = ''
+  let nA12g = ''
+  let bankBit = ''
+  if (game) {
+    const a12 = `${split}.Y1`
+    nA13g = part(DECODE, 'nA13', 'not', { label: 'A13 = 0' })
+    wire(a13, `${nA13g}.A`)
+    nA12g = part(DECODE, 'nA12', 'not', { label: 'A12 = 0' })
+    wire(a12, `${nA12g}.A`)
+    const nA15 = part(DECODE, 'nA15', 'not', { label: 'A15 = 0' })
+    wire(a15, `${nA15}.A`)
+    const slot = part(DECODE, 'padSlot', 'and', { params: { inputs: 4 }, label: 'gamepad and bank latch: A15 = 0, A14 = 1, A13 = 0, A12 = 1' })
+    wire(`${nA15}.Y`, `${slot}.A`)
+    wire(a14, `${slot}.B`)
+    wire(`${nA13g}.Y`, `${slot}.C`)
+    wire(a12, `${slot}.D`)
+    const ld = part(DECODE, 'bankLd', 'and', { params: { inputs: 3 }, label: 'bank latch $5001: that slot, writing, A0 = 1' })
+    wire(`${slot}.Y`, `${ld}.A`)
+    wire(`${nrw}.Y`, `${ld}.B`)
+    wire(`${lowSplit}.Y0`, `${ld}.C`)
+    const reg = part(OUTPUT, 'bankReg', 'busreg', { params: { bits: 8 }, label: 'Bank latch $5001: bit 0 picks the ROM at $8000' })
+    wire(`${cpu}.D`, `${reg}.D`)
+    wire(`${ld}.Y`, `${reg}.LD`)
+    wire(`${clk}.Q`, `${reg}.CLK`)
+    const bit = part(OUTPUT, 'bankBit', 'splitter', { params: { bits: 8, split: '1,7' }, label: 'bit 0 is the bank' })
+    wire(`${reg}.Q`, `${bit}.A`)
+    bankBit = `${bit}.Y0`
+  }
+
   // Memory.
   const rom = part(MEMORY, 'rom', 'rom', {
     params: { bus: true, abits: mem.romBits, dbits: 8, ...programParams(o) },
-    label: big ? 'ROM $8000–$FFFF (16 KB, twice)' : 'ROM $F000–$FFFF',
+    label: game ? 'ROM $C000–$FFFF (16 KB, fixed)' : big ? 'ROM $8000–$FFFF (16 KB, twice)' : 'ROM $F000–$FFFF',
   })
+  const bankRoms: string[] = []
+  if (game) {
+    for (const i of [0, 1] as const) {
+      const r = part(MEMORY, `rom${i}`, 'rom', { params: { bus: true, abits: mem.romBits, dbits: 8, ...bankParams(o, i) }, label: `ROM bank ${i} $8000–$BFFF (16 KB)` })
+      wire(lowAddr, `${r}.A`)
+      bankRoms.push(r)
+    }
+  }
   if (big) wire(lowAddr, `${rom}.A`) // A0–A13 straight in: A14 is not looked at, so the ROM shows twice
   else {
     const romAddr = part(MEMORY, 'romAddr', 'merger', { params: { bits: 12, split: '11,1' }, label: 'A0–A11' })
@@ -238,7 +312,13 @@ export function board6502Builder(o: Board6502Options = {}) {
   const readable = has.has('keypad') || has.has('gamepad') || own
   const mux = part(MEMORY, 'mux', 'busmux', { params: { bits: 8, n: readable ? 4 : 2 }, label: 'what the CPU reads' })
   wire(`${ram}.Q`, `${mux}.I0`)
-  wire(`${rom}.D`, `${mux}.I1`)
+  if (game) {
+    const pickBank = part(MEMORY, 'bankMux', 'busmux', { params: { bits: 8, n: 2 }, label: 'which ROM is at $8000: the bank latch' })
+    wire(`${bankRoms[0]}.D`, `${pickBank}.I0`)
+    wire(`${bankRoms[1]}.D`, `${pickBank}.I1`)
+    wire(bankBit, `${pickBank}.S0`)
+    wire(`${pickBank}.Y`, `${mux}.I1`)
+  } else wire(`${rom}.D`, `${mux}.I1`)
   if (readable) {
     // Four inputs take a two-bit select, A15 and A14 put together.
     const sel = part(MEMORY, 'sel', 'merger', { params: { bits: 2, split: '1,1' }, label: 'A15, A14' })
@@ -256,7 +336,6 @@ export function board6502Builder(o: Board6502Options = {}) {
     return part(col, key, type, opts)
   }
   // With the VIA too, A13 tells them apart: the VIA answers when A14 and A13 are 1, the terminal when A14 is 1 and A13 is 0.
-  const a13 = `${split}.Y1`
   let readBus: string[] = []
   if (term) {
     const t = dev(DISPLAY, 'terminal', 'acia6551', { params: { bus: true }, label: 'Terminal (6551) $5000–$5003' })
@@ -286,7 +365,13 @@ export function board6502Builder(o: Board6502Options = {}) {
     const vid = dev(DISPLAY, 'video', 'video', { params: { bus: true }, label: 'Video 160×100 $4000–$400A' })
     wire(`${clk}.Q`, `${vid}.PHI2`)
     wire(`${nreset}.Y`, `${vid}.RESB`)
-    wire(a14, `${vid}.CS0`)
+    if (game) {
+      const cs0 = part(DECODE, 'videoCs0', 'and', { params: { inputs: 3 }, label: 'video: A14 = 1, A13 = 0, A12 = 0' })
+      wire(a14, `${cs0}.A`)
+      wire(`${nA13g}.Y`, `${cs0}.B`)
+      wire(`${nA12g}.Y`, `${cs0}.C`)
+      wire(`${cs0}.Y`, `${vid}.CS0`)
+    } else wire(a14, `${vid}.CS0`)
     wire(a15, `${vid}.CS1B`)
     wire(`${lowSplit}.Y0`, `${vid}.RS0`)
     wire(`${lowSplit}.Y1`, `${vid}.RS1`)
@@ -405,6 +490,20 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(zeros('padZeros', 2), `${m}.A1`)
     padBus = `${m}.Y`
   }
+  if (game) {
+    shown.push('bankReg', 'bankBit')
+    // Video, gamepad, VIA: A13 and A12 say which one the CPU reads.
+    const sel = part(MEMORY, 'devSel', 'merger', { params: { bits: 2, split: '1,1' }, label: 'A12, A13' })
+    wire(`${split}.Y1`, `${sel}.A0`)
+    wire(a13, `${sel}.A1`)
+    const pick = part(MEMORY, 'devPick', 'busmux', { params: { bits: 8, n: 4 }, label: 'video, gamepad or VIA: A12, A13' })
+    wire(readBus[0], `${pick}.I0`)
+    wire(padBus, `${pick}.I1`)
+    wire(readBus[1], `${pick}.I2`)
+    wire(readBus[1], `${pick}.I3`)
+    wire(`${sel}.Y`, `${pick}.S`)
+    wire(`${pick}.Y`, `${mux}.I2`)
+  }
   if (readable && !own) {
     let bus = keyBus || padBus
     if (keyBus && padBus) {
@@ -476,8 +575,8 @@ export function boardExample(o: Board6502Options, t: BoardTexts): Circuit {
   const ids = (...parts: string[]) => parts.filter((k) => keys[k]).map((k) => keys[k])
   const simple = (o.devices ?? ['leds']).length === 1 && (o.devices ?? ['leds'])[0] === 'leds'
   frameAround(b, 'THE CPU: a real MOS 6502', ids('clk', 'reset', 'nreset', 'timer', 'ntimer', 'cpu', ...timing), 'blue')
-  frameAround(b, 'ADDRESS DECODING: who is it talking to?', ids('split', 'lowAddr', 'nrw', 'ramSel', 'ramWe', 'nA15', 'nA13', 'ledWe', 'termCs0', 'viaCs1', 'irqAnd', 'lowSplit', 'dec'), 'yellow')
-  frameAround(b, 'MEMORY: ROM and RAM', ids('rom', 'romAddr', 'ram', 'mux', 'sel', 'termOrVia'), 'green')
+  frameAround(b, 'ADDRESS DECODING: who is it talking to?', ids('split', 'lowAddr', 'nrw', 'ramSel', 'ramWe', 'nA15', 'nA13', 'ledWe', 'termCs0', 'viaCs1', 'irqAnd', 'lowSplit', 'dec', 'nA12', 'padSlot', 'bankLd', 'videoCs0'), 'yellow')
+  frameAround(b, 'MEMORY: ROM and RAM', ids('rom', 'rom0', 'rom1', 'bankMux', 'romAddr', 'ram', 'mux', 'sel', 'termOrVia', 'devSel', 'devPick'), 'green')
   frameAround(b, simple ? 'OUTPUT' : 'DEVICES', ids(...shown), 'pink')
   note(b, 0, -420, t.intro, 60)
   note(b, 300, -230, CPU_NOTE, 38, 'blue')

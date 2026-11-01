@@ -540,3 +540,82 @@ pair:   .byte $00, $11, $22, $33, $44, $55, $66, $77, $88, $99, $AA, $BB, $CC, $
 
 .org $FFFC
 .word reset`
+
+
+/** The game board's test program, fixed ROM ($C000): copies 8 bytes from each ROM bank to the video chip, reads the gamepad, counts frames. */
+export const GAME_TEST_SOURCE = `.org $C000
+VADDR_L = $4000
+VADDR_H = $4001
+VDATA   = $4002
+VCTRL   = $4003
+PAD     = $5000
+BANK    = $5001
+T1CL    = $6004
+T1CH    = $6005
+ACR     = $600B
+IER     = $600E
+WINDOW  = $8000
+frames  = $00           ; two bytes: interrupts so far
+pad     = $02           ; the gamepad as last read
+
+reset:  LDX #$FF
+        TXS
+        LDA #0
+        STA frames
+        STA frames+1
+        STA VCTRL
+        STA BANK        ; the ROM at $8000 is bank 0
+        STA VADDR_L
+        STA VADDR_H     ; the picture's first byte: column 0, rows 0 and 1
+        TAX
+copy0:  LDA WINDOW,X    ; bank 0's first eight bytes
+        STA VDATA
+        INX
+        CPX #8
+        BNE copy0
+        LDA #1
+        STA BANK        ; now bank 1 is at $8000
+        LDA #50
+        STA VADDR_L     ; column 1
+        LDA #0
+        STA VADDR_H
+        TAX
+copy1:  LDA WINDOW,X    ; bank 1's first eight bytes
+        STA VDATA
+        INX
+        CPX #8
+        BNE copy1
+        LDA #0
+        STA BANK
+        LDA #$40        ; ACR: timer 1 free-running
+        STA ACR
+        LDA #$19        ; 16,665 + 2 = 16,667 cycles: 60 interrupts a second at 1 MHz
+        STA T1CL
+        LDA #$41
+        STA T1CH
+        LDA #$C0
+        STA IER
+        CLI
+main:   LDA PAD         ; U D L R A B in bits 0 to 5
+        STA pad
+        JMP main
+
+irq:    PHA
+        LDA T1CL        ; clears the timer's flag
+        INC frames
+        BNE done
+        INC frames+1
+done:   PLA
+        RTI
+
+.org $FFFA
+.word $0000
+.word reset
+.word irq`
+
+/** The two banked ROMs of the test program: bank 0 and bank 1 differ in their first bytes. */
+export const GAME_BANK0_SOURCE = `.org $8000
+.byte $12, $34, $56, $78, $9A, $BC, $DE, $F1`
+
+export const GAME_BANK1_SOURCE = `.org $8000
+.byte $F1, $ED, $CB, $A9, $87, $65, $43, $21`
