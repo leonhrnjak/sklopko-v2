@@ -1,5 +1,4 @@
 import type { Params } from './types'
-import type { Compiled, WasmEngine } from './wasmengine'
 import { Simulator, type Capture, type SimCircuit, type TerminalOp, type ViewSnapshot } from './simulator'
 
 /**
@@ -18,7 +17,7 @@ export interface Port {
   onmessage: ((e: { data: unknown }) => void) | null
 }
 
-type Command =
+export type Command =
   | { t: 'load'; circuit: SimCircuit }
   | { t: 'reset' }
   | { t: 'settle' }
@@ -66,7 +65,6 @@ export class SimHost {
   private hit: string | null = null
   private edges: { values: Uint8Array[]; times: number[] } | null = null
   private kicker: () => void
-  private wasmOpen: ((c: Compiled) => WasmEngine | null) | null = null
   private wasmAllowed = true
   private port: Pick<Port, 'postMessage'>
 
@@ -159,14 +157,8 @@ export class SimHost {
   }
 
   /** Keep the nets after a clock edge for the page's `edgeHook`. */
-  /** The Rust engine's module arrived (see sim.worker.ts): circuits it can run use it, unless the page switched it off. */
-  useWasm(open: (c: Compiled) => WasmEngine | null) {
-    this.wasmOpen = open
-    this.applyWasm()
-  }
-
   private applyWasm() {
-    this.sim.setWasm(this.wasmAllowed ? this.wasmOpen : null)
+    this.sim.setWasm(this.wasmAllowed ? (Simulator.defaultOpener?.() ?? null) : null)
   }
 
   private noteEdge() {
