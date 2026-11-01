@@ -81,13 +81,16 @@ export const Q_NEAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(4 * i 
 export const Q_FAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(16 * i + 8))
 
 /**
- * Palette entries for walls (far to near) and for doors (brown, orange-red, orange, yellow): no colour is both. 11 and 14 (pale blue and cyan)
- * are the exit switch's; the sprites and the HUD share the other colours.
+ * Palette entries for walls and doors. A wall has one colour for each side and none for its distance: the colour of a wall does not change
+ * as you walk, nor along a wall that runs away from you (shading by distance made one wall a patchwork of bands). The X side is the lighter
+ * grey, the Y side the darker; a door is brown, lighter on its X side; the exit switch is the bright teal (14) on both sides, the one bright
+ * accent in the corridor. Distance shows in the wall's height alone.
  */
-export const WALL_COLOURS = [3, 4, 7, 8, 9, 10, 15]
-export const DOOR_COLOURS = [5, 6, 13, 12]
+export const WALL_COLOURS = [3, 11]
+export const DOOR_COLOURS = [13, 5]
+export const EXIT_COLOUR = 14
 /**
- * The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0, brighter) or the Y side (side 1): index
+ * The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0) or the Y side (side 1): index
  * side·32 + q. A door (index + 64) and an exit switch (index + 128) have colours of their own.
  */
 export const SHADE: number[] = Array.from({ length: 256 }, (_, i) => {
@@ -95,13 +98,9 @@ export const SHADE: number[] = Array.from({ length: 256 }, (_, i) => {
   if (q < 1 || q > Q_MAX) return 0
   const side = (i >> 5) & 1
   let shade: number
-  if (i < 64) {
-    const k = Math.floor(((q - 1) * WALL_COLOURS.length) / Q_MAX)
-    shade = WALL_COLOURS[side === 0 ? k : Math.max(0, k - 1)]
-  } else if (i < 128) {
-    const step = Math.min(3, Math.floor((q - 1) / 7))
-    shade = DOOR_COLOURS[side === 0 ? step : Math.max(0, step - 1)]
-  } else if (i < 192) shade = side === 0 ? 14 : 11
+  if (i < 64) shade = WALL_COLOURS[side]
+  else if (i < 128) shade = DOOR_COLOURS[side]
+  else if (i < 192) shade = EXIT_COLOUR
   else return 0
   return shade | (shade << 4)
 })

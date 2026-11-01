@@ -32,7 +32,8 @@ describe('gamepad', () => {
   it('maps arrow keys, W A S D, Z and X to the buttons', () => {
     expect(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'z', 'x'].map(buttonOfKey)).toEqual([0, 1, 2, 3, 4, 5])
     expect(['w', 's', 'a', 'd', 'Z', 'W'].map(buttonOfKey)).toEqual([0, 1, 2, 3, 4, 0])
-    expect(['q', 'Enter', ' ', 'r'].map(buttonOfKey)).toEqual([-1, -1, -1, -1])
+    expect(['q', 'Enter', 'r'].map(buttonOfKey)).toEqual([-1, -1, -1])
+    expect(buttonOfKey(' ')).toBe(5) // the space bar presses B (fire)
   })
 
   it('a key held down holds its output, several keys together work, and letting go releases them', () => {

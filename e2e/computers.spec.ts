@@ -888,8 +888,8 @@ test('the game board example: bank 0 and bank 1 reach the screen, and the frame 
   const pixel = (x: number, y: number) =>
     canvas.evaluate((c: HTMLCanvasElement, [px, py]) => Array.from(c.getContext('2d')!.getImageData(px, py, 1, 1).data), [x, y])
   // column 0 row 0 is the high nibble of bank 0's first byte ($12: colour 1); column 1 row 0 that of bank 1's ($F1: colour 15, white)
-  await expect.poll(() => pixel(1, 0), { timeout: 30000 }).toEqual([255, 255, 255, 255])
-  expect(await pixel(0, 0)).not.toEqual([255, 255, 255, 255])
+  await expect.poll(() => pixel(1, 0), { timeout: 30000 }).toEqual([0xe8, 0xe4, 0xd8, 255])
+  expect(await pixel(0, 0)).not.toEqual([0xe8, 0xe4, 0xd8, 255])
   expect(await pixel(0, 0)).not.toEqual(await pixel(1, 0))
 })
 
@@ -900,10 +900,10 @@ test('the video example: the 6502 draws a colour test card through the video chi
   const pixel = (x: number, y: number) =>
     canvas.evaluate((c: HTMLCanvasElement, [px, py]) => Array.from(c.getContext('2d')!.getImageData(px, py, 1, 1).data), [x, y])
   // the last column's bars are colour 15, white; the first column's are colour 0, black
-  await expect.poll(() => pixel(159, 0), { timeout: 30000 }).toEqual([255, 255, 255, 255])
+  await expect.poll(() => pixel(159, 0), { timeout: 30000 }).toEqual([0xe8, 0xe4, 0xd8, 255])
   expect(await pixel(0, 0)).toEqual([0, 0, 0, 255])
-  // column 55 has colour 5 (0x7a2e1f)
-  expect(await pixel(55, 40)).toEqual([0x7a, 0x2e, 0x1f, 255])
+  // column 55 has colour 5 (0x5a3a1c)
+  expect(await pixel(55, 40)).toEqual([0x5a, 0x3a, 0x1c, 255])
 })
 
 test('the Doom-like example: Up and X walk through the door, shoot the monsters and press the exit of every level, to the win screen', async ({ page }) => {
@@ -913,13 +913,13 @@ test('the Doom-like example: Up and X walk through the door, shoot the monsters 
   await expect(canvas).toBeVisible()
   const pixel = (x: number, y: number) =>
     canvas.evaluate((c: HTMLCanvasElement, [px, py]) => Array.from(c.getContext('2d')!.getImageData(px, py, 1, 1).data), [x, y])
-  // The sky is colour 1 (0x1b2a6b), the floor colour 2 (0x3b3fc2); the door ahead is drawn in the brown to yellow door colours.
-  const doorColours = [[0x7a, 0x2e, 0x1f], [0xd9, 0x55, 0x2b], [0xff, 0x9a, 0x2e], [0xf2, 0xd3, 0x2e]]
+  // The sky is colour 1 (0x24242a), the floor colour 2 (0x3a3028); the door ahead is drawn in the two brown door colours.
+  const doorColours = [[0x8a, 0x5a, 0x2b], [0x5a, 0x3a, 0x1c]]
   const isDoor = async () => {
     const p = (await pixel(74, 50)).slice(0, 3)
     return doorColours.some((c) => c.every((v, i) => v === p[i]))
   }
-  await expect.poll(() => pixel(80, 2), { timeout: 30000 }).toEqual([0x1b, 0x2a, 0x6b, 255])
+  await expect.poll(() => pixel(80, 2), { timeout: 30000 }).toEqual([0x24, 0x24, 0x2a, 255])
   await expect.poll(isDoor, { timeout: 30000 }).toBe(true)
   // Hold up and X together: the player walks, shoots what is in front of him (X fires when no door or exit is in reach), opens the door
   // when it is within reach, and presses the exit switch at the end of the corridor.
@@ -928,10 +928,10 @@ test('the Doom-like example: Up and X walk through the door, shoot the monsters 
   await expect.poll(isDoor, { timeout: 60000 }).toBe(false)
   // The HUD has a light for each level in its strip (columns 100 + 8n, yellow once lit, grey before).
   const lit = async (n: number) => (await pixel(102 + 8 * n, 97)).slice(0, 3).join()
-  expect(await lit(1)).toBe([0x55, 0x55, 0x55].join())
-  for (const n of [1, 2, 3, 4]) await expect.poll(() => lit(n), { timeout: 150000 }).toBe([0xf2, 0xd3, 0x2e].join())
+  expect(await lit(1)).toBe([0x4a, 0x47, 0x42].join())
+  for (const n of [1, 2, 3, 4]) await expect.poll(() => lit(n), { timeout: 150000 }).toBe([0xd0, 0xa8, 0x68].join())
   // After the last exit: stripes of yellow and green, eight columns wide.
-  await expect.poll(async () => [(await pixel(2, 40)).slice(0, 3).join(), (await pixel(10, 40)).slice(0, 3).join()], { timeout: 150000 }).toEqual([[0xf2, 0xd3, 0x2e].join(), [0x3e, 0xcf, 0x5a].join()])
+  await expect.poll(async () => [(await pixel(2, 40)).slice(0, 3).join(), (await pixel(10, 40)).slice(0, 3).join()], { timeout: 150000 }).toEqual([[0xd0, 0xa8, 0x68].join(), [0x3f, 0x7f, 0x38].join()])
   await page.keyboard.up('x')
   await page.keyboard.up('ArrowUp')
 })

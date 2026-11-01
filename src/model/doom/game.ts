@@ -4,7 +4,7 @@ import { renderDepth, type Pose } from './reference'
 import { drawSprites, project, type Drawn } from './sprites'
 import { SPRITE_EQUATES, spriteCode, spriteTables } from './spritecode'
 import { ART_BASE, artBankSource, enemyFrame, WALK_FRAMES } from './sprites'
-import { drawGun, GUN_FRAMES, GUN_RECORD, GUN_W, GUN_X, GUN_Y, gunBytes, gunFrame, RECOIL_FROM, FLASH_FROM } from './gun'
+import { drawGun, GUN_FRAMES, GUN_RECORD, GUN_W, GUN_X, GUN_Y, gunBytes, gunFrame, RECOIL_FROM } from './gun'
 import { drawFace, FACE_ART, faceBytes, faceFrame, FACE_BYTES, FACE_FRAMES, FACE_W, FACE_X, FACE_Y, HURT_TICKS } from './face'
 
 /**
@@ -85,6 +85,8 @@ export interface GameState {
   /** The wall's `q` in the middle column of the last picture: a sprite nearer than that can be shot. */
   zq80: number
   firecd: number
+  /** A shot not yet seen in a picture: the next picture shows the flash, however many ticks passed since (a picture takes several ticks, so the flash would often fall between pictures). */
+  flash: boolean
   /** Ticks left of the face's wince after a hit. */
   hurt: number
   /** Ticks played, counted modulo 256: the enemies move on some of them. */
@@ -105,6 +107,7 @@ export function loadLevel(s: GameState): void {
   })
   s.seen = Array.from({ length: MAX_ENEMIES }, () => ({ q: 0, left: 0, right: 0 }))
   s.firecd = 0
+  s.flash = false
 }
 
 /** Level one, full health. */
@@ -118,7 +121,7 @@ export function startGame(s: GameState): void {
 }
 
 export const newGame = (): GameState => {
-  const s: GameState = { pose: { xCell: 0, xFrac: 0, yCell: 0, yFrac: 0, angle: 0 }, map: [], level: 0, health: 0, ammo: 0, state: 0, stimer: 0, enemies: [], seen: [], zq80: 0, firecd: 0, hurt: 0, gt: 0, kills: 0 }
+  const s: GameState = { pose: { xCell: 0, xFrac: 0, yCell: 0, yFrac: 0, angle: 0 }, map: [], level: 0, health: 0, ammo: 0, state: 0, stimer: 0, enemies: [], seen: [], zq80: 0, firecd: 0, flash: false, hurt: 0, gt: 0, kills: 0 }
   startGame(s)
   return s
 }
@@ -201,6 +204,7 @@ function fire(s: GameState): void {
   if (s.ammo === 0 || s.firecd) return
   s.ammo--
   s.firecd = FIRE_DELAY
+  s.flash = true
   let best = -1
   let bestQ = 0
   for (let i = 0; i < MAX_ENEMIES; i++) {
@@ -315,7 +319,8 @@ export function renderGame(s: GameState): Uint8Array {
     out[(HUD_ROW + 2) * w + x] = out[(HUD_ROW + 3) * w + x] = bottom[x]
   }
   drawFace(out, w, faceFrame(s.health, s.hurt))
-  drawGun(out, w, gunFrame(s.firecd))
+  drawGun(out, w, gunFrame(s.firecd, s.flash))
+  s.flash = false
   return out
 }
 
@@ -382,6 +387,7 @@ HURT = $B8
 FPTR = $B9
 GPTR = $BB
 GCNT = $BD
+FLASHP = $BE
 TMP1 = $6C
 TMP2 = $6D
 GT = $6E
@@ -647,6 +653,7 @@ LLCOPY:
 LLHEAL:
   STA HEALTH
   STZ FIRECD
+  STZ FLASHP
   LDA LEVEL
   ASL A
   ASL A
@@ -786,15 +793,17 @@ FPSET:
   STA FPTR+1
   RTS
 
-; The gun's frame (GPTR): the flash just after a shot, then the recoil, then at rest.
+; The gun's frame (GPTR): the flash in the first picture after a shot (FLASHP), then the recoil, then at rest.
 GUNPREP:
   LDX #0
   LDA FIRECD
   CMP #${RECOIL_FROM}
-  BCC GNSET
+  BCC GNFL
   LDX #2
-  CMP #${FLASH_FROM}
-  BCC GNSET
+GNFL:
+  LDA FLASHP
+  BEQ GNSET
+  STZ FLASHP
   LDX #1
 GNSET:
   LDA GUNLO,X
@@ -995,6 +1004,8 @@ FIRE:
   DEC AMMO
   LDA #${FIRE_DELAY}
   STA FIRECD
+  LDA #1
+  STA FLASHP
   LDA #1
   STA HUDDIRTY
   LDA ZQ80

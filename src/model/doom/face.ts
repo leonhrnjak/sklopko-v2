@@ -4,7 +4,7 @@
  * column's wall, so the program keeps the art as bytes (two pixels each, the upper in the high nibble) in the fixed ROM, a column at a time.
  */
 
-export const FACE_X = 56
+export const FACE_X = 55
 export const FACE_W = 16
 export const FACE_ROWS = 12
 /** The first row of the face, and its bytes a column. */
@@ -18,25 +18,19 @@ export const FACE_OUCH = 4
 
 const KEY: Record<string, number> = { '.': 9, s: 12, k: 0, w: 15, r: 6, h: 5, o: 13 }
 
-const TOP = ['..hhhhhhhhhhhh..', '.hhhhhhhhhhhhhh.']
-const BOTTOM = ['..ssssssssssss..', '...ssssssssss...', '....ssssssss....']
+const TOP = ['...hhhhhhhhhh...', '..hhhhhhhhhhhh..']
 
-/** Rows 2 to 8 of each face. */
+/** Rows 2 to 11 of each face: a stern man (heavy brows, narrowed eyes, a nose, a mouth low in the face, a chin) with a head 12 wide in a 16-wide panel; scratched, bloodier, nearly gone, and wincing. */
 const MIDDLE: string[][] = [
-  // 0: well
-  ['.hssssssssssssh.', '.sswksssssskwss.', '.ssssssssssssss.', '.sssssooossssss.', '.ssssssssssssss.', '.ssrrrrrrrrrrss.', '.sssrrrrrrrrsss.'],
-  // 1: scratched
-  ['.hssssrsssssssh.', '.sswksssssskwss.', '.ssssssssssssss.', '.sssssooossssss.', '.sssrssssssssss.', '.ssrrrrrrrrrrss.', '.sssrrrrrrrrsss.'],
-  // 2: hurt
-  ['.hsrrssssssrrsh.', '.sskksssssskkss.', '.ssrssssssssrss.', '.sssssooossssss.', '.ssrsssssssssrs.', '.sskkkkkkkkkkss.', '.ssssrrrrrrssss.'],
-  // 3: nearly gone
-  ['.hrrrssrsssrrrh.', '.sskksssssskkss.', '.srrsssrsssssrs.', '.sssrsooossrsss.', '.srrssssrsssrrs.', '.skkkkkkkkkkkks.', '.sssrrrrrrrrsss.'],
-  // 4: ouch
-  ['.hssssssssssssh.', '.wwwksssssskwww.', '.wkwsssssssswkw.', '.sssssooossssss.', '.ssskkkkkkkkkss.', '.ssskkkkkkkkkss.', '.ssskkkkkkkkkss.'],
+  ['..hssssssssssh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssssoooossss..', '..ssossssssoss..', '..ssssssssssss..', '..sssokkkkosss..', '...ssssssssss...', '....ssssssss....'],
+  ['..hsssrssssssh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssssoooossss..', '..ssosrsssssos..', '..ssssssssssss..', '..sssokkkkosss..', '...ssssssssss...', '....ssssssss....'],
+  ['..hsrrsssssrrh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssssoooossss..', '..srossssssros..', '..sssrssssrsss..', '..sssorrkkosss..', '...ssssssssss...', '....ssssssss....'],
+  ['..hrrrssrssrrh..', '..skkkrsssrkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssssoooossss..', '..srossrsssros..', '..ssrssrssrsss..', '..ssrrrkkkrrss..', '...ssssssssss...', '....ssssssss....'],
+  ['..hssssssssssh..', '..wkkkssssskkw..', '..wkwsssssswkw..', '..sssssoosssss..', '..ssssoooossss..', '..ssssssssssss..', '..sssskkkkssss..', '..sssskkkkssss..', '...ssssssssss...', '....ssssssss....'],
 ]
 
 /** The art of each face: 12 rows of 16 characters. */
-export const FACE_ART: string[][] = MIDDLE.map((m) => [...TOP, ...m, ...BOTTOM])
+export const FACE_ART: string[][] = MIDDLE.map((m) => [...TOP, ...m])
 
 /** The colours of face `f`, row by row (16 per row). */
 export const faceColours = (f: number): number[][] => FACE_ART[f].map((row) => Array.from(row, (ch) => KEY[ch]))

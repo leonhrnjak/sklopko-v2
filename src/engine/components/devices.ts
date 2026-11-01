@@ -127,7 +127,7 @@ export const GAMEPAD_BUTTONS = [
   { pin: 'L', label: '◀', keys: ['ArrowLeft', 'a'] },
   { pin: 'R', label: '▶', keys: ['ArrowRight', 'd'] },
   { pin: 'A', label: 'A', keys: ['z'] },
-  { pin: 'B', label: 'B', keys: ['x'] },
+  { pin: 'B', label: 'B', keys: ['x', ' '] },
 ] as const
 
 export interface GamepadState {

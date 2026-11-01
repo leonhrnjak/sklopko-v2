@@ -1,8 +1,12 @@
 import { VIDEO_H, VIDEO_W, type VideoState } from './components/video'
 
-/** The video chip's 16 fixed colours, as 0xRRGGBB. */
+/**
+ * The video chip's 16 fixed colours, as 0xRRGGBB: a dark, dusty set (greys, browns, dull reds and greens) with a few bright accents (blood and
+ * flame red, the exit's teal, the off-white of eyes and muzzle flash). Colour 0 is black, 1 the ceiling, 2 the floor, 3 and 11 the walls' two
+ * sides, 5 and 13 the doors, 4 green, 6 red, 7 and 8 the chaser's flesh, 9 and 10 greys, 12 skin and gold, 14 the exit switch, 15 off-white.
+ */
 export const VIDEO_PALETTE: readonly number[] = [
-  0x000000, 0x1b2a6b, 0x3b3fc2, 0x1f8a4c, 0x3ecf5a, 0x7a2e1f, 0xd9552b, 0x8a1fa6, 0xe04fd0, 0x555555, 0x9a9a9a, 0xc9d6e8, 0xf2d32e, 0xff9a2e, 0x34c7d9, 0xffffff,
+  0x000000, 0x24242a, 0x3a3028, 0x77736a, 0x3f7f38, 0x5a3a1c, 0xc2301a, 0x7a3838, 0xa85a50, 0x4a4742, 0x8c8c88, 0x55524b, 0xd0a868, 0x8a5a2b, 0x35b8a8, 0xe8e4d8,
 ]
 
 /**
