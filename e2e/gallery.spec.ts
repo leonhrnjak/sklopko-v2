@@ -20,7 +20,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await expect(gallery(page).locator('.gallery-card b').first()).not.toHaveText('Basic gates')
   await tabs.getByRole('button', { name: /^All/ }).click()
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(66)
-  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(12)
+  await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(13)
   await tabs.getByRole('button', { name: /^Start here/ }).click()
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
   await expect(gallery(page).getByTestId('example-gates')).toContainText('AND, OR, NOT')
