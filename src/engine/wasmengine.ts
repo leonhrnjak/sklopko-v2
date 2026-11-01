@@ -1,5 +1,7 @@
 import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from './acia'
 import { consolePut, type ConsoleState, type FramebufferState } from './components/devices'
+import type { LcdPartState } from './components/lcd'
+import type { ViaPartState } from './components/via'
 import type { EngineExports } from './wasm'
 import type { Instance, Params, ComponentDef } from './types'
 
@@ -34,6 +36,82 @@ export interface Compiled {
   rank: Int32Array
 }
 
+/** The numbers of a 6522 part, in the order of the module's `Via` struct (engine-rs/src/parts/via.rs). */
+const VIA_KEYS = [
+  'orb', 'ora', 'ddrb', 'ddra', 't1c', 't1l', 't1armed', 't1reload', 'pb7', 't2c', 't2l', 't2armed', 'sr', 'acr', 'pcr', 'ifr', 'ier',
+  'ca1', 'cb1', 'ca2', 'cb2', 'pb6', 'ca2out', 'cb2out', 'ca2pulse', 'cb2pulse', 'ira', 'irb', 'pc', 'out',
+] as const
+const VIA_FLAGS = new Set<string>(['t1armed', 't1reload', 't2armed', 'ca2pulse', 'cb2pulse'])
+const VIA_FIELDS = VIA_KEYS.length
+const viaNumbers = (st: ViaPartState) => VIA_KEYS.map((k) => Number(st[k]))
+function setViaNumbers(st: ViaPartState, v: Int32Array) {
+  const o = st as unknown as Record<string, number | boolean>
+  VIA_KEYS.forEach((k, i) => {
+    o[k] = VIA_FLAGS.has(k) ? v[i] !== 0 : v[i]
+  })
+}
+
+/** The numbers of an LCD part, in the order of the module's `Lcd` struct (engine-rs/src/parts/lcd.rs): the 128 display and 64 character memory words, then these. */
+const LCD_KEYS = [
+  'ac', 'cg', 'up', 'entryShift', 'display', 'cursor', 'blink', 'shift', 'dl8', 'twoLine', 'busy', 'dropped', 'nibble', 'readByte', 'readHalf', 'rev',
+  'lastKind', 'lastA', 'lastB', 'lastC', 'cp', 'ep', 'drive', 'mask',
+] as const
+const LCD_FLAGS = new Set<string>(['cg', 'up', 'entryShift', 'display', 'cursor', 'blink', 'dl8', 'twoLine'])
+const LCD_FIELDS = 192 + LCD_KEYS.length
+/** The page's own sentence stays until the module says something. */
+const LCD_LAST_KEEP = 99
+const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0')
+/** What the inspector says was done last, from the module's code and numbers (the sentences of `lcdExec` in hd44780.ts). */
+function lcdLast(kind: number, a: number, b: number, c: number): string {
+  const onOff = (v: number) => (v ? 'on' : 'off')
+  switch (kind) {
+    case 0:
+      return 'power on: display off'
+    case 1:
+      return `ignored data ${hex2(a)}: the chip was busy`
+    case 2:
+      return `ignored instruction ${hex2(a)}: the chip was busy`
+    case 3:
+      return `data ${hex2(a)}${a >= 0x20 && a < 0x7f ? ` (${String.fromCharCode(a)})` : ''}`
+    case 4:
+      return `DDRAM address ${hex2(a)}`
+    case 5:
+      return `CGRAM address ${hex2(a)}`
+    case 6:
+      return 'function set: 4-bit interface'
+    case 7:
+      return `function set: ${a ? '8' : '4'}-bit, ${b ? '2 lines' : '1 line'}`
+    case 8:
+      return `shift ${a ? 'display' : 'cursor'} ${b ? 'right' : 'left'}`
+    case 9:
+      return `display ${onOff(a)}, cursor ${onOff(b)}, blink ${onOff(c)}`
+    case 10:
+      return `entry mode: ${a ? 'increment' : 'decrement'}${b ? ', shift display' : ''}`
+    case 11:
+      return 'return home'
+    case 12:
+      return 'clear display'
+    default:
+      return 'no operation'
+  }
+}
+const lcdNumbers = (st: LcdPartState) => [
+  ...st.ddram,
+  ...st.cgram,
+  ...LCD_KEYS.map((k) => (k === 'lastKind' ? LCD_LAST_KEEP : k === 'lastA' || k === 'lastB' || k === 'lastC' ? 0 : Number(st[k]))),
+]
+function setLcdNumbers(st: LcdPartState, v: Int32Array) {
+  for (let i = 0; i < 128; i++) st.ddram[i] = v[i]
+  for (let i = 0; i < 64; i++) st.cgram[i] = v[128 + i]
+  const o = st as unknown as Record<string, number | boolean>
+  LCD_KEYS.forEach((k, i) => {
+    if (k === 'lastKind' || k === 'lastA' || k === 'lastB' || k === 'lastC') return
+    o[k] = LCD_FLAGS.has(k) ? v[192 + i] !== 0 : v[192 + i]
+  })
+  const at = (k: string) => v[192 + LCD_KEYS.indexOf(k as (typeof LCD_KEYS)[number])]
+  if (at('lastKind') !== LCD_LAST_KEEP) st.last = lcdLast(at('lastKind'), at('lastA'), at('lastB'), at('lastC'))
+}
+
 /** The kinds of part, as engine-rs/src/parts/mod.rs numbers them. */
 const KIND: Record<string, number> = {
   and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9,
@@ -44,7 +122,7 @@ const KIND: Record<string, number> = {
   rom: 41, ram: 42,
   clock: 43, keypad: 44, framebuffer: 45, console: 46,
   acia6551: 47,
-  tribuf: 48, busjoin: 49,
+  tribuf: 48, busjoin: 49, via6522: 50, hd44780: 51,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -131,6 +209,10 @@ export class WasmEngine {
   private ramBytes = 0
   /** The pixel screens, in part order, with where each one's 256 pixels start in the module's array. */
   private screens: { part: number; start: number }[] = []
+  /** The 6522 parts, in part order. */
+  private vias: { part: number; st: ViaPartState }[] = []
+  /** The LCD parts, in part order. */
+  private lcds: { part: number; st: LcdPartState }[] = []
   /** The text consoles, in part order. */
   private consoles: { part: number; st: ConsoleState }[] = []
   private buffer: ArrayBuffer | null = null
@@ -225,6 +307,13 @@ export class WasmEngine {
         this.screens.push({ part: i, start: fb.length })
         for (const v of st.px as number[]) fb.push(v)
         pc = st.pc
+      } else if (type === 'via6522') {
+        memOff = this.vias.length
+        this.vias.push({ part: i, st: st as ViaPartState })
+      } else if (type === 'hd44780') {
+        memOff = this.lcds.length
+        this.lcds.push({ part: i, st: st as LcdPartState })
+        p0 = p.busy === 'short' ? 1 : p.busy === 'none' ? 2 : 0
       } else if (type === 'console') {
         memOff = this.consoles.length
         this.consoles.push({ part: i, st })
@@ -253,6 +342,8 @@ export class WasmEngine {
     push(this.terminals.length)
     push(fb.length)
     push(this.consoles.length)
+    push(this.vias.length)
+    push(this.lcds.length)
     for (const v of c.values) push(v)
     for (const v of c.pins) push(v)
     for (const r of rows) for (const v of r) push(v)
@@ -266,6 +357,8 @@ export class WasmEngine {
     for (const v of rom) push(v)
     for (const v of ram) push(v)
     for (const v of fb) push(v)
+    for (const { st } of this.vias) for (const v of viaNumbers(st)) push(v)
+    for (const { st } of this.lcds) for (const v of lcdNumbers(st)) push(v)
     for (const { st, part } of this.terminals) {
       push(c.comps[part].inst.params.resetClears === false ? 0 : 1)
       for (const v of [st.command, st.control, st.rx, st.full ? 1 : 0, st.interrupt ? 1 : 0, st.pc, st.out]) push(v)
@@ -390,6 +483,14 @@ export class WasmEngine {
         if (changed) st.rev++
       }
     }
+    if (this.vias.length) {
+      const regs = new Int32Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS)
+      this.vias.forEach(({ st }, k) => setViaNumbers(st, regs.subarray(k * VIA_FIELDS, (k + 1) * VIA_FIELDS)))
+    }
+    if (this.lcds.length) {
+      const regs = new Int32Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS)
+      this.lcds.forEach(({ st }, k) => setLcdNumbers(st, regs.subarray(k * LCD_FIELDS, (k + 1) * LCD_FIELDS)))
+    }
     this.consoles.forEach(({ st }, k) => {
       const events = x.console_take_events(k)
       if (!events) return
@@ -438,6 +539,8 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
       new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
+      new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
+      new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
     ]
     const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
     let at = 0
@@ -462,6 +565,8 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
       new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
+      new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
+      new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
     ]
     let at = 0
     for (const p of parts) {

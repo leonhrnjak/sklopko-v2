@@ -10,7 +10,7 @@ mod parts;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 5;
+pub const ABI_VERSION: u32 = 7;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -148,6 +148,18 @@ pub extern "C" fn acia_events_ptr(k: u32) -> *mut u16 {
 }
 
 /// The pixels of all pixel screens (256 bytes each, one byte per pixel), in part order.
+/// The LCD parts' memories and registers, 216 numbers each.
+#[unsafe(no_mangle)]
+pub extern "C" fn lcd_ptr() -> *mut i32 {
+    eng().lcd_ptr()
+}
+
+/// The 6522 parts' registers, 30 numbers each.
+#[unsafe(no_mangle)]
+pub extern "C" fn via_ptr() -> *mut i32 {
+    eng().via_ptr()
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn fb_ptr() -> *mut u8 {
     eng().fb_ptr()
