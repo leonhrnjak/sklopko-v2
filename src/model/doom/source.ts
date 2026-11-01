@@ -1,4 +1,4 @@
-import { angleTables, COLUMN_BYTES, hi, lo, MAP, Q_FAR, Q_NEAR, quarterSquare, RECIP, SCREEN_W, SHADE, SKY, FLOOR } from './tables'
+import { angleTables, COLUMN_BYTES, hi, lo, MAP, Q_FAR, Q_NEAR, quarterSquare, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
 
 /** How the picture gets to the screen: not at all (the rays alone), byte by byte through the video port, or by the column-fill command. */
 export type DrawMode = 'none' | 'port' | 'fill'
@@ -112,7 +112,7 @@ ${repeat > 1 ? '  ASL A\n' : ''}  STA CMX
  */
 export function doomSource(columns: number, draw: DrawMode): string {
   const t = angleTables(columns)
-  const repeat = SCREEN_W / columns
+  const repeat = screenWidth(columns) / columns
   const out: string[] = []
   const emit = (...lines: string[]) => out.push(...lines)
 

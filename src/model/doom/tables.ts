@@ -8,6 +8,8 @@
 
 /** Screen: 160×100 pixels of 4 bits, stored column by column (a column is 50 bytes, two pixels a byte, the upper one in the high nibble). */
 export const SCREEN_W = 160
+/** The picture is 160 wide for 160 or 80 rays (80: each ray two pixels wide), and as wide as the rays for any other count (120 rays: 120×100). */
+export const screenWidth = (columns: number) => (columns === 80 ? 160 : columns)
 export const SCREEN_H = 100
 export const COLUMN_BYTES = SCREEN_H / 2
 /** Colours: 0 black, 1 ceiling, 2 floor, 3 to 15 walls. */

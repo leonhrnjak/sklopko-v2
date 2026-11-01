@@ -1,4 +1,4 @@
-import { angleTables, COLUMN_BYTES, FLOOR, MAP, Q_FAR, Q_NEAR, RECIP, SCREEN_H, SCREEN_W, SHADE, SKY } from './tables'
+import { angleTables, COLUMN_BYTES, FLOOR, MAP, Q_FAR, Q_NEAR, RECIP, SCREEN_H, screenWidth, SHADE, SKY } from './tables'
 
 /** Where the player is: a cell (0 to 15) and a fraction (0 to 255) on each axis, and an angle (0 to 255). */
 export interface Pose {
@@ -65,33 +65,34 @@ function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, _columns: n
 /** The picture, 160×100 colours row by row, from `columns` rays (80 rays: each is two pixels wide). */
 export function render(p: Pose, columns: number): Uint8Array {
   const t = angleTables(columns)
-  const out = new Uint8Array(SCREEN_W * SCREEN_H)
-  const scale = SCREEN_W / columns
+  const sw = screenWidth(columns)
+  const out = new Uint8Array(sw * SCREEN_H)
+  const scale = sw / columns
   for (let c = 0; c < columns; c++) {
     const { q, pair } = cast(p, c, t, columns)
     const top = 50 - 2 * q
     const bottom = 50 + 2 * q
     for (let k = 0; k < scale; k++)
-      for (let y = 0; y < SCREEN_H; y++) out[y * SCREEN_W + c * scale + k] = y < top ? SKY : y < bottom ? pair & 15 : FLOOR
+      for (let y = 0; y < SCREEN_H; y++) out[y * sw + c * scale + k] = y < top ? SKY : y < bottom ? pair & 15 : FLOOR
   }
   return out
 }
 
-/** The same picture as the framebuffer bytes: column by column, two pixels a byte. */
-export function packColumns(pixels: Uint8Array): Uint8Array {
-  const fb = new Uint8Array(SCREEN_W * COLUMN_BYTES)
-  for (let x = 0; x < SCREEN_W; x++)
-    for (let y = 0; y < SCREEN_H; y += 2) fb[x * COLUMN_BYTES + (y >> 1)] = pixels[y * SCREEN_W + x] | (pixels[(y + 1) * SCREEN_W + x] << 4)
+/** The framebuffer bytes of a picture `sw` wide: column by column, two pixels a byte. */
+export function packColumns(pixels: Uint8Array, sw: number): Uint8Array {
+  const fb = new Uint8Array(sw * COLUMN_BYTES)
+  for (let x = 0; x < sw; x++)
+    for (let y = 0; y < SCREEN_H; y += 2) fb[x * COLUMN_BYTES + (y >> 1)] = pixels[y * sw + x] | (pixels[(y + 1) * sw + x] << 4)
   return fb
 }
 
-export function unpackColumns(fb: Uint8Array): Uint8Array {
-  const out = new Uint8Array(SCREEN_W * SCREEN_H)
-  for (let x = 0; x < SCREEN_W; x++)
+export function unpackColumns(fb: Uint8Array, sw: number): Uint8Array {
+  const out = new Uint8Array(sw * SCREEN_H)
+  for (let x = 0; x < sw; x++)
     for (let y = 0; y < SCREEN_H; y += 2) {
       const b = fb[x * COLUMN_BYTES + (y >> 1)]
-      out[y * SCREEN_W + x] = b & 15
-      out[(y + 1) * SCREEN_W + x] = b >> 4
+      out[y * sw + x] = b & 15
+      out[(y + 1) * sw + x] = b >> 4
     }
   return out
 }

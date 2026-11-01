@@ -21,7 +21,7 @@ function poses(): Pose[] {
 }
 
 describe('the D0 spike: the assembly renders what the reference renders', () => {
-  for (const columns of [160, 80])
+  for (const columns of [160, 120, 80])
     for (const draw of ['port', 'fill'] as const)
       it(`${columns} columns, ${draw}: 20 poses give the same picture`, () => {
         const m = new DoomMachine(columns, draw)
@@ -40,7 +40,7 @@ describe('the D0 spike: the assembly renders what the reference renders', () => 
 describe('the D0 spike: what a frame costs', () => {
   it('measures cycles a frame', () => {
     const rows: string[] = []
-    for (const columns of [160, 80])
+    for (const columns of [160, 120, 80])
       for (const draw of ['none', 'port', 'fill'] as const) {
         const m = new DoomMachine(columns, draw)
         const cycles = poses().map((p) => m.frame(p).cycles)

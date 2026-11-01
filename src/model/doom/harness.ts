@@ -1,6 +1,6 @@
 import { assemble6502 } from '../../engine/asm6502'
 import { cycle, newCpu, reset } from '../../engine/testdata/oracle/cpu6502'
-import { FLOOR, SCREEN_H, SKY } from './tables'
+import { FLOOR, SCREEN_H, screenWidth, SKY } from './tables'
 import { unpackColumns, type Pose } from './reference'
 import { doomSource, POSE, ROM_BASE, ROM_SIZE, VIDEO, type DrawMode } from './source'
 import { COLUMN_BYTES, SCREEN_W } from './tables'
@@ -20,8 +20,10 @@ export class DoomMachine {
   private vaddr = 0
   private fill = { cx: 0, top: 0, bottom: 0, width: 1 }
   private cpu = newCpu(true)
+  private columns: number
 
   constructor(columns: number, draw: DrawMode) {
+    this.columns = columns
     const r = assemble6502(doomSource(columns, draw), ROM_SIZE, true)
     if (r.errors.length) throw new Error(r.errors.map((e) => `line ${e.line}: ${e.message}`).join('\n'))
     this.rom = r.bytes
@@ -88,6 +90,6 @@ export class DoomMachine {
       if (n > 3_000_000) throw new Error('the frame did not finish')
       this.step()
     }
-    return { cycles: c.cycles - start, pixels: unpackColumns(this.fb) }
+    return { cycles: c.cycles - start, pixels: unpackColumns(this.fb, screenWidth(this.columns)) }
   }
 }

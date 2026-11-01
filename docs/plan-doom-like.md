@@ -93,6 +93,7 @@ fill. Walls are in steps of 4 pixels in height (25 levels), which keeps every ru
 | Columns | Rays only | Rays + port writes (whole column, sky and floor too) | Rays + column fill |
 |---|---|---|---|
 | 160 | 122,800 cycles (96k to 160k) | 178,900 (152k to 215k) = 5.6 fps | 130,300 (104k to 166k) = 7.7 fps |
+| 120 (screen 120×100) | 92,100 (72k to 120k) | 134,200 (114k to 162k) = 7.5 fps | 97,700 (78k to 125k) = 10.2 fps |
 | 80 | 61,500 (48k to 80k) | 117,600 (105k to 136k) = 8.5 fps | **65,400 (52k to 83k) = 15.3 fps** |
 
 What the numbers say:
@@ -102,6 +103,7 @@ What the numbers say:
 - **Gate:** 160 columns is above 120,000 even with the fill: out. 80 columns with the fill is 65,400 on average, 83,000 at worst: **band 2**
   (60,000 to 120,000), so D1b is in and the screen is 80 columns wide. Cheaper set-up (a sparse reciprocal-times-fraction table instead of the
   multiplies) could bring it under 60,000; that is a D3 optimisation and not needed for the gate.
+- **120 columns** (asked in review) is a 120×100 screen, since 160 is not a whole multiple of 120: mean 97,700 cycles with the fill (10 fps), worst pose 124,700 (8 fps). That is band 2 on the mean, just over the line at the worst pose. The framebuffer is 6,000 bytes (80 columns: 8,000 on a 160-wide screen, 4,000 on an 80-wide one); the ROM is the same size, only the step table values differ.
 - The model: the fill takes no time on the part's side; the framebuffer is stored column by column (a column is 50 bytes), which makes a column
   one run of the auto-increment port. D1 should store it that way (the canvas transposes it).
 
