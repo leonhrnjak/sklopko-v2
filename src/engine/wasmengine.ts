@@ -181,7 +181,7 @@ type TerminalState = AciaState & { pc: number; out: number }
 
 /** Can the module run this circuit? (Every part has a version in Rust, with the settings it handles.) */
 export function supports(c: Compiled): boolean {
-  return c.comps.some((cc) => cc.def.type === 'clock') && c.comps.every(ported)
+  return c.comps.every(ported)
 }
 
 /** Does the module have this part (with these settings)? */
@@ -189,8 +189,6 @@ export function ported(cc: CompiledPart): boolean {
   const type = cc.def.type
   const p = cc.inst.params
   if (type === 'ram') return Number(p.dbits) <= 8 && Number(p.abits) <= 15
-  // (a receive label wider than one bit leaves its other outputs as they were, which the module does not keep)
-  if (type === 'netrecv') return (Number(p.bits) || 1) === 1
   return type === 'clock' || KIND[type] !== undefined || NOP.has(type) || (SAMPLERS.has(type) && cc.inst.outs.length === 0)
 }
 

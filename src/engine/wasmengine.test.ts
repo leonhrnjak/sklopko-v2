@@ -433,6 +433,38 @@ describe('the exact (unit-delay) engine in Rust', () => {
   }, 600000)
 })
 
+describe('circuits without a clock in Rust', () => {
+  it('give the same nets as the TypeScript engine as the switches are flipped, for every example', async () => {
+    const x = await module()
+    let taken = 0
+    for (const ex of EXAMPLES) {
+      const mk = (rust: boolean) => {
+        const sim = new Simulator()
+        if (rust) sim.setWasm(openFor(x))
+        sim.load(flatten(ex.build()))
+        sim.settle()
+        return sim
+      }
+      const rust = mk(true)
+      const plain = mk(false)
+      if (plain.hasClocks || !rust.wasmOn) continue
+      taken++
+      for (const id of plain.idsOfType('switch')) {
+        for (const sim of [rust, plain]) {
+          const params = (sim as unknown as { byId: Map<string, { inst: { params: Record<string, unknown> } }> }).byId.get(id)!.inst.params
+          sim.setParams(id, { ...params, on: !params.on })
+          sim.settle()
+        }
+        const a = rust.viewValues()
+        const b = plain.viewValues()
+        for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${ex.id}: net ${n} is ${a[n]} with Rust and ${b[n]} without, after flipping ${id}`)
+      }
+    }
+    console.log(`${taken} examples without a clock run in Rust`)
+    expect(taken).toBeGreaterThan(10)
+  }, 300000)
+})
+
 describe('the exact engine in Rust: loops, delays, forces and capture', () => {
   const circuit = (): SimCircuit => {
     const comps: [string, string, Params, number?][] = [
@@ -517,7 +549,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     ['bussub', { bits: 4 }], ['bussub', { bits: 8 }], ['busaddsub', { bits: 4 }], ['busaddsub', { bits: 8 }], ['busaddsub', { bits: 16 }],
     ['gray', {}], ['gray', { dir: 'g2b' }], ['parity', { n: 4 }], ['parity', { n: 8 }],
     ['lut', {}], ['lut', { inputs: 4, outputs: 4, data: '1 2 3 4 5 6 7 8 9 A B C D E F 0' }], ['lut', { inputs: 2, outputs: 8, data: 'AB CD' }],
-    ['netrecv', {}],
+    ['netrecv', {}], ['netrecv', { bits: 4 }],
     ['cpu6502', {}], ['cpu6502', { chip: 'cmos' }], ['cpu6502', { tristate: true }],
     ['hd44780', {}], ['hd44780', { busy: 'short' }], ['hd44780', { busy: 'none' }],
     ['bcdadd', {}],
