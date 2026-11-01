@@ -124,8 +124,9 @@ jobs:
       - run: npx playwright install-deps chromium
       - name: E2E (desktop + emulated phone), shard ${{ matrix.shard }}
         run: npx playwright test --shard=${{ matrix.shard }}
+      # Also after a run that passed only on a retry: the trace of the first failure is in test-results.
       - name: Upload Playwright results
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
           name: playwright-results-${{ strategy.job-index }}
