@@ -19,7 +19,7 @@ import { clearProject, useProject } from './pathProject'
 import { commitProgress } from './pathUnlock'
 import { loadCircuit, select, showToast, useStore } from './store'
 import { setWaveOpen } from './waveform'
-import { fitToScreen } from './view'
+import { fitToScreen, fitWhileResizing } from './view'
 
 /**
  * The work on the learning path's steps: opening one, checking it, showing a solution, going on. It loads with the map and the
@@ -74,6 +74,7 @@ export async function startStep(id: string) {
   usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (playable?.palette && [...new Set([...playable.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
   if (!build && !explore && !project && !program) return
+  fitWhileResizing(15000) // (the panel arrives on its own time, whichever way the circuit is opened)
   const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
   try {
     const doc = (await listDocs('circuit')).find((d) => d.origin?.path === id)

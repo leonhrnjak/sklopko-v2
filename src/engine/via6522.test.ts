@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CA1, CA2, CB1, CB2, T1, T2, viaClock, viaEdges, viaInit, viaIrq, viaPortOut, viaRead, viaReset, viaWrite, type ViaState } from './via6522'
+import { CA1, CA2, CB1, CB2, T1, T2, viaClock, viaEdges, viaInit, viaIrq, viaPortOut, viaRead, viaReset, viaWrite, type ViaState } from './testdata/oracle/via6522'
 
 const ORB = 0, ORA = 1, DDRB = 2, DDRA = 3, T1CL = 4, T1CH = 5, T1LL = 6, T1LH = 7, T2CL = 8, T2CH = 9, ACR = 11, PCR = 12, IFR = 13, IER = 14, ORA_NH = 15
 const pins = { pa: 0, pb: 0 }

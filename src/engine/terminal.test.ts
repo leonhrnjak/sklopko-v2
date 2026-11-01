@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { aciaType } from './acia'
+import { aciaType } from './testdata/oracle/acia'
 import { terminalInit, type TerminalState } from './components/terminal'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { X, paramDefaults, type V } from './types'
 
 const def = getDef('acia6551')

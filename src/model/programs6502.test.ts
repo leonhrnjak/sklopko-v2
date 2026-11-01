@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
-import { cycle, newCpu, reset, setNmi } from '../engine/cpu6502'
+import { cycle, newCpu, reset, setNmi } from '../engine/testdata/oracle/cpu6502'
 import { BALL_SOURCE, COUNTER_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** A machine for the programs that is nothing but the memory map: RAM, ROM, and a function called for each device write and read. */

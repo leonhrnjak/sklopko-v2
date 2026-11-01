@@ -1,4 +1,4 @@
-import { getDef as realDef, hasDef } from '../../registry'
+import { getDef as realDef, hasDef, type OracleDef } from '../oracle/registry'
 import type { ComponentDef } from '../../types'
 import { nbit } from './nbit'
 import { arithmetic, coding, memoryRom, routing } from './combinational'
@@ -12,9 +12,9 @@ import { sequential, memoryRam } from './sequential'
  */
 const frozen = new Map<string, ComponentDef>([...gates, ...sequential, ...memoryRam, ...arithmetic, ...memoryRom, ...routing, ...coding, ...nbit].map((d) => [d.type, d]))
 
-export function getDef(type: string): ComponentDef {
+export function getDef(type: string): OracleDef {
   const d = realDef(type)
   const f = frozen.get(type)
-  return f ? { ...d, evaluate: f.evaluate, init: f.init } : d
+  return f ? { ...d, evaluate: f.evaluate!, init: f.init } : d
 }
-export { hasDef }
+export { hasDef, type OracleDef }

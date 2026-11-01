@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screenText, type AciaState } from '../engine/acia'
+import { screenText, type AciaState } from '../engine/testdata/oracle/acia'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { board6502Builder } from './board6502'

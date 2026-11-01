@@ -215,7 +215,7 @@ function romTable(def: CompiledPart['def'], p: Params): number[] {
   for (let t = 0; t < 256; t++) {
     const ins = [...new Array<0 | 1 | 2 | 3>(abits).fill(0), ...Array.from({ length: 8 }, (_, b) => ((t >> b) & 1) as 0 | 1)]
     const outs = new Array<0 | 1 | 2 | 3>(dbits + 8).fill(2)
-    def.evaluate({ ins, outs, state: undefined, params: p })
+    def.evaluate?.({ ins, outs, state: undefined, params: p })
     bytes.push(outs.slice(dbits).reduce<number>((w, v, b) => w | (v << b), 0))
   }
   tableCache.set(p, bytes)
@@ -231,7 +231,7 @@ function romWordsOf(def: CompiledPart['def'], p: Params): number[] {
     const ins: (0 | 1 | 2 | 3)[] = Array.from({ length: abits }, (_, b) => ((a >> b) & 1) as 0 | 1)
     if (p.table === 'on') for (let b = 0; b < 8; b++) ins.push(0)
     const outs = new Array<0 | 1 | 2 | 3>(dbits + (p.table === 'on' ? 8 : 0)).fill(2)
-    def.evaluate({ ins, outs, state: undefined, params: p })
+    def.evaluate?.({ ins, outs, state: undefined, params: p })
     words.push(outs.slice(0, dbits).reduce<number>((w, v, b) => w | (v << b), 0))
   }
   return words
@@ -511,7 +511,7 @@ export class WasmEngine {
   refreshInputs() {
     this.c.comps.forEach((cc) => {
       if (KIND[cc.def.type] !== undefined || cc.def.type === 'clock' || cc.outNets.length === 0) return
-      cc.def.evaluate(cc.inst)
+      cc.def.evaluate?.(cc.inst)
       cc.outNets.forEach((net, o) => this.x.set_net(net, cc.inst.outs[o]))
     })
   }
@@ -526,7 +526,7 @@ export class WasmEngine {
   refreshPart(part: number) {
     const cc = this.c.comps[part]
     if (cc.outNets.length === 0) return
-    cc.def.evaluate(cc.inst)
+    cc.def.evaluate?.(cc.inst)
     cc.outNets.forEach((net, o) => this.x.set_net(net, cc.inst.outs[o]))
   }
 

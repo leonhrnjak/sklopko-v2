@@ -1,8 +1,10 @@
-import { registerFit } from '../../app/view'
+import { registerFit, registerRefit } from '../../app/view'
 import { setView, useStore } from '../../app/store'
 import { boundsRect } from '../../model/circuit'
 
 let svgEl: SVGSVGElement | null = null
+/** Fits the circuit again whenever the canvas changes size, while a step has just opened (see `registerRefit`). */
+let refitObserver: ResizeObserver | null = null
 
 /** The smallest zoom, for fitting a big circuit (the 8-bit computers are several thousand pixels wide) and for zooming out. */
 export const MIN_ZOOM = 0.12
@@ -10,6 +12,7 @@ export const MIN_ZOOM = 0.12
 /** The canvas registers its element so toolbar actions can measure it. */
 export function registerCanvas(el: SVGSVGElement | null) {
   svgEl = el
+  if (el) refitObserver?.observe(el) // (the canvas can be mounted again while a step opens: the new element is the one to watch)
   return () => {
     if (svgEl === el) svgEl = null
   }
@@ -82,4 +85,22 @@ export function focusFrame(title: string): boolean {
 }
 
 registerFit(fitView)
+registerRefit((ms) => {
+  if (typeof ResizeObserver === 'undefined') return
+  refitObserver?.disconnect()
+  const ro = new ResizeObserver(() => fitView())
+  refitObserver = ro
+  if (svgEl) ro.observe(svgEl)
+  // Until the time is up, or the learner has touched the canvas (then the view is theirs).
+  const stop = () => {
+    ro.disconnect()
+    if (refitObserver === ro) refitObserver = null
+    window.clearTimeout(timer)
+    window.removeEventListener('pointerdown', stop, true)
+    window.removeEventListener('wheel', stop, true)
+  }
+  const timer = window.setTimeout(stop, ms)
+  window.addEventListener('pointerdown', stop, true)
+  window.addEventListener('wheel', stop, true)
+})
 

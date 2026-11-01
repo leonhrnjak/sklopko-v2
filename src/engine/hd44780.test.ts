@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { romGlyph } from './lcdfont'
-import { lcdCode, lcdCursorAt, lcdExec, lcdInit, lcdReadBus, lcdReadDone, lcdText, lcdTick, lcdWriteBus, type BusyTime, type LcdState } from './hd44780'
+import { lcdCode, lcdCursorAt, lcdExec, lcdInit, lcdReadBus, lcdReadDone, lcdText, lcdTick, lcdWriteBus, type BusyTime, type LcdState } from './testdata/oracle/hd44780'
 
 const none: BusyTime = 'none'
 const ins = (st: LcdState, byte: number, time: BusyTime = none) => lcdExec(st, 0, byte, time)

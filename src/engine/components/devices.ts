@@ -1,13 +1,6 @@
 import { box, names } from '../layouts'
-import { X, toNum, writeNum, type ComponentDef, type V } from '../types'
-import { HEX_WORDS, parseWords } from './memory'
-
-/** Detects a 0 -> 1 transition on a clock input; state.pc holds the previous level. */
-function rising(state: { pc: V }, clk: V): boolean {
-  const r = state.pc === 0 && clk === 1
-  state.pc = clk
-  return r
-}
+import { X, type ComponentDef, type V } from '../types'
+import { HEX_WORDS } from './memory'
 
 // ---- Text console ------------------------------------------------------------------------------
 
@@ -164,12 +157,6 @@ export const devices: ComponentDef[] = [
     init: (): ConsoleState => ({ lines: [''], pc: X, rev: 0 }),
     revision: (inst) => (inst.state as ConsoleState).rev,
     layout: () => box({ w: 280, minRows: 10, left: [...names('D', 8), { name: 'WE', def: 0 }, { name: 'CLK', clock: true }] }),
-    evaluate(inst) {
-      const st = inst.state as ConsoleState
-      if (!rising(st, inst.ins[9]) || inst.ins[8] !== 1) return
-      const code = toNum(inst.ins, 0, 8)
-      if (code >= 0) consolePut(st, code)
-    },
   },
   {
     type: 'framebuffer',
@@ -232,34 +219,6 @@ export const devices: ComponentDef[] = [
         ],
         right: p.read === 'on' ? (nd === 2 ? names('Q', 2) : ['Q']) : [],
       })
-    },
-    evaluate(inst) {
-      const st = inst.state as FramebufferState
-      const nd = Number(inst.params.colors) === 4 ? 2 : 1
-      const we = inst.ins[8 + nd]
-      const clr = inst.ins[9 + nd]
-      const edge = rising(st, inst.ins[10 + nd])
-      if (clr === 1) {
-        if (st.px.some((v) => v)) {
-          st.px.fill(0)
-          st.rev++
-        }
-      } else if (edge && we === 1) {
-        const x = toNum(inst.ins, 0, 4)
-        const y = toNum(inst.ins, 4, 4)
-        const d = toNum(inst.ins, 8, nd)
-        if (x >= 0 && y >= 0 && d >= 0 && st.px[y * FB_SIZE + x] !== d) {
-          st.px[y * FB_SIZE + x] = d
-          st.rev++
-        }
-      }
-      // The pixel that the read address points to (X when the address is unknown), after any write of this edge.
-      if (inst.params.read === 'on') {
-        const rx = toNum(inst.ins, 11 + nd, 4)
-        const ry = toNum(inst.ins, 15 + nd, 4)
-        if (rx < 0 || ry < 0) inst.outs.fill(X)
-        else writeNum(inst.outs, 0, nd, st.px[ry * FB_SIZE + rx])
-      }
     },
   },
   {
@@ -329,15 +288,6 @@ export const devices: ComponentDef[] = [
     live: true,
     init: (): KeypadState => ({ pressed: false, prev: false, key: 0, latched: false }),
     layout: () => box({ w: 140, minRows: 5, left: [{ name: 'RST', def: 0 }], right: [...names('K', 4), 'P'] }),
-    evaluate(inst) {
-      const st = inst.state as KeypadState
-      if ((st.pressed && !st.prev) || st.tapped) st.latched = true // a new press
-      st.tapped = false
-      st.prev = st.pressed
-      if (inst.ins[0] === 1) st.latched = false
-      for (let i = 0; i < 4; i++) inst.outs[i] = ((st.key >> i) & 1) as V
-      inst.outs[4] = (inst.params.sticky === true ? st.latched : st.pressed) ? 1 : 0
-    },
   },
   {
     type: 'gamepad',
@@ -397,18 +347,6 @@ export const devices: ComponentDef[] = [
         left: Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i)),
         right: m === 1 ? ['Y'] : names('Y', m),
       })
-    },
-    evaluate(inst) {
-      const n = Number(inst.params.inputs)
-      const m = Number(inst.params.outputs)
-      let addr = 0
-      for (let i = 0; i < n; i++) {
-        const v = inst.ins[i]
-        if (v === X) return inst.outs.fill(X)
-        addr = (addr << 1) | v
-      }
-      const word = parseWords(String(inst.params.data), 2 ** n, m)[addr]
-      for (let o = 0; o < m; o++) inst.outs[o] = ((word >> o) & 1) as V
     },
   },
 ]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502, listing6502, sourceFromBytes } from './asm6502'
-import { newCpu, cycle, reset } from './cpu6502'
+import { newCpu, cycle, reset } from './testdata/oracle/cpu6502'
 import { disassemble6502 } from './disasm6502'
 import { MODE_BYTES, OPCODES_6502, type Mode6502 } from './opcodes6502'
 import { OPCODES_65C02 } from './opcodes65c02'

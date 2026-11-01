@@ -1,6 +1,6 @@
-import { cycle, newCpu, reset, setIrq, setNmi, type Cpu6502 } from '../cpu6502'
+import { newCpu, reset, type Cpu6502 } from '../cpu6502'
 import { box, names } from '../layouts'
-import { X, Z, toNum, writeNum, type ComponentDef, type V } from '../types'
+import { X, type ComponentDef, type V } from '../types'
 
 /** What the 6502 part keeps between clocks. The CPU is plain numbers, so a copy of it is cheap (it is copied at every edge). */
 export interface CpuState {
@@ -18,14 +18,6 @@ export interface CpuState {
 }
 
 const hasPowerOn = (p: { powerOn?: unknown }) => p.powerOn !== false
-
-/**
- * Pins, in the order `evaluate` reads and writes them (a box lists its left pins, then its right ones). Inputs: PHI2, RESB, IRQB,
- * NMIB, RDY, DI0–DI7 (and BE on the 65C02). Outputs: A0–A15, D0–D7, RWB, SYNC (and VPB, MLB on the 65C02). A pin that is low-active
- * has a bubble and its name ends in B.
- */
-const IN = { PHI2: 0, RESB: 1, IRQB: 2, NMIB: 3, RDY: 4, DI: 5, BE: 13 } as const
-const OUT = { A: 0, D: 16, RWB: 24, SYNC: 25, VPB: 26, MLB: 27 } as const
 
 export function cpuInit(powerOn: boolean, cmos = false): CpuState {
   const cpu = newCpu(cmos)
@@ -91,57 +83,5 @@ export const cpus: ComponentDef[] = [
           ...(p.chip === 'cmos' ? [{ name: 'VPB', label: 'VP', invert: true }, { name: 'MLB', label: 'ML', invert: true }] : []),
         ],
       }),
-    evaluate(inst) {
-      const { ins, outs } = inst
-      const st = inst.state as CpuState
-      const c = st.cpu
-      const cmos = inst.params.chip === 'cmos'
-      c.cmos = cmos // (the chip can be changed while the circuit is loaded)
-      const phi2 = ins[IN.PHI2]
-      // A bus is only as good as the data on it: an unknown level on a control pin is "not asserted".
-      setIrq(c, ins[IN.IRQB] === 0)
-      setNmi(c, ins[IN.NMIB] === 0)
-      const falling = st.pc === 1 && phi2 === 0
-      if (phi2 <= 1) st.pc = phi2
-      if (falling) {
-        if (ins[IN.RESB] === 0) {
-          // Held in reset: the bus is idle (reading), nothing is written.
-          st.held = true
-          st.started = true
-          st.waiting = st.stalled = false
-          c.prog = -1
-          c.read = true
-          c.sync = false
-        } else if (st.held) {
-          // RES went high: this clock is the first of the 7 cycles of the reset sequence.
-          st.held = false
-          st.started = true
-          reset(c)
-          cycle(c, 0)
-        } else if (st.started) {
-          st.stalled = c.read && ins[IN.RDY] === 0
-          const data = c.read ? toNum(ins, IN.DI, 8) : 0
-          st.waiting = c.read && data < 0
-          if (!st.stalled && !st.waiting) cycle(c, data)
-        }
-      }
-      if (!st.started) {
-        outs.fill(X)
-        return
-      }
-      // With BE low the 65C02 lets go of the address bus, the data bus and R/W (the CPU itself goes on).
-      if (cmos && ins[IN.BE] === 0) {
-        for (let i = 0; i < 25; i++) outs[i] = Z
-      } else {
-        writeNum(outs, OUT.A, 16, c.addr)
-        for (let i = 0; i < 8; i++) outs[OUT.D + i] = inst.params.tristate && c.read ? Z : (((c.out >> i) & 1) as V)
-        outs[OUT.RWB] = c.read ? 1 : 0
-      }
-      outs[OUT.SYNC] = c.sync ? 1 : 0
-      if (cmos) {
-        outs[OUT.VPB] = c.vp ? 0 : 1
-        outs[OUT.MLB] = c.ml ? 0 : 1
-      }
-    },
   },
 ]

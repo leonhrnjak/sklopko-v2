@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { lcdPartInit, type LcdPartState } from './components/lcd'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { X, Z, paramDefaults, type Params, type V } from './types'
 
 const def = getDef('hd44780')

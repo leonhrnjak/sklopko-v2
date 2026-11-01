@@ -1,5 +1,5 @@
-import { aciaBreak, aciaClock, aciaInit, aciaKey, aciaRead, aciaType, aciaWrite, screenText, type AciaState } from '../engine/acia'
-import { cycle, newCpu, reset, type Cpu6502 } from '../engine/cpu6502'
+import { aciaBreak, aciaClock, aciaInit, aciaKey, aciaRead, aciaType, aciaWrite, screenText, type AciaState } from '../engine/testdata/oracle/acia'
+import { cycle, newCpu, reset, type Cpu6502 } from '../engine/testdata/oracle/cpu6502'
 
 /**
  * The BASIC computer without a board: the 6502 core, its memory map and the terminal's registers (`engine/acia.ts`), nothing else.

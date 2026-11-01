@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FLAG, cycle, newCpu, reset, setIrq, setNmi } from './cpu6502'
+import { FLAG, cycle, newCpu, reset, setIrq, setNmi } from './testdata/oracle/cpu6502'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
 import vectors from './testdata/65c02-singlestep.json'
 import { BY_OPCODE_6502 } from './opcodes6502'

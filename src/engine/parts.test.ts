@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ALU_OPS } from './components/combinational'
 import { parseWords } from './components/memory'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { X, paramDefaults, type Params, type V } from './types'
 
 /** A single part with its own state; call `step` with the input values to evaluate it once. */

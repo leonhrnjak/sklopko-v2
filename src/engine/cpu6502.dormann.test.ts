@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cycle, newCpu } from './cpu6502'
+import { cycle, newCpu } from './testdata/oracle/cpu6502'
 
 /**
  * Klaus Dormann's 6502 functional test, the usual whole-chip check. It is GPL, so it is not in the repository: get

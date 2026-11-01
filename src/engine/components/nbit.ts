@@ -1,7 +1,6 @@
 import { numbered } from '../bus'
 import { box, names, type PinSpec } from '../layouts'
-import { X, toNum, writeNum, type ComponentDef, type Instance, type Params, type ParamDef, type PinGroup, type V } from '../types'
-import { rising } from './sequential'
+import { X, writeNum, type ComponentDef, type Params, type ParamDef, type PinGroup, type V } from '../types'
 
 /**
  * The n-bit family: parts whose data pins are buses (2 to 16 bits). They are always in bus mode; internally they are
@@ -33,53 +32,6 @@ const valueParam = (label: string): ParamDef => ({
   hint: 'Hexadecimal digits (0–9, A–F), up to four.',
 })
 
-/**
- * What a part works out from its params, once: its width, mask, select width and gate. `Instance.cfg` is dropped by the simulator whenever
- * the params change, so this is made again on first use after that.
- */
-interface Cfg {
-  n: number
-  mask: number
-  /** Inputs of a mux. */
-  k: number
-  /** Select bits of a mux. */
-  sel: number
-  /** A bitwise gate's function. */
-  gate: (a: V, b: V) => V
-}
-function cfgOf(inst: Instance): Cfg {
-  let c = inst.cfg as Cfg | undefined
-  if (c === undefined) {
-    const p = inst.params
-    const k = Number(p.n)
-    c = inst.cfg = { n: widthOf(p), mask: maskOf(p), k, sel: k > 1 ? log2(k) : 0, gate: (GATES[String(p.op)] ?? GATES.and).fn }
-  }
-  return c
-}
-
-/** Write the low `count` bits of a non-negative number into `outs` (no array is made, unlike `bitsOf`). */
-function writeBits(outs: V[], start: number, count: number, value: number) {
-  for (let i = 0; i < count; i++) outs[start + i] = ((value >> i) & 1) as V
-}
-
-/**
- * Inputs of a part that computes a pure function of them: any unknown input makes every output unknown. `fn` writes the outputs
- * (0 or 1) itself.
- */
-function pure(fn: (ins: V[], outs: V[], c: Cfg) => void): ComponentDef['evaluate'] {
-  return (inst) => {
-    const { ins, outs } = inst
-    for (let i = 0; i < ins.length; i++) {
-      if (ins[i] === X) {
-        outs.fill(X)
-        return
-      }
-    }
-    fn(ins, outs, cfgOf(inst))
-  }
-}
-
-const num = (ins: number[], start: number, n: number) => toNum(ins as V[], start, n)
 const bus = (name: string, dir: PinGroup['dir'], n: number) => numbered(name, dir, name, n)
 const twoBuses = (p: Params) => [bus('A', 'in', widthOf(p)), bus('B', 'in', widthOf(p))]
 
@@ -173,15 +125,6 @@ export const nbit: ComponentDef[] = [
         right: names('Q', widthOf(p)),
       }),
     groups: (p) => [bus('D', 'in', widthOf(p)), bus('Q', 'out', widthOf(p))],
-    evaluate(inst) {
-      const n = cfgOf(inst).n
-      const { ins } = inst
-      const st = inst.state
-      const edge = rising(st, ins[n + 1])
-      if (ins[n + 2] === 1) st.n = 0
-      else if (edge && ins[n] === 1) st.n = toNum(ins, 0, n)
-      writeNum(inst.outs, 0, n, st.n)
-    },
   },
   {
     type: 'busctr',
@@ -200,24 +143,6 @@ export const nbit: ComponentDef[] = [
         right: [...names('Q', widthOf(p)), 'CO'],
       }),
     groups: (p) => [bus('D', 'in', widthOf(p)), bus('Q', 'out', widthOf(p))],
-    evaluate(inst) {
-      const { n, mask } = cfgOf(inst)
-      const { ins, outs } = inst
-      const st = inst.state
-      const ld = ins[n]
-      const en = ins[n + 1]
-      const r = ins[n + 3]
-      const edge = rising(st, ins[n + 2])
-      if (r === 1) st.n = 0
-      else if (edge) {
-        if (ld === 1) {
-          const d = toNum(ins, 0, n)
-          if (d >= 0) st.n = d
-        } else if (ld === 0 && en === 1) st.n = (st.n + 1) & mask
-      }
-      writeNum(outs, 0, n, st.n)
-      outs[n] = en === X ? X : st.n === mask && en === 1 ? 1 : 0
-    },
   },
   {
     type: 'busadd',
@@ -228,9 +153,6 @@ export const nbit: ComponentDef[] = [
     title: () => 'Σ',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'Ci', def: 0 }], right: [...names('S', widthOf(p)), 'Co'] }),
     groups: (p) => [...twoBuses(p), bus('S', 'out', widthOf(p))],
-    evaluate: pure((ins, outs, { n }) => {
-      writeBits(outs, 0, n + 1, num(ins, 0, n) + num(ins, n, n) + ins[2 * n])
-    }),
   },
   {
     type: 'bussub',
@@ -241,11 +163,6 @@ export const nbit: ComponentDef[] = [
     title: () => '−',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'Bi', def: 0 }], right: [...names('D', widthOf(p)), 'Bo'] }),
     groups: (p) => [...twoBuses(p), bus('D', 'out', widthOf(p))],
-    evaluate: pure((ins, outs, { n, mask }) => {
-      const d = num(ins, 0, n) - num(ins, n, n) - ins[2 * n]
-      writeBits(outs, 0, n, d & mask)
-      outs[n] = d < 0 ? 1 : 0
-    }),
   },
   {
     type: 'busaddsub',
@@ -257,18 +174,6 @@ export const nbit: ComponentDef[] = [
     title: () => '±',
     layout: (p) => box({ left: [...names('A', widthOf(p)), ...names('B', widthOf(p)), { name: 'M', def: 0 }], right: [...names('S', widthOf(p)), 'Co', 'V'] }),
     groups: (p) => [...twoBuses(p), bus('S', 'out', widthOf(p))],
-    evaluate: pure((ins, outs, { n, mask }) => {
-      const a = num(ins, 0, n)
-      const b0 = num(ins, n, n)
-      const m = ins[2 * n]
-      const b = m ? ~b0 & mask : b0
-      const r = a + b + m
-      const signed = (v: number) => (v >= 2 ** (n - 1) ? v - 2 ** n : v)
-      const exact = m ? signed(a) - signed(b0) : signed(a) + signed(b)
-      writeBits(outs, 0, n, r & mask)
-      outs[n] = ((r >> n) & 1) as V
-      outs[n + 1] = exact < -(2 ** (n - 1)) || exact >= 2 ** (n - 1) ? 1 : 0
-    }),
   },
   {
     type: 'buscmp',
@@ -283,13 +188,6 @@ export const nbit: ComponentDef[] = [
         right: [{ name: 'GT', label: 'A>B' }, { name: 'EQ', label: 'A=B' }, { name: 'LT', label: 'A<B' }],
       }),
     groups: twoBuses,
-    evaluate: pure((ins, outs, { n }) => {
-      const a = num(ins, 0, n)
-      const b = num(ins, n, n)
-      outs[0] = a > b ? 1 : 0
-      outs[1] = a === b ? 1 : 0
-      outs[2] = a < b ? 1 : 0
-    }),
   },
   {
     type: 'busgate',
@@ -312,11 +210,6 @@ export const nbit: ComponentDef[] = [
     title: (p) => (GATES[String(p.op)] ?? GATES.and).label,
     layout: (p) => box({ left: p.op === 'not' ? names('A', widthOf(p)) : [...names('A', widthOf(p)), ...names('B', widthOf(p))], right: names('Y', widthOf(p)) }),
     groups: (p) => [...(p.op === 'not' ? [bus('A', 'in', widthOf(p))] : twoBuses(p)), bus('Y', 'out', widthOf(p))],
-    evaluate(inst) {
-      const { n, gate } = cfgOf(inst)
-      const { ins, outs } = inst
-      for (let i = 0; i < n; i++) outs[i] = gate(ins[i], ins[n + i])
-    },
   },
   {
     type: 'busmux',
@@ -345,12 +238,5 @@ export const nbit: ComponentDef[] = [
       ...(Number(p.n) > 2 ? [numbered('S', 'in', 'S', log2(Number(p.n)))] : []),
       bus('Y', 'out', widthOf(p)),
     ],
-    evaluate(inst) {
-      const { n: w, k, sel } = cfgOf(inst)
-      const { ins, outs } = inst
-      const s = toNum(ins, w * k, sel)
-      if (s < 0) for (let i = 0; i < w; i++) outs[i] = X
-      else for (let i = 0; i < w; i++) outs[i] = ins[s * w + i]
-    },
   },
 ]

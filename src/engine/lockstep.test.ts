@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { flatten } from '../model/buses'
 import { EXAMPLES } from '../model/examples'
-import { DEFS } from './registry'
+import { DEFS } from './testdata/oracle/registry'
 import { Simulator } from './simulator'
 import { layoutOf } from './layoutcache'
 import { ReferenceSimulator } from './testdata/reference/simulator'

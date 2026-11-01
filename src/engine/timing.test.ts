@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFS } from './registry'
+import { DEFS } from './testdata/oracle/registry'
 import { layoutOf } from './layoutcache'
 import type { ComponentDef, Params, V } from './types'
 

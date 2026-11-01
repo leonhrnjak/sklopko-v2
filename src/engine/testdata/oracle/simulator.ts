@@ -3,7 +3,7 @@
 import { aciaBreak, aciaKey, aciaPut, aciaType, type AciaState } from '../../acia'
 import { resolveLabels } from '../../netlabels'
 import { layoutOf } from '../../layoutcache'
-import { getDef, hasDef } from '../../registry'
+import { getDef, hasDef, type OracleDef } from './registry'
 import { buildPlan, type Plan, type Rejected } from '../../fast'
 import type { Compiled, WasmEngine } from '../../wasmengine'
 import { X, Z, type ComponentDef, type Instance, type Params, type V } from '../../types'
@@ -559,7 +559,7 @@ export class OracleSimulator {
    */
   private evaluate(cc: CComp) {
     const { outs } = cc.inst
-    cc.def.evaluate(cc.inst)
+    ;(cc.def as OracleDef).evaluate(cc.inst)
     const pipe = cc.pipe
     const { values, forced, changedNets } = this
     const outNets = cc.outNets
@@ -841,7 +841,7 @@ export class OracleSimulator {
         if (flag[r] === 0) continue
         flag[r] = 0
         const cc = comps[order[r]]
-        cc.def.evaluate(cc.inst)
+        ;(cc.def as OracleDef).evaluate(cc.inst)
         this.commitOuts(cc)
       }
     }
@@ -859,7 +859,7 @@ export class OracleSimulator {
     this.regCount = 0
     for (let k = 0; k < n; k++) {
       const cc = this.comps[run[k]]
-      cc.def.evaluate(cc.inst)
+      ;(cc.def as OracleDef).evaluate(cc.inst)
     }
     for (let k = 0; k < n; k++) this.commitOuts(this.comps[run[k]])
   }
