@@ -10,8 +10,8 @@ function Play() {
   return (
     <div className="ref-text">
       <p>
-        Open the example <b>Doom-like</b> (Examples → Doom-like). A 6502 draws a 3D view of a corridor, 160 columns wide, by casting a ray for every column. Click the
-        gamepad once so the keys go to it, or use the buttons on the gamepad itself (a touch screen can press them).
+        Open the example <b>Doom-like</b> (Examples → Doom-like). A 6502 draws a 3D view of a corridor, 160 columns wide, by casting a ray for every column. Play with the keyboard, or press
+        the buttons on the gamepad itself (a touch screen can).
       </p>
       <h3>Controls</h3>
       <div className="ref-table-wrap">
