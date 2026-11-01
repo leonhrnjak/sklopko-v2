@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { board6502Builder, boardExample } from './board6502'
 import { GAME_BANK0_SOURCE, GAME_BANK1_SOURCE, GAME_TEST_SOURCE } from './programs6502'
 import { flatten } from './buses'
+import { deserialize, serialize } from './serialize'
 import { Simulator } from '../engine/simulator'
 import { openFor } from '../engine/wasmengine'
 import { loadEngine } from '../engine/wasm'
@@ -82,6 +83,13 @@ describe('the game board', () => {
     expect(() => board6502Builder({ game: true })).toThrow(/memory: 'big'/)
     expect(() => board6502Builder({ game: true, memory: 'big', devices: ['leds'] })).toThrow(/own devices/)
     expect(() => board6502Builder({ game: true, memory: 'big' })).toThrow(/banked ROMs/)
+  })
+
+  it('keeps every wire when it is saved and loaded: no input has two wires (the pad did not reach the CPU in the page)', () => {
+    const c = boardExample(options, { intro: 'x', decode: 'y', devices: 'z' })
+    const ends = Object.values(c.wires).map((w) => `${w.to.comp}.${w.to.pin}`)
+    expect(new Set(ends).size).toBe(ends.length)
+    expect(Object.keys(deserialize(serialize(c)).wires).length).toBe(Object.keys(c.wires).length)
   })
 
   it('draws as an example with notes', () => {
