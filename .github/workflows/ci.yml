@@ -48,7 +48,7 @@ jobs:
 
   unit:
     name: Unit tests
-    needs: changes
+    needs: [changes, wasm]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -59,6 +59,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Use the engine this run built
+        uses: actions/download-artifact@v7
+        with:
+          name: engine-wasm
+          path: src/engine/wasm
       - run: npm test
 
   lint:
@@ -78,7 +83,7 @@ jobs:
 
   build:
     name: Type-check, build, bundle budget
-    needs: changes
+    needs: [changes, wasm]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -89,6 +94,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Use the engine this run built
+        uses: actions/download-artifact@v7
+        with:
+          name: engine-wasm
+          path: src/engine/wasm
       - run: npm run build
       - run: npm run check:bundle
       # The e2e shards test this build instead of each making its own.
@@ -100,19 +110,51 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # Builds the Rust engine. The unit and build jobs below use this build instead of the committed file, so a PR that changes
+  # engine-rs/ is tested with what its source builds to. On a pull request from this repository, if the committed file differs the
+  # job also commits the new one to the PR branch (Cloudflare's Git build has no Rust and uses the committed file). A push made with
+  # the workflow's own token does not start another run: this run already tested the new file. On the nightly run and on a fork's
+  # pull request nothing is pushed, and a stale file fails the job.
   wasm:
     name: WebAssembly engine is up to date
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
       # rustup (on the runner) installs the toolchain that engine-rs/rust-toolchain.toml names, on the first cargo call.
-      - run: npm run build:wasm -- --check
+      - run: npm run build:wasm
+      - name: Keep the built engine for the other jobs
+        uses: actions/upload-artifact@v6
+        with:
+          name: engine-wasm
+          path: src/engine/wasm/engine.wasm
+          retention-days: 1
+          if-no-files-found: error
+      - name: Commit the engine if it changed
+        run: |
+          if git diff --quiet -- src/engine/wasm/engine.wasm; then
+            echo "src/engine/wasm/engine.wasm is up to date."
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/engine/wasm/engine.wasm
+            git commit -m "Rebuild src/engine/wasm/engine.wasm from engine-rs/"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "src/engine/wasm/engine.wasm is not what engine-rs/ builds to. Run 'npm run build:wasm' and commit the result."
+            exit 1
+          fi
 
   # The browser is cached by this job alone, before the shards start. When every shard tried to fill the cache at once, some
   # missed and downloaded Chromium while others hit, and the cache could end up holding a half-installed browser.
