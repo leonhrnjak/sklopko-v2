@@ -1,4 +1,5 @@
-import { angleTables, COLUMN_BYTES, hi, lo, MAP, Q_FAR, Q_NEAR, quarterSquare, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
+import { gameCode, GAME_EQUATES, gameTables } from './game'
+import { angleTables, GAME_MAP, COLUMN_BYTES, hi, lo, MAP, Q_FAR, Q_NEAR, quarterSquare, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
 
 /** How the picture gets to the screen: not at all (the rays alone), byte by byte through the video port, or by the column-fill command. */
 export type DrawMode = 'none' | 'port' | 'fill'
@@ -110,7 +111,7 @@ ${repeat > 1 ? '  ASL A\n' : ''}  STA CMX
  * The spike renderer in 65C02 assembly (`reference.ts` does the same in TypeScript): one frame of `columns` rays from the pose in the
  * zero page, then it stops at `FRAMEEND`. The harness measures the cycles from `RENDER` to `FRAMEEND`.
  */
-export function doomSource(columns: number, draw: DrawMode): string {
+export function doomSource(columns: number, draw: DrawMode, game = false): string {
   const t = angleTables(columns)
   const repeat = screenWidth(columns) / columns
   const out: string[] = []
@@ -167,11 +168,12 @@ CMW = $4008
 CMSKY = $4009
 CMFLOOR = $400A
 
-  .org $C000
-RENDER:
+${game ? GAME_EQUATES : ''}
+  .org $C000${game ? gameCode(columns) : ''}
+RENDER:${game ? '' : `
   SEI
   CLD
-${draw === 'port' ? '  STZ VADDRL\n  STZ VADDRH' : ''}${draw === 'fill' ? `  LDA #${repeat}\n  STA CMW\n  LDA #${SKY}\n  STA CMSKY\n  LDA #${FLOOR}\n  STA CMFLOOR` : ''}
+${draw === 'port' ? '  STZ VADDRL\n  STZ VADDRH' : ''}${draw === 'fill' ? `  LDA #${repeat}\n  STA CMW\n  LDA #${SKY}\n  STA CMSKY\n  LDA #${FLOOR}\n  STA CMFLOOR` : ''}`}
   LDX ANG
   LDA R0XT,X
   STA RDXH
@@ -239,6 +241,8 @@ STEPX:
   TAX
   LDA MAP,X
   BEQ DDA
+  AND #64
+  STA TMPA
   SEC
   LDA SDXL
   SBC DXL
@@ -246,9 +250,11 @@ STEPX:
   LDA SDXH
   SBC DXH
   STA DISTH
-  LDA #0
   BRA HIT
 HITY:
+  AND #64
+  ORA #32
+  STA TMPA
   SEC
   LDA SDYL
   SBC DYL
@@ -256,9 +262,7 @@ HITY:
   LDA SDYH
   SBC DYH
   STA DISTH
-  LDA #32
 HIT:
-  STA TMPA
   LDA DISTH
   CMP #4
   BCS FAR
@@ -309,7 +313,7 @@ GOT:
   BEQ FRAMEEND
   JMP COLUMN
 FRAMEEND:
-  JMP FRAMEEND
+  ${game ? 'RTS' : 'JMP FRAMEEND'}
 
 ; A * B (MA, MB) = PR, by quarter squares: sq(a+b) - sq(a-b)
 MUL:
@@ -376,7 +380,12 @@ RUN:
   emit(...bytes('STXH', t.stepX.map(hi)))
   emit(...bytes('STYL', t.stepY.map(lo)))
   emit(...bytes('STYH', t.stepY.map(hi)))
-  emit(...bytes('MAP', MAP))
-  emit('  .org $FFFA', '  .word RENDER', '  .word RENDER', '  .word RENDER')
+  if (game) {
+    emit(...bytes('MAPROM', GAME_MAP), ...gameTables())
+    emit('  .org $FFFA', '  .word START', '  .word START', '  .word IRQ')
+  } else {
+    emit(...bytes('MAP', MAP))
+    emit('  .org $FFFA', '  .word RENDER', '  .word RENDER', '  .word RENDER')
+  }
   return out.join('\n')
 }
