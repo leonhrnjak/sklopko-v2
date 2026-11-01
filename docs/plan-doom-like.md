@@ -9,7 +9,7 @@
 > - [ ] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
 > - [x] D1b Column fill (the D0 numbers said it pays)
 > - [x] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
-> - [ ] D3 The engine on the board: walls, doors, movement, shading
+> - [x] D3 The engine on the board: walls, doors, movement, shading
 > - [ ] D4 The game: enemies, sprites, a gun, five levels, the example
 > - [ ] D4b (optional) Textured walls
 > - [ ] D4c (optional) A HUD with a face, and more enemy frames
@@ -168,6 +168,12 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 - The D0 renderer, hardened: map, collision, strafe and turn, door opening, distance and side shading, frame pacing from the VIA timer.
 - **Done when:** on the board, the picture equals the reference at the 20 test positions plus after a scripted walk (a recorded
   gamepad sequence); a headless run holds the frame rate the D0 table promised (within 25 percent); an e2e test walks to a door and opens it.
+
+### D3 result (PRs #239, #240, #242; the example group in #243)
+- **D3a, the game loop** (`src/model/doom/game.ts`, `source.ts` with `game = true`): the D0 renderer became a subroutine; the main loop waits for the VIA timer (60 ticks a second), runs one step of the rules for each tick since the last picture (at most 12), then draws. Up and down walk, left and right turn, A held strafes, B opens a door; the player stops 1/8 of a cell short of a wall, per axis. The map is copied to RAM (`$0200`) so a door (cell value 64, own colours) can open. A test on the real game board checks the pose and all 16,000 pixels against the TypeScript reference after every picture of a scripted walk that opens the door.
+- **D3b, the cheaper ray set-up:** the four quarter-square multiplies became a lookup in logarithms, a 16-bit add and a lookup in exponentials (1/128 octave, error under 0.6 percent, the reference uses the same tables). **160 columns with the fill: 130,877 → 96,130 cycles on average over the 20 poses (7.6 → 10.4 a second), worst 167,204 → 132,951.** The target (under 120,000) is met, so the width stays 160. Rays only: 88,091; 80 columns with the fill: 48,312. The scripted walk on the board averages 88,000 cycles a picture.
+- **Differs from the spec:** the build script and generated ROM module were left out: the program is assembled in the page from `doomSource` when the example opens, which is quick and costs the startup chunk nothing. The two banked ROMs are empty stubs until D4 puts levels there. The e2e test holds up and X together instead of walking first and pressing X later, so it does not depend on the browser's speed.
+- **Example:** `/6502-doomlike`, in the new example group **Doom-like** (with the video and game-board examples, #243).
 
 ## D4 The game
 - Two enemy types (patrol and chase), scaled sprites with a depth buffer per column, a weapon with hit tests, health, five 16×16 levels
