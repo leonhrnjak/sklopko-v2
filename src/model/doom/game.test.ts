@@ -305,30 +305,46 @@ describe('the game on the bare core', () => {
     expect(assemble6502(ART_BANK_SOURCE, 0x4000, true).errors).toEqual([])
   })
 
-  it('plays through all five levels holding up and B, and shows the win screen: the picture is the reference\'s after every picture', () => {
+  it('a recorded run (Up and B held) kills both kinds of monster, takes damage and reaches the exit of every level; every picture is the reference\'s', () => {
     const m = new GameMachine()
     const ref = newGame()
+    const record: number[] = []
+    const killed = [0, 0, 0]
+    const exits: number[] = []
+    let minHealth = MAX_HEALTH
     let pictures = 0
     let t0 = 0
     m.runTo('PADRD')
-    let levels = 0
     for (let f = 0; f < 3000 && ref.state === STATE.play; f++) {
       // The pad is read right after this point; the ticks of the coming picture are already known.
-      m.pad = up | b
+      const pad = up | b
+      record.push(pad)
+      m.pad = pad
       const used = m.ram[GAME_CELLS.used]
       expect(used).toBeGreaterThanOrEqual(1)
       expect(used).toBeLessThanOrEqual(MAX_TICKS)
-      const before = ref.level
-      for (let i = 0; i < used; i++) tick(ref, up | b)
-      if (ref.level > before) levels++
+      for (let i = 0; i < used; i++) {
+        const kinds = ref.enemies.map((e) => e.kind)
+        const kills = ref.kills
+        const level = ref.level
+        tick(ref, pad)
+        if (ref.kills > kills) killed[kinds.find((k, j) => k && !ref.enemies[j].kind)!]++
+        if (ref.level > level) exits.push(level)
+        minHealth = Math.min(minHealth, ref.health)
+      }
       if (f === 0) t0 = m.cycles
       m.runTo('PADRD')
       pictures++
       compare(m, ref, `picture ${f}`)
     }
-    console.log(`bare core: ${pictures} pictures, ${Math.round((m.cycles - t0) / pictures)} cycles a picture on average`)
+    console.log(`bare core: ${pictures} pictures, ${Math.round((m.cycles - t0) / pictures)} cycles a picture on average; killed ${killed[1]} patrols and ${killed[2]} chasers; lowest health ${minHealth}`)
     expect(ref.state).toBe(STATE.won)
-    expect(levels).toBe(5)
+    expect(exits).toEqual([0, 1, 2, 3, 4])
+    expect(killed[1]).toBeGreaterThan(0)
+    expect(killed[2]).toBeGreaterThan(0)
+    expect(minHealth).toBeLessThan(MAX_HEALTH)
+    expect(minHealth).toBeGreaterThan(0)
+    expect(record.every((p) => p === (up | b))).toBe(true)
     // The win screen: stripes. B restarts after the delay.
     expect(Array.from(m.picture().slice(0, 16))).toEqual([12, 12, 12, 12, 12, 12, 12, 12, 4, 4, 4, 4, 4, 4, 4, 4])
   }, 600_000)

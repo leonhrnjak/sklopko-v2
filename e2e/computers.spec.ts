@@ -906,8 +906,8 @@ test('the video example: the 6502 draws a colour test card through the video chi
   expect(await pixel(55, 40)).toEqual([0x7a, 0x2e, 0x1f, 255])
 })
 
-test('the Doom-like example: walk up to the door in the corridor, open it, and walk on to the exit switch and the next level', async ({ page }) => {
-  test.setTimeout(240_000)
+test('the Doom-like example: Up and X walk through the door, shoot the monsters and press the exit of every level, to the win screen', async ({ page }) => {
+  test.setTimeout(480_000)
   await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
   const canvas = page.getByTestId('canvas').locator('canvas.video-canvas')
   await expect(canvas).toBeVisible()
@@ -921,15 +921,17 @@ test('the Doom-like example: walk up to the door in the corridor, open it, and w
   }
   await expect.poll(() => pixel(80, 2), { timeout: 30000 }).toEqual([0x1b, 0x2a, 0x6b, 255])
   await expect.poll(isDoor, { timeout: 30000 }).toBe(true)
-  // Hold up and X together: the player walks until the door is within reach, X opens it, and the corridor's far wall shows through.
+  // Hold up and X together: the player walks, shoots what is in front of him (X fires when no door or exit is in reach), opens the door
+  // when it is within reach, and presses the exit switch at the end of the corridor.
   await page.keyboard.down('ArrowUp')
   await page.keyboard.down('x')
-  await expect.poll(isDoor, { timeout: 30000 }).toBe(false)
-  // Still holding both: the player reaches the cyan exit switch at the end of the corridor, X presses it, and the HUD's second light (columns 108 to 113
-  // of the strip, yellow once lit) comes on in level two.
-  const lit = async () => (await pixel(110, 97)).slice(0, 3).join()
-  expect(await lit()).toBe([0x55, 0x55, 0x55].join())
-  await expect.poll(lit, { timeout: 120000 }).toBe([0xf2, 0xd3, 0x2e].join())
+  await expect.poll(isDoor, { timeout: 60000 }).toBe(false)
+  // The HUD has a light for each level in its strip (columns 100 + 8n, yellow once lit, grey before).
+  const lit = async (n: number) => (await pixel(102 + 8 * n, 97)).slice(0, 3).join()
+  expect(await lit(1)).toBe([0x55, 0x55, 0x55].join())
+  for (const n of [1, 2, 3, 4]) await expect.poll(() => lit(n), { timeout: 150000 }).toBe([0xf2, 0xd3, 0x2e].join())
+  // After the last exit: stripes of yellow and green, eight columns wide.
+  await expect.poll(async () => [(await pixel(2, 40)).slice(0, 3).join(), (await pixel(10, 40)).slice(0, 3).join()], { timeout: 150000 }).toEqual([[0xf2, 0xd3, 0x2e].join(), [0x3e, 0xcf, 0x5a].join()])
   await page.keyboard.up('x')
   await page.keyboard.up('ArrowUp')
 })
