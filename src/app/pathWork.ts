@@ -31,7 +31,6 @@ const fitSoon = () => {
   requestAnimationFrame(() => requestAnimationFrame(fitToScreen))
   // The panel under the canvas has not always taken its room by then (a step opened from its address): once more when it has.
   window.setTimeout(fitToScreen, 300)
-  fitWhileResizing(3000)
 }
 
 export const currentStep = (): Step | undefined => {
@@ -75,6 +74,7 @@ export async function startStep(id: string) {
   usePath.setState({ step: id, mapOpen: false, hintShown: false, result: null, palette: build?.palette ?? (playable?.palette && [...new Set([...playable.palette, ...unlockedParts(usePath.getState().progress)])]) ?? null, ours: notBuilt(uses, kit) })
   setProgress({ ...usePath.getState().progress, current: id })
   if (!build && !explore && !project && !program) return
+  fitWhileResizing(15000) // (the panel arrives on its own time, whichever way the circuit is opened)
   const watch = () => explore && watchGoals(explore, !!usePath.getState().progress.done[id])
   try {
     const doc = (await listDocs('circuit')).find((d) => d.origin?.path === id)
