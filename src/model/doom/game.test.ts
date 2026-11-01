@@ -8,6 +8,7 @@ import { assemble6502 } from '../../engine/asm6502'
 import { doomSource } from './source'
 import { ART_BANK_SOURCE, ATTACK_DELAY, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, playerCell, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
 import { FACE_ART, FACE_BYTES, FACE_OUCH, FACE_ROWS, FACE_W, faceBytes, faceFrame, HURT_TICKS } from './face'
+import { GUN_ART, GUN_FLASH, GUN_FRAMES, GUN_RECOIL, GUN_RECORD, GUN_REST, GUN_ROWS, GUN_W, gunBytes, gunColumn, gunFrame } from './gun'
 import { columnRuns, project, spriteWidth, texelRow } from './sprites'
 import { CHASE, PATROL } from './levels'
 import { GameMachine } from './gamemachine'
@@ -320,6 +321,30 @@ describe('the face', () => {
   })
 })
 
+describe('the gun', () => {
+  it('has three 16 × 16 frames whose columns are solid from the first row down, and the frame follows the gun delay', () => {
+    expect(GUN_ART).toHaveLength(GUN_FRAMES)
+    for (const [f, art] of GUN_ART.entries()) {
+      expect(art).toHaveLength(GUN_ROWS)
+      for (const row of art) expect(row).toHaveLength(GUN_W)
+      for (let u = 0; u < GUN_W; u++) {
+        const col = art.map((r) => r[u]).join('')
+        expect(col, `frame ${f} column ${u}`).toMatch(/^\.*[^.]*$/)
+        const { start, bytes } = gunColumn(f, u)
+        if (col.replace(/\./g, '')) expect(bytes.length).toBe(8 - start)
+        else expect(bytes).toEqual([])
+      }
+      expect(gunBytes(f)).toHaveLength(GUN_W * GUN_RECORD)
+    }
+    expect([0, 9, 10, 15, 16, 18].map(gunFrame)).toEqual([GUN_REST, GUN_REST, GUN_RECOIL, GUN_RECOIL, GUN_FLASH, GUN_FLASH])
+    // Firing: the delay is set to 18, so the picture right after a shot shows the flash.
+    const g = newGame()
+    g.pose.angle = 0
+    tick(g, b)
+    expect(gunFrame(g.firecd)).toBe(GUN_FLASH)
+  })
+})
+
 describe('the game on the bare core', () => {
   it('fits: the fixed ROM leaves room, and the banks hold the levels', () => {
     const m = new GameMachine()
@@ -339,6 +364,7 @@ describe('the game on the bare core', () => {
     let pictures = 0
     let t0 = 0
     const faces = new Set<number>()
+    const guns = new Set<number>()
     m.runTo('PADRD')
     for (let f = 0; f < 3000 && ref.state === STATE.play; f++) {
       // The pad is read right after this point; the ticks of the coming picture are already known.
@@ -361,7 +387,10 @@ describe('the game on the bare core', () => {
       m.runTo('PADRD')
       pictures++
       compare(m, ref, `picture ${f}`)
-      if (ref.state === STATE.play) faces.add(faceFrame(ref.health, ref.hurt))
+      if (ref.state === STATE.play) {
+        faces.add(faceFrame(ref.health, ref.hurt))
+        guns.add(gunFrame(ref.firecd))
+      }
     }
     console.log(`bare core: ${pictures} pictures, ${Math.round((m.cycles - t0) / pictures)} cycles a picture on average; killed ${killed[1]} patrols and ${killed[2]} chasers; lowest health ${minHealth}`)
     expect(ref.state).toBe(STATE.won)
@@ -372,6 +401,8 @@ describe('the game on the bare core', () => {
     expect(minHealth).toBeGreaterThan(0)
     // The face changed with the damage: well, then scratched, and the wince after each hit.
     expect(faces.has(0) && faces.has(1) && faces.has(FACE_OUCH)).toBe(true)
+    // The gun showed all three: at rest, the flash and the recoil.
+    expect([...guns].sort()).toEqual([GUN_REST, GUN_FLASH, GUN_RECOIL])
     expect(record.every((p) => p === (up | b))).toBe(true)
     // The win screen: stripes. B restarts after the delay.
     expect(Array.from(m.picture().slice(0, 16))).toEqual([12, 12, 12, 12, 12, 12, 12, 12, 4, 4, 4, 4, 4, 4, 4, 4])
