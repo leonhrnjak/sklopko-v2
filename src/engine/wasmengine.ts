@@ -179,7 +179,7 @@ type TerminalState = AciaState & { pc: number; out: number }
 
 /** Can the module run this circuit? (Every part has a version in Rust, with the settings it handles.) */
 export function supports(c: Compiled): boolean {
-  return c.comps.filter((cc) => cc.def.type === 'clock').length === 1 && c.comps.every(ported)
+  return c.comps.some((cc) => cc.def.type === 'clock') && c.comps.every(ported)
 }
 
 /** Does the module have this part (with these settings)? */
