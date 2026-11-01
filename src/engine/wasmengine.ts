@@ -6,7 +6,7 @@ import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
 import { BY_OPCODE_6502, type Opcode6502 } from './opcodes6502'
-import type { EngineExports } from './wasm'
+import { instantiateEngine, type EngineExports } from './wasm'
 import type { Instance, Params, ComponentDef } from './types'
 
 /**
@@ -237,6 +237,14 @@ function romWordsOf(def: CompiledPart['def'], p: Params): number[] {
 }
 
 /** What `Simulator.setWasm` takes: the engine for a compiled circuit, or null when a part of it is not in the module. */
+/**
+ * What `Simulator.defaultOpener` holds, for a compiled module: each Simulator calls it once and gets an opener with an instance of the
+ * engine of its own (made when first needed and used for every circuit it loads), so many simulators can run at once.
+ */
+export const openerFor = (module: WebAssembly.Module) => () => {
+  let x: EngineExports | null = null
+  return (c: Compiled) => (supports(c) ? new WasmEngine((x ??= instantiateEngine(module)), c) : null)
+}
 export const openFor = (x: EngineExports) => (c: Compiled) => (supports(c) ? new WasmEngine(x, c) : null)
 
 export class WasmEngine {
@@ -439,6 +447,7 @@ export class WasmEngine {
     const ptr = x.alloc(image.byteLength)
     new Int32Array(x.memory.buffer, ptr, image.length).set(image)
     x.init(ptr, image.length)
+    x.free(ptr, image.byteLength) // (the module has copied what it needs)
     // The keyboard: what waits in a terminal's buffer goes into the module's queue.
     this.terminals.forEach(({ st }, k) => {
       for (let i = st.next; i < st.keys.length; i++) x.acia_key(k, st.keys.charCodeAt(i))
@@ -485,6 +494,32 @@ export class WasmEngine {
   /** One gate delay of the exact engine. Returns true while the circuit is still moving. */
   tick(): boolean {
     return this.x.tick() === 1
+  }
+
+  /**
+   * The parts the module does not run (switches, buttons, constants: they keep what the page puts on their nets) say again what they
+   * show now. After `load` the nets are the ones of an earlier moment, and the page's switches may have been flipped since.
+   */
+  refreshInputs() {
+    this.c.comps.forEach((cc) => {
+      if (KIND[cc.def.type] !== undefined || cc.def.type === 'clock' || cc.outNets.length === 0) return
+      cc.def.evaluate(cc.inst)
+      cc.outNets.forEach((net, o) => this.x.set_net(net, cc.inst.outs[o]))
+    })
+  }
+
+  /** Is this part one that the page runs (a switch, a button, a label...) rather than the module? Changing it needs no hand-over. */
+  runsOnPage(part: number): boolean {
+    const type = this.c.comps[part].def.type
+    return KIND[type] === undefined && type !== 'clock'
+  }
+
+  /** A part the page runs was changed: say again what it shows, and put that on its nets. */
+  refreshPart(part: number) {
+    const cc = this.c.comps[part]
+    if (cc.outNets.length === 0) return
+    cc.def.evaluate(cc.inst)
+    cc.outNets.forEach((net, o) => this.x.set_net(net, cc.inst.outs[o]))
   }
 
   /** Hold a net at 0 or 1 (or let it go with -1). */

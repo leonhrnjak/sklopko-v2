@@ -75,7 +75,11 @@ function digest(x: unknown): string {
   return String(x)
 }
 
-const statesOf = (s: Simulator | ReferenceSimulator) => (s as unknown as { comps: { id: string; inst: { state: unknown } }[] }).comps.map((c) => `${c.id}=${digest(c.inst.state)}`)
+const statesOf = (s: Simulator | ReferenceSimulator) => {
+  // (with the Rust engine running, the parts' states are brought up to date from the module first)
+  ;(s as unknown as { syncWasm?: () => void }).syncWasm?.()
+  return (s as unknown as { comps: { id: string; inst: { state: unknown } }[] }).comps.map((c) => `${c.id}=${digest(c.inst.state)}`)
+}
 
 describe('the fast engine against the reference simulator', () => {
   const accepted: string[] = []

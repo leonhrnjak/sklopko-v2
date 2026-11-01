@@ -10,7 +10,7 @@ mod parts;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 9;
+pub const ABI_VERSION: u32 = 12;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -31,6 +31,12 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let p = v.as_mut_ptr();
     std::mem::forget(v);
     p
+}
+
+/// Give back memory from `alloc` (the same `len`).
+#[unsafe(no_mangle)]
+pub extern "C" fn free(ptr: *mut u8, len: usize) {
+    drop(unsafe { Vec::<u8>::from_raw_parts(ptr, 0, len) });
 }
 
 /// The checksum of `len` bytes at `ptr`: a check that what the page wrote is what the module reads.
@@ -206,4 +212,10 @@ pub extern "C" fn pipe_ptr(part: u32) -> *mut u8 {
 #[unsafe(no_mangle)]
 pub extern "C" fn pipe_len(part: u32) -> u32 {
     eng().pipe_len(part as usize) as u32
+}
+
+/// Put `v` on net `net` from outside, flagging the parts that read it.
+#[unsafe(no_mangle)]
+pub extern "C" fn set_net(net: u32, v: u32) {
+    eng().set_net(net as usize, v as u8)
 }

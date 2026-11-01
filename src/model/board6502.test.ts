@@ -4,7 +4,7 @@ import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { assemble6502 } from '../engine/asm6502'
 import { BIG_ROM_SIZE, BLINK_BYTES, BLINK_SOURCE, board6502, board6502Builder, romImage, ROM_BASE, type Board6502Options } from './board6502'
-import { aciaBreak, aciaType, screenText, type AciaState } from '../engine/acia'
+import { screenText, type AciaState } from '../engine/acia'
 import { BALL_SOURCE, COUNTER_SOURCE, VIA_TIMER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 import { basic6502, basicLcd6502, lcd6502, sweep65c02, via6502 } from './board6502-examples'
 import { BASIC_PROGRAMS, programText } from './basic-programs'
@@ -458,7 +458,7 @@ describe('the 6502 board with the VIA and the LCD', () => {
     for (let n = 0; n < 200_000 && !/OK$/.test(screenText(st())); n++) oneCycle(sim)
     const program = BASIC_PROGRAMS.find((p) => p.id === 'lcd')!
     expect(program.needs).toBe('lcd')
-    aciaType(st(), programText(program))
+    sim.terminal(type, { op: 'type', text: programText(program), capitals: true })
     let cycles = 0
     for (; cycles < 3_000_000 && lines(sim, lcd).join('|') !== 'HELLO FROM BASIC|ON A 6502'; cycles++) oneCycle(sim)
     expect(lines(sim, lcd)).toEqual(['HELLO FROM BASIC', 'ON A 6502'])
@@ -469,7 +469,7 @@ describe('the 6502 board with the VIA and the LCD', () => {
 describe('the 6502 board with the terminal', () => {
   const board = (source: string, interrupt = false) => start({ memory: 'big', source, devices: ['terminal'], interrupt })
   const screen = (sim: Simulator, id: string) => screenText(sim.state(id) as AciaState)
-  const type = (sim: Simulator, id: string, text: string) => aciaType(sim.state(id) as AciaState, text)
+  const type = (sim: Simulator, id: string, text: string) => sim.terminal(id, { op: 'type', text: text, capitals: true })
   /** Run until the screen shows `text` (at most `max` cycles); returns whether it did. */
   const until = (sim: Simulator, id: string, text: string, max = 20_000) => {
     for (let n = 0; n < max && screen(sim, id) !== text; n++) oneCycle(sim)
@@ -513,7 +513,7 @@ describe('the 6502 board with the terminal', () => {
   it('echo: the break key arrives like any other (Control+C is $03, which the screen does not show)', () => {
     const { sim, keys } = board(ECHO_SOURCE)
     expect(until(sim, keys.terminal, 'HELLO\n')).toBe(true)
-    aciaBreak(sim.state(keys.terminal) as AciaState)
+    sim.terminal(keys.terminal, { op: 'break' })
     for (let n = 0; n < 400; n++) oneCycle(sim)
     expect((sim.state(keys.terminal) as AciaState).keys.length).toBe((sim.state(keys.terminal) as AciaState).next) // it was read
     expect(screen(sim, keys.terminal)).toBe('HELLO\n')
@@ -571,12 +571,13 @@ describe('the BASIC computer', () => {
     const idle = (n = 3000) => {
       for (let i = 0; i < n; i++) oneCycle(sim)
     }
-    return { c, sim, term, st, run, idle, screen: () => screenText(st()) }
+    const type = (text: string) => sim.terminal(term, { op: 'type', text: text, capitals: true })
+    return { c, sim, term, st, run, idle, type, screen: () => screenText(st()) }
   }
   /** Type a line and run until BASIC prints OK after it again. */
   const enter = (m: ReturnType<typeof boot>, text: string, max = 3_000_000) => {
     const before = (m.screen().match(/OK/g) ?? []).length
-    aciaType(m.st(), text + '\r')
+    m.type(text + '\r')
     return m.run(() => (m.screen().match(/OK/g) ?? []).length > before, max)
   }
 
@@ -608,7 +609,7 @@ describe('the BASIC computer', () => {
     expect(enter(m, 'PRINT 2+2')).toBe(true)
     expect(m.screen()).toMatch(/PRINT 2\+2\n 4\n\nOK$/)
     for (const line of ['10 FOR I=1 TO 3', '20 PRINT "HELLO";I', '30 NEXT I']) {
-      aciaType(m.st(), line + '\r') // a program line is stored, and BASIC does not say OK
+      m.type(line + '\r') // a program line is stored, and BASIC does not say OK
       expect(m.run(() => m.st().next >= m.st().keys.length)).toBe(true)
       m.idle(20_000)
     }
@@ -624,9 +625,9 @@ describe('the BASIC computer', () => {
     m.sim.reset() // a cold start: the screen and the program are gone
     m.sim.settle()
     expect(m.run(() => /MEMORY SIZE\? $/.test(m.screen() + ' '))).toBe(true)
-    aciaType(m.st(), '\r')
+    m.type('\r')
     expect(m.run(() => /TERMINAL WIDTH\? $/.test(m.screen() + ' '))).toBe(true)
-    aciaType(m.st(), '\r')
+    m.type('\r')
     expect(m.run(() => /OK$/.test(m.screen()))).toBe(true)
     expect(m.screen()).toContain('15615 BYTES FREE')
   })
@@ -635,11 +636,11 @@ describe('the BASIC computer', () => {
     const m = boot()
     m.run(() => /OK$/.test(m.screen()))
     const table = BASIC_PROGRAMS.find((p) => p.id === 'table')!
-    aciaType(m.st(), programText(table, false))
+    m.type(programText(table, false))
     expect(m.run(() => m.st().next >= m.st().keys.length)).toBe(true)
     m.idle(20_000)
     const start = m.screen().length
-    aciaType(m.st(), 'RUN\r')
+    m.type('RUN\r')
     let cycles = 0
     expect(m.run(() => (cycles++, / {3}9\n/.test(m.screen().slice(start))), 3_000_000)).toBe(true)
     expect(cycles).toBeLessThan(500_000)
@@ -650,7 +651,7 @@ describe('the BASIC computer', () => {
     const m = boot()
     m.run(() => /OK$/.test(m.screen()))
     expect(enter(m, 'PRINT 2+2')).toBe(true)
-    aciaType(m.st(), 'LEFT OVER') // typed, never read
+    m.type('LEFT OVER') // typed, never read
     m.sim.setState(find(m.c, 'button'), { pressed: true })
     m.idle(40)
     expect(m.screen()).toBe('')
@@ -662,7 +663,7 @@ describe('the BASIC computer', () => {
   it('left running keeps its memory flat: the screen and the keyboard buffer are bounded', { timeout: 300_000 }, () => {
     const m = boot()
     m.run(() => /OK$/.test(m.screen()))
-    aciaType(m.st(), '10 PRINT "X";:GOTO 10\rRUN\r')
+    m.type('10 PRINT "X";:GOTO 10\rRUN\r')
     m.idle(300_000)
     expect(m.screen()).toContain('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX') // a whole line of them: it is running
     const lines = m.st().lines.length

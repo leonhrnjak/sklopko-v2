@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { aciaType, type AciaState } from '../../engine/acia'
 import { Simulator } from '../../engine/simulator'
 import { flatten } from '../buses'
 import type { Circuit } from '../circuit'
@@ -120,7 +119,7 @@ describe('explore steps', () => {
           }
         } else if ('type' in a) {
           // Keys typed on a terminal (the only one on the board).
-          aciaType(sim.state(Object.values(c.comps).find((k) => k.type === 'acia6551')!.id) as AciaState, a.type)
+          sim.terminal(Object.values(c.comps).find((k) => k.type === 'acia6551')!.id, { op: 'type', text: a.type, capitals: true })
         } else {
           operate(a.label, a.to)
           look()
