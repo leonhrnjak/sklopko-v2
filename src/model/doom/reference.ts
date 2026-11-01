@@ -60,21 +60,27 @@ function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, map: number
   throw new Error('the ray never hit a wall')
 }
 
-/** The picture, 160×100 colours row by row, from `columns` rays (80 rays: each is two pixels wide). */
-export function render(p: Pose, columns: number, map: number[] = MAP): Uint8Array {
+/** The picture, 160×100 colours row by row, from `columns` rays (80 rays: each is two pixels wide), and the `q` of the wall in each column. */
+export function renderDepth(p: Pose, columns: number, map: number[] = MAP): { pixels: Uint8Array; zq: number[] } {
   const t = angleTables(columns)
   const sw = screenWidth(columns)
   const out = new Uint8Array(sw * SCREEN_H)
+  const zq: number[] = []
   const scale = sw / columns
   for (let c = 0; c < columns; c++) {
     const { q, pair } = cast(p, c, t, map)
     const top = 50 - 2 * q
     const bottom = 50 + 2 * q
-    for (let k = 0; k < scale; k++)
+    for (let k = 0; k < scale; k++) {
+      zq.push(q)
       for (let y = 0; y < SCREEN_H; y++) out[y * sw + c * scale + k] = y < top ? SKY : y < bottom ? pair & 15 : FLOOR
+    }
   }
-  return out
+  return { pixels: out, zq }
 }
+
+/** The picture alone. */
+export const render = (p: Pose, columns: number, map: number[] = MAP): Uint8Array => renderDepth(p, columns, map).pixels
 
 /** The framebuffer bytes of a picture `sw` wide: column by column, two pixels a byte. */
 export function packColumns(pixels: Uint8Array, sw: number): Uint8Array {

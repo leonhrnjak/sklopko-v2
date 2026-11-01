@@ -111,12 +111,12 @@ export class GameMachine {
     }
   }
 
-  /** Run until the CPU is about to fetch the instruction at `name` (a label). Gives up after `limit` cycles. */
+  /** Run until the CPU is about to fetch the instruction at `name` (a label) and no interrupt takes its place. Gives up after `limit` cycles. */
   runTo(name: string, limit = 2_000_000): void {
     const at = this.symbols[name]
     const c = this.cpu
     for (let n = 0; n < limit; n++) {
-      if (c.sync && c.addr === at && n > 0) return
+      if (c.sync && c.addr === at && n > 0 && !c.intr) return
       this.step()
     }
     throw new Error(`the program did not reach ${name} in ${limit} cycles`)

@@ -100,7 +100,7 @@ ${repeat > 1 ? '  DEC REP\n  BNE DRW' : ''}`
 }
 
 /** Drawing a column by the fill command: the column, where the wall starts and ends in pixels, and its colour (the last write starts the fill). */
-function drawFill(repeat: number): string {
+function drawFill(repeat: number, game: boolean): string {
   return `
   LDA COL
 ${repeat > 1 ? '  ASL A\n' : ''}  STA CMX
@@ -117,7 +117,7 @@ ${repeat > 1 ? '  ASL A\n' : ''}  STA CMX
   STA CMBOT
   LDA PAIR
   AND #$0F
-  STA CMCOL`
+  STA CMCOL${game ? '\n  JSR COLEXTRA' : ''}`
 }
 
 /**
@@ -304,7 +304,7 @@ GOT:
   LDA SHADE,X
   STA PAIR`)
   if (draw === 'port') emit(drawPort(repeat))
-  if (draw === 'fill') emit(drawFill(repeat))
+  if (draw === 'fill') emit(drawFill(repeat, game))
   emit(`
   CLC
   LDA RDXL
