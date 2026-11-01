@@ -916,7 +916,7 @@ test('the Doom-like example: walk up to the door in the corridor, open it, and w
   // The sky is colour 1 (0x1b2a6b), the floor colour 2 (0x3b3fc2); the door ahead is drawn in the brown to yellow door colours.
   const doorColours = [[0x7a, 0x2e, 0x1f], [0xd9, 0x55, 0x2b], [0xff, 0x9a, 0x2e], [0xf2, 0xd3, 0x2e]]
   const isDoor = async () => {
-    const p = (await pixel(80, 50)).slice(0, 3)
+    const p = (await pixel(74, 50)).slice(0, 3)
     return doorColours.some((c) => c.every((v, i) => v === p[i]))
   }
   await expect.poll(() => pixel(80, 2), { timeout: 30000 }).toEqual([0x1b, 0x2a, 0x6b, 255])

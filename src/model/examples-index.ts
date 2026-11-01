@@ -95,7 +95,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('BASIC computer', '6502-echo-irq', '6502 + terminal: echo by interrupt'),
   e('Doom-like', '6502-video', '6502 + video chip: a 160×100 test card'),
   e('Doom-like', '6502-gameboard', '6502 game board: video, gamepad, VIA and two ROM banks'),
-  e('Doom-like', '6502-doomlike', '6502 3D game: five levels, doors, an exit switch, a HUD'),
+  e('Doom-like', '6502-doomlike', '6502 3D shooter: five levels, monsters, a gun, a HUD'),
   e('Custom ICs', 'ic-adder', 'A 4-bit adder made of ICs inside ICs'),
   e('Custom ICs', 'computer-blocks', 'The 8-bit computer as blocks'),
 ]

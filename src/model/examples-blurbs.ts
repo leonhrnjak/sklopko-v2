@@ -12,7 +12,7 @@ export const BLURBS: Record<string, string> = {
   '6502-parts-irq': 'The 6502 from parts with its IRQ and NMI pins: two buttons, and the LEDs count how often each interrupt was taken.',
   '6502-parts-basic': 'Microsoft BASIC on the 6502 built from parts: it boots to OK in a few seconds and runs what you type, slowly.',
   '6502-via': 'A 6522 VIA: its timer interrupts the 6502 once a second, and the interrupt routine counts on LEDs on port B.',
-  '6502-doomlike': 'A 3D game drawn by a 6502 raycaster: five levels with doors and an exit switch, and a health strip.',
+  '6502-doomlike': 'A 3D shooter drawn by a 6502 raycaster: five levels, two kinds of monster, a gun and a health and ammo strip.',
   '6502-gameboard': 'The board for the Doom-like: a video chip, a gamepad, a VIA frame timer and a ROM with two banks, tested by a small program.',
   '6502-video': 'A 6502 draws a 160×100, 16-colour test card through a video chip, one run of writes for each column.',
   '6502-lcd': 'A 6502 writes Hello, world! on a character LCD through a 6522 VIA, waiting for its busy flag, as in Ben Eater’s videos.',

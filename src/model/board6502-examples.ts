@@ -229,15 +229,15 @@ export const gameBoard6502 = (): Circuit => {
 }
 
 const DOOM_DEVICES =
-  'The game is the whole ROM: a main loop paced by the VIA\u2019s timer (60 ticks a second), the rules, and the raycaster. Each picture it reads the gamepad once and runs a step of the rules for every tick since the last, so you walk at the same speed however long a picture takes (about 90,000 cycles). Arrows walk and turn; hold A (Z) to slide sideways; B (X) opens the door in front of you or presses the cyan exit switch, which loads the next level from bank 0. The HUD strip shows your health and the level. After the last exit a striped screen says you won; X starts again.'
+  'The game is the whole ROM: a main loop paced by the VIA\u2019s timer (60 ticks a second), the rules, and the raycaster. Each picture it reads the gamepad once and runs a step of the rules for every tick since the last, so you walk at the same speed however long a picture takes (about 100,000 cycles). Arrows walk and turn; hold A (Z) to slide sideways. B (X) opens a door, presses the cyan exit switch, or fires: a patrol takes two hits and a chaser three; touching one costs 5 or 10 health. The HUD shows health, ammunition and the level. RAM: map $0200 (doors 64, exit 128), monsters $0500.'
 
-/** The Doom-like on the game board: five levels to walk through, doors to open, an exit switch at the end of each. The enemies come in the next milestone. */
+/** The Doom-like on the game board: five levels with monsters, a gun, doors and an exit switch at the end of each. */
 export const doomLike6502 = (): Circuit => {
   const c = boardExample(
     { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, source: doomSource(160, 'fill', true), bankSources: [levelBankSource(), ART_BANK_SOURCE] },
     {
       intro:
-        'A 3D game on a 6502. A program of a few hundred bytes casts one ray for each of the 160 columns of the screen, finds the wall it hits with no multiplications (tables of logarithms and exponentials), and tells the video chip to fill the column. Walk with the arrow keys, turn, slide sideways with Z, press X in front of a door to open it and in front of the cyan switch at the end of the corridor to go to the next of five levels. The maps are in the ROM\u2019s first bank. Select the ROM to read the program and the screen to see it large.',
+        'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns, finds the wall with no multiplications (tables of logarithms and exponentials) and tells the video chip to fill the column; then it scales the monsters\u2019 pictures over the walls. Walk with the arrows, slide with Z, press X at a door to open it, at the cyan switch to reach the next of five levels, anywhere else to shoot. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program, the screen to see it large.',
       decode: GAME_DECODE,
       memory: GAME_MEMORY,
       devices: DOOM_DEVICES,

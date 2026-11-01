@@ -6,7 +6,9 @@ import { openFor } from '../../engine/wasmengine'
 import { loadEngine } from '../../engine/wasm'
 import { assemble6502 } from '../../engine/asm6502'
 import { doomSource } from './source'
-import { ART_BANK_SOURCE, BUTTON, END_DELAY, GAME_CELLS, hudColours, levelBankSource, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
+import { ART_BANK_SOURCE, ATTACK_DELAY, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
+import { columnRuns, project, spriteWidth, texelRow } from './sprites'
+import { CHASE, PATROL } from './levels'
 import { GameMachine } from './gamemachine'
 import { LEVELS, LEVEL_COUNT } from './levels'
 import { unpackColumns } from './reference'
@@ -125,6 +127,129 @@ describe('the rules (TypeScript reference)', () => {
     expect(g.health).toBe(MAX_HEALTH)
   })
 
+  it('a sprite straight ahead is in the middle, as tall as a wall at that distance; one behind, or far to the side, is not seen', () => {
+    const p = { xCell: 1, xFrac: 128, yCell: 8, yFrac: 128, angle: 0 }
+    const ahead = project(p, 5 * 16 + 8, 8 * 16 + 8)!
+    expect(ahead.q).toBeGreaterThan(3)
+    expect(ahead.left + (ahead.width >> 1)).toBe(80)
+    expect(ahead.width).toBe(spriteWidth(ahead.q))
+    const near = project(p, 3 * 16 + 8, 8 * 16 + 8)!
+    expect(near.q).toBeGreaterThan(ahead.q)
+    expect(project(p, 8, 8 * 16 + 8)).toBeNull()
+    expect(project(p, 5 * 16 + 8, 2 * 16 + 8)).toBeNull()
+    const left = project(p, 5 * 16 + 8, 8 * 16 + 8 - 24)!
+    const right = project(p, 5 * 16 + 8, 8 * 16 + 8 + 24)!
+    expect(left.left).toBeLessThan(ahead.left)
+    expect(right.left).toBeGreaterThan(ahead.left)
+  })
+
+  it('the art: every texture column is a few runs inside the sprite, and texel rows are even', () => {
+    for (const kind of [0, 1])
+      for (let u = 0; u < 8; u++) {
+        const runs = columnRuns(kind, u)
+        expect(runs.length).toBeLessThanOrEqual(5)
+        for (const r of runs) expect(r.to).toBeGreaterThan(r.from)
+      }
+    for (let q = 1; q <= 25; q++) for (let v = 0; v <= 16; v++) expect(texelRow(q, v) % 2).toBe(0)
+    expect(texelRow(25, 16)).toBe(100)
+  })
+
+  /** A game with the one enemy given, a clear corridor of level one, and the player looking at it. */
+  function duel(kind: number, at = 8): GameState {
+    const g = newGame()
+    g.map[cell(6, 8)] = 0
+    g.enemies = g.enemies.map((e) => ({ ...e, kind: 0 }))
+    g.enemies[0] = { kind, x: at * 16 + 8, y: 8 * 16 + 8, hp: ENEMY_HP[kind], aux: 0, cd: 0 }
+    renderGame(g)
+    return g
+  }
+
+  it('the gun hits the enemy in the middle of the screen, takes two shots to kill a patrol and three a chaser, and uses ammunition', () => {
+    for (const [kind, shots] of [[PATROL, 2], [CHASE, 3]]) {
+      const g = duel(kind)
+      expect(g.seen[0].q).toBeGreaterThan(0)
+      for (let n = 1; n <= shots; n++) {
+        tick(g, b)
+        expect(g.ammo).toBe(START_AMMO - n)
+        expect(g.firecd).toBe(FIRE_DELAY)
+        for (let i = 0; i < FIRE_DELAY; i++) tick(g, 0)
+        expect(g.enemies[0].hp).toBe(ENEMY_HP[kind] - n)
+        renderGame(g)
+      }
+      expect(g.enemies[0].kind).toBe(0)
+      expect(g.kills).toBe(1)
+    }
+  })
+
+  it('a shot does nothing without ammunition, while the gun is not ready, at nothing, or at an enemy behind a wall', () => {
+    const g = duel(PATROL)
+    g.ammo = 0
+    tick(g, b)
+    expect(g.enemies[0].hp).toBe(2)
+    g.ammo = 5
+    tick(g, b)
+    tick(g, b)
+    expect(g.ammo).toBe(4)
+    const h = duel(PATROL)
+    h.pose.angle = 20
+    renderGame(h)
+    tick(h, b)
+    expect(h.enemies[0].hp).toBe(2)
+    expect(h.ammo).toBe(START_AMMO - 1)
+    const w = duel(PATROL)
+    w.map[cell(4, 8)] = 1
+    renderGame(w)
+    tick(w, b)
+    expect(w.enemies[0].hp).toBe(2)
+  })
+
+  it('a patrol walks along the corridor and turns round at a wall; a chaser comes for the player, but only within ten cells', () => {
+    const g = duel(PATROL, 13)
+    g.pose = { xCell: 1, xFrac: 128, yCell: 1, yFrac: 128, angle: 0 }
+    let reversed = false
+    const xs: number[] = []
+    for (let i = 0; i < 700; i++) {
+      tick(g, 0)
+      xs.push(g.enemies[0].x)
+      if (g.enemies[0].aux & 1) reversed = true
+    }
+    expect(reversed).toBe(true)
+    expect(Math.max(...xs)).toBeGreaterThan(13 * 16 + 8)
+    expect(Math.max(...xs)).toBeLessThan(15 * 16)
+    expect(Math.min(...xs)).toBeLessThan(13 * 16)
+    const far = duel(CHASE, 14)
+    far.pose = { xCell: 1, xFrac: 128, yCell: 1, yFrac: 128, angle: 0 }
+    for (let i = 0; i < 60; i++) tick(far, 0)
+    expect(far.enemies[0].x).toBe(14 * 16 + 8)
+    const near = duel(CHASE, 9)
+    for (let i = 0; i < 60; i++) tick(near, 0)
+    expect(near.enemies[0].x).toBeLessThan(9 * 16 + 8)
+  })
+
+  it('a touch hurts (5 from a patrol, 10 from a chaser) once, then not again until the delay has passed; health 0 is death, and B starts again', () => {
+    const g = duel(PATROL, 1)
+    g.enemies[0].x = 1 * 16 + 12
+    tick(g, 0)
+    expect(g.health).toBe(95)
+    for (let i = 0; i < ATTACK_DELAY; i++) tick(g, 0)
+    expect(g.health).toBe(95)
+    tick(g, 0)
+    expect(g.health).toBe(90)
+    const c = duel(CHASE, 1)
+    c.enemies[0].x = 1 * 16 + 12
+    c.health = 10
+    tick(c, 0)
+    expect(c.health).toBe(0)
+    expect(c.state).toBe(STATE.dead)
+    for (let i = 0; i < END_DELAY; i++) tick(c, b)
+    expect(c.state).toBe(STATE.dead)
+    tick(c, b)
+    expect(c.state).toBe(STATE.play)
+    expect(c.level).toBe(0)
+    expect(c.health).toBe(MAX_HEALTH)
+    loadLevel(c)
+  })
+
   it('the HUD shows health, ammunition and the level', () => {
     const g = newGame()
     const [top, bottom] = hudColours(g)
@@ -151,12 +276,24 @@ describe('the rules (TypeScript reference)', () => {
 /** The program and the reference side by side: after every picture the pose and the counters in RAM, and all 16,000 pixels, must agree. */
 function compare(m: GameMachine, ref: GameState, what: string) {
   const r = m.ram
+  const expected = renderGame(ref)
   const c = GAME_CELLS
   const pose = Array.from(r.slice(0x10, 0x15))
   expect(pose, `${what}: pose`).toEqual([ref.pose.xFrac, ref.pose.xCell, ref.pose.yFrac, ref.pose.yCell, ref.pose.angle])
   expect([r[c.level], r[c.health], r[c.ammo], r[c.state]], `${what}: level, health, ammo, state`).toEqual([ref.level, ref.health, ref.ammo, ref.state])
   expect(Array.from(r.slice(0x200, 0x300)), `${what}: map`).toEqual(ref.map)
-  expect(Array.from(m.picture()), `${what}: picture`).toEqual(Array.from(renderGame(ref)))
+  expect([r[c.gt], r[c.firecd], r[c.kills]], `${what}: tick count, gun delay, kills`).toEqual([ref.gt, ref.firecd, ref.kills])
+  const field = (base: number, i: number) => r[c.enemies + base + i]
+  for (let i = 0; i < ref.enemies.length; i++) {
+    const e = ref.enemies[i]
+    expect([field(0, i), field(8, i), field(16, i), field(32, i), field(40, i)], `${what}: enemy ${i} (kind, x, y, aux, cooldown)`).toEqual([e.kind, e.x, e.y, e.aux, e.cd])
+    if (e.kind) expect(field(24, i), `${what}: enemy ${i} hit points`).toBe(e.hp)
+    if (ref.state === STATE.play) {
+      expect(r[c.seen + i], `${what}: enemy ${i} seen q`).toBe(ref.seen[i].q)
+      if (ref.seen[i].q) expect([r[c.seen + 8 + i], r[c.seen + 16 + i]], `${what}: enemy ${i} seen (first, last column)`).toEqual([ref.seen[i].left, ref.seen[i].right])
+    }
+  }
+  expect(Array.from(m.picture()), `${what}: picture`).toEqual(Array.from(expected))
 }
 
 describe('the game on the bare core', () => {
@@ -205,6 +342,7 @@ describe('the game on the bare core', () => {
       m.pad = up | b
       for (let i = 0; i < m.ram[GAME_CELLS.used]; i++) tick(ref, up | b)
       m.runTo('PADRD')
+      renderGame(ref)
     }
     expect(m.ram[GAME_CELLS.state]).toBe(STATE.won)
     for (let f = 0; f < 200 && ref.state !== STATE.play; f++) {
@@ -219,6 +357,26 @@ describe('the game on the bare core', () => {
     m.runTo('PADRD')
     compare(m, ref, 'new game')
     expect(m.ram[GAME_CELLS.level]).toBe(0)
+  }, 600_000)
+
+  it('the player dies when the enemies reach him: red and black stripes, and B starts again', () => {
+    const m = new GameMachine()
+    const ref = newGame()
+    m.runTo('PADRD')
+    let died = 0
+    for (let f = 0; f < 3000; f++) {
+      // Fire through levels one to three, open the first door of level four, then walk into the enemies without firing.
+      const doors = ref.map.filter((v) => v === DOOR).length
+      const pad = ref.state === STATE.dead ? (died++ > 4 ? b : 0) : ref.level < 3 || (ref.level === 3 && doors === 2) ? up | b : up
+      m.pad = pad
+      for (let i = 0; i < m.ram[GAME_CELLS.used]; i++) tick(ref, pad)
+      m.runTo('PADRD')
+      compare(m, ref, `picture ${f}`)
+      if (ref.state === STATE.play && died) break
+    }
+    expect(died).toBeGreaterThan(0)
+    expect(ref.state).toBe(STATE.play)
+    expect(ref.level).toBe(0)
   }, 600_000)
 
   it('turns and strafes like the reference, and the door in front opens on B', () => {
