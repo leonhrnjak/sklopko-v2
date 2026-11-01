@@ -56,6 +56,23 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
                 write_num(outs, 0, n, w);
             }
         }
+        LUT => {
+            // The inputs pick a row, the first one the most significant; the rows are words in the ROM. p0: inputs.
+            let n = c.p0 as usize;
+            let mut addr = 0usize;
+            let mut bad = false;
+            for i in 0..n {
+                let v = ins[i];
+                if v == X { bad = true; break; }
+                addr = (addr << 1) | v as usize;
+            }
+            if bad {
+                for b in 0..no { outs[b] = X; }
+            } else {
+                let word = if addr < (1usize << n) { sh.rom[c.mem_off + addr] as i32 } else { 0 };
+                put_bits(outs, no, word);
+            }
+        }
         _ => {}
     }
 }

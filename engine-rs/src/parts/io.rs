@@ -66,6 +66,7 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
                 }
             }
         }
+        NETRECV => outs[0] = X,
         _ => {}
     }
 }

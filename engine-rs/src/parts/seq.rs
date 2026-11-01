@@ -134,6 +134,22 @@ pub fn eval(kind: i32, c: &mut Cell) {
             *c.n = b;
             for k in 0..4 { outs[k] = bit(b, k as i32) as u8; }
         }
+        RINGCOUNTER => {
+            // The four bits are kept two bits each in st_n, as in the shift register. p0: 1 for a Johnson counter.
+            let edge = *c.pc == 0 && ins[0] == 1;
+            *c.pc = ins[0];
+            let mut b = *c.n;
+            let bit = |b: i32, k: i32| (b >> (2 * k)) & 3;
+            if ins[1] == 1 {
+                b = if c.p0 == 1 { 0 } else { 1 };
+            } else if edge {
+                let last = bit(b, 3) as u8;
+                let first = if c.p0 == 1 { flip(last) as i32 } else { last as i32 };
+                b = first | bit(b, 0) << 2 | bit(b, 1) << 4 | bit(b, 2) << 6;
+            }
+            *c.n = b;
+            for k in 0..4 { outs[k] = bit(b, k as i32) as u8; }
+        }
         _ => {}
     }
 }

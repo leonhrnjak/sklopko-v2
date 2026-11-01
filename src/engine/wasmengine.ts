@@ -1,6 +1,7 @@
 import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from './acia'
 import { consolePut, type ConsoleState, type FramebufferState } from './components/devices'
 import type { CpuState } from './components/cpu'
+import { parseWords } from './components/memory'
 import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
@@ -162,6 +163,7 @@ const KIND: Record<string, number> = {
   clock: 43, keypad: 44, framebuffer: 45, console: 46,
   acia6551: 47,
   tribuf: 48, busjoin: 49, via6522: 50, hd44780: 51, cpu6502: 52,
+  demux: 53, ringcounter: 54, bussub: 55, busaddsub: 56, gray: 57, parity: 58, lut: 59, netrecv: 60,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -185,6 +187,8 @@ export function ported(cc: CompiledPart): boolean {
   const type = cc.def.type
   const p = cc.inst.params
   if (type === 'ram') return Number(p.dbits) <= 8 && Number(p.abits) <= 15
+  // (a receive label wider than one bit leaves its other outputs as they were, which the module does not keep)
+  if (type === 'netrecv') return (Number(p.bits) || 1) === 1
   return type === 'clock' || KIND[type] !== undefined || NOP.has(type) || (SAMPLERS.has(type) && cc.inst.outs.length === 0)
 }
 
@@ -290,7 +294,7 @@ export class WasmEngine {
         p0 = Number(p.bits)
         p1 = Number(p.n)
         p2 = log2(p1)
-      } else if (type === 'busadd' || type === 'buscmp') p0 = Number(p.bits)
+      } else if (type === 'busadd' || type === 'buscmp' || type === 'bussub' || type === 'busaddsub') p0 = Number(p.bits)
       else if (type === 'busgate') {
         p0 = Number(p.bits)
         p1 = GATE[String(p.op)]
@@ -311,6 +315,18 @@ export class WasmEngine {
       } else if (type === 'shiftreg') {
         n = (st.bits as number[]).reduce((w, v, k) => w | (v << (2 * k)), 0)
         pc = st.pc
+      } else if (type === 'demux') {
+        p0 = Number(p.n)
+        p1 = log2(p0)
+      } else if (type === 'ringcounter') {
+        p0 = p.kind === 'johnson' ? 1 : 0
+        n = (st.bits as number[]).reduce((w, v, k) => w | (v << (2 * k)), 0)
+        pc = st.pc
+      } else if (type === 'gray') p0 = p.dir === 'g2b' ? 1 : 0
+      else if (type === 'lut') {
+        p0 = Number(p.inputs)
+        memOff = rom.length
+        for (const w of parseWords(String(p.data), 2 ** p0, Number(p.outputs))) rom.push(w)
       } else if (type === 'tribuf') p0 = Number(p.bits) || 1
       else if (type === 'busjoin') {
         p0 = Number(p.bits) || 1
@@ -498,7 +514,7 @@ export class WasmEngine {
       else if (type === 'counter' || type === 'counterld' || type === 'register') {
         st.n = n[i]
         st.pc = pc[i]
-      } else if (type === 'shiftreg') {
+      } else if (type === 'shiftreg' || type === 'ringcounter') {
         st.bits = [0, 1, 2, 3].map((k) => (n[i] >> (2 * k)) & 3)
         st.pc = pc[i]
       } else if (type === 'ram') st.pc = pc[i]
