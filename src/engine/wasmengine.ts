@@ -617,7 +617,7 @@ export class WasmEngine {
 
   /**
    * Everything the module keeps that changes while it runs, as one copy: the nets, the input pins, the registers, counters and
-   * flip-flops, and the RAM (not the terminals: a circuit with one does not keep its history in the module). It is what stepping back
+   * flip-flops, the RAM and the terminals' registers (their keyboards and screens are on the page, which keeps copies, see `afterRestore`). It is what stepping back
    * goes back to (`load`), and does not depend on this engine object, only on the circuit being the same.
    */
   save(): Uint8Array {
@@ -637,6 +637,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
       ...this.pipeViews(),
+      ...this.terminals.map((_, k) => new Uint8Array(buf, x.acia_regs_ptr(k), 8)),
     ]
     const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
     let at = 0
@@ -645,6 +646,25 @@ export class WasmEngine {
       at += p.length
     }
     return out
+  }
+
+  /**
+   * After `load`, and with the page's terminal and console states put back: what the terminals printed since is dropped, and the
+   * keyboards hold what the restored states say.
+   */
+  afterRestore() {
+    const { x } = this
+    // (stepping back replaced the states by copies: look them up again)
+    this.consoles.forEach((cs, k) => {
+      cs.st = this.c.comps[cs.part].inst.state as ConsoleState
+      x.console_take_events(k)
+    })
+    this.terminals.forEach((t, k) => {
+      const st = (t.st = this.c.comps[t.part].inst.state as TerminalState)
+      x.acia_take_events(k)
+      x.acia_clear_keys(k)
+      for (let i = st.next; i < st.keys.length; i++) x.acia_key(k, st.keys.charCodeAt(i))
+    })
   }
 
   /** The delay pipelines of the parts that have one, in the module's memory. */
@@ -675,6 +695,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
       ...this.pipeViews(),
+      ...this.terminals.map((_, k) => new Uint8Array(buf, x.acia_regs_ptr(k), 8)),
     ]
     let at = 0
     for (const p of parts) {
