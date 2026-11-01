@@ -11,7 +11,7 @@
 > - [x] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [x] D3 The engine on the board: walls, doors, movement, shading
 > - [x] D4 The game: enemies, sprites, a gun, five levels, the example
-> - [ ] D4b (optional) Textured walls
+> - [x] D4b (optional) Textured walls — **dropped** (frame rate with enemies is already under 10 fps; see D4b result)
 > - [ ] D4c (optional) A HUD with a face, and more enemy frames
 > - [ ] D5 Polish: reference page, README, e2e, a phone check
 
@@ -214,6 +214,11 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
   top, bottom, texture, texture column) on top of D1b. D4b is built only if the D4 frame rate leaves room, and the PR says which way it went.
 - **Done when:** the textured picture equals the reference renderer at the 20 test positions, and the frame rate with enemies on screen is
   recorded; if it falls under 10 fps at 1 MHz the milestone is dropped and the spec says so.
+
+### D4b result: dropped
+- **Measured** on the D4 stack (bare core, all five levels, 364 pictures with 6 patrols and 2 chasers killed): **109,526 cycles a picture on average, 9.1 pictures a second at 1 MHz**. The board run (80 pictures) averages 101,907 (9.8 a second). The game is already under the 10 fps line with enemies on screen, before any texture work.
+- **Why textures can only make it worse:** a textured column needs the texture column (the wall hit's position along the wall, which the DDA does not keep: it needs the distance times the ray direction, a 16-bit multiply, at least 50 cycles on a 6502) and at least four more register writes (texture, texture column, and the like, 4 cycles each) for each of the 160 columns: at least 10,000 more cycles, so about 120,000 a picture (8.3 a second) at best.
+- **Decision:** by the drop rule above, D4b is not built; no code, ROM or video part change. If wanted later, the cheaper route is a lower resolution (the D0 table: 120 columns is 10 fps with flat walls), which is a different spec.
 
 ## D4c (optional) A HUD with a face, and more enemy frames
 - A face widget that reacts to health and damage (about 5 frames), a weapon sprite with a fire animation, and 3 to 4 walk and attack
