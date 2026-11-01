@@ -4,7 +4,7 @@
  * column's wall, so the program keeps the art as bytes (two pixels each, the upper in the high nibble) in the fixed ROM, a column at a time.
  */
 
-export const FACE_X = 56
+export const FACE_X = 54
 export const FACE_W = 16
 export const FACE_ROWS = 12
 /** The first row of the face, and its bytes a column. */
@@ -21,18 +21,13 @@ const KEY: Record<string, number> = { '.': 9, s: 12, k: 0, w: 15, r: 6, h: 5, o:
 const TOP = ['..hhhhhhhhhhhh..', '.hhhhhhhhhhhhhh.']
 const BOTTOM = ['..ssssssssssss..', '...ssssssssss...', '....ssssssss....']
 
-/** Rows 2 to 8 of each face. */
+/** Rows 2 to 8 of each face: a stern, scowling man (heavy brows, narrowed eyes, a flat mouth), scratched, bloodier, nearly gone, and wincing. */
 const MIDDLE: string[][] = [
-  // 0: well
-  ['.hssssssssssssh.', '.sswksssssskwss.', '.ssssssssssssss.', '.sssssooossssss.', '.ssssssssssssss.', '.ssrrrrrrrrrrss.', '.sssrrrrrrrrsss.'],
-  // 1: scratched
-  ['.hssssrsssssssh.', '.sswksssssskwss.', '.ssssssssssssss.', '.sssssooossssss.', '.sssrssssssssss.', '.ssrrrrrrrrrrss.', '.sssrrrrrrrrsss.'],
-  // 2: hurt
-  ['.hsrrssssssrrsh.', '.sskksssssskkss.', '.ssrssssssssrss.', '.sssssooossssss.', '.ssrsssssssssrs.', '.sskkkkkkkkkkss.', '.ssssrrrrrrssss.'],
-  // 3: nearly gone
-  ['.hrrrssrsssrrrh.', '.sskksssssskkss.', '.srrsssrsssssrs.', '.sssrsooossrsss.', '.srrssssrsssrrs.', '.skkkkkkkkkkkks.', '.sssrrrrrrrrsss.'],
-  // 4: ouch
-  ['.hssssssssssssh.', '.wwwksssssskwww.', '.wkwsssssssswkw.', '.sssssooossssss.', '.ssskkkkkkkkkss.', '.ssskkkkkkkkkss.', '.ssskkkkkkkkkss.'],
+  ['.hssssssssssssh.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.ssosssssssssos.', '.ssssokkkkossss.', '.ssssssssssssss.'],
+  ['.hsssrssssssshs.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.ssosrsssssssos.', '.ssssokkkkossss.', '.ssssssssssssss.'],
+  ['.hsrrssssssrssh.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.srosssssssrsos.', '.ssssokkkkossss.', '.ssssrrrssssrss.'],
+  ['.hrrrssrsssrrrh.', '.sskkrssssrkkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.srossrsssrrsos.', '.ssssokkkkossss.', '.ssrrrssrrrrsss.'],
+  ['.hssssssssssssh.', '.wkkkksssskkkkw.', '.wkwwksssskwwkw.', '.sssssoooosssss.', '.ssssskkkkkssss.', '.sssskkkkkkksss.', '.ssssskkkkkssss.'],
 ]
 
 /** The art of each face: 12 rows of 16 characters. */

@@ -358,7 +358,7 @@ describe('the gun', () => {
         const col = art.map((r) => r[u]).join('')
         expect(col, `frame ${f} column ${u}`).toMatch(/^\.*[^.]*$/)
         const { start, bytes } = gunColumn(f, u)
-        if (col.replace(/\./g, '')) expect(bytes.length).toBe(8 - start)
+        if (col.replace(/\./g, '')) expect(bytes.length).toBe(GUN_ROWS / 2 - start)
         else expect(bytes).toEqual([])
       }
       expect(gunBytes(f)).toHaveLength(GUN_W * GUN_RECORD)
