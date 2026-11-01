@@ -80,3 +80,14 @@ export function checksum(bytes: Uint8Array): number {
   for (const b of bytes) a = (Math.imul(a, 31) + b) >>> 0
   return a
 }
+
+/**
+ * Start-up for the page and for the worker: fetch and compile the module, and make it every new Simulator's engine
+ * (`Simulator.defaultOpener`). Done before the first Simulator exists. If the module cannot be loaded the error is thrown to the caller.
+ */
+export async function installEngine(): Promise<void> {
+  const { Simulator } = await import('./simulator')
+  const { openerFor } = await import('./wasmengine')
+  const module = await compileEngine(await (await fetch(engineUrl)).arrayBuffer())
+  Simulator.defaultOpener = openerFor(module)
+}
