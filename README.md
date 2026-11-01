@@ -192,7 +192,8 @@ work too. The *Examples* menu has ready-made ones.
 
 ```
 src/
-  engine/     pure TypeScript simulator, no DOM: logic values, part definitions, Simulator
+  engine/     simulator, no DOM: part definitions, loader, Simulator (TypeScript), and the glue to the Rust engine
+  engine-rs/  the simulation core in Rust, compiled to WebAssembly (committed as src/engine/wasm/engine.wasm)
   routing/    orthogonal wire router (A*) and path editing helpers
   logic/      Boolean expressions, truth tables and minimisation (the Logic panel)
   model/      circuit data, editing operations, save/load, examples, state machines, custom ICs
@@ -208,6 +209,11 @@ shows "unknown" until it is set or reset, as in real hardware. A loop that never
 oscillator, is flagged *Oscillating* and keeps animating. Clocks run in real time. Between clock edges the
 circuit is settled instantly.
 
+**Speed.** What every part does and how a circuit settles is Rust compiled to WebAssembly, running in a Web Worker next to the TypeScript
+editor. Measured in a browser, the 6502 built from our own parts went from about 25 kHz at the start of the speed work to about 250 kHz,
+and the board with the `cpu6502` part and Microsoft BASIC runs at the real 1 MHz. How it got there, with the numbers, and how to add a part:
+[docs/architecture-simulator.md](docs/architecture-simulator.md).
+
 **Time and sampling.** The simulator keeps a clock of simulated milliseconds (it follows the speed setting
 and stops while paused). Parts that record over time implement `sample`, which runs after every settled step,
 for example after each clock edge: probes store their transitions and the dot matrix remembers when each pixel
@@ -219,7 +225,7 @@ Wires of the same signal may share a trunk, and junction dots mark where it bran
 re-routes wires that cross others to untangle bundles. Only affected wires re-route when you move parts.
 Wires you shaped by hand keep their shape and stretch at the ends.
 
-**Adding a part** is one entry in `src/engine/components/*`: its pins (`layout`), what each pin does (its text in `src/engine/pindata.ts`, shown in the inspector), its behaviour
+**Adding a part** is one entry in `src/engine/components/*` plus its behaviour in Rust (`engine-rs/src/parts/`, see [the architecture page](docs/architecture-simulator.md)): its pins (`layout`), what each pin does (its text in `src/engine/pindata.ts`, shown in the inspector), its behaviour
 (`evaluate`) and optional params. The palette, inspector, saving and routing pick it up automatically. Box-shaped parts
 need no drawing code; gates and displays have custom symbols in `src/ui/symbols.tsx`.
 
