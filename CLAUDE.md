@@ -36,8 +36,8 @@ make the milestone branches from it. Without a PR (description, screenshots, CI)
 2. GitHub Actions (`.github/workflows/ci.yml`) runs on every PR, every night on `main`, and by hand from the Actions tab on any
    branch, as parallel jobs: unit tests, lint, build (with the bundle budget), the WebAssembly check, and the e2e tests in four shards (the browser is cached by a job of its own before they start); the last job,
    `test`, needs them all. A PR that changes only documentation (`docs/`, `*.md`, `LICENSE`) skips the code checks, and `test` still passes. A merge to `main` does not run it again (the nightly run catches what slipped through). The PR also gets the
-   Cloudflare Pages preview deploy. Still run the checks locally before pushing (see "Testing while making changes"), so CI is not
-   the first place a failure shows, and write the results in the PR.
+   Cloudflare Pages preview deploy. Locally run only the checks the change touches (see "Testing while making changes"),
+   open the PR as soon as those pass, then wait for CI's full report and fix what it finds. Write the results in the PR.
 3. Ask the user whether to merge. Merge only on their yes.
 4. If the nightly run goes red, read the failing job's log (`gh run view --log-failed`), fix the cause in a PR, and re-run
    **only the failed tests** locally (`-g`).
@@ -50,21 +50,24 @@ Merging to `main` deploys to Cloudflare Pages.
 
 ## Testing while making changes
 
-Run **all unit tests** locally (they take about 15 seconds), but only the **e2e** specs the change touches;
-CI runs the full e2e suite. Use quiet reporters so passing runs print almost nothing.
+**CI runs the full verification on every PR** (all unit tests, lint, the build with the bundle budget, the wasm check and the full e2e
+suite), so locally run only what the change touches, open the PR, and wait for CI's report (fix what it finds). Use quiet reporters so
+passing runs print almost nothing.
 
 ```sh
-npm test -- --reporter=dot                                        # all unit tests (quick)
-npx oxlint src/path/changed.ts ...                                # lint only the changed files
-npx tsc -b                                                        # type-check, when types or signatures changed
-npx playwright test --reporter=line e2e/editing.spec.ts           # the whole e2e spec file for the changed area
+npx vitest run --reporter=dot src/path/changed.ts          # the unit tests of what changed (vitest finds a file's tests: use `related`)
+npx vitest related --run --reporter=dot src/path/changed.ts   # or: every test that imports the changed files
+npx oxlint src/path/changed.ts ...                          # lint only the changed files
+npx tsc -b                                                  # type-check, when types or signatures changed
+npx playwright test --reporter=line e2e/editing.spec.ts     # the e2e spec file for the changed area
 ```
+
+Don't run the whole unit suite or the whole e2e suite locally, and don't run the full build unless the change is about the build
+(the bundle budget, the service worker, `e2e/offline.spec.ts`). Use `-g` to re-run a specific failed test while fixing it.
 
 The e2e specs are by area (`e2e/editing`, `simulation`, `buses`, `computers`, `logic`, `fsm`, `challenges`, `files`, `library`, `gallery`,
 `ics`, `keyboard`, `testbench`, `mobile`; `offline` needs `npm run build` first, since it tests the built app; shared helpers in `e2e/helpers.ts`, including `chooseTool` and `chooseFile` for the toolbar's Tools and File menus).
-Before pushing, run all the unit tests and the e2e spec file(s) for the area you changed (whole files,
-not single tests picked with `-g`), so most regressions show up before CI. Use `-g` only to re-run a
-specific failed test while fixing it. Don't run the whole e2e suite locally.
+Run only the spec file(s) of the area you changed, and none if the change is not visible in the browser.
 
 Full suite (what CI runs), for reference: `npm test`, `npm run lint`, `npm run build`, `npm run e2e`
 (Playwright, desktop + emulated phone).

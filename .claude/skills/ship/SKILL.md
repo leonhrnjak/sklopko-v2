@@ -12,13 +12,15 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
 1. **Branch.** Never commit to `main`. If on `main`, create a feature branch named after the work (`$ARGUMENTS`, or e.g.
    `m10a-tristate`). If already on a feature branch, stay on it. If the working tree has nothing to ship, stop and say so.
 2. **Version.** Nothing to do: the shown version is built from the commit count (see `CLAUDE.md`), so a PR does not bump it.
-3. **Test, scoped as in `CLAUDE.md`** (quiet reporters; don't run the whole e2e suite locally):
-   - `npm test -- --reporter=dot` (all unit tests)
+3. **Test only what the change touches** (quiet reporters; CI runs the full suite on the PR, so don't run it here):
+   - `npx vitest related --run --reporter=dot <changed files>` (the unit tests that import what changed), or
+     `npx vitest run --reporter=dot <test files>`; not the whole unit suite
    - `npx oxlint <changed files>`
    - `npx tsc -b` when types or signatures changed
-   - `npx playwright test --reporter=line e2e/<spec>.spec.ts` for each e2e spec file covering the changed area (whole files, not
-     `-g`). If Playwright can't find its Chromium, prefix with `PW_CHROMIUM=/opt/pw-browsers/chromium`.
-   Fix failures before going on. Report anything you could not run.
+   - `npx playwright test --reporter=line e2e/<spec>.spec.ts` for the e2e spec file covering the changed area, only if the change is
+     visible in the browser (whole files, not `-g`). If Playwright can't find its Chromium, prefix with
+     `PW_CHROMIUM=/opt/pw-browsers/chromium`.
+   Fix failures before going on, then open the PR without waiting for more. Report anything you could not run.
 4. **Commit and push.** Stage the changed files by name (no `git add -A` of unrelated files), commit with a descriptive message
    with no attribution trailers (see CLAUDE.md, "No Claude attribution on GitHub"), then `git push -u origin <branch>`. Retry a failed
    push on network errors only (2 s, 4 s, 8 s, 16 s).
@@ -41,9 +43,10 @@ with `CLAUDE.md`, `CLAUDE.md` wins. `$ARGUMENTS`, if given, is the branch slug.
      The body follows `.github/pull_request_template.md`, all five sections: *What this adds* (two or three sentences for someone who has
      not read the code), *How it works* (short, technical), *How to test* (numbered steps a person can follow), *Screenshots* (or "No
      visible change." with a line why), *Checks* (what was run). No attribution footer or session link.
-6. **Wait for CI:** `gh pr checks --watch`.
-   - **Red:** read the log (`gh run view --log-failed`), fix the cause, re-run only the failed tests locally (`-g`), push, and
-     wait again. Repeat until green.
+6. **Wait for CI's full report:** `gh pr checks --watch` (or the PR subscription). CI runs everything on every PR: all unit tests, lint,
+   build with the bundle budget, the wasm check and the full e2e suite.
+   - **Red:** read the log (`gh run view --log-failed`), fix the cause, re-run only the failed tests locally (`-g`) plus the tests
+     related to the fix, push, and wait again. Repeat until green.
    - **Green:** tell the user the result and the PR URL, and **ask whether to merge**. Merge only on their yes, with
      `gh pr merge --squash --delete-branch`, then `git checkout main && git pull`. Merging deploys to Cloudflare Pages.
 
