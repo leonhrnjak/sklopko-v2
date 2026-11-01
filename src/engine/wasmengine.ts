@@ -372,7 +372,9 @@ export class WasmEngine {
         p1 = st.key
         p2 = st.pressed ? 1 : 0
         pc = st.prev ? 1 : 0
-        q = st.latched ? 1 : 0
+        // A key pressed and let go again before the module looked (`tapped`) still counts as a press: it latches, as the old copy did.
+        q = st.latched || st.tapped ? 1 : 0
+        st.tapped = false
       } else if (type === 'framebuffer') {
         p0 = Number(p.colors) === 4 ? 2 : 1
         p1 = p.read === 'on' ? 1 : 0
