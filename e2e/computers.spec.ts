@@ -906,8 +906,8 @@ test('the video example: the 6502 draws a colour test card through the video chi
   expect(await pixel(55, 40)).toEqual([0x7a, 0x2e, 0x1f, 255])
 })
 
-test('the Doom-like example: walk up to the door in the corridor, open it, and walk through', async ({ page }) => {
-  test.setTimeout(120_000)
+test('the Doom-like example: walk up to the door in the corridor, open it, and walk on to the exit switch and the next level', async ({ page }) => {
+  test.setTimeout(240_000)
   await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
   const canvas = page.getByTestId('canvas').locator('canvas.video-canvas')
   await expect(canvas).toBeVisible()
@@ -925,6 +925,11 @@ test('the Doom-like example: walk up to the door in the corridor, open it, and w
   await page.keyboard.down('ArrowUp')
   await page.keyboard.down('x')
   await expect.poll(isDoor, { timeout: 30000 }).toBe(false)
+  // Still holding both: the player reaches the cyan exit switch at the end of the corridor, X presses it, and the HUD's second light (columns 108 to 113
+  // of the strip, yellow once lit) comes on in level two.
+  const lit = async () => (await pixel(110, 97)).slice(0, 3).join()
+  expect(await lit()).toBe([0x55, 0x55, 0x55].join())
+  await expect.poll(lit, { timeout: 120000 }).toBe([0xf2, 0xd3, 0x2e].join())
   await page.keyboard.up('x')
   await page.keyboard.up('ArrowUp')
 })

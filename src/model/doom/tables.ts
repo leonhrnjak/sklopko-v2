@@ -38,31 +38,11 @@ export const MAP_ROWS = [
 /** A wall cell's byte is 1, a door's is `DOOR` (bit 6 picks the door colours); an empty cell is 0. */
 export const WALL = 1
 export const DOOR = 64
-export const mapFromRows = (rows: string[]): number[] => rows.flatMap((row) => [...row].map((ch) => (ch === '#' ? WALL : ch === 'D' ? DOOR : 0)))
+/** An exit switch is a wall that the player presses B on (bit 7 picks its colours). */
+export const EXIT = 128
+export const mapFromRows = (rows: string[]): number[] =>
+  rows.flatMap((row) => [...row].map((ch) => (ch === '#' ? WALL : ch === 'D' ? DOOR : ch === 'X' ? EXIT : 0)))
 export const MAP: number[] = mapFromRows(MAP_ROWS)
-
-/** The map the game runs: the D0 map with a door (`D`) in the south corridor, two cells east of the start. */
-export const GAME_MAP_ROWS = [
-  '################',
-  '#..............#',
-  '#.####....####.#',
-  '#.#..........#.#',
-  '#.#..##..##..#.#',
-  '#....#....#....#',
-  '#....#....#....#',
-  '#.#............#',
-  '#.#............#',
-  '#....#....#....#',
-  '#....#....#....#',
-  '#.#..##..##..#.#',
-  '#.#..........#.#',
-  '#.####....####.#',
-  '#..D...........#',
-  '################',
-]
-export const GAME_MAP: number[] = mapFromRows(GAME_MAP_ROWS)
-/** Where the player starts: cell, fraction, and the angle (0 faces east). */
-export const START_POSE = { xCell: 1, xFrac: 128, yCell: 14, yFrac: 128, angle: 0 }
 
 /** The camera plane is 0.66 of the direction: 42 where the direction is 64. */
 const DIR = 64
@@ -100,14 +80,17 @@ export const Q_NEAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(4 * i 
 /** … and for a distance of 1024 and more (index: distance / 16). */
 export const Q_FAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(16 * i + 8))
 
-/** Palette entries for walls (far to near) and for doors (brown, orange-red, orange, yellow): no colour is both. */
-export const WALL_COLOURS = [3, 4, 7, 8, 9, 10, 11, 14, 15]
+/**
+ * Palette entries for walls (far to near) and for doors (brown, orange-red, orange, yellow): no colour is both. 11 and 14 (pale blue and cyan)
+ * are the exit switch's; the sprites and the HUD share the other colours.
+ */
+export const WALL_COLOURS = [3, 4, 7, 8, 9, 10, 15]
 export const DOOR_COLOURS = [5, 6, 13, 12]
 /**
  * The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0, brighter) or the Y side (side 1): index
- * side·32 + q. A door (index + 64) has colours of its own.
+ * side·32 + q. A door (index + 64) and an exit switch (index + 128) have colours of their own.
  */
-export const SHADE: number[] = Array.from({ length: 128 }, (_, i) => {
+export const SHADE: number[] = Array.from({ length: 256 }, (_, i) => {
   const q = i & 31
   if (q < 1 || q > Q_MAX) return 0
   const side = (i >> 5) & 1
@@ -115,10 +98,11 @@ export const SHADE: number[] = Array.from({ length: 128 }, (_, i) => {
   if (i < 64) {
     const k = Math.floor(((q - 1) * WALL_COLOURS.length) / Q_MAX)
     shade = WALL_COLOURS[side === 0 ? k : Math.max(0, k - 1)]
-  } else {
+  } else if (i < 128) {
     const step = Math.min(3, Math.floor((q - 1) / 7))
     shade = DOOR_COLOURS[side === 0 ? step : Math.max(0, step - 1)]
-  }
+  } else if (i < 192) shade = side === 0 ? 14 : 11
+  else return 0
   return shade | (shade << 4)
 })
 

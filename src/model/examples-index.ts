@@ -95,7 +95,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('BASIC computer', '6502-parts-basic', 'BASIC on a 6502 built from parts (very slow)'),
   e('BASIC computer', '6502-echo', '6502 + terminal: echo (polling the status register)'),
   e('BASIC computer', '6502-echo-irq', '6502 + terminal: echo by interrupt'),
-  e('Doom-like', '6502-doomlike', '6502 3D maze: a raycaster with a door to open'),
+  e('Doom-like', '6502-doomlike', '6502 3D game: five levels, doors, an exit switch, a HUD'),
   e('Custom ICs', 'ic-adder', 'A 4-bit adder made of ICs inside ICs'),
   e('Custom ICs', 'computer-blocks', 'The 8-bit computer as blocks'),
 ]

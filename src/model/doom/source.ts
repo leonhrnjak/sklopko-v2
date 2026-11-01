@@ -1,5 +1,5 @@
 import { gameCode, GAME_EQUATES, gameTables } from './game'
-import { angleTables, EXP, EXP_BASE, GAME_MAP, COLUMN_BYTES, hi, LOG_FX, LOG_I, lo, MAP, Q_FAR, Q_NEAR, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
+import { angleTables, EXP, EXP_BASE, COLUMN_BYTES, hi, LOG_FX, LOG_I, lo, MAP, Q_FAR, Q_NEAR, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
 
 /** How the picture gets to the screen: not at all (the rays alone), byte by byte through the video port, or by the column-fill command. */
 export type DrawMode = 'none' | 'port' | 'fill'
@@ -254,7 +254,7 @@ STEPX:
   TAX
   LDA MAP,X
   BEQ DDA
-  AND #64
+  AND #$C0
   STA TMPA
   SEC
   LDA SDXL
@@ -265,7 +265,7 @@ STEPX:
   STA DISTH
   BRA HIT
 HITY:
-  AND #64
+  AND #$C0
   ORA #32
   STA TMPA
   SEC
@@ -360,7 +360,7 @@ RUN:
   emit(...bytes('STYH', t.stepY.map(hi)))
   emit(`  .org $${EXP_BASE.toString(16)}`, ...bytes('EXPT', EXP.flatMap((v) => [lo(v), hi(v)])))
   if (game) {
-    emit(...bytes('MAPROM', GAME_MAP), ...gameTables())
+    emit(...gameTables())
     emit('  .org $FFFA', '  .word START', '  .word START', '  .word IRQ')
   } else {
     emit(...bytes('MAP', MAP))

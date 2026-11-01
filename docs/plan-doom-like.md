@@ -182,6 +182,18 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 - **Done when:** a scripted run (recorded gamepad input) kills both enemy types, takes damage, and reaches the exit of each of the five levels, in a unit test on
   the bare core and in an e2e test on the board; ROM size is at most 48 KB; the frame rate with enemies on screen is recorded in the PR.
 
+### D4 split (three PRs, stacked on the D3 stack)
+- **D4.1 Levels, exit and HUD** (`doom-d4a-levels`): five levels in bank 0, an exit switch that loads the next level, a HUD strip, a win screen, and a test machine for the bare core.
+- **D4.2 Enemies and the gun** (`doom-d4b-enemies`): the two enemy types, scaled sprites with a depth buffer, the weapon, damage and the lose screen.
+- **D4.3 The scripted runs and the example** (`doom-d4c-example`): the run to every exit with kills and damage, in a unit test and in an e2e test; the example's text; this document.
+
+### D4.1 result
+- **Levels** (`levels.ts`): one floor plan, furnished and turned five ways (doors and walls changed, mirrored, turned by quarter turns). A long corridor runs from the start to an **exit switch** (map byte 128, a wall cell drawn in cyan; B in front of it loads the next level), so the route is a straight line: held Up and B walks a level, and the enemies of D4.2 stand in the line of fire. The maps and the start poses are in **bank 0** (`levelBankSource`); bank 1 is still an empty stub (the sprites' art, D4.2). A test checks that every level is walled in, has its exit straight ahead of the start, and can be reached.
+- **State and rules** (`game.ts`): level, health (starts 100), ammunition (50, refilled at each level), state (play, won) and a timer. A new level adds 40 health (at most 100). After the last exit the **win screen** (20 stripes, yellow and green) shows, and B starts again after 90 ticks, so a held B does not skip it. The lose screen (red and black) is built in; D4.2 uses it.
+- **The HUD** is the bottom four rows of the picture, written through the video port after the walls (the column fill always paints all 100 rows): health as a green bar (red under 31) 50 columns long, ammunition as a yellow bar, five lights for the levels. It costs about 6,000 cycles a picture; the bars are rebuilt in RAM only when a value changes.
+- **Colours:** the wall ramp lost two shades (pale blue and cyan are the exit's), because the palette has 16 colours.
+- **Tests:** `gamemachine.ts` is the game board without the circuit (the oracle core, the video chip's port and fill, the VIA timer's interrupt, the banks), about ten times faster than the board, so one test plays all five levels, 443 pictures, and compares the program's pose, counters, map and all 16,000 pixels with the reference after every one. The same program is checked on the real board through level one. The Doom-like e2e test now walks on through the door to the exit and sees the second light come on.
+
 ## D4b (optional) Textured walls
 - 16 or 32 pixel-wide wall textures (two or three kinds), 4 bits a pixel, in ROM. Per-pixel texture lookups cost about 10 more cycles a
   pixel, which the budget cannot take with plain writes, so this likely needs a **textured column command** in the video part (x,

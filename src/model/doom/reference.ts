@@ -54,7 +54,7 @@ function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, map: number
     }
     if (map[idx]) {
       const q = dist >> 8 < 4 ? Q_NEAR[(dist >> 2) & 255] : Q_FAR[(dist >> 4) & 255]
-      return { q, pair: SHADE[(map[idx] & 64) | (side << 5) | q], steps }
+      return { q, pair: SHADE[(map[idx] & 0xc0) | (side << 5) | q], steps }
     }
   }
   throw new Error('the ray never hit a wall')
