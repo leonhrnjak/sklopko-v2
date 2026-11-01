@@ -17,12 +17,12 @@ export interface Hit {
 }
 
 /** Cast the ray of column `c` (of `columns`). The program does exactly these integer operations. */
-export function castColumn(p: Pose, c: number, columns: number): Hit {
+export function castColumn(p: Pose, c: number, columns: number, map: number[] = MAP): Hit {
   const t = angleTables(columns)
-  return cast(p, c, t, columns)
+  return cast(p, c, t, map)
 }
 
-function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, _columns: number): Hit {
+function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, map: number[]): Hit {
   const dirX = (((t.r0x[p.angle] & 255) << 8) + c * t.stepX[p.angle]) & 0xffff
   const dirY = (((t.r0y[p.angle] & 255) << 8) + c * t.stepY[p.angle]) & 0xffff
   const axis = (dir: number, frac: number, cellStep: number) => {
@@ -54,22 +54,22 @@ function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, _columns: n
       dist = (sy - ay.delta) & 0xffff
       side = 1
     }
-    if (MAP[idx]) {
+    if (map[idx]) {
       const q = dist >> 8 < 4 ? Q_NEAR[(dist >> 2) & 255] : Q_FAR[(dist >> 4) & 255]
-      return { q, pair: SHADE[(side << 5) | q], steps }
+      return { q, pair: SHADE[(map[idx] & 64) | (side << 5) | q], steps }
     }
   }
   throw new Error('the ray never hit a wall')
 }
 
 /** The picture, 160×100 colours row by row, from `columns` rays (80 rays: each is two pixels wide). */
-export function render(p: Pose, columns: number): Uint8Array {
+export function render(p: Pose, columns: number, map: number[] = MAP): Uint8Array {
   const t = angleTables(columns)
   const sw = screenWidth(columns)
   const out = new Uint8Array(sw * SCREEN_H)
   const scale = sw / columns
   for (let c = 0; c < columns; c++) {
-    const { q, pair } = cast(p, c, t, columns)
+    const { q, pair } = cast(p, c, t, map)
     const top = 50 - 2 * q
     const bottom = 50 + 2 * q
     for (let k = 0; k < scale; k++)

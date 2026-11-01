@@ -35,7 +35,34 @@ export const MAP_ROWS = [
   '#..............#',
   '################',
 ]
-export const MAP: number[] = MAP_ROWS.flatMap((row) => [...row].map((ch) => (ch === '#' ? 1 : 0)))
+/** A wall cell's byte is 1, a door's is `DOOR` (bit 6 picks the door colours); an empty cell is 0. */
+export const WALL = 1
+export const DOOR = 64
+export const mapFromRows = (rows: string[]): number[] => rows.flatMap((row) => [...row].map((ch) => (ch === '#' ? WALL : ch === 'D' ? DOOR : 0)))
+export const MAP: number[] = mapFromRows(MAP_ROWS)
+
+/** The map the game runs: the D0 map with a door (`D`) in the south corridor, two cells east of the start. */
+export const GAME_MAP_ROWS = [
+  '################',
+  '#..............#',
+  '#.####....####.#',
+  '#.#..........#.#',
+  '#.#..##..##..#.#',
+  '#....#....#....#',
+  '#....#....#....#',
+  '#.#............#',
+  '#.#............#',
+  '#....#....#....#',
+  '#....#....#....#',
+  '#.#..##..##..#.#',
+  '#.#..........#.#',
+  '#.####....####.#',
+  '#..D...........#',
+  '################',
+]
+export const GAME_MAP: number[] = mapFromRows(GAME_MAP_ROWS)
+/** Where the player starts: cell, fraction, and the angle (0 faces east). */
+export const START_POSE = { xCell: 1, xFrac: 128, yCell: 14, yFrac: 128, angle: 0 }
 
 /** The camera plane is 0.66 of the direction: 42 where the direction is 64. */
 const DIR = 64
@@ -56,12 +83,23 @@ export const Q_NEAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(4 * i 
 /** … and for a distance of 1024 and more (index: distance / 16). */
 export const Q_FAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(16 * i + 8))
 
-/** The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0, brighter) or the Y side (side 1): index side·32 + q. */
-export const SHADE: number[] = Array.from({ length: 64 }, (_, i) => {
+/**
+ * The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0, brighter) or the Y side (side 1): index
+ * side·32 + q. A door (index + 64) has its own colours: brown, orange, amber and yellow as it comes near.
+ */
+export const SHADE: number[] = Array.from({ length: 128 }, (_, i) => {
   const q = i & 31
   if (q < 1 || q > Q_MAX) return 0
-  const c = 3 + ((q - 1) >> 1)
-  const shade = i < 32 ? c : Math.max(3, c - 2)
+  const side = (i >> 5) & 1
+  let shade: number
+  if (i < 64) {
+    const c = 3 + ((q - 1) >> 1)
+    shade = side === 0 ? c : Math.max(3, c - 2)
+  } else {
+    const ramp = [5, 6, 13, 12]
+    const step = Math.min(3, Math.floor((q - 1) / 7))
+    shade = ramp[side === 0 ? step : Math.max(0, step - 1)]
+  }
   return shade | (shade << 4)
 })
 
