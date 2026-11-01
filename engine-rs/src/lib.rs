@@ -10,7 +10,7 @@ mod parts;
 use engine::Engine;
 
 /// Bumped whenever the way the page and the module talk to each other changes (the page refuses a module with another number).
-pub const ABI_VERSION: u32 = 8;
+pub const ABI_VERSION: u32 = 9;
 
 static mut ENGINE: Option<Engine> = None;
 
@@ -178,4 +178,32 @@ pub extern "C" fn console_take_events(k: u32) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn console_events_ptr(k: u32) -> *mut u16 {
     eng().console_events_ptr(k as usize)
+}
+
+/// Flag every part for the fast engine (`fast` = 1) or the exact one (0), which is the engine that runs from now on.
+#[unsafe(no_mangle)]
+pub extern "C" fn mark_all(fast: u32) {
+    eng().mark_all(fast != 0)
+}
+
+/// One gate delay of the exact engine. Returns 1 while the circuit is still moving.
+#[unsafe(no_mangle)]
+pub extern "C" fn tick() -> u32 {
+    eng().tick() as u32
+}
+
+/// Hold net `net` at `v` (0 or 1), or let it go (-1).
+#[unsafe(no_mangle)]
+pub extern "C" fn set_force(net: u32, v: i32) {
+    eng().set_force(net as usize, v as i8)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn pipe_ptr(part: u32) -> *mut u8 {
+    eng().pipe_ptr(part as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn pipe_len(part: u32) -> u32 {
+    eng().pipe_len(part as usize) as u32
 }

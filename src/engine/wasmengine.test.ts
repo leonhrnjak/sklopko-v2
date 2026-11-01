@@ -5,7 +5,9 @@ import { EXAMPLES } from '../model/examples'
 import { micro6502, micro6502Basic } from '../model/micro6502'
 import { screenText } from './acia'
 import { layoutOf } from './layoutcache'
-import { Simulator } from './simulator'
+import { getDef } from './registry'
+import { Simulator, type SimCircuit } from './simulator'
+import { paramDefaults, type Params } from './types'
 import { loadEngine } from './wasm'
 import { openFor, ported, supports, WasmEngine } from './wasmengine'
 
@@ -134,7 +136,7 @@ describe('the Rust engine inside the Simulator', () => {
     // Step (gate delays one by one) is for the exact engine: it takes over, and both go on the same way
     rust.tick()
     plain.tick()
-    expect(rust.wasmOn).toBe(false)
+    expect(rust.wasmOn).toBe(true) // (the Rust engine runs the exact engine too)
     both(5000)
     same(rust, plain, 'after Step')
     expect(rust.wasmOn, 'and the Rust engine is back').toBe(true)
@@ -291,7 +293,7 @@ describe('the Rust engine inside the Simulator', () => {
     expect(rust.wasmOn, 'still the Rust engine').toBe(true)
     // Step (one gate delay) is for the exact engine, which takes the circuit and gives it back; going back works over snapshots of both kinds
     both((s) => s.tick())
-    expect(rust.wasmOn, 'the exact engine has it').toBe(false)
+    expect(rust.wasmOn, 'the exact engine in Rust has it').toBe(true)
     for (let i = 0; i < 10; i++) both((s) => s.stepClock())
     expect(rust.wasmOn, 'and the Rust engine again').toBe(true)
     for (let i = 0; i < 40; i++) {
@@ -394,6 +396,103 @@ describe('every example the Rust engine takes', () => {
     console.log('parts that keep examples out:', [...missing].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${n}`).join(', '))
     expect(taken.length).toBeGreaterThanOrEqual(TAKEN_AT_LEAST)
   }, 600000)
+})
+
+describe('the exact (unit-delay) engine in Rust', () => {
+  it('gives the same nets after every gate delay as the TypeScript exact engine, for each example', async () => {
+    const x = await module()
+    let taken = 0
+    for (const ex of EXAMPLES) {
+      const mk = (rust: boolean) => {
+        const sim = new Simulator()
+        sim.setFast(false)
+        if (rust) sim.setWasm(openFor(x))
+        sim.load(flatten(ex.build()))
+        sim.settle()
+        return sim
+      }
+      const rust = mk(true)
+      const plain = mk(false)
+      if (!rust.wasmOn) continue
+      taken++
+      for (let i = 0; i < 60; i++) {
+        rust.stepClock()
+        plain.stepClock()
+        for (let k = 0; k < 3; k++) {
+          const a = rust.tick()
+          const b = plain.tick()
+          expect(a, `${ex.id}: moving after tick ${k} of edge ${i}`).toBe(b)
+          const va = rust.viewValues()
+          const vb = plain.viewValues()
+          for (let n = 0; n < va.length; n++) if (va[n] !== vb[n]) throw new Error(`${ex.id}: net ${n} is ${va[n]} with Rust and ${vb[n]} without, tick ${k} of edge ${i}`)
+        }
+      }
+    }
+    console.log(`Rust exact engine takes ${taken} examples`)
+    expect(taken).toBeGreaterThan(30)
+  }, 600000)
+})
+
+describe('the exact engine in Rust: loops, delays, forces and capture', () => {
+  const circuit = (): SimCircuit => {
+    const comps: [string, string, Params, number?][] = [
+      ['clk', 'clock', { hz: 4 }], ['s', 'switch', { on: false }], ['r', 'switch', { on: false }],
+      ['n1', 'not', {}, 3], ['a1', 'and', {}], ['led', 'led', {}],
+      ['q', 'nor', {}], ['qn', 'nor', {}], ['o1', 'not', {}, 2], ['dd', 'dff', {}],
+    ]
+    const wires: [string, string][] = [
+      ['clk.Q', 'n1.A'], ['n1.Y', 'a1.A'], ['clk.Q', 'a1.B'], ['a1.Y', 'led.A'],
+      ['r.Q', 'q.A'], ['qn.Y', 'q.B'], ['s.Q', 'qn.A'], ['q.Y', 'qn.B'],
+      ['q.Y', 'dd.D'], ['clk.Q', 'dd.CLK'], ['dd.Q', 'o1.A'],
+    ]
+    return {
+      comps: comps.map(([id, type, params, delay]) => ({ id, type, params: { ...paramDefaults(getDef(type)), ...params }, ...(delay ? { delay } : {}) })),
+      wires: wires.map(([f, t]) => {
+        const [fc, fp] = f.split('.')
+        const [tc, tp] = t.split('.')
+        return { from: { comp: fc, pin: fp }, to: { comp: tc, pin: tp } }
+      }),
+    }
+  }
+  it('keeps step with the TypeScript exact engine through edges, switches, a force and a capture', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      if (rust) sim.setWasm(openFor(x))
+      sim.load(circuit())
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    expect(rust.wasmOn).toBe(true)
+    const same = (what: string) => {
+      const a = rust.viewValues()
+      const b = plain.viewValues()
+      for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${what}: net ${n} is ${a[n]} with Rust and ${b[n]} without`)
+    }
+    const both = (f: (s: Simulator) => void) => {
+      f(rust)
+      f(plain)
+    }
+    for (let i = 0; i < 30; i++) {
+      both((s) => s.stepClock())
+      same(`edge ${i}`)
+      if (i === 5) both((s) => s.setParams('s', { ...paramDefaults(getDef('switch')), on: true }))
+      if (i === 8) both((s) => s.setParams('s', { ...paramDefaults(getDef('switch')), on: false }))
+      if (i === 10) both((s) => s.force('n1', 'Y', 1))
+      if (i === 14) both((s) => s.force('n1', 'Y', null))
+      if (i === 16) both((s) => s.setCapture(true))
+      if (i === 20) both((s) => s.setCapture(false))
+      if (i % 3 === 0) {
+        for (let k = 0; k < 4; k++) {
+          expect(rust.tick(), `moving at tick ${k} of edge ${i}`).toBe(plain.tick())
+          same(`tick ${k} of edge ${i}`)
+        }
+      }
+    }
+    expect(rust.wasmOn || rust.engine === 'exact').toBe(true)
+  })
 })
 
 describe('single parts in the Rust engine, against the TypeScript engine, with unknown inputs and random switches', () => {
