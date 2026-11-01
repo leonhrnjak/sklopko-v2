@@ -15,12 +15,18 @@ export interface VideoState {
   addr: number
   /** The control register's hold bit: the port does not count up. */
   hold: number
+  /** The column-fill registers: x, top, bottom, colour, width (columns a fill covers), sky, floor, and a spare. */
+  fill: number[]
   /** What the data pins D show: the register read at the last rising edge, 0 when the chip was not selected. */
   out: number
   rev: number
 }
 
-export const videoInit = (): VideoState => ({ px: new Array<number>(VIDEO_BYTES).fill(0), pc: X, addr: 0, hold: 0, out: 0, rev: 0 })
+/** How many fill registers follow the picture in the Rust module's array. */
+export const VIDEO_FILL_REGS = 8
+export const videoFillInit = () => [0, 0, 0, 0, 1, 0, 0, 0]
+
+export const videoInit = (): VideoState => ({ px: new Array<number>(VIDEO_BYTES).fill(0), pc: X, addr: 0, hold: 0, fill: videoFillInit(), out: 0, rev: 0 })
 
 export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
   {
@@ -30,7 +36,10 @@ export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
     description:
       'A 160×100 screen of 16 colours that a CPU draws through a port, like a video chip of the 1980s. Four registers, picked by RS1 RS0: 0 and 1 the address (low and high byte) of a byte of the picture, ' +
       '2 the data, which reads or writes that byte and then counts the address up, 3 control (bit 0: do not count up; writing bit 7 clears the screen). A byte is two pixels, upper in the high nibble, ' +
-      'and the picture is stored column by column, 50 bytes a column. Addresses past 7999 wrap. It answers while CS0 = 1 and CS1 = 0, at the rising edge of Φ2.',
+      'and the picture is stored column by column, 50 bytes a column. Addresses past 7999 wrap. ' +
+      'Registers 4 to 10 (RS3 RS2 RS1 RS0) are the column fill, which draws a whole wall column in one write: 4 the column x, 5 the row where the wall starts (top), 6 where it ends (bottom), 7 the colour, ' +
+      '8 how many columns a fill covers (1 after reset), 9 the sky colour above the wall, 10 the floor colour below it. Writing the colour starts the fill: sky down to top, the colour down to bottom, floor below, in the columns from x. ' +
+      'Registers 4 to 10 read back what was written. It answers while CS0 = 1 and CS1 = 0, at the rising edge of Φ2.',
     title: () => 'Video',
     live: true,
     init: (): VideoState => videoInit(),
@@ -44,23 +53,26 @@ export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
         st.addr = 0
         st.hold = 0
         st.out = 0
+        st.fill = videoFillInit()
       } else if (rising) {
         st.out = 0
-        if (ins[2] === 1 && ins[3] === 0 && ins[4] <= 1 && ins[5] <= 1) {
-          const rs = ins[4] | (ins[5] << 1)
+        if (ins[2] === 1 && ins[3] === 0 && ins[4] <= 1 && ins[5] <= 1 && ins[6] <= 1 && ins[7] <= 1) {
+          const rs = ins[4] | (ins[5] << 1) | (ins[6] << 2) | (ins[7] << 3)
           const at = st.addr % VIDEO_BYTES
-          if (ins[6] === 1) {
+          if (ins[8] === 1) {
             if (rs === 0) st.out = st.addr & 255
             else if (rs === 1) st.out = st.addr >> 8
             else if (rs === 2) {
               st.out = st.px[at]
               if (!st.hold) st.addr = (at + 1) % VIDEO_BYTES
-            } else st.out = st.hold
-          } else if (ins[6] === 0) {
+            } else if (rs === 3) st.out = st.hold
+            else if (rs <= 10) st.out = st.fill[rs - 4]
+            else st.out = 0
+          } else if (ins[8] === 0) {
             let d = 0
             let known = true
             for (let i = 0; i < 8; i++) {
-              const v = ins[7 + i]
+              const v = ins[9 + i]
               if (v > 1) known = false
               else d |= v << i
             }
@@ -71,11 +83,23 @@ export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
                 if (st.px[at] !== d) st.rev++
                 st.px[at] = d
                 if (!st.hold) st.addr = (at + 1) % VIDEO_BYTES
-              } else {
+              } else if (rs === 3) {
                 st.hold = d & 1
                 if (d & 0x80) {
                   if (st.px.some((v) => v !== 0)) st.rev++
                   st.px.fill(0)
+                }
+              } else if (rs <= 10) {
+                st.fill[rs - 4] = d
+                if (rs === 7) {
+                  const [x, top, bottom, , width, sky, floor] = st.fill
+                  const colour = d & 15
+                  const px = (y: number) => (y < top ? sky & 15 : y < bottom ? colour : floor & 15)
+                  for (let k = 0; k < width; k++) {
+                    const column = ((x + k) % VIDEO_W) * (VIDEO_H / 2)
+                    for (let j = 0; j < VIDEO_H / 2; j++) st.px[column + j] = (px(2 * j) << 4) | px(2 * j + 1)
+                  }
+                  st.rev++
                 }
               }
             }
@@ -95,6 +119,8 @@ export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
           { name: 'CS1B', label: 'CS1', invert: true, def: 1 },
           { name: 'RS0', def: 0 },
           { name: 'RS1', def: 0 },
+          { name: 'RS2', def: 0 },
+          { name: 'RS3', def: 0 },
           { name: 'RWB', label: 'R/W', def: 1 },
           ...names('DI', 8),
         ],

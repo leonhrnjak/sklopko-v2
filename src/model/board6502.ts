@@ -200,7 +200,10 @@ export function board6502Builder(o: Board6502Options = {}) {
   if (via) {
     lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,1,1,12' }, label: 'address: A0, A1, A2, A3, the rest' })
     wire(`${cpu}.A`, `${lowSplit}.A`)
-  } else if (term || video) {
+  } else if (video) {
+    lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,1,1,12' }, label: 'address: A0, A1, A2, A3, the rest' })
+    wire(`${cpu}.A`, `${lowSplit}.A`)
+  } else if (term) {
     lowSplit = part(DECODE, 'lowSplit', 'splitter', { params: { bits: 16, split: '1,1,14' }, label: 'address: A0, A1, the rest' })
     wire(`${cpu}.A`, `${lowSplit}.A`)
   } else if (!simple) {
@@ -280,13 +283,15 @@ export function board6502Builder(o: Board6502Options = {}) {
     readBus.push(`${t}.D`)
   }
   if (video) {
-    const vid = dev(DISPLAY, 'video', 'video', { params: { bus: true }, label: 'Video 160×100 $4000–$4003' })
+    const vid = dev(DISPLAY, 'video', 'video', { params: { bus: true }, label: 'Video 160×100 $4000–$400A' })
     wire(`${clk}.Q`, `${vid}.PHI2`)
     wire(`${nreset}.Y`, `${vid}.RESB`)
     wire(a14, `${vid}.CS0`)
     wire(a15, `${vid}.CS1B`)
     wire(`${lowSplit}.Y0`, `${vid}.RS0`)
     wire(`${lowSplit}.Y1`, `${vid}.RS1`)
+    wire(`${lowSplit}.Y2`, `${vid}.RS2`)
+    wire(`${lowSplit}.Y3`, `${vid}.RS3`)
     wire(`${cpu}.RWB`, `${vid}.RWB`)
     wire(`${cpu}.D`, `${vid}.DI`)
     readBus.push(`${vid}.D`)

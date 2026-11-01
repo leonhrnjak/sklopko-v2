@@ -82,7 +82,7 @@ export function render(p: Pose, columns: number): Uint8Array {
 export function packColumns(pixels: Uint8Array, sw: number): Uint8Array {
   const fb = new Uint8Array(sw * COLUMN_BYTES)
   for (let x = 0; x < sw; x++)
-    for (let y = 0; y < SCREEN_H; y += 2) fb[x * COLUMN_BYTES + (y >> 1)] = pixels[y * sw + x] | (pixels[(y + 1) * sw + x] << 4)
+    for (let y = 0; y < SCREEN_H; y += 2) fb[x * COLUMN_BYTES + (y >> 1)] = (pixels[y * sw + x] << 4) | pixels[(y + 1) * sw + x]
   return fb
 }
 
@@ -91,8 +91,8 @@ export function unpackColumns(fb: Uint8Array, sw: number): Uint8Array {
   for (let x = 0; x < sw; x++)
     for (let y = 0; y < SCREEN_H; y += 2) {
       const b = fb[x * COLUMN_BYTES + (y >> 1)]
-      out[y * sw + x] = b & 15
-      out[(y + 1) * sw + x] = b >> 4
+      out[y * sw + x] = b >> 4
+      out[(y + 1) * sw + x] = b & 15
     }
   return out
 }

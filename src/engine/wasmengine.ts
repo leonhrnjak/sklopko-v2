@@ -5,7 +5,7 @@ import { parseWords } from './components/memory'
 import { ramBits } from './components/sequential'
 import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
-import type { VideoState } from './components/video'
+import { VIDEO_FILL_REGS, type VideoState } from './components/video'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
 import { BY_OPCODE_6502, type Opcode6502 } from './opcodes6502'
 import { instantiateEngine, type EngineExports } from './wasm'
@@ -261,7 +261,7 @@ export class WasmEngine {
   /** The bytes of all the RAMs together. */
   private ramBytes = 0
   /** The pixel screens and video chips, in part order, with where each one's pixels start in the module's array and how many there are. */
-  private screens: { part: number; start: number; size: number }[] = []
+  private screens: { part: number; start: number; size: number; extra?: number }[] = []
   private get screenBytes() {
     return this.screens.reduce((t, s) => t + s.size, 0)
   }
@@ -389,8 +389,9 @@ export class WasmEngine {
       } else if (type === 'video') {
         const v = st as VideoState
         memOff = fb.length
-        this.screens.push({ part: i, start: fb.length, size: v.px.length })
+        this.screens.push({ part: i, start: fb.length, size: v.px.length + VIDEO_FILL_REGS, extra: VIDEO_FILL_REGS })
         for (const b of v.px) fb.push(b)
+        for (let k = 0; k < VIDEO_FILL_REGS; k++) fb.push(v.fill[k] ?? 0)
         pc = v.pc
         n = (v.addr | (v.hold << 16) | (v.out << 24)) | 0
       } else if (type === 'via6522') {
@@ -625,10 +626,11 @@ export class WasmEngine {
     })
     if (this.screens.length) {
       const pixels = new Uint8Array(buf, x.fb_ptr(), this.screenBytes)
-      for (const { part, start, size } of this.screens) {
+      for (const { part, start, size, extra = 0 } of this.screens) {
         const st = comps[part].inst.state as FramebufferState
         let changed = false
-        for (let k = 0; k < size; k++) {
+        if (extra) (comps[part].inst.state as VideoState).fill = Array.from(pixels.subarray(start + size - extra, start + size))
+        for (let k = 0; k < size - extra; k++) {
           if (st.px[k] !== pixels[start + k]) {
             st.px[k] = pixels[start + k]
             changed = true

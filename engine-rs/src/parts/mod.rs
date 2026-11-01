@@ -94,6 +94,8 @@ pub const SEG_HEX: [i32; 16] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 
 pub const FB_SIZE: usize = 16;
 /// Bytes in the video chip's picture: 160 columns of 50 bytes (two pixels of 4 bits each), column by column.
 pub const VIDEO_BYTES: usize = 8000;
+/// The bytes after them: the column-fill registers (x, top, bottom, colour, width, sky, floor, and one spare).
+pub const VIDEO_REGS: usize = 8;
 /// Characters a text console can have waiting for the page.
 pub const CONSOLE_EVENT_LIMIT: usize = 1 << 16;
 

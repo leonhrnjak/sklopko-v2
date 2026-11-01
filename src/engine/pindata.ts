@@ -489,7 +489,7 @@ export const PINS: Record<string, PinDocs> = {
     RESB: 'Reset, active low: while it is 0 the address and control registers are cleared. The picture is kept.',
     CS0: 'Chip select, active high: the chip answers only while this is 1 and CS1 is 0. On a 6502 board it comes from an address wire.',
     CS1B: 'Chip select, active low: the chip answers only while this is 0 and CS0 is 1. On a 6502 board it comes from an address wire.',
-    'RS#': 'Register select (RS0 least significant): 0 the address, low byte, 1 the address, high byte, 2 the data (reads or writes the picture byte at the address, then counts it up), 3 control.',
+    'RS#': 'Register select (RS0 least significant): 0 the address, low byte, 1 the address, high byte, 2 the data (reads or writes the picture byte at the address, then counts it up), 3 control; 4 to 10 the column fill: x, top, bottom, colour (writing it draws the column), width, sky colour, floor colour. Leave RS2 and RS3 at 0 and it is the plain port.',
     RWB: 'Read/write: 1 reads the register the RS pins pick, 0 writes it.',
     'DI#|DI': 'Data in: the byte written to the register (DI0 least significant bit). Join it to the CPU’s D, the byte it writes.',
     'D#|D': 'Data out: the register that was read (D0 least significant bit), 0 while the chip is not selected. Join it to an input of the multiplexer that feeds the CPU.',

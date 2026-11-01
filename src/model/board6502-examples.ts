@@ -181,7 +181,7 @@ export const basicLcd6502 = (): Circuit => {
 }
 
 const VIDEO_DECODE =
-  'The video chip answers on the chip selects alone, like the terminal on the BASIC computer: CS0 = A14, CS1 = A15 low, and A0 and A1 pick one of its four registers, so they are at $4000\u2013$4003. RAM is $0000\u2013$3FFF, the ROM $8000\u2013$FFFF.'
+  'The video chip answers on the chip selects alone, like the terminal on the BASIC computer: CS0 = A14, CS1 = A15 low, and A0 to A3 pick one of its registers, so they are at $4000\u2013$400A: 0 to 3 the port, 4 to 10 the column fill. RAM is $0000\u2013$3FFF, the ROM $8000\u2013$FFFF.'
 
 const VIDEO_DEVICES =
   'The chip keeps the picture inside: 160 columns by 100 rows of 16 colours, 8,000 bytes, two pixels a byte, stored column by column. The CPU never sees them as memory, only an address register (VADDR_L and VADDR_H) and a data register (VDATA) that reads or writes the byte at the address and then counts it up, so a column is a run of writes to one address. Select the screen to see it large.'

@@ -7,7 +7,7 @@
 >
 > - [x] D0 The spike: a raycaster in 6502 assembly on the bare core, measured (no app change)
 > - [ ] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
-> - [ ] D1b Column fill (**only if the D0 numbers say it pays**)
+> - [x] D1b Column fill (the D0 numbers said it pays)
 > - [ ] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [ ] D3 The engine on the board: walls, doors, movement, shading
 > - [ ] D4 The game: enemies, sprites, a gun, five levels, the example
@@ -132,6 +132,16 @@ What the numbers say:
 - A command register: write x, top, bottom, colour; the part fills the column in one evaluation. A mode flag keeps plain port writes
   unchanged.
 - **Done when:** the unit and lockstep tests pass, and the D0 harness numbers are re-measured on the real part and match the model.
+
+### D1b result
+The part gained two pins, `RS2` and `RS3` (16 registers, `$4000–$400F` on the board; the plain port at 0 to 3 is unchanged and an unwired RS2/RS3 is 0).
+Registers 4 to 10: `x`, `top`, `bottom`, `colour`, `width`, `sky`, `floor`. **Writing the colour starts the fill**: `width` columns from `x` (wrapping past 159),
+each sky down to row `top`, the colour down to row `bottom`, floor below. After reset the width is 1 and the others 0; all read back. This is the register
+layout the D0 harness modelled (`CMX` to `CMW`), plus the sky and floor colours, which the harness had as constants. The nibble order is the part's (the even row in the high nibble); D0's
+walls are whole bytes, so its pictures did not change.
+Re-measured: `doom.test.ts` runs the D0 fill program (160 columns) on the real part in the Rust engine at 4 poses. The picture equals `reference.ts`, and
+it is not yet complete 1,500 cycles before the cycle count the model measured and is complete at that count: the fill costs the CPU nothing beyond the five or six `STA`s
+per column the model already counted, so the D0 table (130,300 cycles mean for 160 columns) stands.
 
 ## D2 The game board
 - `board6502.ts` gets a `game` option: video, gamepad register, bank latch, VIA (frame timer, IRQ), 16 KB RAM, three 16 KB ROMs.
