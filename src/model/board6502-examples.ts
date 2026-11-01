@@ -246,7 +246,7 @@ export const doomLike6502 = (): Circuit => {
     { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, rom: assembled.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' '), banks: [hex(levelBankSource()), hex(ART_BANK_SOURCE)] },
     {
       intro:
-        'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns of the screen, finds the wall with no multiplications (tables of logarithms and exponentials), tells the video chip to fill the column, and draws the monsters over it. Arrow keys walk and turn, Z slides sideways, X opens a door, presses the cyan exit switch (five levels) or fires. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program and the screen to see it large.',
+        'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns of the screen, finds the wall with no multiplications (tables of logarithms and exponentials), tells the video chip to fill the column, and draws the monsters over it. Arrow keys walk and turn, Z slides sideways, X or the space bar opens a door, presses the teal exit switch (five levels) or fires. The look is Doom\u2019s: greys and browns, one fixed colour for each wall side. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program and the screen to see it large.',
       decode: GAME_DECODE,
       memory: GAME_MEMORY,
       devices: DOOM_DEVICES,

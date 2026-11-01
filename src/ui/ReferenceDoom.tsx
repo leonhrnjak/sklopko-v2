@@ -27,13 +27,13 @@ function Play() {
             <tr><td>▲ ▼</td><td>↑ ↓ or W S</td><td>Walk forward and back.</td></tr>
             <tr><td>◀ ▶</td><td>← → or A D</td><td>Turn. With button A held, step sideways instead.</td></tr>
             <tr><td>A</td><td>Z</td><td>Strafe (with ◀ ▶).</td></tr>
-            <tr><td>B</td><td>X</td><td>Opens the door in front of you, presses the exit switch (the cyan wall at the end of a level), and otherwise fires the gun.</td></tr>
+            <tr><td>B</td><td>X or the space bar</td><td>Opens the door in front of you, presses the exit switch (the bright teal wall at the end of a level), and otherwise fires the gun.</td></tr>
           </tbody>
         </table>
       </div>
       <h3>The game</h3>
       <ul>
-        <li>Five levels. Press the cyan exit switch at the end of a level to start the next; a new level adds 40 health (at most 100) and refills the ammunition (50).</li>
+        <li>Five levels. Press the teal exit switch at the end of a level to start the next; a new level adds 40 health (at most 100) and refills the ammunition (50).</li>
         <li>Two kinds of monster: a <b>patrol</b> (two hits) walks up and down its corridor, a <b>chaser</b> (three hits) follows you once you are within ten cells. A touch costs 5 or 10 health, and the monster then waits a moment.</li>
         <li>The gun fires about three shots a second at the monster in the middle of the view (the white mark), unless a wall or a closed door is nearer.</li>
         <li>The strip at the bottom shows health (green, red when low), ammunition (yellow) and a light for each level. The face shows how hurt you are and winces when you are hit.</li>
@@ -76,7 +76,7 @@ function Machine() {
       <ol>
         <li>The program waits for the timer, then runs the game’s rules once for each tick that has passed (at most 12): walking, doors, monsters, the gun.</li>
         <li>It projects each monster (its distance, its column, its size) and sorts them far to near.</li>
-        <li>For each of 160 columns it casts a ray through the map, works out the wall’s height and shade, and fills the column with one video command. Straight after, it draws the parts of monsters that are nearer than the wall in that column, the crosshair, the gun, the face and the HUD. The video chip has one buffer, so everything of a column is drawn together; drawing the sprites after all the walls would make them flicker.</li>
+        <li>For each of 160 columns it casts a ray through the map, works out the wall’s height and side, and fills the column with one video command. Straight after, it draws the parts of monsters that are nearer than the wall in that column, the crosshair, the gun, the face and the HUD. The video chip has one buffer, so everything of a column is drawn together; drawing the sprites after all the walls would make them flicker.</li>
       </ol>
       <p>
         Everything is checked against a TypeScript renderer: the tests play the five levels on the program and compare all 16,000 pixels after every picture. There are no

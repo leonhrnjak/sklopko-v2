@@ -8,7 +8,7 @@ export function buttonOfKey(key: string): number {
 }
 
 /**
- * Let the keyboard press the gamepad while the page has one: the arrow keys or W A S D for the direction pad, Z and X for
+ * Let the keyboard press the gamepad while the page has one: the arrow keys or W A S D for the direction pad, Z and X (or the space bar for B) for
  * A and B. A key tapped for less than `minHoldMs` stays down until that time is up, because a slow program may look at the pad
  * only now and then. The keys are only taken (so the page does not scroll) when a gamepad is in the circuit and nothing is being typed.
  */
