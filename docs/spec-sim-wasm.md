@@ -200,7 +200,21 @@ the others out, with the number of examples using them: `hexdisp` 17, `breakpoin
 - **Tests.** A single-part test with unknown inputs and random switches for every part (16 seeds of 120 edges); the all-examples comparison;
   the Simulator-level tests (history, probes, breakpoints, terminal, screens); random opcodes on both CPU chips; Microsoft BASIC on the
   `cpu6502` board.
-- **Not yet done:** the browser measurement of the whole simulator (E5), E6 and E7.
+- **Not yet done:** E6 and E7.
+
+## E5 result: measured in the browser
+
+Headless Chromium in the build container, the built app (`vite preview`), 9 seconds after load, reading the footer's "actual" clock rate
+(history off, as the examples ship). `?engine=ts` is the TypeScript fast engine.
+
+| Example | Asked | Rust | TypeScript |
+|---|---|---|---|
+| `6502-basic` (the `cpu6502` part) | 1 MHz | 1 MHz (100%) | 753 kHz (75%) |
+| `6502-parts-basic` (6502 from our own parts) | 1 MHz | 247 kHz (25%) | 109 kHz (11%) |
+| `computer-pong`, `computer-raycaster` | 512 Hz, 4.1 kHz | keep up | keep up |
+
+The parts-built 6502 runs about 2.3 times faster; the `cpu6502` board now reaches the full 1 MHz. Slower hardware will differ, so read these as
+ratios. The examples that already keep up gain nothing visible, as expected.
 
 ## End state: one implementation, in Rust
 
