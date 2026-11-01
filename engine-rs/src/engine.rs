@@ -3,7 +3,7 @@
 
 use crate::parts::acia::Acia;
 use crate::parts::util::{X, Z};
-use crate::parts::{self, Cell, Console, Shared, Via, Lcd, CONSOLE_EVENT_LIMIT, LCD_FIELDS, VIA_FIELDS};
+use crate::parts::{self, Cell, Console, Shared, Via, Lcd, Cpu, Programs, CONSOLE_EVENT_LIMIT, CPU_FIELDS, LCD_FIELDS, VIA_FIELDS};
 
 pub struct Engine {
     values: Vec<u8>,
@@ -65,6 +65,7 @@ impl Engine {
         let n_console = next() as usize;
         let n_via = next() as usize;
         let n_lcd = next() as usize;
+        let n_cpu = next() as usize;
         let values: Vec<u8> = (0..n_nets).map(|_| next() as u8).collect();
         let pins: Vec<u8> = (0..n_pins).map(|_| next() as u8).collect();
         let mut kind = vec![0; n_parts];
@@ -106,6 +107,8 @@ impl Engine {
         let consoles: Vec<Console> = (0..n_console).map(|_| Console { events: Vec::new(), taken: vec![0; CONSOLE_EVENT_LIMIT] }).collect();
         let vias: Vec<Via> = (0..n_via).map(|_| Via::from_numbers(&(0..VIA_FIELDS).map(|_| next()).collect::<Vec<i32>>())).collect();
         let lcds: Vec<Lcd> = (0..n_lcd).map(|_| Lcd::from_numbers(&(0..LCD_FIELDS).map(|_| next()).collect::<Vec<i32>>())).collect();
+        let cpus: Vec<Cpu> = (0..n_cpu).map(|_| Cpu::from_numbers(&(0..CPU_FIELDS).map(|_| next()).collect::<Vec<i32>>())).collect();
+        let programs = if n_cpu > 0 { Some(Programs::build(&(0..2 * 256 * 7).map(|_| next()).collect::<Vec<i32>>())) } else { None };
         let mut acias = Vec::with_capacity(n_acia);
         for _ in 0..n_acia {
             let reset_clears = next() != 0;
@@ -118,7 +121,7 @@ impl Engine {
         Engine {
             values, pins, kind, pin_start, n_ins, out_start, n_outs, p0, p1, p2, mem_off, st_n, st_pc, st_q, out_nets, reader_start,
             reader_part, reader_slot, reader_wake, order, rank,
-            shared: Shared { rom, ram, fb, acias, consoles, vias, lcds },
+            shared: Shared { rom, ram, fb, acias, consoles, vias, lcds, cpus, programs },
             rank_flag: vec![0; n_order],
             lo: n_order,
             hi: -1,
@@ -159,6 +162,9 @@ impl Engine {
     }
     pub fn fb_ptr(&mut self) -> *mut u8 {
         self.shared.fb.as_mut_ptr()
+    }
+    pub fn cpu_ptr(&mut self) -> *mut i32 {
+        self.shared.cpus.as_mut_ptr() as *mut i32
     }
     pub fn lcd_ptr(&mut self) -> *mut i32 {
         self.shared.lcds.as_mut_ptr() as *mut i32

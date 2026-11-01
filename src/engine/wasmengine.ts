@@ -1,7 +1,10 @@
 import { aciaAccepted, aciaPut, aciaWipe, KEYBOARD_MAX, type AciaState } from './acia'
 import { consolePut, type ConsoleState, type FramebufferState } from './components/devices'
+import type { CpuState } from './components/cpu'
 import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
+import { BY_OPCODE_65C02 } from './opcodes65c02'
+import { BY_OPCODE_6502, type Opcode6502 } from './opcodes6502'
 import type { EngineExports } from './wasm'
 import type { Instance, Params, ComponentDef } from './types'
 
@@ -112,6 +115,42 @@ function setLcdNumbers(st: LcdPartState, v: Int32Array) {
   if (at('lastKind') !== LCD_LAST_KEEP) st.last = lcdLast(at('lastKind'), at('lastA'), at('lastB'), at('lastC'))
 }
 
+/** The numbers of a 6502 part, in the order of the module's `Cpu` struct (engine-rs/src/parts/cpu6502.rs): the CPU's, then the part's own. */
+const CPU_KEYS = [
+  'a', 'x', 'y', 'sp', 'pc', 'p', 'addr', 'read', 'out', 'sync', 'irq', 'nmiPending', 'nmiPin', 'op', 'prog', 't', 'intr', 'vec', 'ea', 'lo', 'ptr', 'val',
+  'base', 'cross', 'off', 'newpc', 'cycles', 'cmos', 'wait', 'bit', 'vp', 'ml',
+] as const
+const CPU_PART_KEYS = ['pc', 'started', 'held', 'waiting', 'stalled'] as const
+const CPU_FIELDS = CPU_KEYS.length + CPU_PART_KEYS.length
+const INTR = [null, 'irq', 'nmi'] as const
+const cpuNumbers = (st: CpuState) => {
+  const c = st.cpu as unknown as Record<string, number | boolean | string | null>
+  return [
+    ...CPU_KEYS.map((k) => (k === 'intr' ? INTR.indexOf(st.cpu.intr) : Number(c[k]))),
+    ...CPU_PART_KEYS.map((k) => Number(st[k])),
+  ]
+}
+function setCpuNumbers(st: CpuState, v: Int32Array) {
+  const c = st.cpu as unknown as Record<string, number | boolean | string | null>
+  const flags = new Set(['read', 'sync', 'irq', 'nmiPending', 'nmiPin', 'cross', 'cmos', 'vp', 'ml'])
+  CPU_KEYS.forEach((k, i) => {
+    c[k] = k === 'intr' ? INTR[v[i]] : flags.has(k) ? v[i] !== 0 : v[i]
+  })
+  const part = st as unknown as Record<string, number | boolean>
+  CPU_PART_KEYS.forEach((k, i) => {
+    part[k] = k === 'pc' ? v[CPU_KEYS.length + i] : v[CPU_KEYS.length + i] !== 0
+  })
+}
+/** A mnemonic or a mode as a number: its characters, the first the lowest. */
+const packChars = (s: string) => [...s].reduce((n, ch, i) => n | (ch.charCodeAt(0) << (8 * i)), 0)
+const KIND_CODE = { read: 0, write: 1, rmw: 2, other: 3 }
+/** The opcode tables of the NMOS chip and the 65C02, as the module takes them: 7 numbers for each of 256 opcodes. */
+function opcodeTable(): number[] {
+  const row = (o: Opcode6502 | undefined) =>
+    o ? [1, packChars(o.mnemonic), packChars(o.mode), KIND_CODE[o.kind], o.cycles, o.pageCross ? 1 : 0, o.bit ?? -1] : [0, 0, 0, 0, 0, 0, -1]
+  return [BY_OPCODE_6502, BY_OPCODE_65C02].flatMap((table) => Array.from({ length: 256 }, (_, op) => row(table[op])).flat())
+}
+
 /** The kinds of part, as engine-rs/src/parts/mod.rs numbers them. */
 const KIND: Record<string, number> = {
   and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9,
@@ -122,7 +161,7 @@ const KIND: Record<string, number> = {
   rom: 41, ram: 42,
   clock: 43, keypad: 44, framebuffer: 45, console: 46,
   acia6551: 47,
-  tribuf: 48, busjoin: 49, via6522: 50, hd44780: 51,
+  tribuf: 48, busjoin: 49, via6522: 50, hd44780: 51, cpu6502: 52,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -213,6 +252,8 @@ export class WasmEngine {
   private vias: { part: number; st: ViaPartState }[] = []
   /** The LCD parts, in part order. */
   private lcds: { part: number; st: LcdPartState }[] = []
+  /** The 6502 parts, in part order. */
+  private cpus: { part: number; st: CpuState }[] = []
   /** The text consoles, in part order. */
   private consoles: { part: number; st: ConsoleState }[] = []
   private buffer: ArrayBuffer | null = null
@@ -310,6 +351,11 @@ export class WasmEngine {
       } else if (type === 'via6522') {
         memOff = this.vias.length
         this.vias.push({ part: i, st: st as ViaPartState })
+      } else if (type === 'cpu6502') {
+        memOff = this.cpus.length
+        this.cpus.push({ part: i, st: st as CpuState })
+        p0 = p.chip === 'cmos' ? 1 : 0
+        p1 = p.tristate ? 1 : 0
       } else if (type === 'hd44780') {
         memOff = this.lcds.length
         this.lcds.push({ part: i, st: st as LcdPartState })
@@ -344,6 +390,7 @@ export class WasmEngine {
     push(this.consoles.length)
     push(this.vias.length)
     push(this.lcds.length)
+    push(this.cpus.length)
     for (const v of c.values) push(v)
     for (const v of c.pins) push(v)
     for (const r of rows) for (const v of r) push(v)
@@ -359,6 +406,8 @@ export class WasmEngine {
     for (const v of fb) push(v)
     for (const { st } of this.vias) for (const v of viaNumbers(st)) push(v)
     for (const { st } of this.lcds) for (const v of lcdNumbers(st)) push(v)
+    for (const { st } of this.cpus) for (const v of cpuNumbers(st)) push(v)
+    if (this.cpus.length) for (const v of opcodeTable()) push(v)
     for (const { st, part } of this.terminals) {
       push(c.comps[part].inst.params.resetClears === false ? 0 : 1)
       for (const v of [st.command, st.control, st.rx, st.full ? 1 : 0, st.interrupt ? 1 : 0, st.pc, st.out]) push(v)
@@ -491,6 +540,10 @@ export class WasmEngine {
       const regs = new Int32Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS)
       this.lcds.forEach(({ st }, k) => setLcdNumbers(st, regs.subarray(k * LCD_FIELDS, (k + 1) * LCD_FIELDS)))
     }
+    if (this.cpus.length) {
+      const regs = new Int32Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS)
+      this.cpus.forEach(({ st }, k) => setCpuNumbers(st, regs.subarray(k * CPU_FIELDS, (k + 1) * CPU_FIELDS)))
+    }
     this.consoles.forEach(({ st }, k) => {
       const events = x.console_take_events(k)
       if (!events) return
@@ -541,6 +594,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
+      new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
     ]
     const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
     let at = 0
@@ -567,6 +621,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
+      new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
     ]
     let at = 0
     for (const p of parts) {

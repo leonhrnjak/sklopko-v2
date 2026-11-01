@@ -1154,7 +1154,11 @@ export class Simulator {
    * simulation, where the answer is at hand after every edge.
    */
   stepCpu(compId: string, what: 'cycle' | 'instruction', max = 400) {
-    const cpu = () => (this.byId.get(compId)?.inst.state as { cpu?: { cycles: number; prog: number; sync: boolean } } | undefined)?.cpu
+    // (with the Rust engine the part's state is in the module: it is brought up to date at each look)
+    const cpu = () => {
+      this.syncWasm()
+      return (this.byId.get(compId)?.inst.state as { cpu?: { cycles: number; prog: number; sync: boolean } } | undefined)?.cpu
+    }
     const before = cpu()?.cycles
     for (let i = 0; i < max; i++) {
       const c = cpu()

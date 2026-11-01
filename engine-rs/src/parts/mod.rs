@@ -6,6 +6,7 @@ pub mod acia;
 mod arith;
 mod bus;
 mod coding;
+mod cpu6502;
 mod gates;
 mod io;
 mod lcd;
@@ -17,6 +18,7 @@ mod via;
 pub mod util;
 
 use acia::Acia;
+pub use cpu6502::{Cpu, Programs, CPU_FIELDS};
 pub use lcd::{Lcd, LCD_FIELDS};
 pub use via::{Via, VIA_FIELDS};
 
@@ -73,6 +75,7 @@ pub mod kind {
     pub const BUSJOIN: i32 = 49;
     pub const VIA6522: i32 = 50;
     pub const LCD: i32 = 51;
+    pub const CPU6502: i32 = 52;
 }
 
 /// The 7-segment patterns of 0 to F.
@@ -116,6 +119,9 @@ pub struct Shared {
     pub consoles: Vec<Console>,
     pub vias: Vec<Via>,
     pub lcds: Vec<Lcd>,
+    pub cpus: Vec<Cpu>,
+    /// The programs of the 6502's instructions, built from the opcode table the page sends (only when there is a CPU).
+    pub programs: Option<Programs>,
 }
 
 /// Compute the outputs of a part of this kind.
@@ -133,6 +139,7 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         48..=49 => tristate::eval(kind, c),
         50 => via::eval(kind, c, sh),
         51 => lcd::eval(kind, c, sh),
+        52 => cpu6502::eval(kind, c, sh),
         _ => {}
     }
 }
