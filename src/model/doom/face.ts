@@ -4,7 +4,7 @@
  * column's wall, so the program keeps the art as bytes (two pixels each, the upper in the high nibble) in the fixed ROM, a column at a time.
  */
 
-export const FACE_X = 54
+export const FACE_X = 55
 export const FACE_W = 16
 export const FACE_ROWS = 12
 /** The first row of the face, and its bytes a column. */
