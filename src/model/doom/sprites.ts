@@ -69,62 +69,95 @@ export interface Run {
 
 /** The art: each row of a sprite is eight characters; `.` is clear and the others are palette colours. */
 const KEY: Record<string, number> = { h: 5, s: 12, r: 6, g: 9, k: 0, w: 15, p: 7, m: 8, y: 12, o: 13 }
-const ART: string[][] = [
+
+/** The frames of each enemy: standing, two walking, two attacking (the strike and the recovery), two of falling and the corpse. */
+export const FRAME_STAND = 0
+export const FRAME_WALK_A = 1
+export const FRAME_WALK_B = 2
+export const FRAME_STRIKE = 3
+export const FRAME_RECOVER = 4
+export const FRAME_DIE_A = 5
+export const FRAME_DIE_B = 6
+export const FRAME_CORPSE = 7
+export const FRAMES = 8
+
+/** A picture with some rows replaced (`patch` maps a row number to its eight characters). */
+const patched = (base: string[], patch: Record<number, string>) => base.map((row, i) => patch[i] ?? row)
+/** A picture moved down, the rows at the top clear and the rows at the bottom gone. */
+const lowered = (base: string[], n: number) => [...Array<string>(n).fill('........'), ...base.slice(0, base.length - n)]
+/** A picture of the bottom rows only (a figure on the ground): the rows from `first` are `rows`, the rest clear. */
+const onGround = (first: number, rows: string[]) => [...Array<string>(first).fill('........'), ...rows]
+
+/** The frames of a standing figure `base`: the legs are rows 12 to 15, the arms the rows 2 to 9. */
+function figure(base: string[], p: { walkA: string[]; walkB: string[]; strike: Record<number, string>; recover: Record<number, string>; dieB: string[]; corpse: string[] }): string[][] {
+  const legsA = Object.fromEntries(p.walkA.map((r, i) => [12 + i, r]))
+  return [
+    base,
+    patched(base, legsA),
+    patched(base, Object.fromEntries(p.walkB.map((r, i) => [12 + i, r]))),
+    patched(base, { ...legsA, ...p.strike }),
+    patched(base, p.recover),
+    lowered(base, 2),
+    onGround(16 - p.dieB.length, p.dieB),
+    onGround(16 - p.corpse.length, p.corpse),
+  ]
+}
+
+const ART: string[][][] = [
   // Patrol: a guard with a brown helmet and a red coat.
-  [
-    '..hhhh..',
-    '.hhhhhh.',
-    '.ssssss.',
-    '.ssssss.',
-    '..ssss..',
-    '.rrrrrr.',
-    'rrrrrrrr',
-    'rrrrrrrr',
-    'rrrrrrrr',
-    'rrrrrrrr',
-    '.rrrrrr.',
-    '..gggg..',
-    '..gg.gg.',
-    '..gg.gg.',
-    '..gg.gg.',
-    '.kkk.kkk',
-  ],
+  figure(
+    ['..hhhh..', '.hhhhhh.', '.ssssss.', '.ssssss.', '..ssss..', '.rrrrrr.', 'rrrrrrrr', 'rrrrrrrr', 'rrrrrrrr', 'rrrrrrrr', '.rrrrrr.', '..gggg..', '..gg.gg.', '..gg.gg.', '..gg.gg.', '.kkk.kkk'],
+    {
+      walkA: ['.gg..gg.', 'gg....gg', 'gg....gg', 'kk....kk'],
+      walkB: ['..gggg..', '..gggg..', '..g..g..', '.kk..kk.'],
+      // Arms thrown up.
+      strike: { 2: 'r.ssss.r', 3: 'r.ssss.r', 4: 'r.ssss.r', 5: 'rrrrrrrr', 6: 'rrrrrrrr', 7: '.rrrrrr.', 8: '.rrrrrr.', 9: '.rrrrrr.' },
+      recover: { 4: 'r.ssss.r', 5: 'rrrrrrrr' },
+      dieB: ['.hh.....', 'hssrrrgg', 'hssrrrgg', '.hrrrrgk', '..rrrr.k'],
+      corpse: ['.hssrrgg', 'hssrrrgk'],
+    },
+  ),
   // Chaser: a horned creature, purple with magenta head and white eyes.
-  [
-    '.m....m.',
-    '.mm..mm.',
-    '..mmmm..',
-    '.mmmmmm.',
-    '.mwmmwm.',
-    '.mmmmmm.',
-    '..mmmm..',
-    '.pppppp.',
-    'pppppppp',
-    'pppppppp',
-    'p.pppp.p',
-    '..pppp..',
-    '..p..p..',
-    '..p..p..',
-    '.pp..pp.',
-    '.mm..mm.',
-  ],
+  figure(
+    ['.m....m.', '.mm..mm.', '..mmmm..', '.mmmmmm.', '.mwmmwm.', '.mmmmmm.', '..mmmm..', '.pppppp.', 'pppppppp', 'pppppppp', 'p.pppp.p', '..pppp..', '..p..p..', '..p..p..', '.pp..pp.', '.mm..mm.'],
+    {
+      walkA: ['.pp..pp.', 'pp....pp', 'pp....pp', 'mm....mm'],
+      walkB: ['..pppp..', '..pppp..', '..p..p..', '.mm..mm.'],
+      // Arms up, mouth open.
+      strike: { 5: '.mmkkmm.', 6: 'p.mmmm.p', 7: 'pppppppp', 8: 'pppppppp', 9: 'p.pppp.p' },
+      recover: { 5: '.mmkkmm.' },
+      dieB: ['.mm.....', 'mmpppppp', 'mwpppppp', '.mpppp.p', '..pppp.p'],
+      corpse: ['.mmpppp.', 'mmwpppp.'],
+    },
+  ),
 ]
+
+/** The frame an enemy is drawn as: hit points, the cooldown (the attack's age, or the fall's), and its place (the legs move with it). */
+export function enemyFrame(hp: number, cd: number, x: number, y: number): number {
+  if (!hp) return cd >= 14 ? FRAME_DIE_A : cd >= 7 ? FRAME_DIE_B : FRAME_CORPSE
+  if (cd >= 40) return FRAME_STRIKE
+  if (cd >= 34) return FRAME_RECOVER
+  return [FRAME_STAND, FRAME_WALK_A, FRAME_STAND, FRAME_WALK_B][(x + y) & 3]
+}
+/** `enemyFrame` as the table the program reads, by (x + y) & 3. */
+export const WALK_FRAMES = [FRAME_STAND, FRAME_WALK_A, FRAME_STAND, FRAME_WALK_B]
+
 /** Runs in a record, and the record's size in the bank: a count and up to five runs of three bytes. */
 export const MAX_RUNS = 5
 export const RECORD = 16
 
-/** The runs of column `u` of sprite `kind` (0 or 1). */
-export function columnRuns(kind: number, u: number): Run[] {
+/** The runs of column `u` of frame `frame` of sprite `kind` (0 or 1). */
+export function columnRuns(kind: number, u: number, frame = 0): Run[] {
   const runs: Run[] = []
   let v = 0
   while (v < 16) {
-    const ch = ART[kind][v][u]
+    const ch = ART[kind][frame][v][u]
     if (ch === '.') {
       v++
       continue
     }
     let to = v + 1
-    while (to < 16 && ART[kind][to][u] === ch) to++
+    while (to < 16 && ART[kind][frame][to][u] === ch) to++
     runs.push({ from: v, to, colour: KEY[ch] })
     v = to
   }
@@ -133,20 +166,21 @@ export function columnRuns(kind: number, u: number): Run[] {
 
 /** Where the art and the texture-column table sit in bank 1. */
 export const ART_BASE = 0xa000
-export const UTAB_BASE = 0xa100
+export const UTAB_BASE = 0xa800
 export const Q_LEVELS = 26
 
 /** Bank 1: the runs of each texture column (a 16-byte record: count, then from, to and the colour as a pair of pixels), then for every `q` the texture column of each of up to 64 sprite columns. */
 export function artBankSource(): string {
   const lines = ['  .org $8000', '  .byte 0', `  .org $${ART_BASE.toString(16)}`]
-  for (let kind = 0; kind < 2; kind++)
-    for (let u = 0; u < 8; u++) {
-      const runs = columnRuns(kind, u)
-      if (runs.length > MAX_RUNS) throw new Error(`sprite ${kind} column ${u} has ${runs.length} runs`)
-      const rec = [runs.length, ...runs.flatMap((r) => [r.from, r.to, r.colour | (r.colour << 4)])]
-      while (rec.length < RECORD) rec.push(0)
-      lines.push(`  .byte ${rec.join(',')}`)
-    }
+  for (let frame = 0; frame < FRAMES; frame++)
+    for (let kind = 0; kind < 2; kind++)
+      for (let u = 0; u < 8; u++) {
+        const runs = columnRuns(kind, u, frame)
+        if (runs.length > MAX_RUNS) throw new Error(`sprite ${kind} frame ${frame} column ${u} has ${runs.length} runs`)
+        const rec = [runs.length, ...runs.flatMap((r) => [r.from, r.to, r.colour | (r.colour << 4)])]
+        while (rec.length < RECORD) rec.push(0)
+        lines.push(`  .byte ${rec.join(',')}`)
+      }
   lines.push(`  .org $${UTAB_BASE.toString(16)}`)
   for (let q = 0; q < Q_LEVELS; q++) {
     const row = Array.from({ length: 64 }, (_, n) => (q === 0 ? 0 : textureColumn(q, n)))
@@ -158,6 +192,7 @@ export function artBankSource(): string {
 /** An enemy as the picture needs it: its kind (1 patrol, 2 chaser), and what the projection made of it. */
 export interface Drawn {
   kind: number
+  frame: number
   seen: Seen
 }
 
@@ -169,14 +204,14 @@ export function drawSprites(pixels: Uint8Array, zq: number[], sprites: Drawn[]):
   const w = screenWidth(160)
   const order = sprites.map((_, i) => i).sort((i, j) => sprites[i].seen.q - sprites[j].seen.q || i - j)
   for (const i of order) {
-    const { kind, seen } = sprites[i]
+    const { kind, frame, seen } = sprites[i]
     const q = seen.q
     for (let n = 0; n < seen.width; n++) {
       const x = seen.left + n
       if (x < 0) continue
       if (x > 159) break
       if (q <= zq[x]) continue
-      for (const r of columnRuns(kind - 1, textureColumn(q, n))) {
+      for (const r of columnRuns(kind - 1, textureColumn(q, n), frame)) {
         const y0 = texelRow(q, r.from)
         const y1 = texelRow(q, r.to)
         for (let y = y0; y < y1 && y < SCREEN_H; y++) pixels[y * w + x] = r.colour

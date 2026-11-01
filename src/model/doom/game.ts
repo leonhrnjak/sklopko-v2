@@ -3,7 +3,7 @@ import { LEVELS, LEVEL_COUNT, MAX_ENEMIES, PATROL } from './levels'
 import { renderDepth, type Pose } from './reference'
 import { drawSprites, project, type Drawn } from './sprites'
 import { SPRITE_EQUATES, spriteCode, spriteTables } from './spritecode'
-import { ART_BASE, artBankSource } from './sprites'
+import { ART_BASE, artBankSource, enemyFrame, WALK_FRAMES } from './sprites'
 import { drawGun, GUN_FRAMES, GUN_RECORD, GUN_W, GUN_X, GUN_Y, gunBytes, gunFrame, RECOIL_FROM, FLASH_FROM } from './gun'
 import { drawFace, FACE_ART, faceBytes, faceFrame, FACE_BYTES, FACE_FRAMES, FACE_W, FACE_X, FACE_Y, HURT_TICKS } from './face'
 
@@ -46,12 +46,14 @@ export const FIRE_DELAY = 18
 export const ENEMY_HP = [0, 2, 3]
 export const ENEMY_DAMAGE = [0, 5, 10]
 export const ATTACK_DELAY = 45
+/** Ticks a killed enemy's fall lasts (its cooldown counts them), before it is a corpse. */
+export const DEATH_TICKS = 20
 /** A chaser comes for the player within this distance (|dx| + |dy| in 1/16 cells); a touch is closer than this on both axes. */
 export const CHASE_RANGE = 160
 export const TOUCH = 12
 
 export interface Enemy {
-  /** 0: none (never there, or killed), 1: patrol, 2: chaser. */
+  /** 0: none (no enemy in this slot), 1: patrol, 2: chaser. A killed enemy keeps its kind, with no hit points, and lies there as a corpse. */
   kind: number
   /** Position in 1/16 cells. */
   x: number
@@ -59,7 +61,7 @@ export interface Enemy {
   hp: number
   /** Bit 0: walking the negative way; bit 1: along y. */
   aux: number
-  /** Ticks until it can hurt again. */
+  /** Ticks until it can hurt again; for a killed enemy, the ticks left of its fall. */
   cd: number
 }
 
@@ -204,7 +206,7 @@ function fire(s: GameState): void {
   for (let i = 0; i < MAX_ENEMIES; i++) {
     const e = s.enemies[i]
     const v = s.seen[i]
-    if (e.kind && v.q > s.zq80 && v.q > bestQ && v.left <= 80 && v.right >= 80) {
+    if (e.kind && e.hp && v.q > s.zq80 && v.q > bestQ && v.left <= 80 && v.right >= 80) {
       best = i
       bestQ = v.q
     }
@@ -212,7 +214,7 @@ function fire(s: GameState): void {
   if (best < 0) return
   const e = s.enemies[best]
   if (--e.hp === 0) {
-    e.kind = 0
+    e.cd = DEATH_TICKS
     s.kills++
   }
 }
@@ -233,6 +235,10 @@ function updateEnemies(s: GameState): void {
   const [px, py] = playerCell(s.pose)
   for (const e of s.enemies) {
     if (!e.kind) continue
+    if (!e.hp) {
+      if (e.cd) e.cd--
+      continue
+    }
     const dx = px - e.x
     const dy = py - e.y
     const adx = Math.abs(dx)
@@ -298,7 +304,7 @@ export function renderGame(s: GameState): Uint8Array {
   s.enemies.forEach((e, i) => {
     const seen = e.kind ? project(s.pose, e.x, e.y) : null
     s.seen[i] = seen ? { q: seen.q, left: Math.max(0, seen.left), right: Math.min(159, seen.right) } : { q: 0, left: 0, right: 0 }
-    if (seen) drawn.push({ kind: e.kind, seen })
+    if (seen) drawn.push({ kind: e.kind, frame: enemyFrame(e.hp, e.cd, e.x, e.y), seen })
   })
   drawSprites(out, zq, drawn)
   // The crosshair: a white bar, two columns wide and four rows tall, in the middle.
@@ -336,6 +342,7 @@ ENY = $0510
 ENH = $0518
 ENA = $0520
 ENC = $0528
+ARTH = $0590
 SEQ = $0530
 SEL = $0538
 SER = $0540
@@ -958,6 +965,7 @@ export function gameTables(): string[] {
     ...rows('FAOFF', Array.from({ length: FACE_W }, (_, u) => u * FACE_BYTES)),
     ...faces.flatMap((f, n) => [`FACE${n}:`, ...rows('', f).slice(1)]),
     ...rows('HPTAB', ENEMY_HP),
+    ...rows('WALKF', WALK_FRAMES),
     ...spriteTables(),
   ]
 }
@@ -996,6 +1004,8 @@ FIRE:
 FLP:
   LDA ENT,X
   BEQ FNEXT
+  LDA ENH,X
+  BEQ FNEXT
   LDA SEQ,X
   CMP TMP1
   BEQ FNEXT
@@ -1021,7 +1031,8 @@ FNEXT:
   LDX BEST
   DEC ENH,X
   BNE FIREX
-  STZ ENT,X
+  LDA #${DEATH_TICKS}
+  STA ENC,X
   INC KILLS
 FIREX:
   RTS
@@ -1102,7 +1113,13 @@ ENEMIES:
   LDX #0
 ELP:
   LDA ENT,X
+  BEQ ESKIP
+  LDA ENH,X
   BNE EGO
+  LDA ENC,X
+  BEQ ESKIP
+  DEC ENC,X
+ESKIP:
   JMP ENEXT
 EGO:
   SEC

@@ -6,10 +6,10 @@ import { openFor } from '../../engine/wasmengine'
 import { loadEngine } from '../../engine/wasm'
 import { assemble6502 } from '../../engine/asm6502'
 import { doomSource } from './source'
-import { ART_BANK_SOURCE, ATTACK_DELAY, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, playerCell, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
+import { ART_BANK_SOURCE, ATTACK_DELAY, DEATH_TICKS, BUTTON, END_DELAY, ENEMY_HP, FIRE_DELAY, GAME_CELLS, hudColours, levelBankSource, playerCell, loadLevel, MAX_HEALTH, MAX_TICKS, newGame, renderGame, START_AMMO, STATE, tick, type GameState } from './game'
 import { FACE_ART, FACE_BYTES, FACE_OUCH, FACE_ROWS, FACE_W, faceBytes, faceFrame, HURT_TICKS } from './face'
 import { GUN_ART, GUN_FLASH, GUN_FRAMES, GUN_RECOIL, GUN_RECORD, GUN_REST, GUN_ROWS, GUN_W, gunBytes, gunColumn, gunFrame } from './gun'
-import { columnRuns, project, spriteWidth, texelRow } from './sprites'
+import { columnRuns, enemyFrame, FRAME_CORPSE, FRAME_DIE_A, FRAME_DIE_B, FRAME_RECOVER, FRAME_STAND, FRAME_STRIKE, FRAME_WALK_A, FRAME_WALK_B, FRAMES, project, spriteWidth, texelRow } from './sprites'
 import { CHASE, PATROL } from './levels'
 import { GameMachine } from './gamemachine'
 import { LEVELS, LEVEL_COUNT } from './levels'
@@ -147,11 +147,12 @@ describe('the rules (TypeScript reference)', () => {
 
   it('the art: every texture column is a few runs inside the sprite, and texel rows are even', () => {
     for (const kind of [0, 1])
-      for (let u = 0; u < 8; u++) {
-        const runs = columnRuns(kind, u)
-        expect(runs.length).toBeLessThanOrEqual(5)
-        for (const r of runs) expect(r.to).toBeGreaterThan(r.from)
-      }
+      for (let frame = 0; frame < FRAMES; frame++)
+        for (let u = 0; u < 8; u++) {
+          const runs = columnRuns(kind, u, frame)
+          expect(runs.length).toBeLessThanOrEqual(5)
+          for (const r of runs) expect(r.to).toBeGreaterThan(r.from)
+        }
     for (let q = 1; q <= 25; q++) for (let v = 0; v <= 16; v++) expect(texelRow(q, v) % 2).toBe(0)
     expect(texelRow(25, 16)).toBe(100)
   })
@@ -178,7 +179,8 @@ describe('the rules (TypeScript reference)', () => {
         expect(g.enemies[0].hp).toBe(ENEMY_HP[kind] - n)
         renderGame(g)
       }
-      expect(g.enemies[0].kind).toBe(0)
+      expect(g.enemies[0].kind).toBe(kind)
+      expect(g.enemies[0].hp).toBe(0)
       expect(g.kills).toBe(1)
     }
   })
@@ -321,6 +323,31 @@ describe('the face', () => {
   })
 })
 
+describe('the enemy frames', () => {
+  it('walk with the legs, strike and recover after a touch, fall in three steps when killed, and stay as corpses that neither move nor hurt nor take a shot', () => {
+    expect([0, 1, 2, 3].map((x) => enemyFrame(2, 0, x, 0))).toEqual([FRAME_STAND, FRAME_WALK_A, FRAME_STAND, FRAME_WALK_B])
+    expect([45, 40, 39, 34, 33, 0].map((cd) => enemyFrame(2, cd, 0, 0))).toEqual([FRAME_STRIKE, FRAME_STRIKE, FRAME_RECOVER, FRAME_RECOVER, FRAME_STAND, FRAME_STAND])
+    expect([DEATH_TICKS, 14, 13, 7, 6, 0].map((cd) => enemyFrame(0, cd, 0, 0))).toEqual([FRAME_DIE_A, FRAME_DIE_A, FRAME_DIE_B, FRAME_DIE_B, FRAME_CORPSE, FRAME_CORPSE])
+    const g = newGame()
+    g.map[cell(6, 8)] = 0
+    g.enemies = g.enemies.map((e) => ({ ...e, kind: 0 }))
+    g.enemies[0] = { kind: CHASE, x: 8 * 16 + 8, y: 8 * 16 + 8, hp: 1, aux: 0, cd: 0 }
+    renderGame(g)
+    tick(g, b)
+    const e = g.enemies[0]
+    expect([e.kind, e.hp, e.cd, g.kills]).toEqual([CHASE, 0, DEATH_TICKS - 1, 1])
+    // Standing on the corpse changes nothing: it is not hurt again, does not move, and takes no more shots.
+    g.pose = { xCell: 8, xFrac: 128, yCell: 8, yFrac: 128, angle: 0 }
+    const [x, y] = [e.x, e.y]
+    for (let i = 0; i < 2 * DEATH_TICKS; i++) tick(g, 0)
+    expect([e.x, e.y, e.cd, g.health, g.kills]).toEqual([x, y, 0, MAX_HEALTH, 1])
+    g.firecd = 0
+    renderGame(g)
+    tick(g, b)
+    expect([e.hp, g.kills]).toEqual([0, 1])
+  })
+})
+
 describe('the gun', () => {
   it('has three 16 × 16 frames whose columns are solid from the first row down, and the frame follows the gun delay', () => {
     expect(GUN_ART).toHaveLength(GUN_FRAMES)
@@ -365,6 +392,7 @@ describe('the game on the bare core', () => {
     let t0 = 0
     const faces = new Set<number>()
     const guns = new Set<number>()
+    const frames = new Set<number>()
     m.runTo('PADRD')
     for (let f = 0; f < 3000 && ref.state === STATE.play; f++) {
       // The pad is read right after this point; the ticks of the coming picture are already known.
@@ -375,11 +403,11 @@ describe('the game on the bare core', () => {
       expect(used).toBeGreaterThanOrEqual(1)
       expect(used).toBeLessThanOrEqual(MAX_TICKS)
       for (let i = 0; i < used; i++) {
-        const kinds = ref.enemies.map((e) => e.kind)
+        const alive = ref.enemies.map((e) => e.hp)
         const kills = ref.kills
         const level = ref.level
         tick(ref, pad)
-        if (ref.kills > kills) killed[kinds.find((k, j) => k && !ref.enemies[j].kind)!]++
+        if (ref.kills > kills) killed[ref.enemies[alive.findIndex((h, j) => h && !ref.enemies[j].hp)].kind]++
         if (ref.level > level) exits.push(level)
         minHealth = Math.min(minHealth, ref.health)
       }
@@ -390,6 +418,9 @@ describe('the game on the bare core', () => {
       if (ref.state === STATE.play) {
         faces.add(faceFrame(ref.health, ref.hurt))
         guns.add(gunFrame(ref.firecd))
+        ref.enemies.forEach((e, i) => {
+          if (e.kind && ref.seen[i].q) frames.add(enemyFrame(e.hp, e.cd, e.x, e.y))
+        })
       }
     }
     console.log(`bare core: ${pictures} pictures, ${Math.round((m.cycles - t0) / pictures)} cycles a picture on average; killed ${killed[1]} patrols and ${killed[2]} chasers; lowest health ${minHealth}`)
@@ -402,6 +433,9 @@ describe('the game on the bare core', () => {
     // The face changed with the damage: well, then scratched, and the wince after each hit.
     expect(faces.has(0) && faces.has(1) && faces.has(FACE_OUCH)).toBe(true)
     // The gun showed all three: at rest, the flash and the recoil.
+    // The enemies were seen walking, falling and lying dead.
+    console.log(`enemy frames seen: ${[...frames].sort().join(',')}`)
+    expect([FRAME_WALK_A, FRAME_WALK_B, FRAME_DIE_A, FRAME_DIE_B, FRAME_CORPSE].every((f) => frames.has(f))).toBe(true)
     expect([...guns].sort()).toEqual([GUN_REST, GUN_FLASH, GUN_RECOIL])
     expect(record.every((p) => p === (up | b))).toBe(true)
     // The win screen: stripes. B restarts after the delay.

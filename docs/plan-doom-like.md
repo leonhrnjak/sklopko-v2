@@ -12,7 +12,7 @@
 > - [x] D3 The engine on the board: walls, doors, movement, shading
 > - [x] D4 The game: enemies, sprites, a gun, five levels, the example
 > - [x] D4b (optional) Textured walls — **dropped** (frame rate with enemies is already under 10 fps; see D4b result)
-> - [ ] D4c (optional) A HUD with a face, and more enemy frames
+> - [x] D4c (optional) A HUD with a face, and more enemy frames (face, gun and eight frames per enemy; see D4c result)
 > - [ ] D5 Polish: reference page, README, e2e, a phone check
 
 ## Why, and what "Doom" means here
@@ -229,10 +229,16 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 ### D4c split (three PRs, stacked on the D4 stack)
 - **D4c.1 the face:** `face.ts`, a 16 × 12 face at columns 56 to 71 (rows 88 to 99), five pictures: well (health 70 and up), scratched (40 to 69), hurt (20 to 39), nearly gone (under 20), and a wince for 20 ticks after every hit (`HURT`, `$B8`). It is written into the video memory in `COLEXTRA`, six bytes a column for 16 columns, from art kept in the fixed ROM. Cost on the D4 stack: see D4c.1 result.
 - **D4c.2 the gun:** `gun.ts`, a 16 × 16 weapon at columns 72 to 87 (rows 80 to 95), three pictures chosen from the gun delay `FIRECD`: a flash for the first ticks after a shot (18 to 16), the recoil (15 to 10), then at rest. It is transparent, so each column is kept as a count, a first row pair and the bytes from there down (the art is solid from a column's first pixel to the bottom, and `COLEXTRA` writes those bytes after the HUD and face); ROM 480 bytes.
-- **D4c.3 enemy frames:** walk, attack and death frames for both enemies.
+- **D4c.3 enemy frames:** eight frames for each enemy in bank 1 (one 256-byte page each, so the art pointer's high byte is `$A0` plus the frame): standing, two walking, two attacking (the strike and the recovery), two of falling and the corpse. No new state: the walking frame is `(x + y) & 3` (legs move with the position), the attack frames the age of the attack (`ENC` 45 to 34), and a killed enemy now keeps its kind with 0 hit points and uses its cooldown as the fall's timer (20 ticks: falling for 6, falling on for 7, then a corpse that stays until the level ends). A corpse does not move, hurt or take shots.
 
 ### D4c.1 result
 - The scripted run compares all 16,000 pixels with the reference every picture as before, now with the face in them, and also compares the wince counter; the run shows the well, scratched and wince faces.
+
+### D4c result
+- **Shown in the scripted run:** the recorded run to every exit (all 16,000 pixels against the reference each picture) shows the well, scratched and wince faces, all three gun frames, and all eight enemy frames (walking both ways, the strike, both falls and the corpse); unit tests check the art (sizes, solid gun columns, at most five runs a column), the choice of frame, and that a corpse stays put, hurts nobody and takes no shot.
+- **ROM:** fixed ROM and banks still fit (face and gun tables about 1 KB in the fixed ROM; bank 1 now ends at `$AE80`: the art is 2 KB for eight frames, and the column table moved up to `$A800`).
+- **Frame rate**, one picture on the bare core at 1 MHz at fixed scenes (player at the start of level one, standing still): D4 → D4c, empty corridor 100,560 → 105,651 cycles (9.9 → 9.5 a second); one chaser ahead 120,791 → 127,301 (8.3 → 7.9); three monsters in line 144,803 → 149,438 (6.9 → 6.7). The recorded run to the win screen averages 109,526 → 120,760 cycles (9.1 → 8.3 a second) on the bare core and 101,907 → 112,719 (9.8 → 8.9) on the board, with the run itself playing out differently now (corpses stay in view, the slower frames change the timing). The face costs about 4,000 cycles a picture (the video writes, and a column test on every column), the gun about 1,200 and the enemy frames little (more sprite runs per column, and corpses that stay drawn).
+- **Decision:** kept (not dropped by the 10 fps rule, which D4c does not carry, and not under 8 fps on average); if a higher frame rate is wanted back, the face is the first thing to trim (it cannot be drawn every other picture, since the video chip has one buffer, so the choice is a narrower face or none).
 
 ## D5 Polish
 - A reference page (Tools), a README line, a phone layout check (the gamepad's touch buttons), a note in the architecture doc, and the

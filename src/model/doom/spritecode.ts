@@ -1,4 +1,4 @@
-import { DCOS, DSIN, UTAB_BASE } from './sprites'
+import { ART_BASE, DCOS, DSIN, FRAME_DIE_A, FRAME_STRIKE, UTAB_BASE } from './sprites'
 import { FACE_BYTES, FACE_X } from './face'
 import { GUN_W, GUN_X } from './gun'
 
@@ -526,6 +526,37 @@ SPEND:
 PREPSPR:
   LDA SEQ,X
   STA SQ
+  LDA ENH,X
+  BNE PSALIVE
+  LDA ENC,X
+  LDY #${FRAME_DIE_A}
+  CMP #14
+  BCS PSFRM
+  INY
+  CMP #7
+  BCS PSFRM
+  INY
+  BRA PSFRM
+PSALIVE:
+  LDA ENC,X
+  LDY #${FRAME_STRIKE}
+  CMP #40
+  BCS PSFRM
+  INY
+  CMP #34
+  BCS PSFRM
+  LDA ENX,X
+  CLC
+  ADC ENY,X
+  AND #3
+  TAY
+  LDA WALKF,Y
+  TAY
+PSFRM:
+  TYA
+  CLC
+  ADC #>${ART_BASE}
+  STA ARTH,X
   LDA ENT,X
   DEC A
   LSR A
@@ -658,11 +689,13 @@ CEHUD:
   STA VDATA
   LDA HUD2,X
   STA VDATA
-  LDA COL
-  CMP #${FACE_X}
+  CPX #${FACE_X}
   BCC CEXX
-  CMP #${GUN_X}
+  CPX #${GUN_X + GUN_W}
+  BCS CEXX
+  CPX #${GUN_X}
   BCS CEGUN
+  TXA
   SEC
   SBC #${FACE_X}
   TAX
@@ -674,8 +707,7 @@ CEHUD:
 ${Array.from({ length: FACE_BYTES }, () => '  LDA (FPTR),Y\n  STA VDATA').join('\n  INY\n')}
   RTS
 CEGUN:
-  CMP #${GUN_X + GUN_W}
-  BCS CEXX
+  TXA
   SEC
   SBC #${GUN_X}
   TAX
@@ -726,6 +758,8 @@ SPRCOL:
   ASL A
   ORA STYA,X
   STA RPTR
+  LDA ARTH,X
+  STA RPTR+1
   TXA
   ASL A
   ASL A
