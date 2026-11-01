@@ -1,11 +1,13 @@
-# Full test suite, run every night on main and on demand (Actions tab -> CI -> Run workflow, pick a branch).
-# Pull requests run no GitHub Actions: the Cloudflare Pages Git integration builds the preview deploy by itself.
+# Full test suite: on every pull request (any base branch, so stacked PRs are checked too), every night on main, and on demand
+# (Actions tab -> CI -> Run workflow, pick a branch). A merge to main does not run it again: the PR was checked, and the nightly run
+# catches anything that slipped through. The Cloudflare Pages Git integration builds the preview deploy by itself.
 #
-# The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests in one job (nightly, so speed matters less than setup cost)). The last job, `test`, waits
-# for all of them and keeps its name.
+# The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests in four shards). The last job, `test`, waits
+# for all of them and keeps its name, so it can be the one required check.
 name: CI
 
 on:
+  pull_request:
   schedule:
     - cron: '0 2 * * *' # 02:00 UTC every night, on the default branch
   workflow_dispatch:
@@ -67,10 +69,14 @@ jobs:
       # rustup (on the runner) installs the toolchain that engine-rs/rust-toolchain.toml names, on the first cargo call.
       - run: npm run build:wasm -- --check
 
-  e2e:
-    name: E2E
+  # The browser is cached by this job alone, before the shards start. When every shard tried to fill the cache at once, some
+  # missed and downloaded Chromium while others hit, and the cache could end up holding a half-installed browser.
+  browser:
+    name: Playwright browser
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
+    outputs:
+      key: ${{ steps.playwright.outputs.key }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -78,33 +84,51 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # The offline spec tests the built app, so the job builds it (about ten seconds).
-      - run: npm run build
-      # The browser depends only on Playwright's version, so key the cache on that, not on the whole lockfile
-      # (any dependency change used to miss the cache and download Chromium again on every run).
+      # The browser depends only on Playwright's version, so the key is that (no restore-keys: an older version's browser is no use).
       - name: Playwright version
         id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "key=playwright-${{ runner.os }}-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright's browser
-        id: browser
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-          restore-keys: playwright-${{ runner.os }}-
-      - name: Install Playwright Chromium
-        if: steps.browser.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Install Chromium's system libraries
-        if: steps.browser.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-      - name: E2E (desktop + emulated phone)
-        run: npx playwright test
+          key: ${{ steps.playwright.outputs.key }}
+      # Downloads only on a cache miss; on a hit it finds the browser and does nothing.
+      - run: npx playwright install chromium
+
+  e2e:
+    name: E2E ${{ matrix.shard }}
+    needs: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The offline spec tests the built app, so every shard builds it (about ten seconds).
+      - run: npm run build
+      - name: Restore Playwright's browser
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ needs.browser.outputs.key }}
+          fail-on-cache-miss: true
+      # The browser comes from the cache; the system libraries it needs are not part of it.
+      - run: npx playwright install-deps chromium
+      - name: E2E (desktop + emulated phone), shard ${{ matrix.shard }}
+        run: npx playwright test --shard=${{ matrix.shard }}
       - name: Upload Playwright results
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: playwright-results
+          name: playwright-results-${{ strategy.job-index }}
           path: test-results
           retention-days: 7
           if-no-files-found: ignore
