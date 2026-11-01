@@ -56,6 +56,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check:bundle
+      # The e2e shards test this build instead of each making its own.
+      - name: Keep the build for the e2e shards
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
 
   wasm:
     name: WebAssembly engine is up to date
@@ -98,7 +106,7 @@ jobs:
 
   e2e:
     name: E2E ${{ matrix.shard }}
-    needs: browser
+    needs: [browser, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -112,8 +120,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # The offline spec tests the built app, so every shard builds it (about ten seconds).
-      - run: npm run build
+      # The offline spec tests the built app: take the build job's output instead of building again in every shard.
+      - name: Get the build
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
       - name: Restore Playwright's browser
         uses: actions/cache/restore@v5
         with:
