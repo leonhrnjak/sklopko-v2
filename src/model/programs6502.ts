@@ -476,3 +476,67 @@ print_char:             ; send the byte in A as a character
 
 .org $FFFC
 .word reset`
+
+
+/**
+ * A test card on the video chip, which is at $4000–$4003 on its board: VADDR_L, VADDR_H, VDATA (reads and writes the picture byte at the
+ * address, then counts the address up) and VCTRL. The picture is stored column by column, 50 bytes a column, two pixels a byte (the upper
+ * pixel in the high nibble), so a column is one run of writes to VDATA. Each column is bars of one colour for its first 40 bytes (80 rows),
+ * the colour changing every ten columns, and a diagonal pattern in the last 10.
+ */
+export const VIDEO_CARD_SOURCE = `.org $C000
+VADDR_L = $4000
+VADDR_H = $4001
+VDATA   = $4002
+VCTRL   = $4003
+COL     = $00           ; the column being drawn, 0 to 159
+RUN     = $01           ; how many columns the colour has had, 0 to 9
+CLR     = $02           ; the bar colour, 0 to 15
+
+reset:  LDX #$FF
+        TXS
+        LDA #0
+        STA VCTRL       ; the port counts up after every byte
+        STA VADDR_L     ; start at the first byte of the picture
+        STA VADDR_H
+        STA COL
+        STA RUN
+        STA CLR
+
+column: LDX CLR
+        LDA pair,X      ; the colour in both nibbles of a byte
+        LDY #40
+bars:   STA VDATA       ; 40 bytes, 80 rows, of one colour
+        DEY
+        BNE bars
+
+        LDY #0          ; then 10 bytes of a diagonal pattern: the colour is (column + row) mod 16
+low:    TYA
+        CLC
+        ADC COL
+        AND #$0F
+        TAX
+        LDA pair,X
+        STA VDATA
+        INY
+        CPY #10
+        BNE low
+
+        INC RUN         ; ten columns to a colour
+        LDA RUN
+        CMP #10
+        BNE same
+        LDA #0
+        STA RUN
+        INC CLR
+same:   INC COL
+        LDA COL
+        CMP #160
+        BNE column
+
+done:   JMP done        ; the picture stays
+
+pair:   .byte $00, $11, $22, $33, $44, $55, $66, $77, $88, $99, $AA, $BB, $CC, $DD, $EE, $FF
+
+.org $FFFC
+.word reset`

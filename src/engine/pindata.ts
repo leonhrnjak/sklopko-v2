@@ -484,6 +484,16 @@ export const PINS: Record<string, PinDocs> = {
     CB2: 'Control line B2 as an output (PCR bits 7–5 of 4 to 7: handshake, pulse, low, high), otherwise Z.',
     IRQB: 'Interrupt request, active low: 0 while a flag in the flag register is set and its enable is on, until the program clears the flag.',
   },
+  video: {
+    PHI2: 'The clock. The chip works at its rising edge (0 to 1): it takes a write, or answers a read, if it is selected.',
+    RESB: 'Reset, active low: while it is 0 the address and control registers are cleared. The picture is kept.',
+    CS0: 'Chip select, active high: the chip answers only while this is 1 and CS1 is 0. On a 6502 board it comes from an address wire.',
+    CS1B: 'Chip select, active low: the chip answers only while this is 0 and CS0 is 1. On a 6502 board it comes from an address wire.',
+    'RS#': 'Register select (RS0 least significant): 0 the address, low byte, 1 the address, high byte, 2 the data (reads or writes the picture byte at the address, then counts it up), 3 control.',
+    RWB: 'Read/write: 1 reads the register the RS pins pick, 0 writes it.',
+    'DI#|DI': 'Data in: the byte written to the register (DI0 least significant bit). Join it to the CPU’s D, the byte it writes.',
+    'D#|D': 'Data out: the register that was read (D0 least significant bit), 0 while the chip is not selected. Join it to an input of the multiplexer that feeds the CPU.',
+  },
   hd44780: {
     CLK: 'The board’s clock, only to time the busy flag: the chip is busy for a number of its rising edges after an instruction (37 at the data sheet’s times, 1,520 after clear and home), taking the clock for 1 MHz.',
     RS: 'Register select: 0 is an instruction (or, in a read, the busy flag and the address), 1 is a character (the display memory, or the custom characters).',

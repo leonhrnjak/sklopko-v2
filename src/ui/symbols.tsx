@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import { ALU_OPS } from '../engine/components/combinational'
 import { IC_FRAME, icGate } from '../engine/components/ic'
 import { CONSOLE_ROWS, FB_SIZE, GAMEPAD_BUTTONS, KEYPAD_LAYOUTS, gamepadHeld, speakerPitch, type ConsoleState, type FramebufferState, type GamepadState, type KeypadState, type SpeakerState } from '../engine/components/devices'
@@ -6,6 +6,7 @@ import { SEG_HEX } from '../engine/components/io'
 import { SCREEN_COLS, SCREEN_ROWS } from '../engine/acia'
 import type { TerminalState } from '../engine/components/terminal'
 import type { LcdPartState } from '../engine/components/lcd'
+import type { VideoState } from '../engine/components/video'
 import { LCD_COLS, LCD_ROWS, lcdCode, lcdCursorAt } from '../engine/hd44780'
 import { romGlyph } from '../engine/lcdfont'
 import { inputOnTerminal, keyOnTerminal, typeOnTerminal } from '../app/terminal'
@@ -19,6 +20,11 @@ import { useSettings } from '../app/settings'
 import { sim } from '../app/sim'
 import type { IcGate } from '../engine/components/ic'
 import type { Comp } from '../model/circuit'
+
+/** The video chip's picture is a canvas, loaded when the first chip is drawn. */
+const VideoCanvas = lazy(() => import('./VideoCanvas').then((m) => ({ default: m.VideoCanvas })))
+const VIDEO_VIEW_W = 288
+const VIDEO_VIEW_H = 180
 
 /** The terminal's screen: the height of a line and the width of a character, in the symbol's own units. */
 const TERM_LINE_H = 11
@@ -885,6 +891,21 @@ export function CompSymbol({ comp, layout: l, live }: Props) {
             </>
           )}
           <Title text="Terminal" x={x0 + w / 2} y={12 + h + (l.h - 12 - h) / 2} />
+        </BoxSym>
+      )
+      break
+    }
+    case 'video': {
+      const st: VideoState | undefined = live ? sim.state(comp.id) : undefined
+      content = (
+        <BoxSym l={l}>
+          <rect className="screen-body" x={44} y={12} width={VIDEO_VIEW_W} height={VIDEO_VIEW_H} rx={2} />
+          <foreignObject x={44} y={12} width={VIDEO_VIEW_W} height={VIDEO_VIEW_H}>
+            <Suspense fallback={null}>
+              <VideoCanvas st={st} width={VIDEO_VIEW_W} height={VIDEO_VIEW_H} />
+            </Suspense>
+          </foreignObject>
+          <Title text="Video 160×100" x={44 + VIDEO_VIEW_W / 2} y={(12 + VIDEO_VIEW_H + l.h) / 2} />
         </BoxSym>
       )
       break

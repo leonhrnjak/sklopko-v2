@@ -50,6 +50,7 @@ const MODES: Record<string, { groups(p: Params): PinGroup[]; keepsHeight?(p: Par
     groups: () => [numbered('DI', 'in', 'DI', 8), numbered('PAIN', 'in', 'PAIN', 8), numbered('PBIN', 'in', 'PBIN', 8), numbered('D', 'out', 'D', 8), numbered('PA', 'out', 'PA', 8), numbered('PB', 'out', 'PB', 8)],
     keepsHeight: () => true,
   },
+  video: { groups: () => [numbered('DI', 'in', 'DI', 8), numbered('D', 'out', 'D', 8)], keepsHeight: () => true },
   hd44780: { groups: () => [numbered('DIN', 'in', 'DIN', 8), numbered('D', 'out', 'D', 8)] },
   keypad: { groups: () => [numbered('K', 'out', 'K', 4)], keepsHeight: () => true },
   gamepad: { groups: () => [{ name: 'BTN', dir: 'out', pins: ['U', 'D', 'L', 'R', 'A', 'B'] }], keepsHeight: () => true },

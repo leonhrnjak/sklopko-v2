@@ -92,7 +92,7 @@ describe('bus mode of every part', () => {
   it('the parts that have a bus mode are the ones the plan lists', () => {
     const withMode = DEFS.filter((d) => d.params?.some((p) => p.key === 'bus')).map((d) => d.type)
     expect(withMode.sort()).toEqual(
-      ['acia6551', 'add4', 'addsub4', 'alu', 'bar', 'bcdadd', 'bin2bcd', 'breakpoint', 'cmp4', 'console', 'counterld', 'cpu6502', 'framebuffer', 'gamepad', 'hd44780', 'hexdisp', 'hexin', 'keypad', 'mux', 'ram', 'register', 'rom', 'sub4', 'via6522'].sort(),
+      ['acia6551', 'add4', 'addsub4', 'alu', 'bar', 'bcdadd', 'bin2bcd', 'breakpoint', 'cmp4', 'console', 'counterld', 'cpu6502', 'framebuffer', 'gamepad', 'hd44780', 'hexdisp', 'hexin', 'keypad', 'mux', 'ram', 'register', 'rom', 'sub4', 'via6522', 'video'].sort(),
     )
   })
 

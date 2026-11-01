@@ -1,7 +1,7 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
-import { BALL_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
+import { BALL_SOURCE, VIDEO_CARD_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
 
@@ -174,6 +174,27 @@ export const basicLcd6502 = (): Circuit => {
       decode: VIA_DECODE.replace('RAM is', 'The terminal is at $5000 (A13 = 0). RAM is'),
       memory: BASIC_MEMORY,
       devices: LCD_DEVICES,
+    },
+  )
+  c.history = false
+  return c
+}
+
+const VIDEO_DECODE =
+  'The video chip answers on the chip selects alone, like the terminal on the BASIC computer: CS0 = A14, CS1 = A15 low, and A0 and A1 pick one of its four registers, so they are at $4000\u2013$4003. RAM is $0000\u2013$3FFF, the ROM $8000\u2013$FFFF.'
+
+const VIDEO_DEVICES =
+  'The chip keeps the picture inside: 160 columns by 100 rows of 16 colours, 8,000 bytes, two pixels a byte, stored column by column. The CPU never sees them as memory, only an address register (VADDR_L and VADDR_H) and a data register (VDATA) that reads or writes the byte at the address and then counts it up, so a column is a run of writes to one address. Select the screen to see it large.'
+
+/** The video chip draws a test card. */
+export const video6502 = (): Circuit => {
+  const c = boardExample(
+    { hz: 1_000_000, memory: 'big', source: VIDEO_CARD_SOURCE, devices: ['video'] },
+    {
+      intro:
+        'A 6502 draws a test card on a 160 \u00d7 100 screen of 16 colours, through a video chip: it sets the address to 0 and then writes 50 bytes for each of the 160 columns, a bar of one colour for the upper 80 rows and a diagonal pattern in the last 20. The write port counts the address up by itself, so the program is two small loops. Select the ROM to read it.',
+      decode: VIDEO_DECODE,
+      devices: VIDEO_DEVICES,
     },
   )
   c.history = false

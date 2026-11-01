@@ -594,6 +594,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     ['rom', { abits: 4, dbits: 8, data: '12 34 56 78 9A BC DE F0 01 23 45 67 89 AB CD EF', table: 'on', tdata: 'AA 55 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E' }],
     ['rom', { abits: 6, dbits: 16, data: '1234 5678 9ABC DEF0', table: 'on', tdata: '10 20 30' }],
     ['framebuffer', {}],
+    ['video', {}],
     ['framebuffer', { colors: 4, read: 'on' }],
     ['console', {}],
     ['keypad', {}],

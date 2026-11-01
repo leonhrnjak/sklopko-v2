@@ -5,7 +5,7 @@
 > (`doom-d0-spike`, `doom-d1-video`, …); tick each box when its PR merges and add a short *What it did, and where it differs from the spec*
 > note under it, as `plan-cpu6502.md` does. The first PR (D0) bumps the **minor** version in `package.json` (`0.4.0` → `0.5.0`).
 >
-> - [ ] D0 The spike: a raycaster in 6502 assembly on the bare core, measured (no app change)
+> - [x] D0 The spike: a raycaster in 6502 assembly on the bare core, measured (no app change)
 > - [ ] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
 > - [ ] D1b Column fill (**only if the D0 numbers say it pays**)
 > - [ ] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
@@ -119,6 +119,14 @@ What the numbers say:
   sees the test card; the page draws at 30 frames a second while the CPU runs at 1 MHz without dropping the CPU below 900 kHz
   (measured headless, recorded in the PR; the budget in `docs/spec-sim-evals.md` style); the startup chunk does not grow (the part
   and its canvas load on demand).
+
+**What it did, and where it differs from the spec (D1, PR pending).**
+- The part is `video` (`Video 160×100`), kind 61 in the Rust module, with the board's chip pins instead of the spec's `CLK/WE`: `PHI2`, `RESB`, `CS0`, `CS1B`, `RS0`, `RS1`, `R/W`, `DI0–7` in, `D0–7` out, answering at the rising edge of Φ2 like the terminal and the VIA. Registers: 0 `VADDR_L`, 1 `VADDR_H`, 2 `VDATA` (read or write at the address, then count up), 3 `VCTRL` (bit 0: hold the address; writing bit 7 clears the screen). Reset clears the registers, not the picture.
+- The picture is 8,000 bytes in the module's `fb` array, column by column, 50 bytes a column, the upper pixel in the high nibble. An address is taken modulo 8000, so it wraps. 16 fixed colours (`src/engine/videopalette.ts`, our own palette).
+- The canvas (`src/ui/VideoCanvas.tsx`) is loaded on demand and draws at most 30 pictures a second from the part's state; the symbol is the canvas, there is no separate inspector section.
+- The board builder gets a `video` device (alone on the big board, at `$4000–$4003` repeated), and the example `6502-video` draws a test card. D2's game board will take the chip over with the other devices.
+- Measured headless (Chromium, the example with an endless animating tail so the picture changes all the time): 27 canvas draws a second, the CPU at 1 MHz (921 kHz before the draw limit was added, 100% after). The startup chunk is 69.6 kB gzip, no growth.
+- Tests: `CASES` lockstep entry, `src/engine/video.test.ts` (every colour, the wrap, readback, hold, clear, the example's card), and `e2e/computers.spec.ts`.
 
 ## D1b Column fill (conditional)
 - A command register: write x, top, bottom, colour; the part fills the column in one evaluation. A mode flag keeps plain port writes

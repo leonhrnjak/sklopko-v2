@@ -5,6 +5,7 @@ import { parseWords } from './components/memory'
 import { ramBits } from './components/sequential'
 import type { LcdPartState } from './components/lcd'
 import type { ViaPartState } from './components/via'
+import type { VideoState } from './components/video'
 import { BY_OPCODE_65C02 } from './opcodes65c02'
 import { BY_OPCODE_6502, type Opcode6502 } from './opcodes6502'
 import { instantiateEngine, type EngineExports } from './wasm'
@@ -166,7 +167,7 @@ const KIND: Record<string, number> = {
   clock: 43, keypad: 44, framebuffer: 45, console: 46,
   acia6551: 47,
   tribuf: 48, busjoin: 49, via6522: 50, hd44780: 51, cpu6502: 52,
-  demux: 53, ringcounter: 54, bussub: 55, busaddsub: 56, gray: 57, parity: 58, lut: 59, netrecv: 60,
+  demux: 53, ringcounter: 54, bussub: 55, busaddsub: 56, gray: 57, parity: 58, lut: 59, netrecv: 60, video: 61,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])
@@ -259,8 +260,11 @@ export class WasmEngine {
   private rams: { part: number; start: number }[] = []
   /** The bytes of all the RAMs together. */
   private ramBytes = 0
-  /** The pixel screens, in part order, with where each one's 256 pixels start in the module's array. */
-  private screens: { part: number; start: number }[] = []
+  /** The pixel screens and video chips, in part order, with where each one's pixels start in the module's array and how many there are. */
+  private screens: { part: number; start: number; size: number }[] = []
+  private get screenBytes() {
+    return this.screens.reduce((t, s) => t + s.size, 0)
+  }
   /** The 6522 parts, in part order. */
   private vias: { part: number; st: ViaPartState }[] = []
   /** The LCD parts, in part order. */
@@ -379,9 +383,16 @@ export class WasmEngine {
         p0 = Number(p.colors) === 4 ? 2 : 1
         p1 = p.read === 'on' ? 1 : 0
         memOff = fb.length
-        this.screens.push({ part: i, start: fb.length })
+        this.screens.push({ part: i, start: fb.length, size: 256 })
         for (const v of st.px as number[]) fb.push(v)
         pc = st.pc
+      } else if (type === 'video') {
+        const v = st as VideoState
+        memOff = fb.length
+        this.screens.push({ part: i, start: fb.length, size: v.px.length })
+        for (const b of v.px) fb.push(b)
+        pc = v.pc
+        n = (v.addr | (v.hold << 16) | (v.out << 24)) | 0
       } else if (type === 'via6522') {
         memOff = this.vias.length
         this.vias.push({ part: i, st: st as ViaPartState })
@@ -603,13 +614,21 @@ export class WasmEngine {
         cc.inst.state.latched = q[i] !== 0
         cc.inst.state.prev = pc[i] !== 0
       } else if (type === 'framebuffer' || type === 'console') cc.inst.state.pc = pc[i]
+      else if (type === 'video') {
+        const st = cc.inst.state as VideoState
+        const w = n[i] >>> 0
+        st.pc = pc[i] as VideoState['pc']
+        st.addr = w & 0xffff
+        st.hold = (w >>> 16) & 1
+        st.out = w >>> 24
+      }
     })
     if (this.screens.length) {
-      const pixels = new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256)
-      for (const { part, start } of this.screens) {
+      const pixels = new Uint8Array(buf, x.fb_ptr(), this.screenBytes)
+      for (const { part, start, size } of this.screens) {
         const st = comps[part].inst.state as FramebufferState
         let changed = false
-        for (let k = 0; k < 256; k++) {
+        for (let k = 0; k < size; k++) {
           if (st.px[k] !== pixels[start + k]) {
             st.px[k] = pixels[start + k]
             changed = true
@@ -677,7 +696,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_pc_ptr(), n),
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
-      new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
+      new Uint8Array(buf, x.fb_ptr(), this.screenBytes),
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
@@ -735,7 +754,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.st_pc_ptr(), n),
       new Uint8Array(buf, x.st_q_ptr(), n),
       new Uint8Array(buf, x.ram_ptr(), this.ramBytes),
-      new Uint8Array(buf, x.fb_ptr(), this.screens.length * 256),
+      new Uint8Array(buf, x.fb_ptr(), this.screenBytes),
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),

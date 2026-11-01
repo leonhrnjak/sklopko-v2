@@ -25,6 +25,7 @@ const REGISTERED: Record<string, string[]> = {
   busctr: ['R', 'EN'],
   cpu6502: ['BE', 'NMIB'], // (the 65C02 lets go of its buses while BE is low; NMIB is edge-detected at once, so a short pulse between clocks counts)
   acia6551: [],
+  video: ['RESB'],
   via6522: ['RESB'],
   console: [],
   // Memories and devices whose output follows an address or a strobe at once (a read), while writing waits for the clock.
