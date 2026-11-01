@@ -112,3 +112,9 @@ implementation; nothing in `src/` outside the tests imports them.
 - `?thread=main` runs the simulation on the page's thread instead of the worker.
 - The footer says which engine runs (`fast engine (Rust)`, `fast engine`, `exact`).
 - `VITE_BENCH=1 npx vitest run src/engine/bench` prints cycles a second per engine.
+
+## A big program on the engine: the Doom-like
+The `cpu6502` board with a video chip (`/6502-doomlike`) is the heaviest thing the Rust engine runs: a picture takes 100,000 to 150,000 cycles, so at
+the real 1 MHz the page needs about a million CPU cycles of simulation a second, which the worker and the fast settle deliver (the game draws eight or
+nine pictures a second on a desktop). A slower machine runs it in slow motion, since the game counts time with its VIA timer and not with the page.
+The program, its tests and the frame-rate table are in `docs/plan-doom-like.md`.

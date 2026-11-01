@@ -124,7 +124,7 @@ security headers.
 - **Examples:** the *Examples* button opens a gallery of every example with a picture, a line about it and a search box,
   one group at a time (or *All*); each card has a *Copy link* button. Every example has a short link, e.g. `/intersection`, `/dice`, `/clock`. Opening an
   example shows its link in the address bar, and Share copies it while the example is unedited.
-- **Toolbar:** *Tools ▾* (Logic, State machines, Make IC, Tests, Challenges, the SKASM, 6502 and BASIC references, Step-back history, Waveforms, Timing) and *File ▾* (New, My
+- **Toolbar:** *Tools ▾* (Logic, State machines, Make IC, Tests, Challenges, the SKASM, 6502, BASIC and Doom-like references, Step-back history, Waveforms, Timing) and *File ▾* (New, My
   circuits, Open and Save file, Embed code, Clear wires, pictures). The *How to* panel on the right can be hidden (**Hide**);
   the **?** button brings it back.
 - **Custom ICs:** *Tools ▾ → Make IC…* turns the circuit (or the selected parts) into a part of your own: its pins are the
@@ -184,6 +184,11 @@ and built by `npm run build:basic`; *Tools ▾ → BASIC* lists its statements a
 **`/6502-parts` is a 6502 built from our own parts**: registers, counters, multiplexers, an adder and a microcode ROM, one bus cycle per
 clock, with all 151 documented opcodes (with decimal mode) (see `docs/plan-micro6502.md`); a test runs it next to the 6502 part and compares every cycle, with IRQ and NMI fired at random (`/6502-parts-irq` has the two buttons). **`/6502-parts-basic`
 is the BASIC computer with this CPU**: it boots Microsoft BASIC to `OK` in a few seconds and runs what you type on its terminal.
+
+**`/6502-doomlike` is a Doom-like 3D shooter on a 6502 board** (a `cpu6502` at the real 1 MHz, a 160 × 100 video chip, a gamepad, a VIA frame
+timer and a banked ROM): a raycaster in 65C02 assembly casts 160 rays for every picture (eight or nine pictures a second) and draws
+shaded walls, doors, two kinds of monster with eight frames each, a gun, and a health, ammunition and face strip, over five levels. Play with the arrow keys (or WASD),
+Z and X, or the gamepad's buttons by touch; *Tools ▾ → Doom-like* has the controls and the memory map, and `docs/plan-doom-like.md` the design and the numbers.
 
 Bistable circuits built from gates (SR latches, gated D latches) and oscillators
 work too. The *Examples* menu has ready-made ones.

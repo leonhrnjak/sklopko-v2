@@ -374,3 +374,42 @@ test('on a phone every chapter of the Learn map is on screen, with no sideways s
     expect(b.r).toBeLessThanOrEqual(width + 0.5)
   }
 })
+
+test('the Doom-like example on a phone: the gamepad is on screen, a touch on its up button walks, and the guide fits', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
+  const canvas = page.getByTestId('canvas').locator('canvas.video-canvas')
+  await expect(canvas).toBeVisible()
+  const sample = () =>
+    canvas.evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+      let h = 0
+      for (let i = 0; i < d.length; i += 4 * 7) h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 5) | 0
+      return h
+    })
+  // The first picture: the sky is on screen.
+  await expect
+    .poll(() => canvas.evaluate((c: HTMLCanvasElement) => Array.from(c.getContext('2d')!.getImageData(80, 2, 1, 1).data)), { timeout: 30000 })
+    .toEqual([0x1b, 0x2a, 0x6b, 255])
+  const before = await sample()
+  // The gamepad's up button is a touch target inside the viewport.
+  const up = page.locator('.comp [data-key="0"]').first()
+  await expect(up).toBeVisible()
+  const box = (await up.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  // Hold it for ten seconds of the page.
+  await up.dispatchEvent('pointerdown', { pointerType: 'touch', isPrimary: true, button: 0, buttons: 1 })
+  await page.waitForTimeout(10_000)
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', isPrimary: true })))
+  await expect.poll(sample, { timeout: 20000 }).not.toBe(before)
+  const { scrollW, width } = await page.evaluate(() => ({ scrollW: document.documentElement.scrollWidth, width: window.innerWidth }))
+  expect(scrollW).toBeLessThanOrEqual(width)
+  // The guide opens from Tools and fits the screen.
+  await page.getByRole('button', { name: 'More actions' }).tap()
+  await page.locator('.toolbar-menu').getByRole('menuitem', { name: 'Doom-like' }).tap()
+  const dialog = page.getByRole('dialog', { name: 'Doom-like guide' })
+  await expect(dialog).toBeVisible()
+  const d = (await dialog.boundingBox())!
+  expect(d.x + d.width).toBeLessThanOrEqual(width + 0.5)
+})
