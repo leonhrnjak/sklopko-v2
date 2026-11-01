@@ -382,7 +382,7 @@ describe('probes and breakpoints with the Rust engine', () => {
     expect(hits[0].some((h) => h === 'zStop'), 'the breakpoint fired').toBe(true)
     expect(trace(rust)).toBe(trace(plain))
     expect(JSON.parse(trace(rust)).v.length, 'the probe saw SYNC change').toBeGreaterThan(2)
-  })
+  }, 30_000) // (400 edges on both engines of a big example: over the default 5 s on a loaded CI runner)
 })
 
 describe('every example the Rust engine takes', () => {
