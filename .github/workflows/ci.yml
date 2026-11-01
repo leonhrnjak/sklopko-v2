@@ -3,7 +3,8 @@
 # catches anything that slipped through. The Cloudflare Pages Git integration builds the preview deploy by itself.
 #
 # The checks run as parallel jobs (unit tests, lint, build, and the end-to-end tests in four shards). The last job, `test`, waits
-# for all of them and keeps its name, so it can be the one required check.
+# for all of them and keeps its name, so it can be the one required check. A PR that changes only documentation skips the checks
+# (the `changes` job decides), and `test` still passes.
 name: CI
 
 on:
@@ -17,8 +18,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A pull request that changes only documentation (docs/, *.md, LICENSE) skips the real checks. The jobs are skipped, not removed,
+  # so the `test` job still reports and can stay the one required check. The nightly run and a manual run always run everything.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      # A pull request is checked out as a merge commit: its first parent is the base, so HEAD^1..HEAD is exactly the PR's change.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only HEAD^1 HEAD)
+          echo "$files"
+          if echo "$files" | grep -qvE '^(docs/.*|.*\.md|LICENSE)$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Only documentation changed: the code checks are skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   unit:
     name: Unit tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,6 +63,8 @@ jobs:
 
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -45,6 +78,8 @@ jobs:
 
   build:
     name: Type-check, build, bundle budget
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -67,6 +102,8 @@ jobs:
 
   wasm:
     name: WebAssembly engine is up to date
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -81,6 +118,8 @@ jobs:
   # missed and downloaded Chromium while others hit, and the cache could end up holding a half-installed browser.
   browser:
     name: Playwright browser
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -106,7 +145,8 @@ jobs:
 
   e2e:
     name: E2E ${{ matrix.shard }}
-    needs: [browser, build]
+    needs: [changes, browser, build]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -149,10 +189,20 @@ jobs:
   test:
     name: test
     if: always()
-    needs: [unit, lint, build, wasm, e2e]
+    needs: [changes, unit, lint, build, wasm, browser, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: All checks passed
         run: |
-          echo "unit=${{ needs.unit.result }} lint=${{ needs.lint.result }} build=${{ needs.build.result }} wasm=${{ needs.wasm.result }} e2e=${{ needs.e2e.result }}"
-          test "${{ needs.unit.result }}" = success -a "${{ needs.lint.result }}" = success -a "${{ needs.build.result }}" = success -a "${{ needs.wasm.result }}" = success -a "${{ needs.e2e.result }}" = success
+          echo "code changed: ${{ needs.changes.outputs.code }}"
+          echo "changes=${{ needs.changes.result }} unit=${{ needs.unit.result }} lint=${{ needs.lint.result }} build=${{ needs.build.result }} wasm=${{ needs.wasm.result }} browser=${{ needs.browser.result }} e2e=${{ needs.e2e.result }}"
+          test "${{ needs.changes.result }}" = success || exit 1
+          # Documentation only: every code check is skipped, and that is the pass. Otherwise every one must have succeeded.
+          if [ "${{ needs.changes.outputs.code }}" = "false" ]; then
+            want=skipped
+          else
+            want=success
+          fi
+          for r in "${{ needs.unit.result }}" "${{ needs.lint.result }}" "${{ needs.build.result }}" "${{ needs.wasm.result }}" "${{ needs.browser.result }}" "${{ needs.e2e.result }}"; do
+            test "$r" = "$want" || exit 1
+          done
