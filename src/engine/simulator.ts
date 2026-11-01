@@ -239,6 +239,8 @@ export class Simulator {
   private moved = false
   /** Whether the snapshots for stepping back are taken at all (see `setHistory`). */
   private keepHistory = true
+  /** The terminals and consoles: their screens are on the page, so a history snapshot copies their states (see `record`). */
+  private screenParts: number[] = []
   /** Clock time asked of `advance` since the page opened, and how much of it was skipped (ms): see `clockTime`. */
   private offeredMs = 0
   private skippedMs = 0
@@ -370,6 +372,7 @@ export class Simulator {
     this.slow = this.comps.filter((cc) => cc.pipe)
     for (const cc of this.slow) this.fillPipe(cc)
     this.clocks = this.comps.filter((cc) => cc.def.clockHalfPeriod)
+    this.screenParts = this.comps.flatMap((cc, i) => (cc.def.type === 'acia6551' || cc.def.type === 'console' ? [i] : []))
     this.samplers = this.comps.filter((cc) => cc.def.sample)
     this.plan = buildPlan(
       this.comps.map((cc) => ({
@@ -791,8 +794,6 @@ export class Simulator {
   private enterWasm() {
     const c = this.compiled()
     if (!c || !this.openWasm) return
-    // A terminal's or a console's screen is replayed from a log in the page, which has no way back in time: its circuit keeps its history out of the module.
-    if (this.keepHistory && c.comps.some((cc) => cc.def.type === 'acia6551' || cc.def.type === 'console')) return
     const we = this.openWasm(c)
     if (!we) return
     this.we = we
@@ -959,7 +960,6 @@ export class Simulator {
    */
   setHistory(on: boolean) {
     if (this.keepHistory === on) return
-    if (on && this.we && this.comps.some((cc) => cc.def.type === 'acia6551' || cc.def.type === 'console')) this.leaveWasm()
     this.keepHistory = on
     if (!on) {
       this.history = []
@@ -1074,6 +1074,11 @@ export class Simulator {
       // The Rust engine holds the parts' states: take its copy, and the clocks' (which the page keeps) by themselves.
       const states = new Array<unknown>(this.comps.length)
       for (const c of this.clocks) states[c.index] = cloneState(c.inst.state)
+      // A terminal's or a console's screen is kept on the page (the module only logs what is printed): bring it up to date and keep a copy.
+      if (this.screenParts.length) {
+        this.syncWasm()
+        for (const i of this.screenParts) states[i] = cloneState(this.comps[i].inst.state)
+      }
       this.history.push({ time: this.time, ticks: this.ticks, unstable: this.unstable, values: this.values.slice(), states, pipes: [], wasm: we.save() })
     } else
       this.history.push({
@@ -1130,6 +1135,8 @@ export class Simulator {
       const saved = snap.pipes[i]
       if (cc.pipe && saved && saved.length === cc.pipe.length) cc.pipe.set(saved)
     })
+    // The terminals' keyboards and the logs of what they printed go back to what the restored page states hold.
+    this.we?.afterRestore()
     this.time = snap.time
     this.unstable = snap.unstable
     this.markAll()

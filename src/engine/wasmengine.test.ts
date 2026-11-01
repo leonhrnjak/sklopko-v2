@@ -240,23 +240,58 @@ describe('the Rust engine inside the Simulator', () => {
     }, 600000)
   }
 
-  it('stays off where it must: with a terminal and the history for stepping back, with a capture, and without a module', async () => {
+  it('steps back over a terminal board in the Rust engine: the same nets, screen and keyboard as the TypeScript engine', async () => {
+    const x = await module()
+    const mk = (rust: boolean) => {
+      const sim = new Simulator()
+      sim.setFast(true)
+      if (rust) sim.setWasm(openFor(x))
+      const basic = micro6502Basic()
+      delete basic.history // absent means on
+      sim.load(flatten(basic))
+      sim.settle()
+      return sim
+    }
+    const rust = mk(true)
+    const plain = mk(false)
+    const term = plain.idsOfType('acia6551')[0]
+    // (the TypeScript terminal reads its queue with an index, the Rust one's page copy starts at 0: compare what waits)
+    const look = (s: Simulator) => {
+      const st = s.state(term) as { keys: string; next: number }
+      return JSON.stringify([Array.from(s.viewValues()), s.time, { ...st, keys: st.keys.slice(st.next), next: 0 }], (k, v) => (k === 'rev' ? undefined : v))
+    }
+    const both = (f: (s: Simulator) => unknown) => [f(rust), f(plain)]
+    for (let i = 0; i < 30; i++) both((s) => s.stepClock())
+    both((s) => s.terminal(term, { op: 'type', text: 'PRINT 1\r', capitals: true }))
+    for (let i = 0; i < 300; i++) {
+      both((s) => s.stepClock())
+      if (i % 50 === 0) expect(look(rust), `forward ${i}`).toBe(look(plain))
+    }
+    expect(rust.wasmOn, 'the Rust engine runs a terminal with the history on').toBe(true)
+    for (let i = 0; i < 120; i++) {
+      const [a, b] = both((s) => s.stepBack())
+      expect(a).toBe(b)
+      expect(look(rust), `after ${i + 1} steps back`).toBe(look(plain))
+    }
+    for (let i = 0; i < 60; i++) {
+      both((s) => s.stepClock())
+      expect(look(rust), `forward again ${i}`).toBe(look(plain))
+    }
+    expect(rust.wasmOn).toBe(true)
+  }, 600000)
+
+  it('leaves the Rust engine for a capture, and runs without a module', async () => {
     const x = await module()
     const rust = new Simulator()
     rust.setFast(true)
     rust.setWasm(openFor(x))
     const basic = micro6502Basic()
-    delete basic.history // absent means on
     rust.load(flatten(basic))
-    rust.settle()
-    for (let i = 0; i < 20; i++) rust.stepClock()
-    expect(rust.wasmOn, 'a terminal and history on').toBe(false)
-    rust.setHistory(false)
     rust.settle()
     for (let i = 0; i < 20; i++) rust.stepClock()
     expect(rust.wasmOn).toBe(true)
     rust.setCapture(true)
-    expect(rust.wasmOn, 'a capture needs the exact engine').toBe(false)
+    expect(rust.wasmOn, 'a capture is taken by the page').toBe(false)
     expect(rust.engine).toBe('exact')
   })
 
