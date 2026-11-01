@@ -34,12 +34,16 @@ export interface Compiled {
   rank: Int32Array
 }
 
-/** The kinds of part, as engine-rs/src/engine.rs numbers them. */
+/** The kinds of part, as engine-rs/src/parts/mod.rs numbers them. */
 const KIND: Record<string, number> = {
-  and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9, busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14,
-  buscmp: 15, dff: 16, rom: 17, ram: 18, clock: 19, acia6551: 20, bcdadd: 21, bin2bcd: 22, tff: 23, keypad: 24, framebuffer: 25, console: 26,
-  srlatch: 27, dlatch: 28, jkff: 29, counter: 30, counterld: 31, register: 32, shiftreg: 33, add4: 34, cmp4: 35, alu: 36, mul: 37,
-  decoder: 38, encoder: 39, bcd7: 40, bcddec: 41, halfadd: 42, fulladd: 43, halfsub: 44, fullsub: 45, sub4: 46, addsub4: 47,
+  and: 1, or: 2, xor: 3, nand: 4, nor: 5, xnor: 6, not: 7, buf: 8, mux: 9,
+  busmux: 10, busadd: 11, busreg: 12, busctr: 13, busgate: 14, buscmp: 15,
+  dff: 16, tff: 17, jkff: 18, srlatch: 19, dlatch: 20, counter: 21, counterld: 22, register: 23, shiftreg: 24,
+  add4: 25, sub4: 26, addsub4: 27, cmp4: 28, alu: 29, mul: 30, halfadd: 31, fulladd: 32, halfsub: 33, fullsub: 34, bcdadd: 35,
+  decoder: 36, encoder: 37, bcd7: 38, bcddec: 39, bin2bcd: 40,
+  rom: 41, ram: 42,
+  clock: 43, keypad: 44, framebuffer: 45, console: 46,
+  acia6551: 47,
 }
 /** Parts that put nothing on a net after the circuit has settled, or never change what they put (constants, labels, displays). */
 const NOP = new Set(['busconst', 'const', 'button', 'switch', 'led', 'note', 'frame', 'busdisp', 'netsend', 'bar', 'hexdisp', 'seg7', 'dicedisp', 'hexin', 'busin', 'gamepad'])

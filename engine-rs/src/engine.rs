@@ -1,127 +1,9 @@
 //! The engine: the compiled circuit in tables, and the settle loop of the TypeScript fast engine (`settleFast`, `combPass`,
-//! `registeredRound`, `commitOuts` and `flagFast` in src/engine/simulator.ts), step for step.
+//! `registeredRound`, `commitOuts` and `flagFast` in src/engine/simulator.ts), step for step. What each part computes is in `parts`.
 
-use crate::acia::Acia;
-
-const X: u8 = 2;
-const Z: u8 = 3;
-
-// The kinds of part. The numbers are the page's (KIND in src/engine/wasmengine.ts).
-#[allow(dead_code)]
-const NOP: i32 = 0;
-const AND: i32 = 1;
-const OR: i32 = 2;
-const XOR: i32 = 3;
-const NAND: i32 = 4;
-const NOR: i32 = 5;
-const XNOR: i32 = 6;
-const NOT: i32 = 7;
-const BUF: i32 = 8;
-const MUX: i32 = 9;
-const BUSMUX: i32 = 10;
-const BUSADD: i32 = 11;
-const BUSREG: i32 = 12;
-const BUSCTR: i32 = 13;
-const BUSGATE: i32 = 14;
-const BUSCMP: i32 = 15;
-const DFF: i32 = 16;
-const ROM: i32 = 17;
-const RAM: i32 = 18;
-const CLOCK: i32 = 19;
-const ACIA: i32 = 20;
-const BCDADD: i32 = 21;
-const BIN2BCD: i32 = 22;
-const TFF: i32 = 23;
-const KEYPAD: i32 = 24;
-const FRAMEBUFFER: i32 = 25;
-const CONSOLE: i32 = 26;
-const SRLATCH: i32 = 27;
-const DLATCH: i32 = 28;
-const JKFF: i32 = 29;
-const COUNTER: i32 = 30;
-const COUNTERLD: i32 = 31;
-const REGISTER: i32 = 32;
-const SHIFTREG: i32 = 33;
-const ADD4: i32 = 34;
-const CMP4: i32 = 35;
-const ALU: i32 = 36;
-const MUL: i32 = 37;
-const DECODER: i32 = 38;
-const ENCODER: i32 = 39;
-const BCD7: i32 = 40;
-const BCDDEC: i32 = 41;
-const HALFADD: i32 = 42;
-const FULLADD: i32 = 43;
-const HALFSUB: i32 = 44;
-const FULLSUB: i32 = 45;
-const SUB4: i32 = 46;
-const ADDSUB4: i32 = 47;
-
-/// The 7-segment patterns of 0 to F.
-const SEG_HEX: [i32; 16] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71];
-
-/// Writes the low `n` bits of `v` (a plain number, as the page's `bitsOf` does).
-#[inline(always)]
-fn put_bits(outs: &mut [u8], n: usize, v: i32) {
-    for b in 0..n { outs[b] = ((v >> b) & 1) as u8; }
-}
-
-/// Pixels on a side of the pixel screen part.
-const FB_SIZE: usize = 16;
-/// Characters a text console can have waiting for the page.
-const CONSOLE_EVENT_LIMIT: usize = 1 << 16;
-
-/// A text console: what it prints is logged as character codes for the page to print (the text itself stays on the page).
-pub struct Console {
-    pub events: Vec<u16>,
-    pub taken: Vec<u16>,
-}
-
-// busgate operations (p1)
-const G_AND: i32 = 0;
-const G_OR: i32 = 1;
-const G_XOR: i32 = 2;
-const G_NAND: i32 = 3;
-const G_NOR: i32 = 4;
-const G_XNOR: i32 = 5;
-
-#[inline(always)]
-fn and2(a: u8, b: u8) -> u8 {
-    if a == 0 || b == 0 { 0 } else if a == X || b == X { X } else { 1 }
-}
-#[inline(always)]
-fn or2(a: u8, b: u8) -> u8 {
-    if a == 1 || b == 1 { 1 } else if a == X || b == X { X } else { 0 }
-}
-#[inline(always)]
-fn xor2(a: u8, b: u8) -> u8 {
-    if a == X || b == X { X } else { a ^ b }
-}
-#[inline(always)]
-fn flip(v: u8) -> u8 {
-    if v > 1 { X } else { 1 - v }
-}
-
-/// Little-endian bits of `ins[start..start+n)` as a number, or -1 if any bit is not 0 or 1.
-#[inline(always)]
-fn to_num(ins: &[u8], start: usize, n: usize) -> i32 {
-    let mut r = 0i32;
-    for i in 0..n {
-        let v = ins[start + i];
-        if v > 1 {
-            return -1;
-        }
-        r |= (v as i32) << i;
-    }
-    r
-}
-
-#[inline(always)]
-fn write_num(outs: &mut [u8], start: usize, n: usize, value: i32) {
-    for i in 0..n {
-        outs[start + i] = if value < 0 { X } else { ((value >> i) & 1) as u8 };
-    }
-}
+use crate::parts::acia::Acia;
+use crate::parts::util::{X, Z};
+use crate::parts::{self, Cell, Console, Shared, CONSOLE_EVENT_LIMIT};
 
 pub struct Engine {
     values: Vec<u8>,
@@ -146,12 +28,7 @@ pub struct Engine {
     reader_wake: Vec<u8>,
     order: Vec<u32>,
     rank: Vec<i32>,
-    rom: Vec<u16>,
-    ram: Vec<u8>,
-    acias: Vec<Acia>,
-    consoles: Vec<Console>,
-    /// The pixels of all pixel screens, 256 bytes each, in part order.
-    fb: Vec<u8>,
+    shared: Shared,
     rank_flag: Vec<u8>,
     lo: usize,
     hi: isize,
@@ -236,7 +113,8 @@ impl Engine {
         }
         Engine {
             values, pins, kind, pin_start, n_ins, out_start, n_outs, p0, p1, p2, mem_off, st_n, st_pc, st_q, out_nets, reader_start,
-            reader_part, reader_slot, reader_wake, order, rank, rom, ram, acias, consoles, fb,
+            reader_part, reader_slot, reader_wake, order, rank,
+            shared: Shared { rom, ram, fb, acias, consoles },
             rank_flag: vec![0; n_order],
             lo: n_order,
             hi: -1,
@@ -273,42 +151,42 @@ impl Engine {
         self.st_q.as_mut_ptr()
     }
     pub fn ram_ptr(&mut self) -> *mut u8 {
-        self.ram.as_mut_ptr()
+        self.shared.ram.as_mut_ptr()
     }
     pub fn fb_ptr(&mut self) -> *mut u8 {
-        self.fb.as_mut_ptr()
+        self.shared.fb.as_mut_ptr()
     }
     pub fn console_take_events(&mut self, k: usize) -> usize {
-        let c = &mut self.consoles[k];
+        let c = &mut self.shared.consoles[k];
         let n = c.events.len();
         c.taken[..n].copy_from_slice(&c.events);
         c.events.clear();
         n
     }
     pub fn console_events_ptr(&mut self, k: usize) -> *mut u16 {
-        self.consoles[k].taken.as_mut_ptr()
+        self.shared.consoles[k].taken.as_mut_ptr()
     }
     pub fn acia_regs_ptr(&mut self, k: usize) -> *mut u8 {
-        self.acias[k].regs.as_mut_ptr()
+        self.shared.acias[k].regs.as_mut_ptr()
     }
     pub fn acia_key(&mut self, k: usize, code: u8) {
-        self.acias[k].key(code)
+        self.shared.acias[k].key(code)
     }
     pub fn acia_clear_keys(&mut self, k: usize) {
-        self.acias[k].clear_keys()
+        self.shared.acias[k].clear_keys()
     }
     pub fn acia_pending(&self, k: usize) -> usize {
-        self.acias[k].pending()
+        self.shared.acias[k].pending()
     }
     pub fn acia_take_events(&mut self, k: usize) -> usize {
-        let a = &mut self.acias[k];
+        let a = &mut self.shared.acias[k];
         let n = a.events.len();
         a.taken[..n].copy_from_slice(&a.events);
         a.events.clear();
         n
     }
     pub fn acia_events_ptr(&mut self, k: usize) -> *mut u16 {
-        self.acias[k].taken.as_mut_ptr()
+        self.shared.acias[k].taken.as_mut_ptr()
     }
 
     /// The clock part shows `phase`, and is flagged for the next settle.
@@ -318,7 +196,7 @@ impl Engine {
     }
 
     pub fn acia_queue_ptr(&mut self, k: usize) -> *const u8 {
-        self.acias[k].queue_ptr()
+        self.shared.acias[k].queue_ptr()
     }
 
     /// The clock part changes its output; the circuit settles.
@@ -356,506 +234,19 @@ impl Engine {
     fn evaluate(&mut self, i: usize) {
         let ps = self.pin_start[i] as usize;
         let ni = self.n_ins[i] as usize;
-        let no = self.n_outs[i] as usize;
-        let ins = &self.pins[ps..ps + ni];
-        let outs = &mut self.outs;
-        match self.kind[i] {
-            AND | NAND => {
-                let mut r = 1u8;
-                for &v in ins {
-                    if v == 0 { r = 0; break; }
-                    if v == X { r = X; }
-                }
-                outs[0] = if self.kind[i] == NAND { flip(r) } else { r };
-            }
-            OR | NOR => {
-                let mut r = 0u8;
-                for &v in ins {
-                    if v == 1 { r = 1; break; }
-                    if v == X { r = X; }
-                }
-                outs[0] = if self.kind[i] == NOR { flip(r) } else { r };
-            }
-            XOR | XNOR => {
-                let mut r = 0u8;
-                for &v in ins {
-                    if v == X { r = X; break; }
-                    r ^= v;
-                }
-                outs[0] = if self.kind[i] == XNOR { flip(r) } else { r };
-            }
-            NOT => outs[0] = flip(ins[0]),
-            BUF => outs[0] = ins[0],
-            MUX => {
-                let n = self.p0[i] as usize;
-                let k = self.p1[i] as usize;
-                let mut s = 0usize;
-                let mut bad = false;
-                for b in 0..k {
-                    let v = ins[n + k - 1 - b];
-                    if v == X { bad = true; break; }
-                    s |= (v as usize) << b;
-                }
-                outs[0] = if bad { X } else { ins[s] };
-            }
-            BUSMUX => {
-                let w = self.p0[i] as usize;
-                let k = self.p1[i] as usize;
-                let sel = self.p2[i] as usize;
-                let s = to_num(ins, w * k, sel);
-                if s < 0 {
-                    for b in 0..w { outs[b] = X; }
-                } else {
-                    let s = s as usize;
-                    for b in 0..w { outs[b] = ins[s * w + b]; }
-                }
-            }
-            BUSADD => {
-                let n = self.p0[i] as usize;
-                if ins.iter().any(|&v| v == X) {
-                    for b in 0..=n { outs[b] = X; }
-                } else {
-                    let a = to_num(ins, 0, n);
-                    let b = to_num(ins, n, n);
-                    let sum = a + b + ins[2 * n] as i32;
-                    for k in 0..=n { outs[k] = ((sum >> k) & 1) as u8; }
-                }
-            }
-            BUSREG => {
-                let n = self.p0[i] as usize;
-                let pc = self.st_pc[i];
-                let clk = ins[n + 1];
-                let edge = pc == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if ins[n + 2] == 1 {
-                    self.st_n[i] = 0;
-                } else if edge && ins[n] == 1 {
-                    self.st_n[i] = to_num(ins, 0, n);
-                }
-                write_num(outs, 0, n, self.st_n[i]);
-            }
-            BUSCTR => {
-                let n = self.p0[i] as usize;
-                let mask = (1i32 << n) - 1;
-                let ld = ins[n];
-                let en = ins[n + 1];
-                let r = ins[n + 3];
-                let clk = ins[n + 2];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if r == 1 {
-                    self.st_n[i] = 0;
-                } else if edge {
-                    if ld == 1 {
-                        let d = to_num(ins, 0, n);
-                        if d >= 0 { self.st_n[i] = d; }
-                    } else if ld == 0 && en == 1 {
-                        self.st_n[i] = (self.st_n[i] + 1) & mask;
-                    }
-                }
-                let st = self.st_n[i];
-                write_num(outs, 0, n, st);
-                outs[n] = if en == X { X } else if st == mask && en == 1 { 1 } else { 0 };
-            }
-            BUSGATE => {
-                let n = self.p0[i] as usize;
-                let op = self.p1[i];
-                for b in 0..n {
-                    let a = ins[b];
-                    outs[b] = match op {
-                        G_AND => and2(a, ins[n + b]),
-                        G_OR => or2(a, ins[n + b]),
-                        G_XOR => xor2(a, ins[n + b]),
-                        G_NAND => flip(and2(a, ins[n + b])),
-                        G_NOR => flip(or2(a, ins[n + b])),
-                        G_XNOR => flip(xor2(a, ins[n + b])),
-                        _ => flip(a),
-                    };
-                }
-            }
-            BUSCMP => {
-                let n = self.p0[i] as usize;
-                if ins.iter().any(|&v| v == X) {
-                    outs[0] = X; outs[1] = X; outs[2] = X;
-                } else {
-                    let a = to_num(ins, 0, n);
-                    let b = to_num(ins, n, n);
-                    outs[0] = (a > b) as u8;
-                    outs[1] = (a == b) as u8;
-                    outs[2] = (a < b) as u8;
-                }
-            }
-            DFF => {
-                let d = ins[0];
-                let clk = ins[1];
-                let s = ins[2];
-                let r = ins[3];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if r == 1 { self.st_q[i] = 0; }
-                else if s == 1 { self.st_q[i] = 1; }
-                else if edge { self.st_q[i] = d; }
-                let q = self.st_q[i];
-                outs[0] = q;
-                outs[1] = flip(q);
-            }
-            TFF => {
-                let t = ins[0];
-                let clk = ins[1];
-                let s = ins[2];
-                let r = ins[3];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if r == 1 { self.st_q[i] = 0; }
-                else if s == 1 { self.st_q[i] = 1; }
-                else if edge {
-                    if t == X { self.st_q[i] = X; }
-                    else if t == 1 { self.st_q[i] = flip(self.st_q[i]); }
-                }
-                let q = self.st_q[i];
-                outs[0] = q;
-                outs[1] = flip(q);
-            }
-            BCDADD => {
-                if ins.iter().any(|&v| v == X) {
-                    for b in 0..5 { outs[b] = X; }
-                } else {
-                    let mut z = to_num(ins, 0, 4) + to_num(ins, 4, 4) + ins[8] as i32;
-                    if z > 9 { z += 6; }
-                    for b in 0..4 { outs[b] = ((z >> b) & 1) as u8; }
-                    outs[4] = (z > 15) as u8;
-                }
-            }
-            BIN2BCD => {
-                if ins.iter().any(|&v| v == X) {
-                    for b in 0..5 { outs[b] = X; }
-                } else {
-                    let n = to_num(ins, 0, 4);
-                    let o = n % 10;
-                    for b in 0..4 { outs[b] = ((o >> b) & 1) as u8; }
-                    outs[4] = (n >= 10) as u8;
-                }
-            }
-            SRLATCH => {
-                let s = ins[0];
-                let r = ins[1];
-                if s == 1 && r == 1 {
-                    outs[0] = 0;
-                    outs[1] = 0;
-                } else {
-                    if s == 1 && r == 0 { self.st_q[i] = 1; }
-                    else if r == 1 && s == 0 { self.st_q[i] = 0; }
-                    let q = self.st_q[i];
-                    outs[0] = q;
-                    outs[1] = flip(q);
-                }
-            }
-            DLATCH => {
-                if ins[1] == 1 { self.st_q[i] = ins[0]; }
-                let q = self.st_q[i];
-                outs[0] = q;
-                outs[1] = flip(q);
-            }
-            JKFF => {
-                let (j, clk, k, s, r) = (ins[0], ins[1], ins[2], ins[3], ins[4]);
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if r == 1 { self.st_q[i] = 0; }
-                else if s == 1 { self.st_q[i] = 1; }
-                else if edge {
-                    if j == X || k == X { self.st_q[i] = X; }
-                    else if j != 0 && k != 0 { self.st_q[i] = flip(self.st_q[i]); }
-                    else if j != 0 { self.st_q[i] = 1; }
-                    else if k != 0 { self.st_q[i] = 0; }
-                }
-                let q = self.st_q[i];
-                outs[0] = q;
-                outs[1] = flip(q);
-            }
-            COUNTER => {
-                let (clk, en, ud, r) = (ins[0], ins[1], ins[2], ins[3]);
-                let m = self.p0[i];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                let mut n = self.st_n[i];
-                if r == 1 { n = 0; }
-                else if edge && en == 1 && ud != X {
-                    n = if ud != 0 { (n + 1) % m } else { (n + m - 1) % m };
-                }
-                n %= m;
-                self.st_n[i] = n;
-                write_num(outs, 0, 4, n);
-                outs[4] = if en == X || ud == X { X } else if n == (if ud != 0 { m - 1 } else { 0 }) && en == 1 { 1 } else { 0 };
-            }
-            COUNTERLD => {
-                let (ld, en, clk, r) = (ins[4], ins[5], ins[6], ins[7]);
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if r == 1 { self.st_n[i] = 0; }
-                else if edge {
-                    if ld == 1 {
-                        let d = to_num(ins, 0, 4);
-                        if d >= 0 { self.st_n[i] = d; }
-                    } else if ld == 0 && en == 1 {
-                        self.st_n[i] = (self.st_n[i] + 1) & 15;
-                    }
-                }
-                let n = self.st_n[i];
-                write_num(outs, 0, 4, n);
-                outs[4] = if en == X { X } else if n == 15 && en == 1 { 1 } else { 0 };
-            }
-            REGISTER => {
-                let edge = self.st_pc[i] == 0 && ins[5] == 1;
-                self.st_pc[i] = ins[5];
-                if ins[6] == 1 { self.st_n[i] = 0; }
-                else if edge && ins[4] == 1 { self.st_n[i] = to_num(ins, 0, 4); }
-                write_num(outs, 0, 4, self.st_n[i]);
-            }
-            SHIFTREG => {
-                // The four bits are kept two bits each in st_n (a bit can be 0, 1, X or Z).
-                let edge = self.st_pc[i] == 0 && ins[6] == 1;
-                self.st_pc[i] = ins[6];
-                let mut b = self.st_n[i];
-                let bit = |b: i32, k: i32| (b >> (2 * k)) & 3;
-                if ins[7] == 1 { b = 0; }
-                else if edge {
-                    if ins[5] == 1 {
-                        b = ins[1] as i32 | (ins[2] as i32) << 2 | (ins[3] as i32) << 4 | (ins[4] as i32) << 6;
-                    } else if ins[5] == 0 {
-                        b = ins[0] as i32 | bit(b, 0) << 2 | bit(b, 1) << 4 | bit(b, 2) << 6;
-                    }
-                }
-                self.st_n[i] = b;
-                for k in 0..4 { outs[k] = bit(b, k as i32) as u8; }
-            }
-            ADD4 => {
-                if ins.iter().any(|&v| v == X) { for b in 0..5 { outs[b] = X; } }
-                else { put_bits(outs, 5, to_num(ins, 0, 4) + to_num(ins, 4, 4) + ins[8] as i32); }
-            }
-            CMP4 => {
-                if ins.iter().any(|&v| v == X) { for b in 0..3 { outs[b] = X; } }
-                else {
-                    let a = to_num(ins, 0, 4);
-                    let b = to_num(ins, 4, 4);
-                    outs[0] = (a > b) as u8;
-                    outs[1] = (a == b) as u8;
-                    outs[2] = (a < b) as u8;
-                }
-            }
-            ALU => {
-                let a = to_num(ins, 0, 4);
-                let b = to_num(ins, 4, 4);
-                let op = to_num(ins, 8, 3);
-                let code = if op < 0 { -1 } else { ((op & 1) << 2) | (op & 2) | (op >> 2) };
-                if code < 0 || a < 0 || (code < 5 && b < 0) {
-                    for k in 0..6 { outs[k] = X; }
-                } else {
-                    let mut co = 0u8;
-                    let mut r;
-                    match code {
-                        0 => { r = a + b; co = (r > 15) as u8; }
-                        1 => { r = a - b; co = (r < 0) as u8; }
-                        2 => r = a & b,
-                        3 => r = a | b,
-                        4 => r = a ^ b,
-                        5 => r = !a,
-                        6 => { r = a + 1; co = (r > 15) as u8; }
-                        _ => { r = a - 1; co = (r < 0) as u8; }
-                    }
-                    r &= 15;
-                    write_num(outs, 0, 4, r);
-                    outs[4] = co;
-                    outs[5] = (r == 0) as u8;
-                }
-            }
-            MUL => {
-                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
-                else {
-                    let n = self.p0[i] as usize;
-                    put_bits(outs, 2 * n, to_num(ins, 0, n) * to_num(ins, n, n));
-                }
-            }
-            DECODER => {
-                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
-                else {
-                    let k = self.p0[i] as usize;
-                    let a = to_num(ins, 0, k);
-                    for b in 0..no { outs[b] = (ins[k] == 1 && b as i32 == a) as u8; }
-                }
-            }
-            ENCODER => {
-                if ins.iter().any(|&v| v == X) { for b in 0..no { outs[b] = X; } }
-                else {
-                    let hi = ins.iter().rposition(|&v| v == 1).map_or(-1, |p| p as i32);
-                    put_bits(outs, no - 1, hi.max(0));
-                    outs[no - 1] = (hi >= 0) as u8;
-                }
-            }
-            BCD7 => {
-                if ins.iter().any(|&v| v == X) { for b in 0..7 { outs[b] = X; } }
-                else {
-                    let n = to_num(ins, 0, 4);
-                    let seg = if n >= 0 && (self.p0[i] == 1 || n < 10) { SEG_HEX[n as usize] } else { 0 };
-                    put_bits(outs, 7, seg);
-                }
-            }
-            BCDDEC => {
-                if ins.iter().any(|&v| v == X) { for b in 0..10 { outs[b] = X; } }
-                else {
-                    let n = to_num(ins, 0, 4);
-                    for b in 0..10 { outs[b] = (b as i32 == n) as u8; }
-                }
-            }
-            HALFADD => {
-                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
-                else { outs[0] = ((ins[0] ^ ins[1]) != 0) as u8; outs[1] = ((ins[0] & ins[1]) != 0) as u8; }
-            }
-            FULLADD => {
-                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
-                else { put_bits(outs, 2, ins[0] as i32 + ins[1] as i32 + ins[2] as i32); }
-            }
-            HALFSUB => {
-                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
-                else { outs[0] = ((ins[0] ^ ins[1]) != 0) as u8; outs[1] = (ins[0] == 0 && ins[1] != 0) as u8; }
-            }
-            FULLSUB => {
-                if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
-                else {
-                    let d = ins[0] as i32 - ins[1] as i32 - ins[2] as i32;
-                    outs[0] = (d & 1) as u8;
-                    outs[1] = (d < 0) as u8;
-                }
-            }
-            SUB4 => {
-                if ins.iter().any(|&v| v == X) { for b in 0..5 { outs[b] = X; } }
-                else {
-                    let d = to_num(ins, 0, 4) - to_num(ins, 4, 4) - ins[8] as i32;
-                    put_bits(outs, 4, d & 15);
-                    outs[4] = (d < 0) as u8;
-                }
-            }
-            ADDSUB4 => {
-                if ins.iter().any(|&v| v == X) { for b in 0..6 { outs[b] = X; } }
-                else {
-                    let signed = |n: i32| if n & 8 != 0 { n - 16 } else { n };
-                    let a = to_num(ins, 0, 4);
-                    let bn = to_num(ins, 4, 4);
-                    let m = ins[8] as i32;
-                    let b = if m != 0 { !bn & 15 } else { bn };
-                    let r = a + b + m;
-                    let exact = if m != 0 { signed(a) - signed(bn) } else { signed(a) + signed(b) };
-                    put_bits(outs, 5, r);
-                    outs[5] = (exact < -8 || exact > 7) as u8;
-                }
-            }
-            ROM => {
-                let abits = self.p0[i] as usize;
-                let dbits = self.p1[i] as usize;
-                let addr = to_num(ins, 0, abits);
-                if addr < 0 {
-                    for b in 0..dbits { outs[b] = X; }
-                } else {
-                    let w = self.rom[self.mem_off[i] as usize + addr as usize] as i32;
-                    write_num(outs, 0, dbits, w);
-                }
-                // The table port: 256 bytes that follow the words (p2 is 1 when the part has it).
-                if self.p2[i] == 1 {
-                    let t = to_num(ins, abits, 8);
-                    if t < 0 {
-                        for b in 0..8 { outs[dbits + b] = X; }
-                    } else {
-                        let w = self.rom[self.mem_off[i] as usize + (1usize << abits) + t as usize] as i32;
-                        write_num(outs, dbits, 8, w);
-                    }
-                }
-            }
-            RAM => {
-                let n = self.p0[i] as usize;
-                let abits = self.p1[i] as usize;
-                let addr = to_num(ins, n + 2, abits);
-                let clk = ins[n + 1];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                let base = self.mem_off[i] as usize;
-                if edge && ins[n] == 1 {
-                    let data = to_num(ins, 0, n);
-                    if addr >= 0 && data >= 0 {
-                        self.ram[base + addr as usize] = data as u8;
-                    }
-                }
-                if addr < 0 {
-                    for b in 0..no {
-                        outs[b] = X;
-                    }
-                } else {
-                    let w = self.ram[base + addr as usize] as i32;
-                    write_num(outs, 0, n, w);
-                }
-            }
-            CLOCK => outs[0] = self.st_q[i],
-            KEYPAD => {
-                // p0: sticky, p1: the key pressed last, p2: a key is held. st_pc: held at the last look, st_q: latched.
-                let pressed = self.p2[i] == 1;
-                if pressed && self.st_pc[i] == 0 { self.st_q[i] = 1; }
-                self.st_pc[i] = pressed as u8;
-                if ins[0] == 1 { self.st_q[i] = 0; }
-                let key = self.p1[i];
-                for b in 0..4 { outs[b] = ((key >> b) & 1) as u8; }
-                outs[4] = if self.p0[i] == 1 { self.st_q[i] } else { pressed as u8 };
-            }
-            FRAMEBUFFER => {
-                // p0: bits per pixel (1 or 2), p1: 1 if a pixel can be read back.
-                let nd = self.p0[i] as usize;
-                let we = ins[8 + nd];
-                let clr = ins[9 + nd];
-                let clk = ins[10 + nd];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                let base = self.mem_off[i] as usize;
-                if clr == 1 {
-                    for p in &mut self.fb[base..base + FB_SIZE * FB_SIZE] { *p = 0; }
-                } else if edge && we == 1 {
-                    let x = to_num(ins, 0, 4);
-                    let y = to_num(ins, 4, 4);
-                    let d = to_num(ins, 8, nd);
-                    if x >= 0 && y >= 0 && d >= 0 {
-                        self.fb[base + y as usize * FB_SIZE + x as usize] = d as u8;
-                    }
-                }
-                if self.p1[i] == 1 {
-                    let rx = to_num(ins, 11 + nd, 4);
-                    let ry = to_num(ins, 15 + nd, 4);
-                    if rx < 0 || ry < 0 {
-                        for b in 0..nd { outs[b] = X; }
-                    } else {
-                        write_num(outs, 0, nd, self.fb[base + ry as usize * FB_SIZE + rx as usize] as i32);
-                    }
-                }
-            }
-            CONSOLE => {
-                let clk = ins[9];
-                let edge = self.st_pc[i] == 0 && clk == 1;
-                self.st_pc[i] = clk;
-                if edge && ins[8] == 1 {
-                    let code = to_num(ins, 0, 8);
-                    if code >= 0 {
-                        let c = &mut self.consoles[self.mem_off[i] as usize];
-                        if c.events.len() >= CONSOLE_EVENT_LIMIT { c.events.remove(0); }
-                        c.events.push(code as u16);
-                    }
-                }
-            }
-            ACIA => {
-                let a = &mut self.acias[self.mem_off[i] as usize];
-                a.evaluate(ins);
-                let d = a.out();
-                for b in 0..8 {
-                    outs[b] = (d >> b) & 1;
-                }
-                outs[8] = if a.irq() { 0 } else { 1 };
-            }
-            _ => {}
-        }
+        let mut cell = Cell {
+            ins: &self.pins[ps..ps + ni],
+            outs: &mut self.outs,
+            no: self.n_outs[i] as usize,
+            n: &mut self.st_n[i],
+            pc: &mut self.st_pc[i],
+            q: &mut self.st_q[i],
+            p0: self.p0[i],
+            p1: self.p1[i],
+            p2: self.p2[i],
+            mem_off: self.mem_off[i] as usize,
+        };
+        parts::eval(self.kind[i], &mut cell, &mut self.shared);
     }
 
     #[inline(always)]
