@@ -34,7 +34,7 @@ make the milestone branches from it. Without a PR (description, screenshots, CI)
    layout changed); if nothing can be seen, say "No visible change." The pictures live on the `pr-assets` branch, never on the
    feature branch or `main`: `.claude/skills/ship/SKILL.md` has the commands, and `scripts/screenshot.mjs` takes them.
 2. GitHub Actions (`.github/workflows/ci.yml`) runs on every PR, every night on `main`, and by hand from the Actions tab on any
-   branch, as parallel jobs: unit tests, lint, build (with the bundle budget), the WebAssembly check, and the e2e tests in one job; the last job,
+   branch, as parallel jobs: unit tests, lint, build (with the bundle budget), the WebAssembly check, and the e2e tests in four shards (the browser is cached by a job of its own before they start); the last job,
    `test`, needs them all. A merge to `main` does not run it again (the nightly run catches what slipped through). The PR also gets the
    Cloudflare Pages preview deploy. Still run the checks locally before pushing (see "Testing while making changes"), so CI is not
    the first place a failure shows, and write the results in the PR.
