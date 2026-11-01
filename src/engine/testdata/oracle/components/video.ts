@@ -86,7 +86,7 @@ export const videos: (ComponentDef & { evaluate(inst: Instance): void })[] = [
     },
     layout: () =>
       box({
-        w: 342,
+        w: 340,
         minRows: 15,
         left: [
           { name: 'PHI2', label: 'Φ2', clock: true },
