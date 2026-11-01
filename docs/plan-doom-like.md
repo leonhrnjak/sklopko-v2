@@ -13,7 +13,7 @@
 > - [x] D4 The game: enemies, sprites, a gun, five levels, the example
 > - [x] D4b (optional) Textured walls — **dropped** (frame rate with enemies is already under 10 fps; see D4b result)
 > - [x] D4c (optional) A HUD with a face, and more enemy frames (face, gun and eight frames per enemy; see D4c result)
-> - [ ] D5 Polish: reference page, README, e2e, a phone check
+> - [x] D5 Polish: reference page, README, e2e, a phone check
 
 ## Why, and what "Doom" means here
 Leon asked how close we are to running Doom now that the Rust/WebAssembly engine runs the `cpu6502` board at the real 1 MHz. The real
@@ -244,6 +244,13 @@ interrupts every 16,667 cycles (59 interrupts after 59 × 16,667 + 800 cycles, 6
 - A reference page (Tools), a README line, a phone layout check (the gamepad's touch buttons), a note in the architecture doc, and the
   final frame-rate table in this doc. No new features.
 - **Done when:** the phone e2e spec plays the first ten seconds; the docs match the code.
+
+### D5 result
+- **Reference page:** *Tools ▾ → Doom-like* (`ReferenceDoom.tsx`, loaded on demand with the other references): controls, the game's rules, speed on slow machines, the memory map and how a picture is made.
+- **Docs:** a README paragraph and the Tools list; a section in `architecture-simulator.md`; the example's blurb says eight or nine pictures a second.
+- **Phone:** `e2e/mobile.spec.ts` opens the example on an iPhone 13 profile, checks the gamepad is on screen and nothing overflows, holds the gamepad's up button by touch for ten seconds and sees the picture change, then opens the guide.
+- **Final frame rate** (bare core, 1 MHz, fixed scenes, from D4c): empty corridor 105,651 cycles (9.5 a second), one chaser ahead 127,301 (7.9), three monsters in line 149,438 (6.7); the recorded run to the win screen averages 120,760 (8.3) on the bare core and 112,719 (8.9) on the board.
+- **Not done (a later spec if wanted):** real level layouts. The five levels are still one floor plan turned five ways, so a held Up and B finishes the game; steering, side rooms, keys and pickups need a new spec.
 
 ## Risks
 - **The cycle estimates may be wrong by 2 times either way.** That is what D0 and its gate are for; a stop at D0 costs one PR.

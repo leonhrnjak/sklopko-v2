@@ -10,7 +10,7 @@ import { openLibraryDialog } from '../app/libraryUi'
 import { openMap, useDoneCount } from '../app/path'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
-import { open6502Reference, openBasicReference, openParts6502Reference, openReference } from '../app/reference'
+import { open6502Reference, openBasicReference, openDoomReference, openParts6502Reference, openReference } from '../app/reference'
 import { copyEmbedCode, downloadJSON, openJSON, shareLink } from '../app/runtime'
 import { updateSettings, useSettings } from '../app/settings'
 import { setExactOn, setHistoryOn, useExactOn, useHistoryOn } from '../app/stepback'
@@ -342,6 +342,10 @@ export function Toolbar() {
       </MenuItem>
       <MenuItem onClick={() => openParts6502Reference()} title="How the 6502 built from parts works: its blocks, where they are in the circuit, and every instruction cycle by cycle">
         6502 from parts
+        <OpensWindow />
+      </MenuItem>
+      <MenuItem onClick={() => openDoomReference()} title="The Doom-like example: its controls, the game, and the board and program behind it">
+        Doom-like
         <OpensWindow />
       </MenuItem>
       <MenuLabel>Show</MenuLabel>

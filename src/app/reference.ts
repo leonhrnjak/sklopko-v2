@@ -14,7 +14,10 @@ export type ReferenceBasicTab = 'start' | 'statements' | 'functions' | 'programs
 /** The sections of the reference for the 6502 built from parts. */
 export type ReferenceParts6502Tab = 'machine' | 'cycles'
 
-type Language = 'skasm' | '6502' | 'basic' | 'parts6502'
+/** The sections of the Doom-like guide. */
+export type ReferenceDoomTab = 'play' | 'machine'
+
+type Language = 'skasm' | '6502' | 'basic' | 'parts6502' | 'doom'
 
 /** The language references: a window that can be opened from the toolbar, the help panel and a program ROM. */
 export const useReference = create<{ open: boolean; language: Language; tab: string; chip: Chip6502 }>(() => ({ open: false, language: 'skasm', tab: 'start', chip: 'nmos' }))
@@ -30,6 +33,8 @@ export const open6502Reference = (tab?: Reference6502Tab, chip?: Chip6502) => sh
 export const openBasicReference = (tab?: ReferenceBasicTab) => show('basic', tab)
 /** Open the guide to the 6502 built from parts (its blocks, and an instruction cycle by cycle). */
 export const openParts6502Reference = (tab?: ReferenceParts6502Tab) => show('parts6502', tab ?? 'machine')
+/** Open the guide to the Doom-like example. */
+export const openDoomReference = (tab?: ReferenceDoomTab) => show('doom', tab ?? 'play')
 export const closeReference = () => useReference.setState({ open: false })
-export const setReferenceTab = (tab: ReferenceTab | Reference6502Tab | ReferenceBasicTab | ReferenceParts6502Tab) => useReference.setState({ tab })
+export const setReferenceTab = (tab: ReferenceTab | Reference6502Tab | ReferenceBasicTab | ReferenceParts6502Tab | ReferenceDoomTab) => useReference.setState({ tab })
 export const setReferenceChip = (chip: Chip6502) => useReference.setState({ chip })
