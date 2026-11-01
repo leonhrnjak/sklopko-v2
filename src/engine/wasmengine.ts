@@ -24,6 +24,8 @@ interface CompiledPart {
   inst: Instance
   inNets: Int32Array
   outNets: Int32Array
+  /** What a part with a delay has computed in the last `delay - 1` ticks (see `CComp.pipe`). */
+  pipe?: Uint8Array
 }
 
 /** The simulator's compiled circuit (see `Simulator.compiled`). */
@@ -407,6 +409,7 @@ export class WasmEngine {
     push(this.vias.length)
     push(this.lcds.length)
     push(this.cpus.length)
+    push(c.comps.filter((cc) => cc.pipe).length)
     for (const v of c.values) push(v)
     for (const v of c.pins) push(v)
     for (const r of rows) for (const v of r) push(v)
@@ -417,6 +420,12 @@ export class WasmEngine {
     for (const v of c.readerWake) push(v)
     for (const v of c.order) push(v)
     for (const v of c.rank) push(v)
+    c.comps.forEach((cc, i) => {
+      if (!cc.pipe) return
+      push(i)
+      push(cc.pipe.length)
+      for (const v of cc.pipe) push(v)
+    })
     for (const v of rom) push(v)
     for (const v of ram) push(v)
     for (const v of fb) push(v)
@@ -470,6 +479,21 @@ export class WasmEngine {
     this.x.set_phase(part, phase)
   }
 
+  /** Flag every part for the fast engine (true) or the exact one, which runs from now on. */
+  markAll(fast: boolean) {
+    this.x.mark_all(fast ? 1 : 0)
+  }
+
+  /** One gate delay of the exact engine. Returns true while the circuit is still moving. */
+  tick(): boolean {
+    return this.x.tick() === 1
+  }
+
+  /** Hold a net at 0 or 1 (or let it go with -1). */
+  setForce(net: number, v: number) {
+    this.x.set_force(net, v)
+  }
+
   /** Settle the circuit. Returns false if it did not within 64 rounds. */
   settle(): boolean {
     return this.x.settle() === 1
@@ -501,6 +525,9 @@ export class WasmEngine {
     const n = new Int32Array(buf, x.st_n_ptr(), comps.length)
     const pc = new Uint8Array(buf, x.st_pc_ptr(), comps.length)
     const q = new Uint8Array(buf, x.st_q_ptr(), comps.length)
+    comps.forEach((cc, i) => {
+      if (cc.pipe) cc.pipe.set(new Uint8Array(buf, x.pipe_ptr(i), cc.pipe.length))
+    })
     comps.forEach((cc, i) => {
       const type = cc.def.type
       const st = cc.inst.state
@@ -611,6 +638,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
+      ...this.pipeViews(),
     ]
     const out = new Uint8Array(parts.reduce((t, p) => t + p.length, 0))
     let at = 0
@@ -618,6 +646,16 @@ export class WasmEngine {
       out.set(p, at)
       at += p.length
     }
+    return out
+  }
+
+  /** The delay pipelines of the parts that have one, in the module's memory. */
+  private pipeViews(): Uint8Array[] {
+    const buf = this.x.memory.buffer
+    const out: Uint8Array[] = []
+    this.c.comps.forEach((cc, i) => {
+      if (cc.pipe) out.push(new Uint8Array(buf, this.x.pipe_ptr(i), cc.pipe.length))
+    })
     return out
   }
 
@@ -638,6 +676,7 @@ export class WasmEngine {
       new Uint8Array(buf, x.via_ptr(), this.vias.length * VIA_FIELDS * 4),
       new Uint8Array(buf, x.lcd_ptr(), this.lcds.length * LCD_FIELDS * 4),
       new Uint8Array(buf, x.cpu_ptr(), this.cpus.length * CPU_FIELDS * 4),
+      ...this.pipeViews(),
     ]
     let at = 0
     for (const p of parts) {

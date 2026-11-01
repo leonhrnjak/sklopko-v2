@@ -40,6 +40,19 @@ pub struct Engine {
     ticks: u64,
     outs: [u8; 64],
     saved: Vec<[u8; 64]>,
+    // The exact (unit-delay) engine: parts that changed a tick ago are in `queue` (stale = 1); a part with a delay keeps what it
+    // computed in `pipe` and moves on every tick.
+    stale: Vec<u8>,
+    queue: Vec<u32>,
+    running: Vec<u32>,
+    queued: usize,
+    changed: Vec<u32>,
+    pipe: Vec<Vec<u8>>,
+    slow: Vec<u32>,
+    forced: Vec<i8>,
+    any_forced: bool,
+    /// Which engine the flags are for (`mark_all`).
+    fast_mode: bool,
 }
 
 impl Engine {
@@ -66,6 +79,7 @@ impl Engine {
         let n_via = next() as usize;
         let n_lcd = next() as usize;
         let n_cpu = next() as usize;
+        let n_pipes = next() as usize;
         let values: Vec<u8> = (0..n_nets).map(|_| next() as u8).collect();
         let pins: Vec<u8> = (0..n_pins).map(|_| next() as u8).collect();
         let mut kind = vec![0; n_parts];
@@ -101,6 +115,14 @@ impl Engine {
         let reader_wake: Vec<u8> = (0..n_readers).map(|_| next() as u8).collect();
         let order: Vec<u32> = (0..n_order).map(|_| next() as u32).collect();
         let rank: Vec<i32> = (0..n_parts).map(|_| next()).collect();
+        let mut pipe: Vec<Vec<u8>> = vec![Vec::new(); n_parts];
+        let mut slow = Vec::new();
+        for _ in 0..n_pipes {
+            let part = next() as usize;
+            let len = next() as usize;
+            pipe[part] = (0..len).map(|_| next() as u8).collect();
+            slow.push(part as u32);
+        }
         let rom: Vec<u16> = (0..n_rom).map(|_| next() as u16).collect();
         let ram: Vec<u8> = (0..n_ram).map(|_| next() as u8).collect();
         let fb: Vec<u8> = (0..n_fb).map(|_| next() as u8).collect();
@@ -133,6 +155,16 @@ impl Engine {
             ticks: 0,
             outs: [0; 64],
             saved: vec![[0u8; 64]; n_parts],
+            stale: vec![0; n_parts],
+            queue: vec![0; n_parts],
+            running: vec![0; n_parts],
+            queued: 0,
+            changed: Vec::with_capacity(n_nets),
+            pipe,
+            slow,
+            forced: vec![-1; n_nets],
+            any_forced: false,
+            fast_mode: true,
         }
     }
 
@@ -208,7 +240,7 @@ impl Engine {
     /// The clock part shows `phase`, and is flagged for the next settle.
     pub fn set_phase(&mut self, c: usize, phase: u8) {
         self.st_q[c] = phase;
-        self.flag_fast(c);
+        self.flag(c);
     }
 
     pub fn acia_queue_ptr(&mut self, k: usize) -> *const u8 {
@@ -220,6 +252,17 @@ impl Engine {
         self.st_q[c] = 1 - self.st_q[c];
         self.flag_fast(c);
         self.settle()
+    }
+
+    /// Flag a part for the engine that runs now.
+    fn flag(&mut self, i: usize) {
+        if self.fast_mode {
+            self.flag_fast(i);
+        } else if self.stale[i] == 0 {
+            self.stale[i] = 1;
+            self.queue[self.queued] = i as u32;
+            self.queued += 1;
+        }
     }
 
     #[inline(always)]
@@ -343,5 +386,117 @@ impl Engine {
             self.registered_round();
         }
         false
+    }
+
+    /// Flag every part for whichever engine runs next (`fast` or the exact one): each is re-evaluated once, which changes nothing in a
+    /// circuit that is up to date.
+    pub fn mark_all(&mut self, fast: bool) {
+        self.fast_mode = fast;
+        let n = self.kind.len();
+        if fast {
+            // (not the parts the module does not run: they keep what the page put on their nets)
+            for i in 0..n {
+                if self.kind[i] != 0 { self.flag_fast(i); }
+            }
+        } else {
+            self.queued = 0;
+            for i in 0..n {
+                self.stale[i] = 0;
+                if self.kind[i] != 0 {
+                    self.queue[self.queued] = i as u32;
+                    self.stale[i] = 1;
+                    self.queued += 1;
+                }
+            }
+        }
+    }
+
+    /// Hold the net at 0 or 1 whatever its part says (`v` = 0 or 1), or let it go (-1).
+    pub fn set_force(&mut self, net: usize, v: i8) {
+        self.forced[net] = v;
+        self.any_forced = self.forced.iter().any(|&f| f >= 0);
+    }
+
+    pub fn pipe_ptr(&mut self, part: usize) -> *mut u8 {
+        self.pipe[part].as_mut_ptr()
+    }
+    pub fn pipe_len(&self, part: usize) -> usize {
+        self.pipe[part].len()
+    }
+
+    /// Run one part for the exact engine and put its outputs (or, for a slow part, what it computed `delay - 1` ticks ago) on the nets.
+    fn exact_eval(&mut self, i: usize) {
+        // (a part the module does not run, a switch or a label, keeps what the page put on its nets)
+        if self.kind[i] == 0 { return; }
+        self.evaluate(i);
+        let os = self.out_start[i] as usize;
+        let n = self.n_outs[i] as usize;
+        let slow = !self.pipe[i].is_empty();
+        for o in 0..n {
+            let net = self.out_nets[os + o] as usize;
+            let mut v = if slow { self.pipe[i][o] } else { self.outs[o] };
+            if self.any_forced && self.forced[net] >= 0 { v = self.forced[net] as u8; }
+            if self.values[net] != v {
+                self.values[net] = v;
+                self.changed.push(net as u32);
+            }
+        }
+        if slow {
+            let pipe = &mut self.pipe[i];
+            let len = pipe.len();
+            pipe.copy_within(n.., 0);
+            pipe[len - n..].copy_from_slice(&self.outs[..n]);
+        }
+    }
+
+    /// One gate delay. Returns true if the circuit is still moving: a net changed, or a slow part has an output on its way.
+    pub fn tick(&mut self) -> bool {
+        let count = self.queued;
+        std::mem::swap(&mut self.queue, &mut self.running);
+        self.queued = 0;
+        self.changed.clear();
+        for k in 0..count {
+            let i = self.running[k] as usize;
+            self.stale[i] = 0;
+            if self.pipe[i].is_empty() { self.exact_eval(i); }
+        }
+        for k in 0..self.slow.len() {
+            let i = self.slow[k] as usize;
+            self.stale[i] = 0;
+            self.exact_eval(i);
+        }
+        let moved = !self.changed.is_empty();
+        for k in 0..self.changed.len() {
+            let net = self.changed[k] as usize;
+            let v = self.values[net];
+            let end = self.reader_start[net + 1] as usize;
+            let mut r = self.reader_start[net] as usize;
+            while r < end {
+                let slot = self.reader_slot[r];
+                self.pins[(slot >> 1) as usize] = if v == Z && (slot & 1) == 0 { X } else { v };
+                let part = self.reader_part[r] as usize;
+                if self.stale[part] == 0 {
+                    self.stale[part] = 1;
+                    self.queue[self.queued] = part as u32;
+                    self.queued += 1;
+                }
+                r += 1;
+            }
+        }
+        self.ticks += 1;
+        let mut pending = false;
+        'outer: for &i in &self.slow {
+            let i = i as usize;
+            let n = self.n_outs[i] as usize;
+            let os = self.out_start[i] as usize;
+            for k in 0..self.pipe[i].len() {
+                let net = self.out_nets[os + k % n] as usize;
+                if self.pipe[i][k] != self.values[net] && !(self.any_forced && self.forced[net] >= 0) {
+                    pending = true;
+                    break 'outer;
+                }
+            }
+        }
+        moved || pending
     }
 }

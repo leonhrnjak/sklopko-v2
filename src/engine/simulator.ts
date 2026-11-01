@@ -581,13 +581,14 @@ export class Simulator {
    * on its way that differs from what it shows now.
    */
   tick(): boolean {
-    this.leaveWasm()
     if (this.usingFast) {
       // Stepping gate delays one by one (the Step button) is what the exact engine is for: it takes over from here, and `settle` hands
       // back to the fast engine at the next clock edge or switch change.
       this.usingFast = false
       this.markAll()
+      this.we?.markAll(false)
     }
+    if (this.we) return this.tickWasm()
     const { values, stale, readerStart, readerPart, readerSlot, pins, changedNets, comps } = this
     // Parts flagged by the last tick's changes are evaluated now; flags raised while this tick commits belong to the next.
     const run = this.queue
@@ -648,6 +649,21 @@ export class Simulator {
     return changed || pending
   }
 
+  /** One gate delay in the Rust engine: the nets come back here; the parts' states stay there until somebody needs them. */
+  private tickWasm(): boolean {
+    const we = this.we!
+    const moving = we.tick()
+    this.values.set(we.values)
+    this.ticks++
+    this.weTicks = we.ticks
+    this.weStale = true
+    if (moving) {
+      this.dirty = true
+      this.moved = true
+    }
+    return moving
+  }
+
   private dropCapture() {
     if (this.lastCapture) this.captureVersion++
     this.lastCapture = null
@@ -670,7 +686,9 @@ export class Simulator {
    * The arrays are the simulator's own, not copies.
    */
   compiled(): Compiled | null {
-    if (typeof this.plan === 'string') return null
+    // (a circuit the fast engine rejects has no plan: the module then runs only the exact engine, which needs neither order nor rank)
+    const plan = this.plan
+    if (plan === null) return null
     return {
       comps: this.comps,
       values: this.values,
@@ -679,8 +697,8 @@ export class Simulator {
       readerPart: this.readerPart,
       readerSlot: this.readerSlot,
       readerWake: this.readerWake,
-      order: this.plan.order,
-      rank: this.plan.rank,
+      order: typeof plan === 'string' ? new Int32Array(0) : plan.order,
+      rank: typeof plan === 'string' ? new Int32Array(this.comps.length).fill(-1) : plan.rank,
     }
   }
 
@@ -707,6 +725,7 @@ export class Simulator {
       // The other engine takes over: it re-evaluates every part once, which changes nothing in a circuit that is up to date.
       this.usingFast = fast
       this.markAll()
+      this.we?.markAll(fast)
     }
     if (fast) {
       if (this.we) return this.settleWasm()
@@ -715,7 +734,6 @@ export class Simulator {
       if (settled && this.openWasm) this.enterWasm()
       return settled
     }
-    this.leaveWasm()
     const cause = this.nextCause
     this.nextCause = 'input'
     const rec: Capture | null = this.capturing ? { frames: [this.values.slice()], truncated: false, time: this.time, cause } : null
@@ -741,6 +759,8 @@ export class Simulator {
       this.captureVersion++
       this.dirty = true
     }
+    // The module runs the exact engine too: the circuit goes to it as it is, settled or not (the parts it must look at again are flagged).
+    if (!this.we && this.openWasm) this.enterWasm()
     return settled
   }
 
@@ -778,6 +798,8 @@ export class Simulator {
     this.we = we
     this.weTicks = we.ticks
     this.weStale = false
+    if (!this.usingFast) we.markAll(false)
+    if (this.forced) this.forced.forEach((v, net) => v >= 0 && we.setForce(net, v))
   }
 
   /** The Rust engine's settle: the clocks' new phases were given to it by `advance`; the nets come back here. */
