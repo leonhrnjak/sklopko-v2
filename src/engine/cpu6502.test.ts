@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cycle, FLAG, newCpu, reset, runInstruction, setIrq, setNmi, type Cpu6502 } from './cpu6502'
+import { cycle, FLAG, newCpu, reset, runInstruction, setIrq, setNmi, type Cpu6502 } from './testdata/oracle/cpu6502'
 import { disassemble6502 } from './disasm6502'
 import { modesOf6502, opcodeOf6502 } from './asm6502'
 import { BY_OPCODE_6502, OPCODES_6502 } from './opcodes6502'

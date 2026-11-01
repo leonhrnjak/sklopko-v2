@@ -1,6 +1,6 @@
-import { lcdInit, lcdReadBus, lcdReadDone, lcdTick, lcdWriteBus, type BusyTime, type LcdState } from '../hd44780'
+import { lcdInit, type LcdState } from '../hd44780'
 import { box, names, type PinSpec } from '../layouts'
-import { X, Z, type ComponentDef, type V } from '../types'
+import { X, type ComponentDef, type V } from '../types'
 
 /** What the LCD part keeps between evaluations: the controller (`hd44780.ts`), and the pins as they were last time. */
 export interface LcdPartState extends LcdState {
@@ -11,13 +11,6 @@ export interface LcdPartState extends LcdState {
   drive: number
   mask: number
 }
-
-/**
- * Pins, in the order `evaluate` reads and writes them. Inputs: CLK, RS, RW, E, DIN0–DIN7. Outputs: D0–D7, driven (Z, not driven, the rest of the time)
- * while the chip is being read. The data pins are two pins, as the VIA's ports are: wire D to the outside and the outside to DIN, through a bus
- * junction where something else (the VIA's port B) drives the same wires.
- */
-const IN = { CLK: 0, RS: 1, RW: 2, E: 3, DIN: 4 } as const
 
 export const lcdPartInit = (): LcdPartState => ({ ...lcdInit(), cp: X, ep: X, drive: -1, mask: 0 })
 
@@ -58,41 +51,5 @@ export const lcds: ComponentDef[] = [
         left: [{ name: 'CLK', label: 'Φ2', clock: true }, { name: 'RS' }, { name: 'RW', label: 'R/W' }, { name: 'E' }, ...dinLabels],
         right: names('D', 8),
       }),
-    evaluate(inst) {
-      const { ins, outs } = inst
-      const st = inst.state as LcdPartState
-      const time = (inst.params.busy as BusyTime) ?? 'real'
-      const clk = ins[IN.CLK]
-      if (st.cp === 0 && clk === 1) lcdTick(st)
-      if (clk <= 1) st.cp = clk
-      const e = ins[IN.E]
-      const rs = ins[IN.RS]
-      const rw = ins[IN.RW]
-      const rising = st.ep === 0 && e === 1
-      const falling = st.ep === 1 && e === 0
-      if (e <= 1) st.ep = e
-      if (rising && rw === 1 && rs <= 1) {
-        const r = lcdReadBus(st, rs)
-        st.drive = r.value
-        st.mask = r.mask
-      }
-      if (falling) {
-        if (rw === 0 && rs <= 1) {
-          // The upper nibble has to be known; a data pin below it that nothing drives reads 0 (the 4-bit interface leaves them unconnected).
-          let d = 0
-          let known = true
-          for (let i = 0; i < 8; i++) {
-            const v = ins[IN.DIN + i]
-            if (v === 0 || v === 1) d |= v << i
-            else if (i >= 4) known = false
-          }
-          if (known) lcdWriteBus(st, rs, d, time)
-        } else if (rw === 1 && rs <= 1 && st.drive >= 0) lcdReadDone(st, rs)
-        st.drive = -1
-      }
-      // The chip drives the data pins while it is read (E high, R/W = 1) and lets go of them otherwise.
-      const driving = e === 1 && rw === 1 && st.drive >= 0
-      for (let i = 0; i < 8; i++) outs[i] = driving && (st.mask >> i) & 1 ? (((st.drive >> i) & 1) as V) : Z
-    },
   },
 ]

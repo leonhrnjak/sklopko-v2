@@ -15,7 +15,7 @@ import {
   aciaWipe,
   aciaWrite,
   screenText,
-} from './acia'
+} from './testdata/oracle/acia'
 
 const DATA = 0
 const STATUS = 1

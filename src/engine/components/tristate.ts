@@ -1,6 +1,6 @@
 import { numbered } from '../bus'
 import { box, names } from '../layouts'
-import { X, Z, type ComponentDef, type ParamDef, type Params, type PinGroup, type V } from '../types'
+import { Z, type ComponentDef, type ParamDef, type Params, type PinGroup } from '../types'
 
 /** Name of the i-th driver pin of a bus junction: A, B, C... */
 const driverName = (i: number) => String.fromCharCode(65 + i)
@@ -8,21 +8,6 @@ const driverName = (i: number) => String.fromCharCode(65 + i)
 /** Bits of a tri-state buffer or a bus junction: 1 is a single line, more is a bus (a part saved before had no such param: 1). */
 const bitsParam: ParamDef = { key: 'bits', label: 'Bits', kind: 'number', min: 1, max: 16, default: 1, structural: true }
 const widthOf = (p: Params) => Number(p.bits) || 1
-
-/** The junction's value for one bit, from what its drivers put on that bit. */
-function join(values: V[], pull: unknown): V {
-  let value: V = Z
-  let clash = false
-  for (const v of values) {
-    if (v === Z) continue
-    if (value === Z) value = v
-    else if (v !== value) clash = true
-    if (v === X) clash = true
-  }
-  if (clash) return X
-  if (value !== Z) return value
-  return pull === '0' ? 0 : pull === '1' ? 1 : X
-}
 
 export const tristate: ComponentDef[] = [
   {
@@ -47,11 +32,6 @@ export const tristate: ComponentDef[] = [
           { name: 'Y', dir: 'out', side: 'r', x: 40, y: 10 },
         ],
       }
-    },
-    evaluate(inst) {
-      const n = widthOf(inst.params)
-      const en = inst.ins[n]
-      for (let i = 0; i < n; i++) inst.outs[i] = en === 1 ? inst.ins[i] : en === 0 ? Z : X
     },
   },
   {
@@ -94,11 +74,6 @@ export const tristate: ComponentDef[] = [
       }
       const left = Array.from({ length: d }, (_, i) => names(driverName(i), n).map((name) => ({ name, def: Z }))).flat()
       return box({ w: 60, left, right: names('Y', n), minRows: d })
-    },
-    evaluate(inst) {
-      const d = Number(inst.params.drivers)
-      const n = widthOf(inst.params)
-      for (let bit = 0; bit < n; bit++) inst.outs[bit] = join(Array.from({ length: d }, (_, i) => inst.ins[i * n + bit]), inst.params.pull)
     },
   },
 ]

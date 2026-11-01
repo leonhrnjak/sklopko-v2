@@ -1,6 +1,6 @@
 import { numbered } from '../bus'
 import { box, names } from '../layouts'
-import { toNum, writeNum, X, type ComponentDef, type ParamDef, type Params, type V } from '../types'
+import { toNum, writeNum, type ComponentDef, type ParamDef, type Params, type V } from '../types'
 
 /** Names of net labels: short, no spaces. An empty name is allowed and connects to nothing. */
 const labelName: ParamDef = {
@@ -88,9 +88,6 @@ export const io: ComponentDef[] = [
     init: () => ({ phase: 0 as V, elapsed: 0 }),
     clockHalfPeriod: (p) => 500 / Number(p.hz),
     layout: () => ({ w: 40, h: 40, pins: [{ name: 'Q', dir: 'out', side: 'r', x: 50, y: 20 }] }),
-    evaluate(inst) {
-      inst.outs[0] = inst.state.phase
-    },
   },
   {
     type: 'const',
@@ -136,10 +133,6 @@ export const io: ComponentDef[] = [
     layout: (p) => {
       const w = flagWidth(p)
       return { w, h: 20, pins: [{ name: 'Y', dir: 'out', side: 'r', x: w + 10, y: 10, ...(Number(p.bits) > 1 ? { bus: Number(p.bits) } : {}) }] }
-    },
-    evaluate(inst) {
-      // Only reached when nothing publishes this name; a matched label shares the sender's net instead.
-      inst.outs[0] = X
     },
   },
   {

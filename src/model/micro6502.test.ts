@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assemble6502 } from '../engine/asm6502'
-import { cycle as stepCore, newCpu, reset, setIrq, setNmi } from '../engine/cpu6502'
+import { cycle as stepCore, newCpu, reset, setIrq, setNmi } from '../engine/testdata/oracle/cpu6502'
 import { MICRO_OPCODES, microRows } from '../engine/micro6502'
 import { BY_OPCODE_6502, OPCODES_6502 } from '../engine/opcodes6502'
 import { Simulator } from '../engine/simulator'

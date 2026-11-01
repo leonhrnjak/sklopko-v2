@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONSOLE_COLS, CONSOLE_LINES, consolePut, speakerPitch, speakerTone, type ConsoleState } from './components/devices'
 import { TRACE_MAX_POINTS } from './components/io'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { X, paramDefaults, type Params, type V } from './types'
 
 function part(type: string, params: Params = {}) {

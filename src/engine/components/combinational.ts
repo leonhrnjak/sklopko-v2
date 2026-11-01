@@ -1,6 +1,5 @@
 import { box, names } from '../layouts'
 import { X, toNum, writeNum, type ComponentDef, type Params, type V } from '../types'
-import { SEG_HEX } from './io'
 import { ISA_CHOICES } from '../isalist'
 import { pinLabels } from '../pinlabels'
 import { HEX_WORDS, parseWords, tableBox } from './memory'
@@ -19,9 +18,6 @@ export function comb(fn: (ins: number[], p: Params) => (number | boolean)[]): Co
     for (let i = 0; i < inst.outs.length; i++) inst.outs[i] = (r[i] ? 1 : 0) as V
   }
 }
-
-const bitsOf = (n: number, count: number) => Array.from({ length: count }, (_, i) => (n >> i) & 1)
-const num = (ins: number[], start: number, n: number) => toNum(ins as V[], start, n)
 const AB = [...names('A', 4), ...names('B', 4)]
 
 /** Operations of the 4-bit ALU, indexed by the select code S2 S1 S0. */
@@ -35,7 +31,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Adds two bits: S = A xor B, C = A and B.',
     title: () => 'HA',
     layout: () => box({ left: ['A', 'B'], right: ['S', 'C'] }),
-    evaluate: comb(([a, b]) => [a ^ b, a & b]),
   },
   {
     type: 'fulladd',
@@ -44,7 +39,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Adds A + B + carry-in, giving sum S and carry-out.',
     title: () => 'FA',
     layout: () => box({ left: ['A', 'B', { name: 'Ci', def: 0 }], right: ['S', 'Co'] }),
-    evaluate: comb(([a, b, c]) => bitsOf(a + b + c, 2)),
   },
   {
     type: 'add4',
@@ -53,7 +47,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Adds two 4-bit numbers A and B (bit 0 = least significant) plus carry-in.',
     title: () => 'Σ\n4-bit',
     layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
-    evaluate: comb((ins) => bitsOf(num(ins, 0, 4) + num(ins, 4, 4) + ins[8], 5)),
   },
   {
     type: 'halfsub',
@@ -62,7 +55,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Computes A − B: difference D = A xor B, borrow Bo = (not A) and B.',
     title: () => 'HS',
     layout: () => box({ left: ['A', 'B'], right: ['D', 'Bo'] }),
-    evaluate: comb(([a, b]) => [a ^ b, !a && b]),
   },
   {
     type: 'fullsub',
@@ -71,10 +63,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Computes A − B − borrow-in, giving difference D and borrow-out.',
     title: () => 'FS',
     layout: () => box({ left: ['A', 'B', { name: 'Bi', def: 0 }], right: ['D', 'Bo'] }),
-    evaluate: comb(([a, b, bi]) => {
-      const d = a - b - bi
-      return [d & 1, d < 0]
-    }),
   },
   {
     type: 'sub4',
@@ -83,10 +71,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Computes A − B − borrow-in on 4-bit numbers. Bo=1 means the result went below zero.',
     title: () => '−\n4-bit',
     layout: () => box({ left: [...AB, { name: 'Bi', def: 0 }], right: [...names('D', 4), 'Bo'] }),
-    evaluate: comb((ins) => {
-      const d = num(ins, 0, 4) - num(ins, 4, 4) - ins[8]
-      return [...bitsOf(d & 15, 4), d < 0]
-    }),
   },
   {
     type: 'addsub4',
@@ -95,15 +79,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'M=0: S = A + B. M=1: S = A − B (two’s complement). Co is the carry out; V is 1 when the signed result does not fit in 4 bits.',
     title: () => '±\n4-bit',
     layout: () => box({ left: [...AB, { name: 'M', def: 0 }], right: [...names('S', 4), 'Co', 'V'] }),
-    evaluate: comb((ins) => {
-      const a = num(ins, 0, 4)
-      const m = ins[8]
-      const b = m ? ~num(ins, 4, 4) & 15 : num(ins, 4, 4)
-      const r = a + b + m
-      const signed = (n: number) => (n & 8 ? n - 16 : n)
-      const exact = m ? signed(a) - signed(num(ins, 4, 4)) : signed(a) + signed(b)
-      return [...bitsOf(r, 5), exact < -8 || exact > 7]
-    }),
   },
   {
     type: 'cmp4',
@@ -112,11 +87,6 @@ export const arithmetic: ComponentDef[] = [
     description: 'Compares two 4-bit numbers A and B. Exactly one of the outputs A>B, A=B, A<B is 1.',
     title: () => 'COMP',
     layout: () => box({ left: AB, right: [{ name: 'GT', label: 'A>B' }, { name: 'EQ', label: 'A=B' }, { name: 'LT', label: 'A<B' }] }),
-    evaluate: comb((ins) => {
-      const a = num(ins, 0, 4)
-      const b = num(ins, 4, 4)
-      return [a > b, a === b, a < b]
-    }),
   },
   {
     type: 'alu',
@@ -138,54 +108,6 @@ export const arithmetic: ComponentDef[] = [
         ],
         right: [...names('F', 4), 'Co', 'Z'],
       }),
-    evaluate(inst) {
-      const { ins, outs } = inst
-      const a = num(ins, 0, 4)
-      const b = num(ins, 4, 4)
-      const op = num(ins, 8, 3)
-      // S2 is the most significant select bit: it sits first on the bottom row.
-      const code = op < 0 ? -1 : ((op & 1) << 2) | (op & 2) | (op >> 2)
-      if (code < 0 || a < 0 || (code < 5 && b < 0)) {
-        outs.fill(X)
-        return
-      }
-      let r = 0
-      let co = 0
-      switch (code) {
-        case 0:
-          r = a + b
-          co = r > 15 ? 1 : 0
-          break
-        case 1:
-          r = a - b
-          co = r < 0 ? 1 : 0
-          break
-        case 2:
-          r = a & b
-          break
-        case 3:
-          r = a | b
-          break
-        case 4:
-          r = a ^ b
-          break
-        case 5:
-          r = ~a
-          break
-        case 6:
-          r = a + 1
-          co = r > 15 ? 1 : 0
-          break
-        case 7:
-          r = a - 1
-          co = r < 0 ? 1 : 0
-          break
-      }
-      r &= 15
-      writeNum(outs, 0, 4, r)
-      outs[4] = co as V
-      outs[5] = r === 0 ? 1 : 0
-    },
   },
   {
     type: 'mul',
@@ -198,10 +120,6 @@ export const arithmetic: ComponentDef[] = [
       const n = Number(p.n)
       return box({ left: [...names('A', n), ...names('B', n)], right: names('P', 2 * n) })
     },
-    evaluate: comb((ins, p) => {
-      const n = Number(p.n)
-      return bitsOf(num(ins, 0, n) * num(ins, n, n), 2 * n)
-    }),
   },
   {
     type: 'bcdadd',
@@ -212,11 +130,6 @@ export const arithmetic: ComponentDef[] = [
       'goes past 9). Inputs above 9 are not valid BCD.',
     title: () => 'BCD\nΣ',
     layout: () => box({ left: [...AB, { name: 'Ci', def: 0 }], right: [...names('S', 4), 'Co'] }),
-    evaluate: comb((ins) => {
-      let z = num(ins, 0, 4) + num(ins, 4, 4) + ins[8]
-      if (z > 9) z += 6
-      return [...bitsOf(z & 15, 4), z > 15]
-    }),
   },
 ]
 
@@ -245,11 +158,6 @@ export const routing: ComponentDef[] = [
       const n = Number(p.n)
       return box({ w: 100, left: names('I', n), bottom: names('S', log2(n)).reverse(), right: ['Y'], minRows: n + 1 })
     },
-    evaluate(inst) {
-      const n = Number(inst.params.n)
-      const s = selectIndex(inst.ins, n, log2(n))
-      inst.outs[0] = s < 0 ? X : inst.ins[s]
-    },
   },
   {
     type: 'demux',
@@ -262,24 +170,8 @@ export const routing: ComponentDef[] = [
       const n = Number(p.n)
       return box({ w: 100, left: ['I'], bottom: names('S', log2(n)).reverse(), right: names('Y', n), minRows: n + 1 })
     },
-    evaluate(inst) {
-      const n = Number(inst.params.n)
-      const s = selectIndex(inst.ins, 1, log2(n))
-      for (let i = 0; i < n; i++) inst.outs[i] = s < 0 ? X : i === s ? inst.ins[0] : 0
-    },
   },
 ]
-
-/** Select lines are laid out MSB first (S1 S0) after `offset` data inputs; returns the index or -1 on X. */
-function selectIndex(ins: V[], offset: number, k: number): number {
-  let s = 0
-  for (let i = 0; i < k; i++) {
-    const v = ins[offset + k - 1 - i]
-    if (v === X) return -1
-    s |= v << i
-  }
-  return s
-}
 
 export const coding: ComponentDef[] = [
   {
@@ -293,11 +185,6 @@ export const coding: ComponentDef[] = [
       const k = Number(p.n)
       return box({ left: names('A', k), bottom: [{ name: 'EN', def: 1 }], right: names('Y', 1 << k) })
     },
-    evaluate: comb((ins, p) => {
-      const k = Number(p.n)
-      const a = num(ins, 0, k)
-      return Array.from({ length: 1 << k }, (_, i) => ins[k] === 1 && i === a)
-    }),
   },
   {
     type: 'encoder',
@@ -310,11 +197,6 @@ export const coding: ComponentDef[] = [
       const n = Number(p.n)
       return box({ left: names('I', n), right: [...names('A', log2(n)), 'V'] })
     },
-    evaluate: comb((ins, p) => {
-      const n = Number(p.n)
-      const hi = ins.lastIndexOf(1)
-      return [...bitsOf(Math.max(hi, 0), log2(n)), hi >= 0]
-    }),
   },
   {
     type: 'bcd7',
@@ -337,10 +219,6 @@ export const coding: ComponentDef[] = [
     ],
     title: (p) => (p.mode === 'hex' ? 'HEX\nto\n7seg' : 'BCD\nto\n7seg'),
     layout: () => box({ left: ['A', 'B', 'C', 'D'], right: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }),
-    evaluate: comb((ins, p) => {
-      const n = num(ins, 0, 4)
-      return bitsOf(p.mode === 'hex' || n < 10 ? SEG_HEX[n] : 0, 7)
-    }),
   },
   {
     type: 'bcddec',
@@ -349,10 +227,6 @@ export const coding: ComponentDef[] = [
     description: 'Raises the output 0–9 matching the BCD input (A = LSB). Invalid codes raise nothing.',
     title: () => 'BCD\nto\nDEC',
     layout: () => box({ left: ['A', 'B', 'C', 'D'], right: names('Y', 10) }),
-    evaluate: comb((ins) => {
-      const n = num(ins, 0, 4)
-      return Array.from({ length: 10 }, (_, i) => i === n)
-    }),
   },
   {
     type: 'bin2bcd',
@@ -361,10 +235,6 @@ export const coding: ComponentDef[] = [
     description: 'Converts a 4-bit binary number (0–15) into two BCD digits: ones O0–O3 and tens T0.',
     title: () => 'BIN\nto\nBCD',
     layout: () => box({ left: names('B', 4), right: [...names('O', 4), 'T0'] }),
-    evaluate: comb((ins) => {
-      const n = num(ins, 0, 4)
-      return [...bitsOf(n % 10, 4), n >= 10]
-    }),
   },
   {
     type: 'gray',
@@ -389,14 +259,6 @@ export const coding: ComponentDef[] = [
       p.dir === 'g2b'
         ? box({ left: names('G', 4), right: names('B', 4) })
         : box({ left: names('B', 4), right: names('G', 4) }),
-    evaluate: comb((ins, p) => {
-      let n = num(ins, 0, 4)
-      if (p.dir === 'g2b') {
-        for (let s = n >> 1; s; s >>= 1) n ^= s
-        return bitsOf(n, 4)
-      }
-      return bitsOf(n ^ (n >> 1), 4)
-    }),
   },
   {
     type: 'parity',
@@ -406,10 +268,6 @@ export const coding: ComponentDef[] = [
     params: [sizeParam('Inputs', [4, 8], 4)],
     title: () => 'PAR',
     layout: (p) => box({ left: names('I', Number(p.n)), right: ['ODD', 'EVEN'] }),
-    evaluate: comb((ins) => {
-      const odd = ins.reduce((a, b) => a ^ b, 0)
-      return [odd, !odd]
-    }),
   },
 ]
 

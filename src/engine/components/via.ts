@@ -1,6 +1,6 @@
 import { box, names, type PinSpec } from '../layouts'
-import { X, Z, toNum, writeNum, type ComponentDef, type V } from '../types'
-import { ca2IsOutput, cb2IsOutput, viaClock, viaEdges, viaInit, viaIrq, viaPortOut, viaRead, viaReset, viaWrite, type ViaState } from '../via6522'
+import { X, type ComponentDef, type V } from '../types'
+import { viaInit, type ViaState } from '../via6522'
 
 /** What the VIA part keeps between evaluations: the chip's registers (`via6522.ts`), PHI2 as it was, and what the data pins show. */
 export interface ViaPartState extends ViaState {
@@ -10,32 +10,7 @@ export interface ViaPartState extends ViaState {
   out: number
 }
 
-/**
- * Pins, in the order `evaluate` reads and writes them (a box lists its left pins, then its right ones). Inputs: PHI2, RESB, CS1, CS2B,
- * RS0–RS3, RWB, DI0–DI7, PAIN0–PAIN7, PBIN0–PBIN7, CA1, CA2IN, CB1, CB2IN. Outputs: D0–D7, PA0–PA7, PB0–PB7, CA2, CB2, IRQB.
- *
- * A port pin is two pins, as the CPU's data bus is: PAn / PBn is what the chip drives (nothing, Z, where the pin is an input), and
- * PAINn / PBINn is what it reads. Wire the first to the outside, and join the outside to the second, with a bus junction when
- * something else (an LCD that is read) drives the same wires.
- */
-const IN = { PHI2: 0, RESB: 1, CS1: 2, CS2B: 3, RS: 4, RWB: 8, DI: 9, PAIN: 17, PBIN: 25, CA1: 33, CA2IN: 34, CB1: 35, CB2IN: 36 } as const
-const OUT = { D: 0, PA: 8, PB: 16, CA2: 24, CB2: 25, IRQB: 26 } as const
-
 export const viaPartInit = (): ViaPartState => ({ ...viaInit(), pc: X, out: 0 })
-
-/** A level as 0 or 1, or -1 when it is not one. */
-const level = (v: V) => (v === 0 || v === 1 ? v : -1)
-
-/** The eight pins of a port as a number. A bit nothing drives reads 0, unless the chip itself drives it (then it reads what it drives). */
-function portIn(ins: V[], first: number, out: number, oe: number): number {
-  let n = 0
-  for (let i = 0; i < 8; i++) {
-    const v = ins[first + i]
-    const b = v === 0 || v === 1 ? v : (oe >> i) & 1 ? (out >> i) & 1 : 0
-    n |= b << i
-  }
-  return n
-}
 
 const inLabels = (prefix: string, shown: string): PinSpec[] => names(prefix, 8).map((name, i) => ({ name, label: `${shown}${i} in` }))
 
@@ -72,45 +47,5 @@ export const vias: ComponentDef[] = [
       }),
     title: () => 'VIA 6522',
     init: (): ViaPartState => viaPartInit(),
-    evaluate(inst) {
-      const { ins, outs } = inst
-      const st = inst.state as ViaPartState
-      const phi2 = ins[IN.PHI2]
-      const rising = st.pc === 0 && phi2 === 1
-      if (phi2 <= 1) st.pc = phi2
-      const { pa: paOut, paOe, pb: pbOut, pbOe } = viaPortOut(st)
-      const pins = { pa: portIn(ins, IN.PAIN, paOut, paOe), pb: portIn(ins, IN.PBIN, pbOut, pbOe) }
-      if (ins[IN.RESB] === 0) {
-        // Held in reset: the registers are cleared, the ports are inputs, and nothing is selected.
-        viaReset(st)
-        st.out = 0
-      } else {
-        // The control pins look at their levels whenever they change, not only at the clock.
-        viaEdges(st, level(ins[IN.CA1]), level(ins[IN.CA2IN]), level(ins[IN.CB1]), level(ins[IN.CB2IN]), pins)
-        if (rising) {
-          // Like the terminal: the chip works while Φ2 is high, its inputs steady since the CPU's last falling edge; what a read returns is kept for the pins.
-          st.out = 0
-          if (ins[IN.CS1] === 1 && ins[IN.CS2B] === 0) {
-            const rs = toNum(ins, IN.RS, 4)
-            const rw = ins[IN.RWB]
-            if (rs >= 0 && rw === 1) st.out = viaRead(st, rs, pins)
-            else if (rs >= 0 && rw === 0) {
-              const data = toNum(ins, IN.DI, 8)
-              if (data >= 0) viaWrite(st, rs, data)
-            }
-          }
-          viaClock(st, (pins.pb >> 6) & 1)
-        }
-      }
-      writeNum(outs, OUT.D, 8, st.out)
-      const out = viaPortOut(st)
-      for (let i = 0; i < 8; i++) {
-        outs[OUT.PA + i] = (out.paOe >> i) & 1 ? (((out.pa >> i) & 1) as V) : Z
-        outs[OUT.PB + i] = (out.pbOe >> i) & 1 ? (((out.pb >> i) & 1) as V) : Z
-      }
-      outs[OUT.CA2] = ca2IsOutput(st) ? (st.ca2out as V) : Z
-      outs[OUT.CB2] = cb2IsOutput(st) ? (st.cb2out as V) : Z
-      outs[OUT.IRQB] = viaIrq(st) ? 0 : 1
-    },
   },
 ]

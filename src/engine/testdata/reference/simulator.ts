@@ -1,6 +1,6 @@
 import { resolveLabels } from '../../netlabels'
 import { layoutOf } from '../../layoutcache'
-import { getDef, hasDef } from './registry'
+import { getDef, hasDef, type OracleDef } from './registry'
 import { X, Z, type ComponentDef, type Instance, type Params, type V } from '../../types'
 
 export interface SimComp {
@@ -329,7 +329,7 @@ export class ReferenceSimulator {
       const v = n >= 0 ? (values[n] as V) : cc.inDefaults[i]
       ins[i] = v === Z && !zOk ? X : v
     }
-    cc.def.evaluate(cc.inst)
+    (cc.def as OracleDef).evaluate(cc.inst)
     const pipe = cc.pipe
     const writes = this.writes
     let w = this.written

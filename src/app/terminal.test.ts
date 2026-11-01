@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aciaBreak, aciaClock, aciaInit, aciaRead, aciaWrite } from '../engine/acia'
+import { aciaBreak, aciaClock, aciaInit, aciaRead, aciaWrite } from '../engine/testdata/oracle/acia'
 import { terminalInput, terminalKey, type KeyLike } from './terminal'
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods })

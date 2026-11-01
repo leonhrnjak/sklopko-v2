@@ -48,18 +48,6 @@ export const receiverOn = (st: AciaState) => (st.command & 1) === 1
 /** The receive interrupt is on: command bit 1 clear. */
 export const interruptOn = (st: AciaState) => (st.command & 2) === 0
 
-/** The level of the interrupt line (IRQ is low while this is true). */
-export const aciaIrq = (st: AciaState) => st.interrupt
-
-/** What RESB low does to the chip: the registers are cleared. (The part can also wipe the terminal: `aciaWipe`.) */
-export function aciaReset(st: AciaState) {
-  st.command = 0
-  st.control = 0
-  st.rx = 0
-  st.full = false
-  st.interrupt = false
-}
-
 /** The terminal's own reset: a blank screen, the cursor at the top, and nothing waiting on the keyboard. A no-op (no change counted) when it is so already. */
 export function aciaWipe(st: AciaState) {
   st.keys = ''
@@ -67,57 +55,8 @@ export function aciaWipe(st: AciaState) {
   if (st.lines.length > 1 || st.lines[0] !== '' || st.col !== 0) aciaPut(st, 12)
 }
 
-/** Deliver the next waiting character if the receiver is on and the last one was read. Called at every clock. */
-export function aciaClock(st: AciaState) {
-  if (st.full || !receiverOn(st) || st.next >= st.keys.length) return
-  st.rx = st.keys.charCodeAt(st.next++)
-  st.full = true
-  if (interruptOn(st)) st.interrupt = true
-  if (st.next > 1024) {
-    st.keys = st.keys.slice(st.next)
-    st.next = 0
-  }
-}
-
 export function aciaStatus(st: AciaState, dsr: boolean): number {
   return (st.full ? 8 : 0) | 16 | (dsr ? 64 : 0) | (st.interrupt ? 128 : 0)
-}
-
-/** A read of register `rs` (0–3), with its side effects: the data register clears *full*, the status register clears *interrupt*. */
-export function aciaRead(st: AciaState, rs: number, dsr: boolean): number {
-  switch (rs & 3) {
-    case 0: {
-      const v = st.rx
-      st.full = false
-      return v
-    }
-    case 1: {
-      const v = aciaStatus(st, dsr)
-      st.interrupt = false
-      return v
-    }
-    case 2:
-      return st.command
-    default:
-      return st.control
-  }
-}
-
-export function aciaWrite(st: AciaState, rs: number, value: number) {
-  switch (rs & 3) {
-    case 0:
-      aciaPut(st, value & 0x7f)
-      break
-    case 1: // programmed reset
-      st.command &= 0xe0
-      st.interrupt = false
-      break
-    case 2:
-      st.command = value & 255
-      break
-    default:
-      st.control = value & 255
-  }
 }
 
 /** The part of `text` that `aciaType` would take (see there), without taking it. */

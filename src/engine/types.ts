@@ -94,8 +94,11 @@ export interface ComponentDef {
   params?: ParamDef[]
   layout(p: Params): Layout
   init?(p: Params): any
-  /** Compute outputs from inputs (and state). Called once per tick. */
-  evaluate(inst: Instance): void
+  /**
+   * Compute outputs from inputs (and state). Only the parts the page runs itself have one (switches, buttons, labels, constants and
+   * so on, and a ROM, whose words are found by asking it); what the other parts do lives once, in Rust (engine-rs/src/parts/).
+   */
+  evaluate?(inst: Instance): void
   /**
    * How the outputs follow the inputs, for the fast engine (see docs/spec-sim-speed-tier2.md). Set from the table in `timing.ts`.
    * 'comb': a function of the inputs now. 'registered': a function of the state; the state changes only when a clock input changes.

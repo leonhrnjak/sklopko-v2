@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { Simulator, type SimCircuit } from './simulator'
 import { X, paramDefaults, type Params, type V } from './types'
 

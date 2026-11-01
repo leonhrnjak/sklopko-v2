@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { viaPartInit, type ViaPartState } from './components/via'
-import { getDef } from './registry'
+import { getDef } from './testdata/oracle/registry'
 import { X, Z, paramDefaults, type V } from './types'
 
 const def = getDef('via6522')
