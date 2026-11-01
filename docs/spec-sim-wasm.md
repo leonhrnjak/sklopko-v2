@@ -183,6 +183,25 @@ the others out, with the number of examples using them: `hexdisp` 17, `breakpoin
 `hexin` 6, `console` 6, `register` 5, `decoder` 5, `bin2bcd` 5, `bcdadd` 5, `busjoin` 5, `gamepad` 4, `add4` 3, `tff` 3, `tribuf` 3, `keypad` 3,
 `via6522` 3. E4 ports them in that order, and the count is measured again after each batch.
 
+## E3 and E4 result: every part is in the module (2026-11-01)
+
+- **Parts.** All part types that reach the engine as a part are ported. The splitter, merger and custom IC are taken apart when the drawing is
+  compiled; the parts that only look at the nets (probe, breakpoint, matrix, speaker) are run by the `Simulator` on the page's side after each
+  settle, by design; displays and inputs do nothing in the engine. The last batches: E4b ROM table port, BCD parts, T flip-flop; E4c keypad,
+  pixel screen, text console; E4d latches, counters, registers, shift register and the small combinational parts; E4e tri-state buffer and bus
+  junction; E4f the 6522 and the HD44780; E4g the 6502 and 65C02 (the opcode tables stay in TypeScript and are sent in the image); E4h the rest.
+- **Structure.** `engine-rs/src/engine.rs` is the core (tables, settle loop). `engine-rs/src/parts/` has one file per family of parts; a part
+  is a function of its `Cell` (inputs, outputs, its state, its parameters) and, if it needs them, `Shared` (memories, screens, chips). How to add
+  a part is at the top of `parts/mod.rs`.
+- **Coverage.** Of the 63 examples, 45 run on Rust with the step-back history off (with it on, a circuit with a terminal or a text console stays
+  on the TypeScript engine, because their screens are replayed from event logs) and match the TypeScript engine net for net after every
+  clock edge. The other 18 have no clock (15: gates, adders, latches, `ripple`, `oscillator` and the like, which settle once and gain nothing),
+  or two clocks (`uart`, `debounce`, `65c02-timer`). Two clocks in the fast engine, and the exact engine, are E6.
+- **Tests.** A single-part test with unknown inputs and random switches for every part (16 seeds of 120 edges); the all-examples comparison;
+  the Simulator-level tests (history, probes, breakpoints, terminal, screens); random opcodes on both CPU chips; Microsoft BASIC on the
+  `cpu6502` board.
+- **Not yet done:** the browser measurement of the whole simulator (E5), E6 and E7.
+
 ## End state: one implementation, in Rust
 
 Decided with Leon on 2026-10-31: the simulator should not stay a mix of TypeScript and Rust that is hard to maintain. The target is that
