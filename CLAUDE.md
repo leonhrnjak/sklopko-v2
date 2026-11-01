@@ -85,9 +85,10 @@ its `KIND` entry and a `CASES` entry in `src/engine/wasmengine.test.ts`**, not o
 TypeScript engines, which stay until E7 removes them.
 
 `engine-rs/` is the simulator's engine in Rust (`docs/spec-sim-wasm.md`); its built module is **committed** at
-`src/engine/wasm/engine.wasm`, so `npm run build` and the Cloudflare deploy need no Rust. After changing anything in `engine-rs/`, run
-`npm run build:wasm` (needs Rust; rustup installs the toolchain `engine-rs/rust-toolchain.toml` names) and commit the new file together
-with the source. CI runs `npm run build:wasm -- --check` and fails if the committed file is not what the source builds to.
+`src/engine/wasm/engine.wasm`, so `npm run build` and the Cloudflare deploy need no Rust. After changing anything in `engine-rs/`, CI rebuilds the module (`npm run build:wasm` in the `wasm` job; the unit and build jobs test that
+build) and, on a PR from this repo, commits the new `engine.wasm` to the PR branch itself, so you need not build it locally (pull before
+your next push). Run `npm run build:wasm` locally only to try the change in the browser or tests (needs Rust; rustup installs the toolchain
+`engine-rs/rust-toolchain.toml` names). The nightly run fails if the committed file is not what the source builds to.
 
 ## Current work
 
