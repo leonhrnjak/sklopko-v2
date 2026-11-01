@@ -1,6 +1,8 @@
 import { basicRomBytes } from './basic-rom'
 import type { Circuit } from './circuit'
 import { boardExample } from './board6502'
+import { assemble6502 } from '../engine/asm6502'
+import { doomSource } from './doom/source'
 import { BALL_SOURCE, GAME_BANK0_SOURCE, GAME_BANK1_SOURCE, GAME_TEST_SOURCE, VIDEO_CARD_SOURCE, LCD_HELLO_SOURCE, VIA_TIMER_SOURCE, COUNTER_SOURCE, ECHO_IRQ_SOURCE, ECHO_SOURCE, HELLO_SOURCE, KEYPAD_SOURCE, SWEEP_65C02_SOURCE, TIMER_NMI_SOURCE } from './programs6502'
 
 /** The 6502 board with devices, one example for each program of `programs6502.ts`. */
@@ -220,6 +222,28 @@ export const gameBoard6502 = (): Circuit => {
       decode: GAME_DECODE,
       memory: GAME_MEMORY,
       devices: GAME_DEVICES,
+    },
+  )
+  c.history = false
+  return c
+}
+
+const DOOM_DEVICES =
+  'The game is the whole ROM: a loop paced by the VIA\u2019s timer (60 ticks a second), the rules, and the raycaster. Each picture it reads the gamepad once and runs one step of the rules for every tick since the last picture, so you walk at the same speed whatever a picture costs (about 90,000 cycles: ten a second at 1 MHz). Up and down walk, left and right turn, A (Z) with left or right slides sideways, B (X) opens the door in front of you. Use the arrow keys, W A S D, Z and X, or click the gamepad. The step-back history is off.'
+
+/** The Doom-like engine on the game board: walk a maze, open a door. The enemies and levels come in the next milestones. */
+export const doomLike6502 = (): Circuit => {
+  // The program is too long for a ROM part's source text (9,000 characters), so the ROM holds the assembled bytes only.
+  const assembled = assemble6502(doomSource(160, 'fill', true), 0x4000, true)
+  if (assembled.errors.length) throw new Error(`The game does not assemble: line ${assembled.errors[0].line}: ${assembled.errors[0].message}`)
+  const c = boardExample(
+    { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, rom: assembled.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' '), bankSources: ['.org $8000\n.byte 0', '.org $8000\n.byte 0'] },
+    {
+      intro:
+        'A 3D maze on a 6502. A program of a few hundred bytes casts one ray for each of the 160 columns of the screen, finds the wall it hits with no multiplications (tables of logarithms and exponentials), and tells the video chip to fill the column. Walk with the arrow keys, turn, slide sideways with Z, and press X in front of the door ahead of you to open it. Select the screen to see it large.',
+      decode: GAME_DECODE,
+      memory: GAME_MEMORY,
+      devices: DOOM_DEVICES,
     },
   )
   c.history = false

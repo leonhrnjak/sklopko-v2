@@ -12,7 +12,7 @@ export const SCREEN_W = 160
 export const screenWidth = (columns: number) => (columns === 80 ? 160 : columns)
 export const SCREEN_H = 100
 export const COLUMN_BYTES = SCREEN_H / 2
-/** Colours: 0 black, 1 ceiling, 2 floor, 3 to 15 walls. */
+/** Colours: 0 black, 1 ceiling, 2 floor, the rest walls and doors (see `SHADE`). */
 export const SKY = 1
 export const FLOOR = 2
 
@@ -100,9 +100,12 @@ export const Q_NEAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(4 * i 
 /** … and for a distance of 1024 and more (index: distance / 16). */
 export const Q_FAR: number[] = Array.from({ length: 256 }, (_, i) => toQ(16 * i + 8))
 
+/** Palette entries for walls (far to near) and for doors (brown, orange-red, orange, yellow): no colour is both. */
+export const WALL_COLOURS = [3, 4, 7, 8, 9, 10, 11, 14, 15]
+export const DOOR_COLOURS = [5, 6, 13, 12]
 /**
  * The pair of pixels (both nibbles) of a wall column of height `q`, seen on the X side (side 0, brighter) or the Y side (side 1): index
- * side·32 + q. A door (index + 64) has its own colours: brown, orange, amber and yellow as it comes near.
+ * side·32 + q. A door (index + 64) has colours of its own.
  */
 export const SHADE: number[] = Array.from({ length: 128 }, (_, i) => {
   const q = i & 31
@@ -110,12 +113,11 @@ export const SHADE: number[] = Array.from({ length: 128 }, (_, i) => {
   const side = (i >> 5) & 1
   let shade: number
   if (i < 64) {
-    const c = 3 + ((q - 1) >> 1)
-    shade = side === 0 ? c : Math.max(3, c - 2)
+    const k = Math.floor(((q - 1) * WALL_COLOURS.length) / Q_MAX)
+    shade = WALL_COLOURS[side === 0 ? k : Math.max(0, k - 1)]
   } else {
-    const ramp = [5, 6, 13, 12]
     const step = Math.min(3, Math.floor((q - 1) / 7))
-    shade = ramp[side === 0 ? step : Math.max(0, step - 1)]
+    shade = DOOR_COLOURS[side === 0 ? step : Math.max(0, step - 1)]
   }
   return shade | (shade << 4)
 })

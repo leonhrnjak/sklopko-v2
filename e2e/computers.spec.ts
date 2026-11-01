@@ -905,3 +905,26 @@ test('the video example: the 6502 draws a colour test card through the video chi
   // column 55 has colour 5 (0x7a2e1f)
   expect(await pixel(55, 40)).toEqual([0x7a, 0x2e, 0x1f, 255])
 })
+
+test('the Doom-like example: walk up to the door in the corridor, open it, and walk through', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
+  const canvas = page.getByTestId('canvas').locator('canvas.video-canvas')
+  await expect(canvas).toBeVisible()
+  const pixel = (x: number, y: number) =>
+    canvas.evaluate((c: HTMLCanvasElement, [px, py]) => Array.from(c.getContext('2d')!.getImageData(px, py, 1, 1).data), [x, y])
+  // The sky is colour 1 (0x1b2a6b), the floor colour 2 (0x3b3fc2); the door ahead is drawn in the brown to yellow door colours.
+  const doorColours = [[0x7a, 0x2e, 0x1f], [0xd9, 0x55, 0x2b], [0xff, 0x9a, 0x2e], [0xf2, 0xd3, 0x2e]]
+  const isDoor = async () => {
+    const p = (await pixel(80, 50)).slice(0, 3)
+    return doorColours.some((c) => c.every((v, i) => v === p[i]))
+  }
+  await expect.poll(() => pixel(80, 2), { timeout: 30000 }).toEqual([0x1b, 0x2a, 0x6b, 255])
+  await expect.poll(isDoor, { timeout: 30000 }).toBe(true)
+  // Hold up and X together: the player walks until the door is within reach, X opens it, and the corridor's far wall shows through.
+  await page.keyboard.down('ArrowUp')
+  await page.keyboard.down('x')
+  await expect.poll(isDoor, { timeout: 30000 }).toBe(false)
+  await page.keyboard.up('x')
+  await page.keyboard.up('ArrowUp')
+})

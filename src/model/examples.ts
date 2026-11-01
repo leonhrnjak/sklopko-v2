@@ -5,7 +5,7 @@ import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note } from './annotate'
 import { beginnerComputer } from './beginner'
 import { board6502 } from './board6502'
-import { ball6502, basic6502, gameBoard6502, basicLcd6502, lcd6502, video6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
+import { ball6502, basic6502, doomLike6502, gameBoard6502, basicLcd6502, lcd6502, video6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
 import { MICRO_IRQ_SOURCE, micro6502, micro6502Basic } from './micro6502'
 import { computerBlocks, icAdder } from './ic-examples'
 import { hazard, ripple } from './timing-examples'
@@ -1127,6 +1127,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   '6502-lcd': lcd6502,
   '6502-video': video6502,
   '6502-gameboard': gameBoard6502,
+  '6502-doomlike': doomLike6502,
   '6502-basic-lcd': basicLcd6502,
   '6502-echo': echo6502,
   '6502-echo-irq': echoIrq6502,
