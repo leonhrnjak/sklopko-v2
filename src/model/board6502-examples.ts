@@ -234,11 +234,16 @@ const DOOM_DEVICES =
 
 /** The Doom-like on the game board: five levels with monsters, a gun, doors and an exit switch at the end of each. */
 export const doomLike6502 = (): Circuit => {
-  // The program is too long for a ROM part's source text (9,000 characters), so the ROM holds the assembled bytes only.
+  // The program and the art are too long for a ROM part's source text (9,000 characters), so the ROMs hold the assembled bytes only.
+  const hex = (source: string) => {
+    const r = assemble6502(source, 0x4000, true)
+    if (r.errors.length) throw new Error(`The game does not assemble: line ${r.errors[0].line}: ${r.errors[0].message}`)
+    return r.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' ')
+  }
   const assembled = assemble6502(doomSource(160, 'fill', true), 0x4000, true)
   if (assembled.errors.length) throw new Error(`The game does not assemble: line ${assembled.errors[0].line}: ${assembled.errors[0].message}`)
   const c = boardExample(
-    { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, rom: assembled.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' '), bankSources: [levelBankSource(), ART_BANK_SOURCE] },
+    { hz: 1_000_000, memory: 'big', chip: 'cmos', game: true, rom: assembled.bytes.map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join(' '), banks: [hex(levelBankSource()), hex(ART_BANK_SOURCE)] },
     {
       intro:
         'A 3D shooter on a 6502. A program casts one ray for each of the 160 columns of the screen, finds the wall with no multiplications (tables of logarithms and exponentials), tells the video chip to fill the column, and draws the monsters over it. Arrow keys walk and turn, Z slides sideways, X opens a door, presses the cyan exit switch (five levels) or fires. Maps are in the ROM\u2019s first bank, the art in the second. Select the ROM to read the program and the screen to see it large.',
