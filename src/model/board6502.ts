@@ -265,16 +265,16 @@ export function board6502Builder(o: Board6502Options = {}) {
     wire(a12, `${nA12g}.A`)
     const nA15 = part(DECODE, 'nA15', 'not', { label: 'A15 = 0' })
     wire(a15, `${nA15}.A`)
-    const slot = part(DECODE, 'padSlot', 'and', { params: { inputs: 4 }, label: 'gamepad and bank latch: A15 = 0, A14 = 1, A13 = 0, A12 = 1' })
+    const slot = part(DECODE, 'padSlot', 'and', { params: { inputs: 4 }, label: 'slot $5000: A14 and A12, not A15, A13' })
     wire(`${nA15}.Y`, `${slot}.A`)
     wire(a14, `${slot}.B`)
     wire(`${nA13g}.Y`, `${slot}.C`)
     wire(a12, `${slot}.D`)
-    const ld = part(DECODE, 'bankLd', 'and', { params: { inputs: 3 }, label: 'bank latch $5001: that slot, writing, A0 = 1' })
+    const ld = part(DECODE, 'bankLd', 'and', { params: { inputs: 3 }, label: 'latch $5001: slot, writing, A0' })
     wire(`${slot}.Y`, `${ld}.A`)
     wire(`${nrw}.Y`, `${ld}.B`)
     wire(`${lowSplit}.Y0`, `${ld}.C`)
-    const reg = part(OUTPUT, 'bankReg', 'busreg', { params: { bits: 8 }, label: 'Bank latch $5001: bit 0 picks the ROM at $8000' })
+    const reg = part(OUTPUT, 'bankReg', 'busreg', { params: { bits: 8 }, label: 'Bank latch $5001 (bit 0: ROM bank)' })
     wire(`${cpu}.D`, `${reg}.D`)
     wire(`${ld}.Y`, `${reg}.LD`)
     wire(`${clk}.Q`, `${reg}.CLK`)
@@ -423,7 +423,7 @@ export function board6502Builder(o: Board6502Options = {}) {
   }
   // The devices' read buses meet in the multiplexer's third input: one device, straight; the VIA and the terminal, by A13.
   if (readBus.length === 1) wire(readBus[0], `${mux}.I2`)
-  else if (readBus.length === 2) {
+  else if (readBus.length === 2 && !game) {
     const pick = part(MEMORY, 'termOrVia', 'busmux', { params: { bits: 8, n: 2 }, label: 'terminal or VIA: A13' })
     wire(readBus[0], `${pick}.I0`) // the terminal, A13 = 0
     wire(readBus[1], `${pick}.I1`)
