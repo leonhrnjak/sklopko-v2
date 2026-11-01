@@ -11,6 +11,7 @@ mod io;
 mod memory;
 mod seq;
 mod terminal;
+mod tristate;
 pub mod util;
 
 use acia::Acia;
@@ -64,6 +65,8 @@ pub mod kind {
     pub const FRAMEBUFFER: i32 = 45;
     pub const CONSOLE: i32 = 46;
     pub const ACIA: i32 = 47;
+    pub const TRIBUF: i32 = 48;
+    pub const BUSJOIN: i32 = 49;
 }
 
 /// The 7-segment patterns of 0 to F.
@@ -119,6 +122,7 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         41..=42 => memory::eval(kind, c, sh),
         43..=46 => io::eval(kind, c, sh),
         47 => terminal::eval(kind, c, sh),
+        48..=49 => tristate::eval(kind, c),
         _ => {}
     }
 }
