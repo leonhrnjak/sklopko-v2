@@ -22,7 +22,7 @@ pub use cpu6502::{Cpu, Programs, CPU_FIELDS};
 pub use lcd::{Lcd, LCD_FIELDS};
 pub use via::{Via, VIA_FIELDS};
 
-/// The kinds of part. The numbers are the page's (`KIND` in src/engine/wasmengine.ts); a family has a range of them.
+/// The kinds of part. The numbers are the page's (`KIND` in src/engine/wasmengine.ts). A number never changes once it is given, so a family can have a range and a few more numbers, added later.
 pub mod kind {
     pub const AND: i32 = 1;
     pub const OR: i32 = 2;
@@ -76,6 +76,14 @@ pub mod kind {
     pub const VIA6522: i32 = 50;
     pub const LCD: i32 = 51;
     pub const CPU6502: i32 = 52;
+    pub const DEMUX: i32 = 53;
+    pub const RINGCOUNTER: i32 = 54;
+    pub const BUSSUB: i32 = 55;
+    pub const BUSADDSUB: i32 = 56;
+    pub const GRAY: i32 = 57;
+    pub const PARITY: i32 = 58;
+    pub const LUT: i32 = 59;
+    pub const NETRECV: i32 = 60;
 }
 
 /// The 7-segment patterns of 0 to F.
@@ -128,13 +136,13 @@ pub struct Shared {
 #[inline(always)]
 pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
     match kind {
-        1..=9 => gates::eval(kind, c),
-        10..=15 => bus::eval(kind, c),
-        16..=24 => seq::eval(kind, c),
+        1..=9 | 53 => gates::eval(kind, c),
+        10..=15 | 55..=56 => bus::eval(kind, c),
+        16..=24 | 54 => seq::eval(kind, c),
         25..=35 => arith::eval(kind, c),
-        36..=40 => coding::eval(kind, c),
-        41..=42 => memory::eval(kind, c, sh),
-        43..=46 => io::eval(kind, c, sh),
+        36..=40 | 57..=58 => coding::eval(kind, c),
+        41..=42 | 59 => memory::eval(kind, c, sh),
+        43..=46 | 60 => io::eval(kind, c, sh),
         47 => terminal::eval(kind, c, sh),
         48..=49 => tristate::eval(kind, c),
         50 => via::eval(kind, c, sh),

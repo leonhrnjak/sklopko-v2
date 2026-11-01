@@ -3,7 +3,6 @@
 use super::util::*;
 use super::kind::*;
 use super::Cell;
-use super::util::{and2, or2, xor2};
 
 // busgate operations (p1)
 const G_AND: i32 = 0;
@@ -105,6 +104,35 @@ pub fn eval(kind: i32, c: &mut Cell) {
                 outs[0] = (a > b) as u8;
                 outs[1] = (a == b) as u8;
                 outs[2] = (a < b) as u8;
+            }
+        }
+        BUSSUB => {
+            let n = c.p0 as usize;
+            if ins.iter().any(|&v| v == X) {
+                for b in 0..=n { outs[b] = X; }
+            } else {
+                let d = to_num(ins, 0, n) - to_num(ins, n, n) - ins[2 * n] as i32;
+                put_bits(outs, n, d & ((1 << n) - 1));
+                outs[n] = (d < 0) as u8;
+            }
+        }
+        BUSADDSUB => {
+            let n = c.p0 as usize;
+            if ins.iter().any(|&v| v == X) {
+                for b in 0..n + 2 { outs[b] = X; }
+            } else {
+                let mask = (1i32 << n) - 1;
+                let half = 1i32 << (n - 1);
+                let signed = |v: i32| if v >= half { v - (1 << n) } else { v };
+                let a = to_num(ins, 0, n);
+                let b0 = to_num(ins, n, n);
+                let m = ins[2 * n] as i32;
+                let b = if m != 0 { !b0 & mask } else { b0 };
+                let r = a + b + m;
+                let exact = if m != 0 { signed(a) - signed(b0) } else { signed(a) + signed(b) };
+                put_bits(outs, n, r & mask);
+                outs[n] = ((r >> n) & 1) as u8;
+                outs[n + 1] = (exact < -half || exact >= half) as u8;
             }
         }
         _ => {}

@@ -53,6 +53,27 @@ pub fn eval(kind: i32, c: &mut Cell) {
                 outs[4] = (n >= 10) as u8;
             }
         }
+        GRAY => {
+            if ins.iter().any(|&v| v == X) { for b in 0..4 { outs[b] = X; } }
+            else {
+                let mut n = to_num(ins, 0, 4);
+                if c.p0 == 1 {
+                    let mut s = n >> 1;
+                    while s != 0 { n ^= s; s >>= 1; }
+                    put_bits(outs, 4, n);
+                } else {
+                    put_bits(outs, 4, n ^ (n >> 1));
+                }
+            }
+        }
+        PARITY => {
+            if ins.iter().any(|&v| v == X) { outs[0] = X; outs[1] = X; }
+            else {
+                let odd = ins.iter().fold(0u8, |a, &b| a ^ b);
+                outs[0] = (odd != 0) as u8;
+                outs[1] = (odd == 0) as u8;
+            }
+        }
         _ => {}
     }
 }

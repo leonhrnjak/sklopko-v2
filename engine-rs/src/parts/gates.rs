@@ -49,6 +49,19 @@ pub fn eval(kind: i32, c: &mut Cell) {
             }
             outs[0] = if bad { X } else { ins[s] };
         }
+        DEMUX => {
+            // p0: outputs, p1: select bits. The select lines are laid out MSB first after the input.
+            let n = c.p0 as usize;
+            let k = c.p1 as usize;
+            let mut s = 0usize;
+            let mut bad = false;
+            for b in 0..k {
+                let v = ins[k - b];
+                if v == X { bad = true; break; }
+                s |= (v as usize) << b;
+            }
+            for i in 0..n { outs[i] = if bad { X } else if i == s { ins[0] } else { 0 }; }
+        }
         _ => {}
     }
 }
