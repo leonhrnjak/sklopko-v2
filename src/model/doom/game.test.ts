@@ -363,12 +363,13 @@ describe('the gun', () => {
       }
       expect(gunBytes(f)).toHaveLength(GUN_W * GUN_RECORD)
     }
-    expect([0, 9, 10, 15, 16, 18].map(gunFrame)).toEqual([GUN_REST, GUN_REST, GUN_RECOIL, GUN_RECOIL, GUN_FLASH, GUN_FLASH])
+    expect([0, 9, 10, 15, 16, 18].map((f) => gunFrame(f))).toEqual([GUN_REST, GUN_REST, GUN_RECOIL, GUN_RECOIL, GUN_RECOIL, GUN_RECOIL])
+    expect(gunFrame(0, true)).toBe(GUN_FLASH)
     // Firing: the delay is set to 18, so the picture right after a shot shows the flash.
     const g = newGame()
     g.pose.angle = 0
     tick(g, b)
-    expect(gunFrame(g.firecd)).toBe(GUN_FLASH)
+    expect(gunFrame(g.firecd, g.flash)).toBe(GUN_FLASH)
   })
 })
 
@@ -414,10 +415,11 @@ describe('the game on the bare core', () => {
       if (f === 0) t0 = m.cycles
       m.runTo('PADRD')
       pictures++
+      const flashShown = ref.flash
       compare(m, ref, `picture ${f}`)
       if (ref.state === STATE.play) {
         faces.add(faceFrame(ref.health, ref.hurt))
-        guns.add(gunFrame(ref.firecd))
+        guns.add(gunFrame(ref.firecd, flashShown))
         ref.enemies.forEach((e, i) => {
           if (e.kind && ref.seen[i].q) frames.add(enemyFrame(e.hp, e.cd, e.x, e.y))
         })

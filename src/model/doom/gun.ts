@@ -13,8 +13,7 @@ export const GUN_FRAMES = 3
 export const GUN_REST = 0
 export const GUN_FLASH = 1
 export const GUN_RECOIL = 2
-/** `FIRECD` counts down from `FIRE_DELAY` (18) after a shot: the flash while it is at least this, the recoil while it is at least `RECOIL_FROM`. */
-export const FLASH_FROM = 16
+/** `FIRECD` counts down from `FIRE_DELAY` (18) after a shot: the recoil while it is at least `RECOIL_FROM`; the flash is for the first picture after a shot only (a picture takes several ticks, so a flash tied to the ticks was often missed). */
 export const RECOIL_FROM = 10
 /** One column's record in the ROM: the number of bytes, the first byte's row pair, and up to twelve bytes. */
 export const GUN_RECORD = 14
@@ -82,7 +81,7 @@ export const GUN_ART: string[][] = [
 ]
 
 /** The gun frame for the ticks left of the gun's delay. */
-export const gunFrame = (firecd: number) => (firecd >= FLASH_FROM ? GUN_FLASH : firecd >= RECOIL_FROM ? GUN_RECOIL : GUN_REST)
+export const gunFrame = (firecd: number, flash = false) => (flash ? GUN_FLASH : firecd >= RECOIL_FROM ? GUN_RECOIL : GUN_REST)
 
 /** One column of a frame: the first byte (a row pair, 0 to 7) and the bytes, or none when the column is clear. */
 export function gunColumn(f: number, u: number): { start: number; bytes: number[] } {
