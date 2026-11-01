@@ -31,6 +31,7 @@ afterEach(() => {
 
 /** The modules, loaded fresh, with an empty library. */
 async function load() {
+  await import('../test/setup') // (the modules were reset: the fresh Simulator gets the Rust engine, as the app's does)
   const library = await import('./library')
   library.setBackend(library.memoryBackend())
   const [path, work, kitStore, store, documents, challenges, chips, steps, check] = await Promise.all([

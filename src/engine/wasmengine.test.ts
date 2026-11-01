@@ -7,6 +7,7 @@ import { screenText } from './acia'
 import { layoutOf } from './layoutcache'
 import { getDef } from './registry'
 import { Simulator, type SimCircuit } from './simulator'
+import { OracleSimulator } from './testdata/oracle/simulator'
 import { paramDefaults, type Params } from './types'
 import { loadEngine } from './wasm'
 import { openFor, ported, supports, WasmEngine } from './wasmengine'
@@ -18,8 +19,7 @@ async function module() {
 }
 
 function fastSim(circuit: ReturnType<typeof micro6502>) {
-  const sim = new Simulator()
-  sim.setWasm(null) // (the TypeScript engine, to compare Rust against)
+  const sim = new OracleSimulator() as unknown as Simulator // (the TypeScript engine, to compare Rust against)
   sim.setFast(true)
   sim.setHistory(false)
   sim.load(flatten(circuit))
@@ -146,7 +146,7 @@ describe('the Rust engine inside the Simulator', () => {
   it('runs Microsoft BASIC on the cpu6502 part the same as the TypeScript engine, nets and screen, then a program', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setFast(true)
       sim.setHistory(false)
       sim.setWasm(rust ? openFor(x) : null)
@@ -211,7 +211,7 @@ describe('the Rust engine inside the Simulator', () => {
         for (let i = 0; i < 12; i++) b.wire(`${cpu}.A${i}`, `${rom}.A${i}`)
         for (let i = 0; i < 8; i++) b.wire(`${rom}.D${i}`, `${cpu}.DI${i}`)
         const mk = (rust: boolean) => {
-          const sim = new Simulator()
+          const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
           sim.setFast(true)
           sim.setHistory(false)
           sim.setWasm(rust ? openFor(x) : null)
@@ -244,7 +244,7 @@ describe('the Rust engine inside the Simulator', () => {
   it('steps back over a terminal board in the Rust engine: the same nets, screen and keyboard as the TypeScript engine', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setFast(true)
       sim.setWasm(rust ? openFor(x) : null)
       const basic = micro6502Basic()
@@ -259,7 +259,7 @@ describe('the Rust engine inside the Simulator', () => {
     // (the TypeScript terminal reads its queue with an index, the Rust one's page copy starts at 0: compare what waits)
     const look = (s: Simulator) => {
       const st = s.state(term) as { keys: string; next: number }
-      return JSON.stringify([Array.from(s.viewValues()), s.time, { ...st, keys: st.keys.slice(st.next), next: 0 }], (k, v) => (k === 'rev' ? undefined : v))
+      return JSON.stringify([Array.from(s.viewValues()), s.time, { ...st, keys: st.keys.slice(st.next), next: 0 }], (k, v) => (k === 'rev' || k === 'tapped' ? undefined : v))
     }
     const both = (f: (s: Simulator) => unknown) => [f(rust), f(plain)]
     for (let i = 0; i < 30; i++) both((s) => s.stepClock())
@@ -299,7 +299,7 @@ describe('the Rust engine inside the Simulator', () => {
   it('steps back over clock edges in the Rust engine: the same nets, parts and RAM as the TypeScript engine, forward and back again', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setFast(true)
       sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(micro6502()))
@@ -361,7 +361,7 @@ describe('probes and breakpoints with the Rust engine', () => {
   it('keeps the Rust engine on, and records the same trace and stops at the same edge as the TypeScript engine', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setFast(true)
       sim.setHistory(false)
       sim.setWasm(rust ? openFor(x) : null)
@@ -396,7 +396,7 @@ describe('every example the Rust engine takes', () => {
     const missing = new Map<string, number>()
     for (const ex of EXAMPLES) {
       const mk = (rust: boolean) => {
-        const sim = new Simulator()
+        const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
         sim.setFast(true)
         sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
@@ -424,8 +424,8 @@ describe('every example the Rust engine takes', () => {
         for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) throw new Error(`${ex.id}: net ${n} is ${a[n]} with Rust and ${b[n]} without, after ${i + 41} edges`)
       }
       // and the screens they drew
-      // (`rev` only says that something changed, so that the symbol is drawn again: the module's screen counts the changes between two looks as one)
-      const look = (s: Simulator, id: string) => JSON.stringify(s.state(id), (k, v) => (k === 'rev' ? undefined : v))
+      // (`tapped` is a note for the page that the module does not keep; `rev` only says that something changed, so that the symbol is drawn again: the module's screen counts the changes between two looks as one)
+      const look = (s: Simulator, id: string) => JSON.stringify(s.state(id), (k, v) => (k === 'rev' || k === 'tapped' ? undefined : v))
       for (const type of ['framebuffer', 'console', 'keypad']) for (const id of plain.idsOfType(type)) expect(look(rust, id), `${ex.id} ${id}`).toBe(look(plain, id))
     }
     console.log(`Rust engine takes ${taken.length} examples: ${taken.join(' ')}`)
@@ -440,7 +440,7 @@ describe('the exact (unit-delay) engine in Rust', () => {
     let taken = 0
     for (const ex of EXAMPLES) {
       const mk = (rust: boolean) => {
-        const sim = new Simulator()
+        const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
         sim.setFast(false)
         sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
@@ -475,7 +475,7 @@ describe('circuits without a clock in Rust', () => {
     let taken = 0
     for (const ex of EXAMPLES) {
       const mk = (rust: boolean) => {
-        const sim = new Simulator()
+        const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
         sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
         sim.settle()
@@ -525,7 +525,7 @@ describe('the exact engine in Rust: loops, delays, forces and capture', () => {
   it('keeps step with the TypeScript exact engine through edges, switches, a force and a capture', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setWasm(rust ? openFor(x) : null)
       sim.load(circuit())
       sim.settle()
@@ -626,7 +626,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
           b.wire(`${clk}.Q`, `${led}.A`)
         }
         const mk = (rust: boolean) => {
-          const sim = new Simulator()
+          const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
           sim.setFast(true)
           sim.setHistory(false)
           sim.setWasm(rust ? openFor(x) : null)
@@ -648,7 +648,8 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
           plain.stepClock()
           if (step === 0) expect(rust.wasmOn, `${type} is taken`).toBe(true)
           // what the part keeps (the screens, the keys) is the same, too
-          expect(JSON.stringify(rust.state(part)), `${type} seed ${seed} step ${step}: state`).toBe(JSON.stringify(plain.state(part)))
+          const noNote = (_: string, v: unknown) => (_ === 'tapped' ? undefined : v) // (a note for the page that the module does not keep)
+          expect(JSON.stringify(rust.state(part), noNote), `${type} seed ${seed} step ${step}: state`).toBe(JSON.stringify(plain.state(part), noNote))
           const a = rust.viewValues()
           const c = plain.viewValues()
           for (let n = 0; n < a.length; n++) if (a[n] !== c[n]) throw new Error(`${type} seed ${seed} step ${step}: net ${n} is ${a[n]} with Rust and ${c[n]} without`)
@@ -662,7 +663,7 @@ describe('stepping back in the Rust engine over a pixel screen', () => {
   it('computer-ant: the pixels and the nets go back with the clock, as in the TypeScript engine', async () => {
     const x = await module()
     const mk = (rust: boolean) => {
-      const sim = new Simulator()
+      const sim = (rust ? new Simulator() : new OracleSimulator()) as unknown as Simulator
       sim.setFast(true)
       sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(EXAMPLES.find((e) => e.id === 'computer-ant')!.build()))

@@ -753,18 +753,13 @@ test('the BASIC computer with the 6502 built from parts: it boots to OK and runs
   await expect(screen).toHaveText(/PRINT 2\+2\s+4\s+OK\s*$/, { timeout: 90000 })
 })
 
-test('the 6502 from parts runs on the Rust engine, and ?engine=ts keeps it off', async ({ page }) => {
+test('the 6502 from parts runs on the Rust engine', async ({ page }) => {
   await page.goto('/6502-parts-basic', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Hide' }).click()
   await expect(page.getByTestId('engine')).toHaveText('fast engine (Rust)', { timeout: 30000 })
   const screen = page.getByLabel('Screen text')
   await pickByLabel(page, 'Terminal \\(6551\\) \\$5000–\\$5003')
   await expect(screen).toContainText('OK', { timeout: 90000 })
-
-  await page.goto('/6502-parts-basic?engine=ts', { waitUntil: 'networkidle' })
-  await expect(page.getByTestId('engine')).toHaveText('fast engine', { timeout: 30000 })
-  await page.waitForTimeout(2000) // (the module has had time to load: it must not have been taken up)
-  await expect(page.getByTestId('engine')).toHaveText('fast engine')
 })
 
 test('the BASIC reference: statements, functions and the programs to type in, from the Tools menu', async ({ page }) => {

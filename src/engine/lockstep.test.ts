@@ -50,7 +50,7 @@ describe('the simulator against the reference simulator', () => {
         same(`edge ${i}`)
         // Every tick of a settle from "nothing is known to be up to date": all parts evaluated, then the changes spreading.
         if (i % 50 === 25) {
-          ;(a as unknown as { markAll(): void }).markAll()
+          ;(a as unknown as { we: { markAll(fast: boolean): void } | null }).we?.markAll(false)
           ;(b as unknown as { markAll(): void }).markAll()
           for (let t = 0; t < 12; t++) {
             expect(a.tick(), `tick ${t} after edge ${i}`).toBe(b.tick())
@@ -71,7 +71,8 @@ function digest(x: unknown): string {
     return `#${h}`
   }
   if (Array.isArray(x)) return `[${x.map(digest).join(',')}]`
-  if (x && typeof x === 'object') return `{${Object.keys(x).sort().map((k) => `${k}:${digest((x as Record<string, unknown>)[k])}`).join(',')}}`
+  // (`tapped` is a note the keypad's TypeScript copy leaves for the page: the module does not keep it)
+  if (x && typeof x === 'object') return `{${Object.keys(x).filter((k) => k !== 'tapped').sort().map((k) => `${k}:${digest((x as Record<string, unknown>)[k])}`).join(',')}}`
   return String(x)
 }
 

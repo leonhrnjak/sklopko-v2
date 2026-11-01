@@ -183,19 +183,6 @@ export class Simulator {
   time = 0
   private samplers: CComp[] = []
   /**
-   * A part is evaluated again only when one of its input nets changed (or it was operated or edited, or it has a delay pipeline,
-   * which moves on every tick): evaluating it with the same inputs and the same state would give the same outputs.
-   */
-  private stale = new Uint8Array(0)
-  /** The parts flagged in `stale`, in the order they were flagged: the next tick evaluates these (and the slow parts). */
-  private queue = new Int32Array(0)
-  private queued = 0
-  /** The queue of the tick being run; the two swap each tick (a part is in a queue once, so each is as long as `comps`). */
-  private running = new Int32Array(0)
-  /** The nets this tick's evaluations changed (each once: a net has one writer). `tick` passes the changes on to the pins that read them. */
-  private changedNets = new Int32Array(0)
-  private nChanged = 0
-  /**
    * Which input pins read each net, flat: the readers of net `n` are the entries `readerStart[n] .. readerStart[n + 1])` of
    * `readerPart` (the part), and `readerSlot` (where that pin lives in `pins`, times two, plus one if the part accepts Z).
    */
@@ -222,16 +209,8 @@ export class Simulator {
   /** The Rust engine's tick count at the last settle, and whether it has run since the part states were last brought up to date. */
   private weTicks = 0
   private weStale = false
+  /** Which engine the Rust module runs now: the fast one (true) or the exact one. */
   private usingFast = false
-  /** Fast engine: flags per position in the plan's order, the range of positions flagged, and the registered parts woken. */
-  private rankFlag = new Uint8Array(0)
-  private lo = 0
-  private hi = -1
-  private regList = new Int32Array(0)
-  private regCount = 0
-  private regQueued = new Uint8Array(0)
-  /** The registered parts evaluated in one round, whose outputs are committed together. */
-  private regRun = new Int32Array(0)
   /** A snapshot after each clock edge (and one before the first), for stepping back. */
   private history: Snapshot[] = []
   /** Which snapshot the simulation is at, when it has not moved on since (see `moved`). */
@@ -359,11 +338,6 @@ export class Simulator {
     this.readerPart = Int32Array.from(readers.flatMap((r) => r.map((e) => e[0])))
     this.readerSlot = Int32Array.from(readers.flatMap((r) => r.map((e) => e[1])))
     this.readerWake = Uint8Array.from(readers.flatMap((r) => r.map((e) => e[2])))
-    this.stale = new Uint8Array(this.comps.length)
-    this.queue = new Int32Array(this.comps.length)
-    this.running = new Int32Array(this.comps.length)
-    this.changedNets = new Int32Array(nets)
-    this.markAll()
 
     this.values = new Uint8Array(nets).fill(X)
     for (const [key, net] of this.netByOut) {
@@ -390,70 +364,16 @@ export class Simulator {
       nets,
     )
     this.usingFast = false
-    this.rankFlag = new Uint8Array(typeof this.plan === 'string' ? 0 : this.plan.order.length)
-    this.regList = new Int32Array(this.comps.length)
-    this.regRun = new Int32Array(this.comps.length)
-    this.regQueued = new Uint8Array(this.comps.length)
-    this.markAll()
     this.dirty = true
   }
 
   /**
-   * Evaluate a part again at the next tick (it was operated, edited or changed from outside). Whatever was oscillating may have
-   * stopped now, so the next settle gets its whole budget again: `unstable` is set again if the circuit still does not settle.
+   * A part was operated, edited or changed from outside. Whatever was oscillating may have stopped now, so the next settle gets its
+   * whole budget again: `unstable` is set again if the circuit still does not settle. (The Rust module looks at every part again when
+   * the circuit is handed to it, which the next settle does.)
    */
-  private touch(cc: CComp) {
+  private touch(_cc: CComp) {
     this.unstable = false
-    if (cc.index >= 0) this.mark(cc.index)
-  }
-
-  /** Flag a part for evaluation at the next tick (once, however often it is flagged). */
-  private mark(i: number) {
-    if (this.usingFast) {
-      this.flagFast(i)
-      return
-    }
-    if (this.stale[i] === 0) {
-      this.stale[i] = 1
-      this.queue[this.queued++] = i
-    }
-  }
-
-  /** Flag every part: after loading, resetting or going back, nothing is known to be up to date. */
-  private markAll() {
-    for (let i = 0; i < this.comps.length; i++) this.queue[i] = i
-    this.queued = this.comps.length
-    this.stale.fill(1)
-    // (the fast engine's flags too: whichever engine runs next re-evaluates everything once)
-    this.rankFlag.fill(1)
-    this.lo = 0
-    this.hi = this.rankFlag.length - 1
-    this.regCount = 0
-    this.regQueued.fill(0)
-    if (typeof this.plan !== 'string' && this.plan.rank.length === this.comps.length) {
-      const rank = this.plan.rank
-      for (let i = 0; i < this.comps.length; i++) if (rank[i] < 0) this.wakeReg(i)
-    }
-  }
-
-  /** Flag a part for the fast engine: a part of the order by its position, a registered part in the list of those to evaluate. */
-  private flagFast(i: number) {
-    const plan = this.plan
-    if (typeof plan === 'string') return
-    const r = plan.rank[i]
-    if (r < 0) this.wakeReg(i)
-    else if (this.rankFlag[r] === 0) {
-      this.rankFlag[r] = 1
-      if (r < this.lo) this.lo = r
-      if (r > this.hi) this.hi = r
-    }
-  }
-
-  private wakeReg(i: number) {
-    if (this.regQueued[i] === 0) {
-      this.regQueued[i] = 1
-      this.regList[this.regCount++] = i
-    }
   }
 
   /**
@@ -519,7 +439,6 @@ export class Simulator {
     for (const cc of this.comps) cc.inst.state = cc.def.init?.(cc.inst.params)
     this.values.fill(X)
     this.syncPins()
-    this.markAll()
     for (const cc of this.slow) this.fillPipe(cc)
     this.ticks = 0
     this.time = 0
@@ -551,109 +470,19 @@ export class Simulator {
   }
 
   /**
-   * Run one part on its input pins and put its outputs on their nets, noting each net that changed in `changedNets`. The parts
-   * that read those nets still see the old values on their pins until `tick` has run every part (see `tick`).
-   * Every net has one writer, so writing at once cannot change what another part computes in the same tick.
-   */
-  private evaluate(cc: CComp) {
-    const { outs } = cc.inst
-    cc.def.evaluate(cc.inst)
-    const pipe = cc.pipe
-    const { values, forced, changedNets } = this
-    const outNets = cc.outNets
-    let c = this.nChanged
-    const n = outs.length
-    for (let o = 0; o < n; o++) {
-      const net = outNets[o]
-      let v: number = outs[o]
-      if (pipe !== undefined) {
-        // Commit what was computed `delay - 1` ticks ago (queue what was computed now, below).
-        v = pipe[o]
-      }
-      if (forced !== null && forced[net] >= 0) v = forced[net]
-      if (values[net] !== v) {
-        values[net] = v
-        changedNets[c++] = net
-      }
-    }
-    if (pipe !== undefined) {
-      pipe.copyWithin(0, n)
-      for (let o = 0; o < n; o++) pipe[pipe.length - n + o] = outs[o]
-    }
-    this.nChanged = c
-  }
-
-  /**
-   * Advance one gate delay. Returns true if the circuit is still moving: a net changed, or a slow part has an output
-   * on its way that differs from what it shows now.
+   * Advance one gate delay (in the Rust module). Returns true if the circuit is still moving: a net changed, or a slow part has an
+   * output on its way that differs from what it shows now.
    */
   tick(): boolean {
+    if (!this.we) this.enterWasm()
+    if (!this.we) return false
     if (this.usingFast) {
       // Stepping gate delays one by one (the Step button) is what the exact engine is for: it takes over from here, and `settle` hands
       // back to the fast engine at the next clock edge or switch change.
       this.usingFast = false
-      this.markAll()
-      this.we?.markAll(false)
+      this.we.markAll(false)
     }
-    if (this.we) return this.tickWasm()
-    const { values, stale, readerStart, readerPart, readerSlot, pins, changedNets, comps } = this
-    // Parts flagged by the last tick's changes are evaluated now; flags raised while this tick commits belong to the next.
-    const run = this.queue
-    const count = this.queued
-    this.queue = this.running
-    this.running = run
-    this.queued = 0
-    this.nChanged = 0
-    for (let k = 0; k < count; k++) {
-      const i = run[k]
-      const cc = comps[i]
-      stale[i] = 0
-      if (cc.pipe === undefined) this.evaluate(cc)
-    }
-    // A slow part moves on every tick, flagged or not.
-    for (const cc of this.slow) {
-      stale[cc.index] = 0
-      this.evaluate(cc)
-    }
-    // Pass every change on to the pins that read the net, and flag those parts for the next tick.
-    const nChanged = this.nChanged
-    const queue = this.queue
-    let queued = 0
-    const changed = nChanged > 0
-    for (let k = 0; k < nChanged; k++) {
-      const net = changedNets[k]
-      const v = values[net]
-      for (let r = readerStart[net], end = readerStart[net + 1]; r < end; r++) {
-        const slot = readerSlot[r]
-        pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
-        const i = readerPart[r]
-        if (stale[i] === 0) {
-          stale[i] = 1
-          queue[queued++] = i
-        }
-      }
-    }
-    this.queued = queued
-    this.ticks++
-    if (changed) {
-      this.dirty = true
-      this.moved = true
-    }
-    // Not settled while a slow part still has a different value on its way.
-    let pending = false
-    for (const cc of this.slow) {
-      const pipe = cc.pipe!
-      if (pending) break
-      const n = cc.outNets.length
-      for (let k = 0; k < pipe.length; k++) {
-        const net = cc.outNets[k % n]
-        if (pipe[k] !== values[net] && !(this.forced !== null && this.forced[net] >= 0)) {
-          pending = true
-          break
-        }
-      }
-    }
-    return changed || pending
+    return this.tickWasm()
   }
 
   /** One gate delay in the Rust engine: the nets come back here; the parts' states stay there until somebody needs them. */
@@ -727,20 +556,19 @@ export class Simulator {
 
   /** Tick until nothing changes or the budget runs out. Returns true if the circuit settled. */
   settle(maxTicks = 1000): boolean {
+    if (!this.we) this.enterWasm()
+    if (!this.we) {
+      // (no engine: the module is not loaded, or it has no port of some part of this circuit)
+      this.nextCause = 'input'
+      return true
+    }
     const fast = this.engine === 'fast'
     if (fast !== this.usingFast) {
       // The other engine takes over: it re-evaluates every part once, which changes nothing in a circuit that is up to date.
       this.usingFast = fast
-      this.markAll()
-      this.we?.markAll(fast)
+      this.we.markAll(fast)
     }
-    if (fast) {
-      if (this.we) return this.settleWasm()
-      const settled = this.settleFast(maxTicks)
-      // Settled in the TypeScript engine, so everything is up to date to hand over to the Rust one.
-      if (settled && this.openWasm) this.enterWasm()
-      return settled
-    }
+    if (fast) return this.settleWasm()
     const cause = this.nextCause
     this.nextCause = 'input'
     const rec: Capture | null = this.capturing ? { frames: [this.values.slice()], truncated: false, time: this.time, cause } : null
@@ -766,31 +594,6 @@ export class Simulator {
       this.captureVersion++
       this.dirty = true
     }
-    // The module runs the exact engine too: the circuit goes to it as it is, settled or not (the parts it must look at again are flagged).
-    if (!this.we && this.openWasm) this.enterWasm()
-    return settled
-  }
-
-  /**
-   * The fast engine's settle (see docs/spec-sim-speed-tier2.md): rounds of one pass over the combinational parts that need it, in order,
-   * each evaluated once, and then the registered parts whose clock (or clear) changed, which all read their inputs before any writes.
-   */
-  private settleFast(maxRounds: number): boolean {
-    this.nextCause = 'input'
-    const plan = this.plan as Plan
-    const limit = Math.min(maxRounds, 64)
-    let settled = false
-    for (let round = 0; round < limit; round++) {
-      this.combPass(plan)
-      if (this.regCount === 0 && this.hi < this.lo) {
-        settled = true
-        break
-      }
-      this.ticks++
-      this.registeredRound()
-    }
-    this.unstable = !settled
-    this.sample()
     return settled
   }
 
@@ -803,7 +606,11 @@ export class Simulator {
     this.we = we
     this.weTicks = we.ticks
     this.weStale = false
-    if (!this.usingFast) we.markAll(false)
+    // (every part is looked at again, by whichever engine runs: what changed while the circuit was out of the module is not known)
+    we.markAll(this.usingFast)
+    // The parts the page runs (switches, buttons, labels) say what they show: nothing else has computed it yet. (After the engine
+    // is chosen: the exact engine takes it in at its next tick, as it does when a switch is flipped.)
+    we.refreshInputs()
     if (this.forced) this.forced.forEach((v, net) => v >= 0 && we.setForce(net, v))
   }
 
@@ -823,69 +630,6 @@ export class Simulator {
     this.dirty = true
     this.sample() // probes, breakpoints and displays that look at the settled nets stay in TypeScript
     return settled
-  }
-
-  /** Evaluate the flagged parts of the order, lowest position first; a part flags only parts after it. */
-  private combPass(plan: Plan) {
-    const order = plan.order
-    const flag = this.rankFlag
-    const comps = this.comps
-    while (this.lo <= this.hi) {
-      const lo = this.lo
-      const hi = this.hi
-      this.lo = flag.length
-      this.hi = -1
-      for (let r = lo; r <= hi; r++) {
-        if (flag[r] === 0) continue
-        flag[r] = 0
-        const cc = comps[order[r]]
-        cc.def.evaluate(cc.inst)
-        this.commitOuts(cc)
-      }
-    }
-  }
-
-  /** Evaluate the registered parts that were woken, all before any of them puts an output on a net, then commit the outputs. */
-  private registeredRound() {
-    const n = this.regCount
-    const run = this.regRun
-    for (let k = 0; k < n; k++) {
-      const i = this.regList[k]
-      run[k] = i
-      this.regQueued[i] = 0
-    }
-    this.regCount = 0
-    for (let k = 0; k < n; k++) {
-      const cc = this.comps[run[k]]
-      cc.def.evaluate(cc.inst)
-    }
-    for (let k = 0; k < n; k++) this.commitOuts(this.comps[run[k]])
-  }
-
-  /** Put a part's outputs on their nets; each net that changes updates the pins that read it and wakes the readers it should. */
-  private commitOuts(cc: CComp) {
-    const { values, pins, readerStart, readerPart, readerSlot, readerWake } = this
-    const outs = cc.inst.outs
-    const outNets = cc.outNets
-    for (let o = 0; o < outs.length; o++) {
-      const net = outNets[o]
-      const v = outs[o]
-      if (values[net] === v) continue
-      values[net] = v
-      this.dirty = true
-      this.moved = true
-      for (let r = readerStart[net], end = readerStart[net + 1]; r < end; r++) {
-        const slot = readerSlot[r]
-        pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
-        const wake = readerWake[r]
-        if (wake === 1) this.flagFast(readerPart[r])
-        else if (wake === 2) {
-          // A clock that only matters when it rises: when it falls, just remember that it did (what `rising` would have done).
-          if (v === 0) (this.comps[readerPart[r]].inst.state as { pc: V }).pc = 0
-          else this.flagFast(readerPart[r])
-        }
-      }
-    }
   }
 
   /** Let parts that record over time (probes, dot matrices) look at the settled values. */
@@ -940,8 +684,7 @@ export class Simulator {
         if (st.elapsed >= c.def.clockHalfPeriod!(c.inst.params) - 1e-9) {
           st.elapsed = 0
           st.phase = st.phase === 1 ? 0 : 1
-          if (this.we) this.we.setPhase(c.index, st.phase)
-          else this.mark(c.index)
+          this.we?.setPhase(c.index, st.phase)
         }
       }
       this.nextCause = 'clock'
@@ -1004,7 +747,6 @@ export class Simulator {
     for (let r = this.readerStart[net], end = this.readerStart[net + 1]; r < end; r++) {
       const slot = this.readerSlot[r]
       this.pins[slot >> 1] = v === Z && (slot & 1) === 0 ? X : v
-      this.mark(this.readerPart[r])
     }
     this.unstable = false
     this.dirty = true
@@ -1144,7 +886,6 @@ export class Simulator {
     this.we?.afterRestore()
     this.time = snap.time
     this.unstable = snap.unstable
-    this.markAll()
     this.cursor = target
     this.dirty = true
     // Settle again, in case a switch was flipped since (parameters are not part of the snapshot), and let the
