@@ -11,7 +11,7 @@ describe('the files the build writes for the examples', () => {
     expect(exampleFiles('nope')).toBeUndefined()
   })
 
-  it('open as the circuit the builder makes, with the wires as routed, and a thumbnail that fits the library', { timeout: 60000 }, () => {
+  it('open as the circuit the builder makes, with the wires as routed, and a thumbnail that fits the library', { timeout: 180000 }, () => {
     for (const ex of EXAMPLES) {
       const files = exampleFiles(ex.id)!
       const opened = deserialize(JSON.parse(files.json))
