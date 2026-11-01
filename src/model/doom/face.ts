@@ -18,16 +18,16 @@ export const FACE_OUCH = 4
 
 const KEY: Record<string, number> = { '.': 9, s: 12, k: 0, w: 15, r: 6, h: 5, o: 13 }
 
-const TOP = ['..hhhhhhhhhhhh..', '.hhhhhhhhhhhhhh.']
+const TOP = ['...hhhhhhhhhh...', '..hhhhhhhhhhhh..']
 const BOTTOM = ['..ssssssssssss..', '...ssssssssss...', '....ssssssss....']
 
-/** Rows 2 to 8 of each face: a stern, scowling man (heavy brows, narrowed eyes, a flat mouth), scratched, bloodier, nearly gone, and wincing. */
+/** Rows 2 to 8 of each face: a stern man (heavy brows, narrowed eyes, a flat mouth) with a head 12 wide in a 16-wide panel; scratched, bloodier, nearly gone, and wincing. */
 const MIDDLE: string[][] = [
-  ['.hssssssssssssh.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.ssosssssssssos.', '.ssssokkkkossss.', '.ssssssssssssss.'],
-  ['.hsssrssssssshs.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.ssosrsssssssos.', '.ssssokkkkossss.', '.ssssssssssssss.'],
-  ['.hsrrssssssrssh.', '.sskksssssskkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.srosssssssrsos.', '.ssssokkkkossss.', '.ssssrrrssssrss.'],
-  ['.hrrrssrsssrrrh.', '.sskkrssssrkkss.', '.skkkwsssswkkks.', '.sssssoooosssss.', '.srossrsssrrsos.', '.ssssokkkkossss.', '.ssrrrssrrrrsss.'],
-  ['.hssssssssssssh.', '.wkkkksssskkkkw.', '.wkwwksssskwwkw.', '.sssssoooosssss.', '.ssssskkkkkssss.', '.sssskkkkkkksss.', '.ssssskkkkkssss.'],
+  ['..hssssssssssh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssossssssoss..', '..sssokkkkosss..', '..ssssssssssss..'],
+  ['..hsssrssssssh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..ssosrsssssos..', '..sssokkkkosss..', '..ssssssssssss..'],
+  ['..hsrrsssssrrh..', '..skkkksskkkks..', '..sswkssssksws..', '..sssssoosssss..', '..srossssssros..', '..sssokkkkosss..', '..ssssrrrsrsss..'],
+  ['..hrrrssrssrrh..', '..skkkrsssrkks..', '..sswkssssksws..', '..sssssoosssss..', '..srossrsssros..', '..sssokkkkosss..', '..ssrrrssrrsss..'],
+  ['..hssssssssssh..', '..wkkkssssskkw..', '..wkwsssssswkw..', '..ssssooooosss..', '..sssskkkkssss..', '..sssskkkkssss..', '..sssskkkkssss..'],
 ]
 
 /** The art of each face: 12 rows of 16 characters. */
