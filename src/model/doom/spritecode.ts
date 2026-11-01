@@ -1,4 +1,5 @@
 import { DCOS, DSIN, UTAB_BASE } from './sprites'
+import { FACE_BYTES, FACE_W, FACE_X } from './face'
 
 /** The cells the sprite code uses (the zero page from $80 up, and a few pages of RAM named in `GAME_EQUATES`). */
 export const SPRITE_EQUATES = `
@@ -656,6 +657,21 @@ CEHUD:
   STA VDATA
   LDA HUD2,X
   STA VDATA
+  LDA COL
+  CMP #${FACE_X}
+  BCC CEXX
+  CMP #${FACE_X + FACE_W}
+  BCS CEXX
+  SEC
+  SBC #${FACE_X}
+  TAX
+  LDA FALO,X
+  STA VADDRL
+  LDA FAHI,X
+  STA VADDRH
+  LDY FAOFF,X
+${Array.from({ length: FACE_BYTES }, () => '  LDA (FPTR),Y\n  STA VDATA').join('\n  INY\n')}
+CEXX:
   RTS
 
 ; The sprite of rank RANK, in screen column COL (it covers it), if it is nearer than the wall there.
