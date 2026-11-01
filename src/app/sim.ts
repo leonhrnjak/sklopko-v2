@@ -78,8 +78,6 @@ function makeSim(): SimApi {
   if (!inWorker) return new Simulator()
   try {
     const remote = new WorkerSim(new Worker(new URL('../engine/sim.worker.ts', import.meta.url), { type: 'module' }) as unknown as Port)
-    // ?engine=ts keeps the Rust engine off (to tell the engines apart when something looks wrong).
-    if (/[?&]engine=ts\b/.test(location.search)) remote.allowWasm(false)
     return remote
   } catch {
     return new Simulator()

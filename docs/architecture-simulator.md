@@ -102,6 +102,6 @@ removes them from the shipped app; this page changes when that lands.
 
 ## Debugging
 
-- `?engine=ts` runs the TypeScript engines; `?thread=main` runs the simulation on the page's thread instead of the worker.
+- `?thread=main` runs the simulation on the page's thread instead of the worker.
 - The footer says which engine runs (`fast engine (Rust)`, `fast engine`, `exact`).
 - `VITE_BENCH=1 npx vitest run src/engine/bench` prints cycles a second per engine.

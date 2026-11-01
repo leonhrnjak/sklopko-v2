@@ -33,7 +33,6 @@ export type Command =
   | { t: 'clearForces' }
   | { t: 'setHistory'; on: boolean }
   | { t: 'setFast'; on: boolean }
-  | { t: 'wasm'; on: boolean }
   | { t: 'setCapture'; on: boolean }
   | { t: 'run'; running: boolean; speed: number }
   | { t: 'edgeHook'; on: boolean }
@@ -65,7 +64,6 @@ export class SimHost {
   private hit: string | null = null
   private edges: { values: Uint8Array[]; times: number[] } | null = null
   private kicker: () => void
-  private wasmAllowed = true
   private port: Pick<Port, 'postMessage'>
 
   /** `kick` asks for `slice` to be called soon, after other messages had their turn (a message channel in a worker; the tests do it by hand). */
@@ -131,10 +129,6 @@ export class SimHost {
       case 'setFast':
         s.setFast(m.on)
         break
-      case 'wasm':
-        this.wasmAllowed = m.on
-        this.applyWasm()
-        break
       case 'setCapture':
         s.setCapture(m.on)
         break
@@ -157,10 +151,6 @@ export class SimHost {
   }
 
   /** Keep the nets after a clock edge for the page's `edgeHook`. */
-  private applyWasm() {
-    this.sim.setWasm(this.wasmAllowed ? (Simulator.defaultOpener?.() ?? null) : null)
-  }
-
   private noteEdge() {
     const e = this.edges
     if (!e) return
@@ -321,10 +311,6 @@ export class WorkerSim {
   setFast(on: boolean) {
     this.fast = on
     this.send({ t: 'setFast', on })
-  }
-  /** Allow the Rust engine in the worker (it is, unless the address says `?engine=ts`). */
-  allowWasm(on: boolean) {
-    this.send({ t: 'wasm', on })
   }
   setCapture(on: boolean) {
     this.send({ t: 'setCapture', on })

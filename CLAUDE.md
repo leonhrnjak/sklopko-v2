@@ -81,8 +81,8 @@ If Playwright says its Chromium build is missing, point it at an installed one i
 and UI are TypeScript; what every part does, the fast settle and the exact unit-delay `tick` are Rust in `engine-rs/` (`parts/<family>.rs`,
 dispatched by a part number that never changes once given), run in a Web Worker. The page builds one image of the circuit
 (`src/engine/wasmengine.ts`, `KIND` table) and reads nets and part state out of the module's memory. **A new part needs its Rust behaviour,
-its `KIND` entry and a `CASES` entry in `src/engine/wasmengine.test.ts`**, not only the TypeScript definition. `?engine=ts` runs the old
-TypeScript engines, which stay until E7 removes them.
+its `KIND` entry and a `CASES` entry in `src/engine/wasmengine.test.ts`**, not only the TypeScript definition. The Simulator has no engine of its
+own any more (E7e); the old TypeScript one lives on only as a test oracle in `src/engine/testdata/oracle/`.
 
 `engine-rs/` is the simulator's engine in Rust (`docs/spec-sim-wasm.md`); its built module is **committed** at
 `src/engine/wasm/engine.wasm`, so `npm run build` and the Cloudflare deploy need no Rust. After changing anything in `engine-rs/`, CI rebuilds the module (`npm run build:wasm` in the `wasm` job; the unit and build jobs test that
