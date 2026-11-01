@@ -1,5 +1,5 @@
 import { gameCode, GAME_EQUATES, gameTables } from './game'
-import { angleTables, GAME_MAP, COLUMN_BYTES, hi, lo, MAP, Q_FAR, Q_NEAR, quarterSquare, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
+import { angleTables, EXP, EXP_BASE, GAME_MAP, COLUMN_BYTES, hi, LOG_FX, LOG_I, lo, MAP, Q_FAR, Q_NEAR, RECIP, screenWidth, SHADE, SKY, FLOOR } from './tables'
 
 /** How the picture gets to the screen: not at all (the rays alone), byte by byte through the video port, or by the column-fill command. */
 export type DrawMode = 'none' | 'port' | 'fill'
@@ -19,7 +19,10 @@ const bytes = (name: string, values: number[], perLine = 16): string[] => {
   return rows
 }
 
-/** The code for one axis of the ray set-up: the sign of the direction, the cell step, the distance to the first edge and the step between edges. */
+/**
+ * The code for one axis of the ray set-up: the sign of the direction, the cell step, the step between edges, and the distance to the first
+ * edge by the logarithm tables (`tables.ts`, `firstEdge`): no multiplication.
+ */
 function axis(a: 'X' | 'Y', negStep: number, posStep: number): string {
   const L = a
   const frac = a === 'X' ? 'POSXF' : 'POSYF'
@@ -40,26 +43,36 @@ ${L}NEG:
   STA I${L}S
   LDA ${frac}
 ${L}DONE:
-  STA MA
+  TAY
   LDA RECHI,X
   STA D${L}H
-  STA MB
   LDA RECLO,X
   STA D${L}L
-  JSR MUL
-  LDA PRL
-  STA SD${L}L
-  LDA PRH
-  STA SD${L}H
-  LDA D${L}L
-  STA MB
-  JSR MUL
-  LDA SD${L}L
+  CPY #0
+  BEQ ${L}ZERO
+  CPX #0
+  BEQ ${L}BIG
   CLC
-  ADC PRH
+  LDA LOGFXL,Y
+  ADC LOGIL,X
+  STA PTR
+  LDA LOGFXH,Y
+  ADC LOGIH,X
+  STA PTR+1
+  LDA (PTR)
   STA SD${L}L
-  BCC ${L}NC
-  INC SD${L}H
+  INC PTR
+  LDA (PTR)
+  STA SD${L}H
+  BRA ${L}NC
+${L}ZERO:
+  STZ SD${L}L
+  STZ SD${L}H
+  BRA ${L}NC
+${L}BIG:
+  LDA #$FF
+  STA SD${L}L
+  STA SD${L}H
 ${L}NC:`
 }
 
@@ -314,39 +327,7 @@ GOT:
   JMP COLUMN
 FRAMEEND:
   ${game ? 'RTS' : 'JMP FRAMEEND'}
-
-; A * B (MA, MB) = PR, by quarter squares: sq(a+b) - sq(a-b)
-MUL:
-  LDA MA
-  SEC
-  SBC MB
-  BCS MABS
-  EOR #$FF
-  ADC #1
-MABS:
-  TAY
-  LDA MA
-  CLC
-  ADC MB
-  TAX
-  BCS MBIG
-  LDA SQLOA,X
-  SEC
-  SBC SQLOA,Y
-  STA PRL
-  LDA SQHIA,X
-  SBC SQHIA,Y
-  STA PRH
-  RTS
-MBIG:
-  LDA SQLOB,X
-  SEC
-  SBC SQLOA,Y
-  STA PRL
-  LDA SQHIB,X
-  SBC SQHIA,Y
-  STA PRH
-  RTS`)
+`)
   if (draw === 'port') {
     emit(`
 ; A run of X bytes of A through the video port: jump into a row of stores, which ends in RTS
@@ -364,11 +345,8 @@ RUN:
     emit(`RUNLO:\n  .byte ${seq.map((n) => `<CH${n}`).join(',')}`, `RUNHI:\n  .byte ${seq.map((n) => `>CH${n}`).join(',')}`)
   }
 
-  const n256 = Array.from({ length: 256 }, (_, i) => i)
-  emit(...bytes('SQLOA', n256.map((n) => lo(quarterSquare(n)))))
-  emit(...bytes('SQHIA', n256.map((n) => hi(quarterSquare(n)))))
-  emit(...bytes('SQLOB', n256.map((n) => lo(quarterSquare(n + 256)))))
-  emit(...bytes('SQHIB', n256.map((n) => hi(quarterSquare(n + 256)))))
+  emit(...bytes('LOGFXL', LOG_FX.map((v) => lo(2 * v))), ...bytes('LOGFXH', LOG_FX.map((v) => hi(2 * v))))
+  emit(...bytes('LOGIL', LOG_I.map((v) => lo(EXP_BASE + 2 * v))), ...bytes('LOGIH', LOG_I.map((v) => hi(EXP_BASE + 2 * v))))
   emit(...bytes('RECLO', RECIP.map(lo)))
   emit(...bytes('RECHI', RECIP.map(hi)))
   emit(...bytes('QNEAR', Q_NEAR))
@@ -380,6 +358,7 @@ RUN:
   emit(...bytes('STXH', t.stepX.map(hi)))
   emit(...bytes('STYL', t.stepY.map(lo)))
   emit(...bytes('STYH', t.stepY.map(hi)))
+  emit(`  .org $${EXP_BASE.toString(16)}`, ...bytes('EXPT', EXP.flatMap((v) => [lo(v), hi(v)])))
   if (game) {
     emit(...bytes('MAPROM', GAME_MAP), ...gameTables())
     emit('  .org $FFFA', '  .word START', '  .word START', '  .word IRQ')

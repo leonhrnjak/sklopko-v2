@@ -56,6 +56,8 @@ describe('the D0 spike: what a frame costs', () => {
         const mean = Math.round(cycles.reduce((a, b) => a + b, 0) / cycles.length)
         rows.push(`${columns} ${draw}: mean ${mean} min ${Math.min(...cycles)} max ${Math.max(...cycles)} rom code ${m.size.code} data ${m.size.data}`)
         expect(mean).toBeGreaterThan(10_000)
+        // D3: the ray set-up by logarithms brought the 160-column picture with the fill under 120,000 cycles on average.
+        if (columns === 160 && draw === 'fill') expect(mean).toBeLessThan(120_000)
       }
     console.log(rows.join('\n'))
   }, 120_000)

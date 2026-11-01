@@ -76,6 +76,23 @@ export const quarterSquare = (n: number) => Math.floor((n * n) / 4)
 /** The reciprocal of a ray's direction (index 0 to 128: the high byte without its sign), as a 16-bit distance step: 1/|d| in 1/256 cells. */
 export const RECIP: number[] = Array.from({ length: 129 }, (_, i) => (i === 0 ? 65535 : Math.min(65535, Math.round((256 * DIR) / i))))
 
+/**
+ * The first edge's distance by logarithms: from the cell edge a ray hits first, the distance is `64·fx/i` (in 1/256 cells), where `fx` is the
+ * 0 to 255 fraction of a cell still to cross and `i` the ray direction's high byte (1 to 128). With a table of logarithms in steps of
+ * 1/`LOG_STEPS` of an octave, that is two lookups, one 16-bit add and one lookup in a table of exponentials, with no multiplication
+ * (the error is under 1 percent). The program reads 16-bit entries, so the offsets into the exponential table are doubled; `EXP_BASE`
+ * is where that table sits in the ROM.
+ */
+export const LOG_STEPS = 128
+export const EXP_BASE = 0xe000
+/** Logarithm of the fraction `fx` (1 to 255) in steps, and the logarithm of `128 / i` (i = 1 to 128, plus an octave for the offset). Index 0 is unused. */
+export const LOG_FX: number[] = Array.from({ length: 256 }, (_, f) => (f === 0 ? 0 : Math.round(LOG_STEPS * Math.log2(f))))
+export const LOG_I: number[] = Array.from({ length: 129 }, (_, i) => (i === 0 ? 0 : Math.round(LOG_STEPS * (7 - Math.log2(i)))))
+/** The exponentials: entry `m` is `2^(m/LOG_STEPS - 1)`, up to 2^14. */
+export const EXP: number[] = Array.from({ length: 15 * LOG_STEPS + 1 }, (_, m) => Math.min(65535, Math.round(2 ** (m / LOG_STEPS - 1))))
+/** The distance to the first edge: what the program computes. 0 when the player is on the edge, the largest value when the ray runs along it. */
+export const firstEdge = (fx: number, i: number): number => (fx === 0 ? 0 : i === 0 ? 65535 : EXP[LOG_FX[fx] + LOG_I[i]])
+
 const Q_MAX = 25
 const toQ = (dist: number) => Math.max(1, Math.min(Q_MAX, Math.round((Q_MAX * 256) / dist)))
 /** Wall height in steps of 4 pixels (1 to 25) for a distance below 1024 (index: distance / 4) … */
