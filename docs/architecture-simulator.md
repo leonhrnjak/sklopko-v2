@@ -23,7 +23,7 @@ and how to add a part.
 
 | Layer | Language | Where | Does |
 |---|---|---|---|
-| Part definitions | TypeScript | `src/engine/components/*` | name, pins, layout, parameters, symbol, text; `evaluate` (see "Still two copies" below) |
+| Part definitions | TypeScript | `src/engine/components/*` | name, pins, layout, parameters, symbol, text (no behaviour: that is in Rust; only parts the page runs keep an `evaluate`, see "One copy" below) |
 | Loader and compiler | TypeScript | `src/engine/simulator.ts`, `src/model/*` | turns a drawing into nets, readers, the plan (levelised order) |
 | Simulator | TypeScript | `src/engine/simulator.ts` | clocks and time, step-back history, probes and breakpoints (`sample`), forces, capture, handing the circuit to the module |
 | Engine | Rust | `engine-rs/src/engine.rs` | the tables, the fast settle (one ordered pass plus registered rounds), the exact unit-delay `tick`, delay pipes, forces |
@@ -56,8 +56,8 @@ numbers never change once given; new ones are appended.** The page's `KIND` tabl
 2. Rust: a number in `engine-rs/src/parts/mod.rs` (`kind` module, appended), its behaviour in the family file, the dispatch range.
 3. `KIND` in `src/engine/wasmengine.ts`; if the part has state or settings the module needs, send them in the constructor and read them
    back in `syncOut`.
-4. Add the part to `CASES` in `src/engine/wasmengine.test.ts`: it is run against the TypeScript `evaluate` with unknown inputs and random
-   switches, so the two copies cannot drift.
+4. Add the part to `CASES` in `src/engine/wasmengine.test.ts`: it is run against the frozen TypeScript oracle (`src/engine/testdata/oracle/`) with unknown inputs and
+   random switches, so a mistake in the Rust behaviour shows.
 5. `npm run build:wasm` and commit `src/engine/wasm/engine.wasm` with the source (CI runs `build:wasm -- --check`).
 
 ## How the speed was won
@@ -92,13 +92,20 @@ than the evaluation. Details and numbers: `docs/spec-sim-evals.md`, `docs/spec-s
 - E2 the engine and the parts of the BASIC board; E3 step-back history as one memory copy; E4a to E4h every other part type
   (63 in all) with a per-part random lockstep test against the TypeScript copy; the code split into `parts/<family>.rs` (#201).
 - E5 the measurement above. E6 several clocks and the exact engine in Rust (#209). E7 circuits without a clock and wide receive labels,
-  then removing the TypeScript engines.
+  then removing the TypeScript engines (E7d to E7f, #222 to #229): done.
 
-## Still two copies (until E7 finishes)
+## One copy
 
-Each part's TypeScript `evaluate` and the TypeScript `settleFast` and unit-delay `tick` still exist: they run when the module is not
-loaded yet, with `?engine=ts`, and as the oracle the lockstep tests compare Rust against. E7 moves them into a test-only reference and
-removes them from the shipped app; this page changes when that lands.
+What a part does lives once, in Rust. The TypeScript `settleFast`, `tick` and part `evaluate` functions are gone from the shipped app
+(E7d to E7f); the Simulator has no engine of its own, and a Simulator without the module settles nothing. The page and the worker
+compile the module before the first Simulator exists (`installEngine` in `src/engine/wasm.ts`), and tests do the same in
+`src/test/setup.ts`.
+
+Three things stay in TypeScript on purpose: parts the page runs itself (switch, button, labels, constants and displays, which keep a
+small `evaluate` and tell the module their value through `refreshPart`), the ROM's `evaluate` (its words are read by asking the part),
+and the frozen test oracle, `src/engine/testdata/oracle/` (the old simulator, part definitions and chip cores) plus
+`src/engine/testdata/reference/` (the tier 1 reference). They exist only so the lockstep tests can compare Rust against an independent
+implementation; nothing in `src/` outside the tests imports them.
 
 ## Debugging
 
