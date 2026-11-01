@@ -87,34 +87,51 @@ export async function gameBoard() {
 describe('the game on the board', () => {
   it('draws what the reference draws, frame after frame, through a scripted walk that opens the door', async () => {
     const g = await gameBoard()
-    // What is held while each picture is made: walk to the door, open it, go through, turn, strafe, back up, stand.
-    const script = [...Array(8).fill(up), up | b, ...Array(7).fill(up), ...Array(4).fill(right), ...Array(3).fill(up | a | left), ...Array(3).fill(down), 0]
+    // What is held while each picture is made: walk to the door, open it, go through, then turn, strafe, back up and stand. The pictures
+    // come faster or slower as the walls do, so the script goes by where the reference is, not by the picture's number.
+    let phase = 0
+    let phaseFrames = 0
+    const heldNext = (ref: ReturnType<typeof newGame>): number => {
+      phaseFrames++
+      if (phase === 0 && ref.pose.xCell === 2 && ref.pose.xFrac > 128) phase = (phaseFrames = 0) + 1
+      else if (phase === 1 && ref.map[14 * 16 + 3] === 0) phase = (phaseFrames = 0) + 2
+      else if (phase === 2 && ref.pose.xCell >= 4) phase = (phaseFrames = 0) + 3
+      else if (phase === 3 && phaseFrames > 3) phase = (phaseFrames = 0) + 4
+      else if (phase === 4 && phaseFrames > 3) phase = (phaseFrames = 0) + 5
+      else if (phase === 5 && phaseFrames > 3) phase = (phaseFrames = 0) + 6
+      return [up, up | b, up, right, up | a | left, down, 0][phase]
+    }
     const ref = newGame()
     // The pad is read when a picture starts, which is right after the one before it ends: so the buttons for picture f+1 are set while f is drawn.
-    g.pad(script[0])
-    g.run(60000)
-    g.pad(script[1])
+    g.pad(up)
+    g.run(30000)
+    g.pad(up)
     let opened = false
     const t0 = g.cycles()
-    for (let f = 0; f < script.length; f++) {
+    let pictures = 0
+    const pads: number[] = [up, up]
+    for (let f = 0; f < 60 && phase < 6; f++) {
       // Run to the end of picture f (the program counts it after the last column), then to the middle of the next one.
       while (g.frames() <= f) g.run(100)
       const m = g.ram()
       const ticks = m[GAME_CELLS.shownTicks]
       expect(ticks, `frame ${f}`).toBeGreaterThanOrEqual(1)
       expect(ticks).toBeLessThanOrEqual(MAX_TICKS)
-      for (let i = 0; i < ticks; i++) tick(ref, script[f])
+      for (let i = 0; i < ticks; i++) tick(ref, pads[f])
       const shown = Array.from(m.slice(GAME_CELLS.shown, GAME_CELLS.shown + 5))
-      expect(shown, `frame ${f}: pose after ${ticks} ticks, held ${script[f]}`).toEqual([ref.pose.xFrac, ref.pose.xCell, ref.pose.yFrac, ref.pose.yCell, ref.pose.angle])
+      expect(shown, `frame ${f}: pose after ${ticks} ticks, held ${pads[f]}`).toEqual([ref.pose.xFrac, ref.pose.xCell, ref.pose.yFrac, ref.pose.yCell, ref.pose.angle])
       expect(Array.from(g.picture()), `frame ${f}: picture`).toEqual(Array.from(render(ref.pose, 160, ref.map)))
       if (ref.map[14 * 16 + 3] === 0) opened = true
+      pictures++
       g.run(60000)
-      g.pad(script[f + 2] ?? 0)
+      const next = heldNext(ref)
+      pads.push(next)
+      g.pad(next)
     }
-    // The frame rate the D0 table promised (130,000 cycles a frame with the fill, about 7.7 a second), within 25 percent.
-    const perFrame = (g.cycles() - t0) / script.length
-    console.log(`game: ${Math.round(perFrame)} cycles a picture on average over ${script.length} pictures, ${(1_000_000 / perFrame).toFixed(1)} a second`)
-    expect(perFrame).toBeLessThan(130_300 * 1.25)
+    // D3's target: a picture in under 120,000 cycles on average (D0 measured 130,300 with the multiplies).
+    const perFrame = (g.cycles() - t0) / pictures
+    console.log(`game: ${Math.round(perFrame)} cycles a picture on average over ${pictures} pictures, ${(1_000_000 / perFrame).toFixed(1)} a second`)
+    expect(perFrame).toBeLessThan(120_000)
     expect(opened).toBe(true)
     expect(ref.pose.xCell).toBeGreaterThanOrEqual(3)
   }, 300_000)

@@ -1,4 +1,4 @@
-import { angleTables, COLUMN_BYTES, FLOOR, MAP, Q_FAR, Q_NEAR, RECIP, SCREEN_H, screenWidth, SHADE, SKY } from './tables'
+import { angleTables, COLUMN_BYTES, firstEdge, FLOOR, MAP, Q_FAR, Q_NEAR, RECIP, SCREEN_H, screenWidth, SHADE, SKY } from './tables'
 
 /** Where the player is: a cell (0 to 15) and a fraction (0 to 255) on each axis, and an angle (0 to 255). */
 export interface Pose {
@@ -31,9 +31,7 @@ function cast(p: Pose, c: number, t: ReturnType<typeof angleTables>, map: number
     const i = neg ? (256 - h) & 255 : h
     const fx = neg ? frac : 255 - frac
     const delta = RECIP[i]
-    const dh = delta >> 8
-    const dl = delta & 255
-    return { step: neg ? -cellStep : cellStep, delta, side: (fx * dh + ((fx * dl) >> 8)) & 0xffff }
+    return { step: neg ? -cellStep : cellStep, delta, side: firstEdge(fx, i) }
   }
   const ax = axis(dirX, p.xFrac, 1)
   const ay = axis(dirY, p.yFrac, 16)
