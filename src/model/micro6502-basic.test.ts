@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aciaType, screenText, type AciaState } from '../engine/acia'
+import { screenText, type AciaState } from '../engine/acia'
 import { Simulator } from '../engine/simulator'
 import { toNum } from '../engine/types'
 import { board6502Builder } from './board6502'
@@ -53,7 +53,7 @@ describe('the BASIC computer with the 6502 built from parts', () => {
       throw new Error(`Not there after ${most} cycles. The screen: ${JSON.stringify(text())}`)
     }
     runUntil(/SKLOPKO BASIC[\s\S]*OK\s*$/, 60_000)
-    const type = (line: string) => aciaType(sim.state(m.keys.terminal) as AciaState, `${line}\r`)
+    const type = (line: string) => sim.terminal(m.keys.terminal, { op: 'type', text: `${line}\r`, capitals: true })
     type('10 PRINT "HELLO"')
     type('RUN')
     type('PRINT 2+2')

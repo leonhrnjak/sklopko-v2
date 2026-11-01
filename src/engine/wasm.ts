@@ -9,13 +9,14 @@
 export const engineUrl = new URL('./wasm/engine.wasm', import.meta.url)
 
 /** The version of the interface between this code and the module: engine-rs/src/lib.rs has the same number. */
-export const ABI_VERSION = 9
+export const ABI_VERSION = 12
 
 /** What the module exports. */
 export interface EngineExports {
   memory: WebAssembly.Memory
   abi_version(): number
   alloc(len: number): number
+  free(ptr: number, len: number): void
   checksum(ptr: number, len: number): number
   init(ptr: number, len: number): void
   edge(part: number): number
@@ -23,6 +24,7 @@ export interface EngineExports {
   mark_all(fast: number): void
   tick(): number
   set_force(net: number, v: number): void
+  set_net(net: number, v: number): void
   pipe_ptr(part: number): number
   pipe_len(part: number): number
   settle(): number
@@ -58,6 +60,18 @@ export async function loadEngine(source: BufferSource | WebAssembly.Module): Pro
     throw new Error(`The WebAssembly engine speaks interface ${typeof x.abi_version === 'function' ? x.abi_version() : '?'}, not ${ABI_VERSION}: run npm run build:wasm.`)
   }
   return x
+}
+
+/** Compile the module once (checking it is the one this code was written for); `instantiateEngine` then makes an engine for each circuit. */
+export async function compileEngine(source: BufferSource): Promise<WebAssembly.Module> {
+  const module = await WebAssembly.compile(source)
+  await loadEngine(module) // (throws if the interface differs)
+  return module
+}
+
+/** A fresh copy of the engine (its own memory and circuit) from a compiled module, at once. */
+export function instantiateEngine(module: WebAssembly.Module): EngineExports {
+  return new WebAssembly.Instance(module, {}).exports as unknown as EngineExports
 }
 
 /** The page's side of `checksum` in the module: a check that bytes written into its memory arrive as they were. */

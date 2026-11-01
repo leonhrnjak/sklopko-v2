@@ -78,7 +78,8 @@ describe('RAM of 2048 words', () => {
     expect(mem()[0x7ff]).toBe(after) // back to the edge before: still the value written at it
     expect(s.stepBack()).toBe(true)
     expect(mem()[0x7ff]).toBe(before)
-    expect(mem()).not.toBe(object)
+    // (the TypeScript engine hands out a copy of the words; the Rust engine keeps them in the module and its snapshots are copies of it)
+    if (!s.wasmOn) expect(mem()).not.toBe(object)
   })
 
   it('cuts or pads its words when the address size is changed while it runs', () => {

@@ -19,6 +19,7 @@ async function module() {
 
 function fastSim(circuit: ReturnType<typeof micro6502>) {
   const sim = new Simulator()
+  sim.setWasm(null) // (the TypeScript engine, to compare Rust against)
   sim.setFast(true)
   sim.setHistory(false)
   sim.load(flatten(circuit))
@@ -148,7 +149,7 @@ describe('the Rust engine inside the Simulator', () => {
       const sim = new Simulator()
       sim.setFast(true)
       sim.setHistory(false)
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(EXAMPLES.find((e) => e.id === '6502-basic')!.build()))
       sim.settle()
       return sim
@@ -213,7 +214,7 @@ describe('the Rust engine inside the Simulator', () => {
           const sim = new Simulator()
           sim.setFast(true)
           sim.setHistory(false)
-          if (rust) sim.setWasm(openFor(x))
+          sim.setWasm(rust ? openFor(x) : null)
           sim.load(flatten(b.c))
           sim.settle()
           return sim
@@ -245,7 +246,7 @@ describe('the Rust engine inside the Simulator', () => {
     const mk = (rust: boolean) => {
       const sim = new Simulator()
       sim.setFast(true)
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       const basic = micro6502Basic()
       delete basic.history // absent means on
       sim.load(flatten(basic))
@@ -300,7 +301,7 @@ describe('the Rust engine inside the Simulator', () => {
     const mk = (rust: boolean) => {
       const sim = new Simulator()
       sim.setFast(true)
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(micro6502()))
       sim.settle()
       return sim
@@ -363,7 +364,7 @@ describe('probes and breakpoints with the Rust engine', () => {
       const sim = new Simulator()
       sim.setFast(true)
       sim.setHistory(false)
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(withProbes()))
       sim.settle()
       return sim
@@ -397,7 +398,7 @@ describe('every example the Rust engine takes', () => {
       const mk = (rust: boolean) => {
         const sim = new Simulator()
         sim.setFast(true)
-        if (rust) sim.setWasm(openFor(x))
+        sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
         sim.settle()
         return sim
@@ -441,7 +442,7 @@ describe('the exact (unit-delay) engine in Rust', () => {
       const mk = (rust: boolean) => {
         const sim = new Simulator()
         sim.setFast(false)
-        if (rust) sim.setWasm(openFor(x))
+        sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
         sim.settle()
         return sim
@@ -475,7 +476,7 @@ describe('circuits without a clock in Rust', () => {
     for (const ex of EXAMPLES) {
       const mk = (rust: boolean) => {
         const sim = new Simulator()
-        if (rust) sim.setWasm(openFor(x))
+        sim.setWasm(rust ? openFor(x) : null)
         sim.load(flatten(ex.build()))
         sim.settle()
         return sim
@@ -525,7 +526,7 @@ describe('the exact engine in Rust: loops, delays, forces and capture', () => {
     const x = await module()
     const mk = (rust: boolean) => {
       const sim = new Simulator()
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       sim.load(circuit())
       sim.settle()
       return sim
@@ -628,7 +629,7 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
           const sim = new Simulator()
           sim.setFast(true)
           sim.setHistory(false)
-          if (rust) sim.setWasm(openFor(x))
+          sim.setWasm(rust ? openFor(x) : null)
           sim.load(flatten(b.c))
           sim.settle()
           return sim
@@ -663,7 +664,7 @@ describe('stepping back in the Rust engine over a pixel screen', () => {
     const mk = (rust: boolean) => {
       const sim = new Simulator()
       sim.setFast(true)
-      if (rust) sim.setWasm(openFor(x))
+      sim.setWasm(rust ? openFor(x) : null)
       sim.load(flatten(EXAMPLES.find((e) => e.id === 'computer-ant')!.build()))
       sim.settle()
       return sim

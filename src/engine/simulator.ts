@@ -149,6 +149,9 @@ export const HISTORY_EDGES = 1000
  * loops (latches, oscillators) are therefore deterministic and flip-flops sharing a clock never race.
  */
 export class Simulator {
+  /** Gives every new Simulator its opener: whoever has the compiled module sets it once (the app on the page's thread, the tests' setup). */
+  static defaultOpener: (() => (c: Compiled) => WasmEngine | null) | null = null
+
   private comps: CComp[] = []
   private byId = new Map<string, CComp>()
   private clocks: CComp[] = []
@@ -214,7 +217,7 @@ export class Simulator {
    * when a part is missing in it. While `we` is set it runs the circuit: `values` follows it after every settle, and everything else
    * (the part states, the input pins) is brought up to date from it when somebody needs it (`syncWasm`, `leaveWasm`).
    */
-  private openWasm: ((c: Compiled) => WasmEngine | null) | null = null
+  private openWasm: ((c: Compiled) => WasmEngine | null) | null = Simulator.defaultOpener?.() ?? null
   private we: WasmEngine | null = null
   /** The Rust engine's tick count at the last settle, and whether it has run since the part states were last brought up to date. */
   private weTicks = 0
@@ -248,7 +251,8 @@ export class Simulator {
   private late = false
 
   load(c: SimCircuit) {
-    this.we = null
+    // (the Rust engine hands back the parts' states and the nets first: a part that is still in the circuit keeps them)
+    this.leaveWasm()
     this.dropCapture()
     this.history = []
     this.cursor = -1
@@ -1120,6 +1124,7 @@ export class Simulator {
       if (!this.we) this.enterWasm()
       if (!this.we) return false
       this.we.load(snap.wasm)
+      this.we.refreshInputs()
       this.values.set(this.we.values)
       this.pins.set(this.we.pins)
       this.weStale = true
@@ -1285,22 +1290,38 @@ export class Simulator {
 
   /** Change params that don't affect the pin layout (switch position, input value, clock rate...). */
   setParams(compId: string, params: Params) {
-    this.leaveWasm()
     const cc = this.byId.get(compId)
+    // A switch or a button is run by the page: the Rust engine keeps running and is told the new value.
+    const onPage = !!cc && !!this.we && this.we.runsOnPage(cc.index)
+    if (!onPage) this.leaveWasm()
     if (!cc) return
     cc.inst.params = params
     cc.inst.cfg = undefined
-    this.touch(cc)
+    this.touchOrRefresh(cc, onPage)
     this.dirty = true
   }
 
   setState(compId: string, patch: Record<string, unknown>) {
-    this.leaveWasm()
     const cc = this.byId.get(compId)
+    const onPage = !!cc && !!this.we && this.we.runsOnPage(cc.index)
+    if (!onPage) this.leaveWasm()
     if (!cc) return
     cc.inst.state = { ...cc.inst.state, ...patch }
-    this.touch(cc)
+    this.touchOrRefresh(cc, onPage)
     this.dirty = true
+  }
+
+  private touchOrRefresh(cc: CComp, onPage: boolean) {
+    if (!onPage) return this.touch(cc)
+    this.unstable = false
+    this.we!.refreshPart(cc.index)
+    const now = this.we!.values
+    for (let n = 0; n < now.length; n++) {
+      if (this.values[n] !== now[n]) {
+        this.values[n] = now[n]
+        this.moved = true
+      }
+    }
   }
 
   /** Always false here: the simulation of the canvas may run in a worker instead (`engine/remote.ts`), and says so. */

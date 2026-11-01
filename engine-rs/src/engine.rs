@@ -53,6 +53,8 @@ pub struct Engine {
     any_forced: bool,
     /// Which engine the flags are for (`mark_all`).
     fast_mode: bool,
+    /// Values the page put on nets for the exact engine: they appear at the next tick, as a part evaluated there would show them.
+    pending: Vec<(u32, u8)>,
 }
 
 impl Engine {
@@ -165,6 +167,7 @@ impl Engine {
             forced: vec![-1; n_nets],
             any_forced: false,
             fast_mode: true,
+            pending: Vec::new(),
         }
     }
 
@@ -399,6 +402,8 @@ impl Engine {
         self.fast_mode = fast;
         let n = self.kind.len();
         if fast {
+            let pending = std::mem::take(&mut self.pending);
+            for (net, v) in pending { self.set_net(net as usize, v); }
             // (not the parts the module does not run: they keep what the page put on their nets)
             for i in 0..n {
                 if self.kind[i] != 0 { self.flag_fast(i); }
@@ -460,6 +465,14 @@ impl Engine {
         std::mem::swap(&mut self.queue, &mut self.running);
         self.queued = 0;
         self.changed.clear();
+        for k in 0..self.pending.len() {
+            let (net, v) = self.pending[k];
+            if self.values[net as usize] != v {
+                self.values[net as usize] = v;
+                self.changed.push(net);
+            }
+        }
+        self.pending.clear();
         for k in 0..count {
             let i = self.running[k] as usize;
             self.stale[i] = 0;
@@ -503,5 +516,30 @@ impl Engine {
             }
         }
         moved || pending
+    }
+
+    /// The page puts a value on a net from outside (a switch, a button): the parts that read it are flagged.
+    pub fn set_net(&mut self, net: usize, v: u8) {
+        if !self.fast_mode {
+            self.pending.push((net as u32, v));
+            return;
+        }
+        if self.values[net] == v { return; }
+        self.values[net] = v;
+        let end = self.reader_start[net + 1] as usize;
+        let mut r = self.reader_start[net] as usize;
+        while r < end {
+            let slot = self.reader_slot[r];
+            self.pins[(slot >> 1) as usize] = if v == Z && (slot & 1) == 0 { X } else { v };
+            let part = self.reader_part[r] as usize;
+            match self.reader_wake[r] {
+                1 => self.flag(part),
+                2 => {
+                    if v == 0 { self.st_pc[part] = 0; } else { self.flag(part); }
+                }
+                _ => {}
+            }
+            r += 1;
+        }
     }
 }

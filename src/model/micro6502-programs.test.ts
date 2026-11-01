@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import io from '../../scripts/basic/io.s?raw'
 import source from '../../scripts/basic/m6502.asm?raw'
 import { buildBasic } from '../../scripts/basic/target'
-import { aciaType, screenText, type AciaState } from '../engine/acia'
+import { screenText, type AciaState } from '../engine/acia'
 import { Simulator } from '../engine/simulator'
 import { BasicMachine } from './basic-harness'
 import { BASIC_PROGRAMS } from './basic-programs'
@@ -70,7 +70,7 @@ function onCircuit(p: Prog, max: number) {
     if (cycles % 1000) continue
     const st = state()
     if (!ready) ready = /OK\s*$/.test(screenText(st))
-    else if (queue.length && st.keys.length - st.next === 0) aciaType(st, queue.shift()!)
+    else if (queue.length && st.keys.length - st.next === 0) sim.terminal(m.keys.terminal, { op: 'type', text: queue.shift()!, capitals: true })
     if (ready && !queue.length && finished(screenText(st))) break
   }
   return { screen: screenText(state()), cycles }
