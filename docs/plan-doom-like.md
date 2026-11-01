@@ -104,6 +104,7 @@ What the numbers say:
   (60,000 to 120,000), so D1b is in and the screen is 80 columns wide. Cheaper set-up (a sparse reciprocal-times-fraction table instead of the
   multiplies) could bring it under 60,000; that is a D3 optimisation and not needed for the gate.
 - **120 columns** (asked in review) is a 120×100 screen, since 160 is not a whole multiple of 120: mean 97,700 cycles with the fill (10 fps), worst pose 124,700 (8 fps). That is band 2 on the mean, just over the line at the worst pose. The framebuffer is 6,000 bytes (80 columns: 8,000 on a 160-wide screen, 4,000 on an 80-wide one); the ROM is the same size, only the step table values differ.
+- **Decision (Leon, 2026-11-01): 160 columns, 160×100, against the gate's advice.** At 160 columns with the fill the game runs at about 7.7 fps (130k cycles mean, 166k worst, about 6 fps) until the ray set-up is made cheaper. D1b stays in. The milestone that tunes the engine (D3) has the target of getting the mean under 120,000; if it cannot, the width is revisited then.
 - The model: the fill takes no time on the part's side; the framebuffer is stored column by column (a column is 50 bytes), which makes a column
   one run of the auto-increment port. D1 should store it that way (the canvas transposes it).
 
