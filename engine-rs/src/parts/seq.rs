@@ -153,3 +153,172 @@ pub fn eval(kind: i32, c: &mut Cell) {
         _ => {}
     }
 }
+
+// Table tests: each row is the inputs of one evaluation and the outputs it must give; the part keeps its state from row to row, so a
+// table is a short run. Copy this pattern for a new part (see testkit.rs).
+#[cfg(test)]
+mod tests {
+    use super::super::testkit::{table, Part};
+    use super::*;
+
+    #[test]
+    fn d_flip_flop() {
+        // Inputs: D, clock, set, reset. Outputs: Q, not Q.
+        table(&mut Part::new(DFF, 2), &[
+            ("1 0 0 0", "0 1"), // clock low: nothing is stored yet
+            ("1 1 0 0", "1 0"), // rising edge: Q takes D
+            ("0 1 0 0", "1 0"), // clock stays high: no new edge
+            ("0 0 0 0", "1 0"), // falling edge: nothing
+            ("0 1 0 0", "0 1"), // rising edge: Q takes 0
+            ("1 0 1 0", "1 0"), // set works without a clock
+            ("1 0 0 1", "0 1"), // reset works without a clock
+            ("1 1 1 1", "0 1"), // reset wins over set, and over the edge
+            ("1 0 0 0", "0 1"),
+            ("X 1 0 0", "X X"), // an unknown D at the edge
+        ]);
+    }
+
+    #[test]
+    fn t_flip_flop() {
+        // Inputs: T, clock, set, reset.
+        table(&mut Part::new(TFF, 2), &[
+            ("1 0 0 0", "0 1"),
+            ("1 1 0 0", "1 0"), // T=1: toggles
+            ("1 0 0 0", "1 0"),
+            ("1 1 0 0", "0 1"), // and back
+            ("0 0 0 0", "0 1"),
+            ("0 1 0 0", "0 1"), // T=0: holds
+            ("X 0 0 0", "0 1"),
+            ("X 1 0 0", "X X"),
+        ]);
+    }
+
+    #[test]
+    fn jk_flip_flop() {
+        // Inputs: J, clock, K, set, reset.
+        table(&mut Part::new(JKFF, 2), &[
+            ("1 0 0 0 0", "0 1"),
+            ("1 1 0 0 0", "1 0"), // J=1, K=0: set
+            ("0 0 0 0 0", "1 0"),
+            ("0 1 1 0 0", "0 1"), // J=0, K=1: reset
+            ("0 0 0 0 0", "0 1"),
+            ("1 1 1 0 0", "1 0"), // J=1, K=1: toggle
+            ("1 0 1 0 0", "1 0"),
+            ("1 1 1 0 0", "0 1"),
+        ]);
+    }
+
+    #[test]
+    fn sr_latch() {
+        // Inputs: S, R. Outputs: Q, not Q.
+        table(&mut Part::new(SRLATCH, 2), &[("00", "01"), ("10", "10"), ("00", "10"), ("01", "01"), ("00", "01"), ("11", "00")]);
+    }
+
+    #[test]
+    fn d_latch() {
+        // Inputs: D, enable.
+        table(&mut Part::new(DLATCH, 2), &[("10", "01"), ("11", "10"), ("10", "10"), ("00", "10"), ("01", "01")]);
+    }
+
+    #[test]
+    fn counter_modulo_ten_up_and_down() {
+        // Inputs: clock, enable, up, reset. Outputs: the four bits (least significant first), then the carry.
+        let mut c = Part::new(COUNTER, 5).params(10, 0, 0);
+        table(&mut c, &[
+            ("0 1 1 0", "0000 0"),
+            ("1 1 1 0", "1000 0"), // 1
+            ("0 1 1 0", "1000 0"),
+            ("1 1 1 0", "0100 0"), // 2
+            ("0 1 0 0", "0100 0"), // now counting down
+            ("1 1 0 0", "1000 0"), // 1
+            ("0 1 0 0", "1000 0"),
+            ("1 1 0 0", "0000 1"), // 0, and the down carry
+            ("0 1 0 0", "0000 1"),
+            ("1 1 0 0", "1001 0"), // wraps to 9
+            ("0 0 0 1", "0000 0"), // reset
+        ]);
+    }
+
+    #[test]
+    fn counter_wraps_at_its_modulus_and_holds_when_disabled() {
+        let mut c = Part::new(COUNTER, 5).params(10, 0, 0);
+        for i in 0..25 {
+            c.eval(&[0, 1, 1, 0]);
+            c.eval(&[1, 1, 1, 0]);
+            assert_eq!(c.state(), (i + 1) % 10);
+        }
+        // Disabled: the edge does nothing.
+        let before = c.state();
+        c.eval(&[0, 0, 1, 0]);
+        c.eval(&[1, 0, 1, 0]);
+        assert_eq!(c.state(), before);
+        // An unknown enable gives an unknown carry and counts nothing.
+        c.eval(&[0, 2, 1, 0]);
+        let out = c.eval(&[1, 2, 1, 0]);
+        assert_eq!(out[4], 2);
+        assert_eq!(c.state(), before);
+    }
+
+    #[test]
+    fn counter_with_load() {
+        // Inputs: four data bits, load, enable, clock, reset. Outputs: four bits, carry.
+        table(&mut Part::new(COUNTERLD, 5), &[
+            ("0000 0 0 0 0", "0000 0"),
+            ("1010 1 0 0 0", "0000 0"), // load, clock low: nothing yet
+            ("1010 1 0 1 0", "1010 0"), // rising edge loads 5
+            ("1010 0 1 0 0", "1010 0"),
+            ("1010 0 1 1 0", "0110 0"), // counts: 6
+            ("0000 0 0 0 1", "0000 0"), // reset
+            ("1111 1 0 0 0", "0000 0"),
+            ("1111 1 0 1 0", "1111 0"), // loads 15, not enabled: no carry
+            ("1111 0 1 0 0", "1111 1"), // enabled at 15: carry
+            ("0000 0 1 1 0", "0000 0"), // wraps to 0
+        ]);
+    }
+
+    #[test]
+    fn register() {
+        // Inputs: four data bits, load enable, clock, reset.
+        table(&mut Part::new(REGISTER, 4), &[
+            ("1010 1 0 0", "0000"),
+            ("1010 1 1 0", "1010"), // rising edge with load enabled
+            ("0101 1 1 0", "1010"), // no new edge
+            ("0101 1 0 0", "1010"),
+            ("0101 0 1 0", "1010"), // edge, load disabled
+            ("0101 1 0 0", "1010"),
+            ("0101 1 1 0", "0101"),
+            ("0101 1 0 0", "0101"),
+            ("0101 1 0 1", "0000"), // reset
+            ("X101 1 0 0", "0000"),
+            ("X101 1 1 0", "XXXX"), // an unknown bit at the edge makes the whole word unknown
+        ]);
+    }
+
+    #[test]
+    fn shift_register() {
+        // Inputs: serial in, four parallel bits, load, clock, reset.
+        table(&mut Part::new(SHIFTREG, 4), &[
+            ("1 0000 0 0 0", "0000"),
+            ("1 0000 0 1 0", "1000"), // shifts a 1 in
+            ("0 0000 0 0 0", "1000"),
+            ("0 0000 0 1 0", "0100"),
+            ("0 0000 0 0 0", "0100"),
+            ("1 0000 0 1 0", "1010"),
+            ("0 1111 1 0 0", "1010"),
+            ("0 1111 1 1 0", "1111"), // parallel load
+            ("0 0000 0 0 1", "0000"), // reset
+        ]);
+    }
+
+    #[test]
+    fn ring_and_johnson_counters() {
+        // Inputs: clock, reset.
+        table(&mut Part::new(RINGCOUNTER, 4).params(0, 0, 0), &[
+            ("0 1", "1000"), ("1 0", "0100"), ("0 0", "0100"), ("1 0", "0010"), ("0 0", "0010"), ("1 0", "0001"), ("0 0", "0001"), ("1 0", "1000"),
+        ]);
+        table(&mut Part::new(RINGCOUNTER, 4).params(1, 0, 0), &[
+            ("0 1", "0000"), ("1 0", "1000"), ("0 0", "1000"), ("1 0", "1100"), ("0 0", "1100"), ("1 0", "1110"), ("0 0", "1110"),
+            ("1 0", "1111"), ("0 0", "1111"), ("1 0", "0111"),
+        ]);
+    }
+}

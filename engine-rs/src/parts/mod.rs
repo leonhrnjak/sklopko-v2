@@ -16,6 +16,8 @@ mod terminal;
 mod tristate;
 mod via;
 pub mod util;
+#[cfg(test)]
+pub mod testkit;
 
 use acia::Acia;
 pub use cpu6502::{Cpu, Programs, CPU_FIELDS};

@@ -113,3 +113,33 @@ pub fn eval(kind: i32, c: &mut Cell) {
         _ => {}
     }
 }
+
+// Table tests: each row is the inputs of one evaluation and the outputs it must give. Copy this pattern for a new part (see testkit.rs).
+#[cfg(test)]
+mod tests {
+    use super::super::testkit::{table, Part};
+    use super::*;
+
+    #[test]
+    fn four_bit_adder() {
+        // Inputs: A (four bits, least significant first), B, carry in. Outputs: the sum, and the carry out as the fifth bit.
+        table(&mut Part::new(ADD4, 5), &[
+            ("1100 1010 0", "00010"), // 3 + 5 = 8
+            ("1111 1000 1", "10001"), // 15 + 1 + 1 = 17
+            ("0000 0000 0", "00000"),
+            ("X100 1010 0", "XXXXX"),
+        ]);
+    }
+
+    #[test]
+    fn four_bit_subtractor() {
+        // Outputs: the difference, then the borrow.
+        table(&mut Part::new(SUB4, 5), &[("1010 1100 0", "01000"), ("1100 1010 0", "01111"), ("1100 1100 1", "11111")]);
+    }
+
+    #[test]
+    fn four_bit_comparator() {
+        // Outputs: A > B, A = B, A < B.
+        table(&mut Part::new(CMP4, 3), &[("1010 1100", "100"), ("1100 1100", "010"), ("1100 1010", "001"), ("X100 1010", "XXX")]);
+    }
+}
