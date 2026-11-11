@@ -2,7 +2,7 @@ import { CircuitBuilder } from './builder'
 import { counterDisplay } from './example-counter'
 import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
-import { frameAround, note } from './annotate'
+import { frameAround, note, noteBelow } from './annotate'
 import { beginnerComputer } from './beginner'
 import { board6502 } from './board6502'
 import { ball6502, basic6502, doomLike6502, gameBoard6502, basicLcd6502, lcd6502, video6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
@@ -34,6 +34,7 @@ function basicGates(): Circuit {
     const led = b.add('led', 290, 80 * i + 10, { label: names[i] })
     b.wire(`${g}.Y`, `${led}.A`)
   })
+  noteBelow(b, 'Four gates share the same two switches, A and B. Flip them and watch which lamps light. Find the one input pair where OR and XOR disagree.')
   return b.build()
 }
 
@@ -51,6 +52,7 @@ function srLatch(): Circuit {
   b.wire(`${s}.Q`, `${g2}.B`)
   b.wire(`${g1}.Y`, `${q}.A`)
   b.wire(`${g2}.Y`, `${nq}.A`)
+  noteBelow(b, 'Two NOR gates feed each other, so the circuit remembers. Press S (set) and let go: Q stays on. Press R (reset) to clear it. Pressing both at once drives both outputs low; let go of both together and it is a race.')
   return b.build()
 }
 
@@ -76,6 +78,7 @@ function nandDLatch(): Circuit {
   b.wire(`${n2}.Y`, `${n4}.B`)
   b.wire(`${n3}.Y`, `${q}.A`)
   b.wire(`${n4}.Y`, `${nq}.A`)
+  noteBelow(b, 'The latch follows D while EN is on and holds the last value when EN is off. Turn EN on, set D, then turn EN off and change D: Q does not move.')
   return b.build()
 }
 
@@ -105,6 +108,7 @@ function shiftRegister(): Circuit {
   }
   // Waveforms: the data ripples one stage per clock edge.
   probes(b, [['CLK', `${clk}.Q`], ...q.map((s, i): [string, string] => [`Q${i}`, s])], 0, 220)
+  noteBelow(b, 'Each clock edge moves the data one flip-flop to the right, as the waveforms show. Turn Data off after a few ticks and watch the 1s march out. Try the clock at 4 Hz.')
   return b.build()
 }
 
@@ -122,6 +126,7 @@ function adder(): Circuit {
     b.wire(`${add}.S${i}`, `${out}.${p}`)
   }
   b.wire(`${add}.Co`, `${carry}.A`)
+  noteBelow(b, 'A 4-bit adder: set A and B with the hex inputs and read the sum. Try A = 9 and B = 9 (18 needs five bits): the carry lamp lights and the display shows 2, since only 4 bits fit.')
   return b.build()
 }
 
@@ -137,6 +142,7 @@ function ringOscillator(): Circuit {
   b.wire(`${g}.Y`, `${n1}.A`)
   b.wire(`${n1}.Y`, `${n2}.A`)
   b.wire(`${n2}.Y`, `${led}.A`)
+  noteBelow(b, 'Turn Enable on: an odd number of inversions fed back on themselves never settles, so the output flips by itself as fast as the gates allow. Turn Enable off to stop it.')
   return b.build()
 }
 
@@ -153,6 +159,7 @@ function muxDemo(): Circuit {
   b.wire(`${s1}.Q`, `${mux}.S1`)
   b.wire(`${s0}.Q`, `${mux}.S0`)
   b.wire(`${mux}.Y`, `${led}.A`)
+  noteBelow(b, 'The two select switches pick which of the four inputs reaches Y. Set S1 S0 to 00, 01, 10 and 11 in turn, and flip the matching input switch each time to see Y follow it.')
   return b.build()
 }
 
@@ -166,6 +173,7 @@ function rippleCounter(): Circuit {
   for (let i = 1; i < 4; i++) b.wire(`${ffs[i - 1]}.NQ`, `${ffs[i]}.CLK`)
   ffs.forEach((f, i) => b.wire(`${f}.Q`, `${disp}.${'ABCD'[i]}`))
   probes(b, [['CLK', `${clk}.Q`], ...ffs.map((f, i): [string, string] => [`Q${i}`, `${f}.Q`])], 0, 220)
+  noteBelow(b, 'A binary counter built from T flip-flops: each stage is clocked by the one before, so a carry ripples along. The waveforms show each stage running at half the rate of the one before. Slow the clock to 1 Hz to watch the digits change.')
   return b.build()
 }
 
@@ -235,6 +243,7 @@ function digitalClock(): Circuit {
     const p = b.add('probe', x, 420, { label })
     b.wire(from, `${p}.A`)
   }
+  noteBelow(b, 'Six decimal counters make HH:MM:SS from a 1 Hz clock: a digit counts only when everything to its right rolls over. Hold Set minutes to make the minutes count once a second, and hold Set hours until they reach 24: they wrap to 00.')
   return b.build()
 }
 
@@ -347,6 +356,7 @@ function trafficLights(): Circuit {
   }
   crosswalk('West', cx - 230, cy + 120, nsG, nsTurn)
   crosswalk('North', cx + 190, cy - 300, ewG, ewTurn)
+  noteBelow(b, 'A counter steps through 16 phases and gates turn each phase into lamps. Press Push at a crossing: it remembers the press and lights Walk during the next green. Watch the order red, red and yellow, green, yellow.')
   return b.build()
 }
 
@@ -393,6 +403,7 @@ function dice(): Circuit {
   b.wire(`${diag2}.Y`, `${die}.BL`)
   b.wire(`${six}.Y`, `${die}.ML`)
   b.wire(`${six}.Y`, `${die}.MR`)
+  noteBelow(b, 'Hold the Roll button: a fast counter spins through 0 to 5 and gates draw the matching die face. Let go, and it stops on a number nobody chose.')
   return b.build()
 }
 
@@ -498,6 +509,7 @@ function calculator(): Circuit {
     const led = b.add('led', 500, 1080 + i * 50, { label, params: { color } })
     b.wire(`${cmp}.${pin}`, `${led}.A`)
   })
+  noteBelow(b, 'One pair of inputs, five circuits: the ALU (change the operation number and press Store), a multiplier, a ROM of squares, a decimal adder and a comparator. Set A = 7 and B = 6 and read every result at once.')
   return b.build()
 }
 
@@ -542,6 +554,7 @@ function matrixSmiley(): Circuit {
     b.wire(`${rom}.D${i}`, `${mat}.C${i}`)
     b.wire(`${dec}.Y${i}`, `${mat}.R${i}`)
   }
+  noteBelow(b, 'A counter picks a row 128 times a second, a decoder lights that row and a ROM supplies its pixels. Scanned this fast, the whole smiley seems to be on at once. Slow the Scan clock down to a few hertz and the flicker shows how it works.')
   return b.build()
 }
 
