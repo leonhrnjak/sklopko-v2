@@ -278,7 +278,7 @@ URL it would open.
 
 ### D3 Large examples open where they can be read (`d3-example-fit`, stacked on D2)
 - [x] D3
-  Done: `fit` on `ExampleInfo` (the CPU frame of the 6502 boards and the Doom-like, the fetch stage of the computers, the sequencer of the 6502 from parts, the first stage of `beginner`); `fitToExample` in `view.ts` opens at most 80% so the note beside the frame stays in view, and fits again while a panel opens. A test checks every named frame exists, and a frame title over 40 characters (which loading would drop) fails a test.
+  Done: `fit` on `ExampleInfo` (the CPU frame of the 6502 boards and the Doom-like, the fetch stage of the computers, the sequencer of the 6502 from parts, the first stage of `beginner`); `fitToExample` in `view.ts` opens at most 80% so the note beside the frame stays in view, and fits again while a panel opens. On a phone (under 761 px wide) the whole circuit is fitted instead, because the terminal, keypad and gamepad that are tapped there are often away from the frame. A test checks every named frame exists, and a frame title over 40 characters (which loading would drop) fails a test.
 
 **Why.** The large examples open fitted to the whole circuit, at 12 to 28%, where nothing can be read.
 
