@@ -28,6 +28,7 @@ const git = (...args: string[]) => execFileSync('git', args, { stdio: ['ignore',
 // Served from the site root: example links like /intersection rely on absolute asset paths.
 export default defineConfig({
   base: '/',
+  build: { manifest: true },
   plugins: [react(), examplesPlugin(), serviceWorkerPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion(pkg.version, git)),
