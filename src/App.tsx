@@ -18,7 +18,8 @@ import { ContextMenu } from './ui/canvas/ContextMenu'
 import { ErrorBoundary, UpdatePrompt } from './ui/ErrorBoundary'
 import { EmbedBar } from './ui/EmbedBar'
 import { LibraryDialog } from './ui/library/LibraryDialog'
-import { fitView } from './ui/canvas/viewport'
+import { fitToExample } from './app/view'
+import { exampleFromPath } from './model/examples-index'
 import { Inspector } from './ui/Inspector'
 import { OnDemand } from './ui/OnDemand'
 import { Palette } from './ui/Palette'
@@ -68,7 +69,8 @@ function AppBody() {
   const lockEdits = useSettings((s) => s.lockEdits)
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
-    requestAnimationFrame(fitView)
+    // An example opened by its link may name the frame to open at (see `fitToExample`).
+    requestAnimationFrame(() => fitToExample(exampleFromPath(location.pathname)?.fit))
   }, [])
   if (isEmbed())
     return (
