@@ -4,6 +4,7 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note, noteBelow } from './annotate'
 import { adders } from './adder-examples'
+import { syncCounter } from './counter-examples'
 import { seg7Table } from './seg7-examples'
 import { subtract } from './subtract-examples'
 import { beginnerComputer } from './beginner'
@@ -1162,6 +1163,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   debounce: debouncer,
   'shift-register': shiftRegister,
   'ripple-counter': rippleCounter,
+  'sync-counter': syncCounter,
   adder,
   adders,
   'seg7-table': seg7Table,

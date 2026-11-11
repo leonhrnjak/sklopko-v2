@@ -69,6 +69,7 @@ export const BLURBS: Record<string, string> = {
   adders: 'A half adder and a full adder built from gates, each beside the one-part version, on the same switches.',
   'seg7-table': 'One digit decoded three ways: from a truth table you build in the Logic panel, from a decoder and OR gates, and as a part.',
   subtract: 'Subtraction as two’s complement: subtractors for one, four and eight bits, an adder/subtractor, and a sign.',
+  'sync-counter': 'A synchronous counter of JK flip-flops beside a ripple counter and its in-between numbers, and a ring counter.',
   'ic-adder': 'A half adder in a full adder in a 4-bit adder: parts made from circuits, used like any other part.',
   'computer-blocks': 'The Fibonacci computer drawn as seven ICs: fetch, program ROM, fields, control, memory, ALU and accumulator.',
 }

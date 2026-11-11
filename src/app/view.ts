@@ -6,8 +6,14 @@ export function registerFit(fn: () => void) {
   fit = fn
 }
 
+/** The frame the view was last fitted to (see `fitToExample`), if it was not the whole circuit. */
+let lastFrame: string | undefined
+
 /** Zoom and pan so the whole circuit is visible. */
-export const fitToScreen = () => fit()
+export const fitToScreen = () => {
+  lastFrame = undefined
+  fit()
+}
 
 let focus: (title: string, maxZoom?: number) => boolean = () => false
 
@@ -23,7 +29,15 @@ export function registerFocus(fn: (title: string, maxZoom?: number) => boolean) 
  */
 export const EXAMPLE_MAX_ZOOM = 0.8
 export function fitToExample(frame?: string) {
-  if (!frame || !focus(frame, EXAMPLE_MAX_ZOOM)) fit()
+  lastFrame = frame
+  refitView()
+  // A panel that opens a moment later (the waveforms of an example with probes) takes room from the canvas: fit again as it does.
+  if (frame) fitWhileResizing(2000)
+}
+
+/** Fit again, to the same frame or to everything: what a change of the canvas's size asks for. */
+export function refitView() {
+  if (!lastFrame || !focus(lastFrame, EXAMPLE_MAX_ZOOM)) fit()
 }
 
 let refit: ((ms: number) => void) | null = null

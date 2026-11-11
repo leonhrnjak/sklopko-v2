@@ -51,6 +51,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('Memory and sequential', 'master-slave', 'Master-slave flip-flop from two latches'),
   e('Memory and sequential', 'debounce', 'Button debouncer: why a naive counter miscounts'),
   e('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)'),
+  e('Memory and sequential', 'sync-counter', 'Synchronous counter (JK) beside a ripple counter, and a ring counter', 'Ripple counter'),
   e('Arithmetic', 'adder', '4-bit adder'),
   e('Arithmetic', 'adders', 'Half and full adders: from gates, and as parts'),
   e('Arithmetic', 'subtract', 'Subtracting: two’s complement, borrow and overflow', 'Four bits'),
