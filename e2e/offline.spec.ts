@@ -59,7 +59,7 @@ test('after one visit the app opens and runs with no network: the page, a short 
   await page.getByLabel('Search examples').fill('adder')
   await page.getByTestId('example-adder').click()
   await expect(page).toHaveURL(/\/adder$/)
-  await expect.poll(() => page.locator('.comp').count()).toBe(5)
+  await expect.poll(() => page.locator('.comp').count()).toBe(6) // with the note
   // The panels that load on demand are in the cache too.
   await page.getByRole('button', { name: 'Tools ▾' }).click()
   await page.getByRole('menuitem', { name: 'Logic' }).click()
