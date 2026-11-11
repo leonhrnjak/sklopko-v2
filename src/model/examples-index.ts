@@ -44,6 +44,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('Start here', 'shift-register', 'Shift register (D flip-flops)'),
   e('Logic basics', 'mux', '4:1 multiplexer'),
   e('Logic basics', 'encoder', 'Priority encoder and decoder'),
+  e('Logic basics', 'seg7-table', 'Seven-segment decoder from a truth table', 'From a truth table'),
   e('Logic basics', 'labels', 'Net labels (wireless connections)'),
   e('Memory and sequential', 'sr-latch', 'SR latch from NOR gates'),
   e('Memory and sequential', 'd-latch', 'D latch from NAND gates'),
