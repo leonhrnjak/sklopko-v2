@@ -71,6 +71,7 @@ export const BLURBS: Record<string, string> = {
   subtract: 'Subtraction as two’s complement: subtractors for one, four and eight bits, an adder/subtractor, and a sign.',
   'sync-counter': 'A synchronous counter of JK flip-flops beside a ripple counter and its in-between numbers, and a ring counter.',
   'parity-gray': 'A parity bit that catches one flipped bit but not two, and a Gray counter that changes one bit at a time.',
+  testbench: 'A comparator, a majority circuit beside its lookup table and a demultiplexer, with tests saved in the circuit: run them.',
   'ic-adder': 'A half adder in a full adder in a 4-bit adder: parts made from circuits, used like any other part.',
   'computer-blocks': 'The Fibonacci computer drawn as seven ICs: fetch, program ROM, fields, control, memory, ALU and accumulator.',
 }

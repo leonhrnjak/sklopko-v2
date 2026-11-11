@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { chooseTool, freshEmpty, place, wire } from './helpers'
+import { chooseExample, chooseTool, fresh, freshEmpty, place, wire } from './helpers'
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Tests' })
 
@@ -67,4 +67,13 @@ test('write steps for a circuit, run them, and see which fail and why; the steps
   await expect(dialog(page).getByLabel('Test steps')).toHaveValue('D=1; pulse CLK; expect Q=1')
   await dialog(page).getByRole('button', { name: 'Run tests' }).click()
   await expect(dialog(page).getByTestId('test-summary')).toHaveText('All 1 step passed.')
+})
+
+test('the testbench example comes with its tests saved in it, and they pass', async ({ page }) => {
+  await fresh(page)
+  await chooseExample(page, 'testbench')
+  await chooseTool(page, 'Tests')
+  await expect(dialog(page).getByLabel('Test steps')).toHaveValue(/Comparator/)
+  await dialog(page).getByRole('button', { name: 'Run tests' }).click()
+  await expect(dialog(page).getByTestId('test-summary')).toHaveText(/^All \d+ steps passed\.$/)
 })

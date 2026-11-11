@@ -4,6 +4,7 @@ import { simComps } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
 import { LIT, SEGMENTS } from './seg7-examples'
+import { runTests } from './testbench'
 
 /** Load an example into a simulator, with helpers to find its parts by label and to flip switches and buttons. */
 function rig(id: string) {
@@ -455,5 +456,36 @@ describe('parity and Gray code example', () => {
     }
     expect(changes.gray).toEqual(Array(16).fill(1))
     expect(Math.max(...changes.binary)).toBe(4)
+  })
+})
+
+describe('testbench example', () => {
+  it('has a testbench saved in it, and every step of it passes', () => {
+    const c = EXAMPLES.find((e) => e.id === 'testbench')!.build()
+    expect(c.tests).toBeTruthy()
+    const { run, errors } = runTests(c, c.tests!)
+    expect(errors).toEqual([])
+    expect(run!.outcomes.filter((o) => o.problem || o.failures.length)).toEqual([])
+    expect(run!.passed).toBe(true)
+    expect(run!.outcomes.length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('a broken circuit fails the steps: with the lookup table emptied, the majority lines fail', () => {
+    const c = EXAMPLES.find((e) => e.id === 'testbench')!.build()
+    const lut = Object.values(c.comps).find((k) => k.type === 'lut')!
+    lut.params = { ...lut.params, data: '0 0 0 0 0 0 0 0' }
+    const { run } = runTests(c, c.tests!)
+    expect(run!.passed).toBe(false)
+    expect(run!.outcomes.some((o) => o.failures.some((f) => f.output === 'Lut'))).toBe(true)
+  })
+
+  it('the lookup table is the majority function, row for row, like the gates', () => {
+    const r = rig('testbench')
+    for (let v = 0; v < 8; v++) {
+      r.set('P', !!(v & 1))
+      r.set('Q', !!(v & 2))
+      r.set('R', !!(v & 4))
+      expect(r.lit('Lut'), `inputs ${v}`).toBe(r.lit('Gates'))
+    }
   })
 })

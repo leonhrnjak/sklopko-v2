@@ -4,6 +4,7 @@ import { EXAMPLE_LIST, type ExampleInfo } from './examples-index'
 import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note, noteBelow } from './annotate'
 import { adders } from './adder-examples'
+import { testbench } from './testbench-examples'
 import { syncCounter } from './counter-examples'
 import { parityGray } from './parity-examples'
 import { seg7Table } from './seg7-examples'
@@ -1165,6 +1166,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   'shift-register': shiftRegister,
   'ripple-counter': rippleCounter,
   'sync-counter': syncCounter,
+  testbench,
   'parity-gray': parityGray,
   adder,
   adders,
