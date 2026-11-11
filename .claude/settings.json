@@ -1,4 +1,16 @@
 {
   "includeCoAuthoredBy": false,
-  "attribution": { "commit": "", "pr": "" }
+  "attribution": { "commit": "", "pr": "" },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git config user.name 'Leon Hrnjak' && git config user.email '37066570+leonhrnjak@users.noreply.github.com'"
+          }
+        ]
+      }
+    ]
+  }
 }
