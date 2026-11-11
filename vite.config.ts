@@ -7,6 +7,7 @@ import { defineConfig } from 'vite'
 import { examplesPlugin } from './scripts/examples-plugin.ts'
 import { pathStepCount } from './scripts/pathStepCount.ts'
 import { appVersion } from './scripts/version.ts'
+import { preloadPlugin } from './scripts/preload-plugin.ts'
 import { serviceWorkerPlugin } from './scripts/sw-plugin.ts'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
@@ -29,7 +30,7 @@ const git = (...args: string[]) => execFileSync('git', args, { stdio: ['ignore',
 export default defineConfig({
   base: '/',
   build: { manifest: true },
-  plugins: [react(), examplesPlugin(), serviceWorkerPlugin()],
+  plugins: [react(), examplesPlugin(), preloadPlugin(), serviceWorkerPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion(pkg.version, git)),
     __APP_COMMIT__: JSON.stringify(commit()),

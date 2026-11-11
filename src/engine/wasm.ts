@@ -86,8 +86,10 @@ export function checksum(bytes: Uint8Array): number {
  * (`Simulator.defaultOpener`). Done before the first Simulator exists. If the module cannot be loaded the error is thrown to the caller.
  */
 export async function installEngine(): Promise<void> {
-  const { Simulator } = await import('./simulator')
-  const { openerFor } = await import('./wasmengine')
-  const module = await compileEngine(await (await fetch(engineUrl)).arrayBuffer())
+  // The three downloads run together: the module's bytes and the two chunks that use them.
+  const bytes = fetch(engineUrl).then((r) => r.arrayBuffer())
+  bytes.catch(() => {}) // (the error is thrown below; this only keeps an early failure from being reported as unhandled)
+  const [{ Simulator }, { openerFor }] = await Promise.all([import('./simulator'), import('./wasmengine')])
+  const module = await compileEngine(await bytes)
   Simulator.defaultOpener = openerFor(module)
 }
