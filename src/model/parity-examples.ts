@@ -64,7 +64,7 @@ export function parityGray(): Circuit {
   NIB.forEach((p, i) => b.wire(`${gray}.G${i}`, `${grayDisp}.${p}`))
   const signals: [string, string][] = [
     ...NIB.map((p, i): [string, string] => [`Binary ${i}`, `${cnt}.${p}`]),
-    ...NIB.map((p, i): [string, string] => [`Gray ${i}`, `${gray}.G${i}`]),
+    ...NIB.map((_, i): [string, string] => [`Gray ${i}`, `${gray}.G${i}`]),
   ]
   signals.forEach(([label, from], i) => b.wire(from, `${b.add('probe', 160 + (i % 4) * 100, y0 + 360 + Math.floor(i / 4) * 100, { label })}.A`))
   const grayNote = note(
