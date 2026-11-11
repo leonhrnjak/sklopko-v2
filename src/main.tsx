@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { registerOffline } from './app/offline'
 import { installEngine } from './engine/wasm'
+import { CrashScreen } from './ui/ErrorBoundary'
 
 registerOffline()
 
@@ -20,4 +21,8 @@ async function start() {
     </StrictMode>,
   )
 }
-void start()
+// If a script of the start-up cannot be fetched (a tab open across a deploy), say so instead of leaving the page empty.
+start().catch((e) => {
+  console.error(e)
+  createRoot(document.getElementById('root')!).render(<CrashScreen />)
+})

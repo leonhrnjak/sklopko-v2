@@ -14,6 +14,7 @@ import { usePartsDrawer } from './app/parts'
 import { updateSettings, useSettings } from './app/settings'
 import { Canvas } from './ui/canvas/Canvas'
 import { ContextMenu } from './ui/canvas/ContextMenu'
+import { ErrorBoundary, UpdatePrompt } from './ui/ErrorBoundary'
 import { EmbedBar } from './ui/EmbedBar'
 import { LibraryDialog } from './ui/library/LibraryDialog'
 import { fitView } from './ui/canvas/viewport'
@@ -39,6 +40,15 @@ const RunFooter = lazy(() => import('./ui/RunFooter').then((m) => ({ default: m.
 const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ default: m.WaveformPanel })))
 
 export default function App() {
+  return (
+    <ErrorBoundary kind="root">
+      <UpdatePrompt />
+      <AppBody />
+    </ErrorBoundary>
+  )
+}
+
+function AppBody() {
   const logicOpen = useLogic((s) => s.open)
   const fsmOpen = useFsm((s) => s.open)
   const referenceOpen = useReference((s) => s.open)
