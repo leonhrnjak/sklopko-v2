@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { chooseFile, chooseExample } from './helpers'
+import { chooseFile, chooseExample, freshEmpty, place } from './helpers'
 
 test('examples have short links that open them directly', async ({ page }) => {
   await page.goto('/intersection', { waitUntil: 'networkidle' })
@@ -136,4 +136,36 @@ test('picture export: SVG of the whole circuit, and of what is on screen; PNG', 
   const bytes = readFileSync((await png.path())!)
   expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47])
   expect(bytes.length).toBeGreaterThan(2000)
+})
+
+test('a circuit too big for a link offers a file; a small one is copied as before', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  page.on('dialog', (d) => void d.accept()) // (a browser that refuses the clipboard shows a prompt instead)
+
+  // Small: a link is copied.
+  await freshEmpty(page)
+  await place(page, 'switch', 300, 200)
+  await page.getByRole('button', { name: 'Share' }).click()
+  await expect(page.locator('.toast')).toContainText('Share link copied')
+  await expect(page.getByRole('dialog', { name: 'Too big for a link' })).toHaveCount(0)
+
+  // Large: an example with a part added (so it no longer has a short link of its own).
+  await page.goto('/6502-basic', { waitUntil: 'networkidle' })
+  await place(page, 'switch', 40, 40)
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/')
+  await page.getByRole('button', { name: 'Share' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Too big for a link' })
+  await expect(dialog).toBeVisible()
+  await expect(page.getByTestId('share-too-long')).toContainText('too big for a link')
+
+  await dialog.getByRole('button', { name: /Copy the long link anyway/ }).click()
+  await expect(page.locator('.toast')).toContainText('Share link copied')
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(copied.length).toBeGreaterThan(2000)
+  await expect(dialog).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Share' }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('dialog', { name: 'Too big for a link' }).getByRole('button', { name: 'Save file' }).click()
+  expect((await download).suggestedFilename()).toBe('circuit.sklopko.json')
 })

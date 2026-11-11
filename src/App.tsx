@@ -6,6 +6,7 @@ import { useGallery } from './app/gallery'
 import { useMakeIc } from './app/ics'
 import { usePath } from './app/path'
 import { usePicture } from './app/picture'
+import { useLongShare } from './app/shareLimit'
 import { useTestbench } from './app/testbench'
 import { useLogic } from './app/logic'
 import { useReference } from './app/reference'
@@ -36,6 +37,7 @@ const ExampleGallery = lazy(() => import('./ui/ExampleGallery').then((m) => ({ d
 const MakeIcDialog = lazy(() => import('./ui/MakeIcDialog').then((m) => ({ default: m.MakeIcDialog })))
 const PictureDialog = lazy(() => import('./ui/PictureDialog').then((m) => ({ default: m.PictureDialog })))
 const TestbenchDialog = lazy(() => import('./ui/TestbenchDialog').then((m) => ({ default: m.TestbenchDialog })))
+const ShareTooLong = lazy(() => import('./ui/ShareTooLong').then((m) => ({ default: m.ShareTooLong })))
 const RunFooter = lazy(() => import('./ui/RunFooter').then((m) => ({ default: m.RunFooter })))
 const WaveformPanel = lazy(() => import('./ui/WaveformPanel').then((m) => ({ default: m.WaveformPanel })))
 
@@ -62,6 +64,7 @@ function AppBody() {
   const pictureOpen = usePicture((s) => s.open)
   const testsOpen = useTestbench((s) => s.open)
   const partsOpen = usePartsDrawer((s) => s.open)
+  const shareTooLong = useLongShare((s) => s.pending !== null)
   const lockEdits = useSettings((s) => s.lockEdits)
   useOpenOnFirstProbe(!isEmbed())
   useEffect(() => {
@@ -130,6 +133,9 @@ function AppBody() {
       </OnDemand>
       <OnDemand open={mapOpen}>
         <PathMap />
+      </OnDemand>
+      <OnDemand open={shareTooLong}>
+        <ShareTooLong />
       </OnDemand>
       <LibraryDialog />
     </div>
