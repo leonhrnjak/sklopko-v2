@@ -129,6 +129,7 @@ export const CH12: Step[] = [
     lesson: [
       { p: 'The CPU puts a 16-bit address on the bus, and every chip on the board sees it. Which of them answers? The board’s own circuit decides: an address decoder. The two top address wires are enough for this board: A15 and A14 split the 64 KB into four blocks of 16 KB. 00 is the RAM, 01 the LED register, and 1x, the top half, the ROM.' },
       { p: 'The CPU also says whether it is reading or writing, with the wire R/W: 1 is reading and 0 is writing (the bar over R/W in the data sheets says that the write is the active-low case). A memory should only take the data on the bus when the CPU is writing, so the LED register’s load signal is the address block AND writing.' },
+      { p: 'The decoder looks only at A15 and A14, not at the other address wires, so each block is much bigger than the chip in it. The RAM here is 2 KB in a block of 16 KB: the same 2 KB answer eight times over, from $0000, $0800, $1000… The ROM is 4 KB in a block of 32 KB. The chips repeat, or mirror, and a program simply uses the first copy. Looking at fewer address wires means fewer gates.' },
       { p: 'Build it from your own gates: three outputs from A15, A14 and R/W. (The real board has these gates between the CPU and the chips, as you will see in the next step.)' },
     ],
   },

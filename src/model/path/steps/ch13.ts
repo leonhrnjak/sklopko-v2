@@ -35,7 +35,7 @@ done:   JMP done`),
     lesson: [
       { p: 'Now the program is for the real chip, and you write it in its own language, 6502 assembly. The program goes in the [[ROM $F000–$FFFF]]; the button below selects the ROM, and its inspector shows the program. It starts with `.org $F000`, “the next byte goes at address $F000”, and ends with `.word start`, a pair of bytes at $FFFC: the address the chip reads after reset, which says where to begin.' },
       { p: 'A few things are different from SKASM. The accumulator is A, and a number is written with a # in front: `LDA #$55` loads the number $55 (the $ means hexadecimal). Without the #, `LDA $55` loads the byte at address $55. `STA $4000` stores A at address $4000, where the LED register is. The LEDs show what it holds.' },
-      { p: 'There is no HALT: the program ends by jumping to itself, `done: JMP done`.' },
+      { p: 'There is no HALT: the program ends by jumping to itself, `done: JMP done`. Tools → 6502 lists every instruction of the chip.' },
     ],
   },
   {
@@ -62,6 +62,34 @@ done:   JMP done      ; after 255 it wraps to 0`),
     lesson: [
       { p: 'The 6502 has three registers you use all the time: the accumulator A, and two index registers, X and Y. They are 8 bits each, so they count from 0 to 255 and then wrap to 0. A counter in X is the usual way to loop: `INX` adds 1 to X, `DEX` takes 1 away, `TXA` copies X into A, and `TAX` copies A into X.' },
       { p: 'A conditional branch looks at the flags, like your computer’s JZ and JNC. `BNE`, “branch if not equal”, branches when the Z flag is 0: when the last result was not zero. The flags come from the last instruction that sets them: here TXA, which sets them from the number it copies. STA does not change them. So when X wraps from 255 to 0, the Z flag is set, BNE does not branch, and the loop ends.' },
+    ],
+  },
+  {
+    id: 'asm-arith',
+    chapter: 'asm6502',
+    title: 'Arithmetic and comparing',
+    kind: 'program',
+    computer: 'board6502',
+    example: '6502-counter',
+    needs: ['CLC', 'ADC', 'CMP'],
+    summary: 'CLC and ADC to add, CMP to compare, BCC to loop: count by threes up to 30.',
+    task: 'Make the LEDs count by threes: 3, 6, 9… up to 30, and then stop. Add 3 to A with CLC and ADC #3, show it, compare A with 30 with CMP #30, and loop back with BCC while A is smaller.',
+    hint: 'Start with LDA #0. Loop: CLC, ADC #3, STA $4000, CMP #30, BCC loop. When A reaches 30, CMP sets the carry flag and BCC does not branch.',
+    starter: `; Count by threes on the LEDs: 3, 6, 9, ... 30 (use CLC, ADC, CMP and BCC).
+${FRAME('        ; your instructions here\ndone:   JMP done')}`,
+    solution: FRAME(`        LDA #0        ; A is the total
+loop:   CLC           ; ADC adds the carry too: clear it first
+        ADC #3        ; A = A + 3
+        STA $4000     ; show it
+        CMP #30       ; compare A with 30 (A is not changed)
+        BCC loop      ; carry clear: A is less than 30, go round again
+done:   JMP done`),
+    tests: [{ title: 'The LEDs take 3, 6, 9, … 30 in order', expect: { ledTrace: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30] } }],
+    maxTicks: 800,
+    lesson: [
+      { p: 'The 6502 has no plain add. `ADC #3`, “add with carry”, adds 3 and the carry flag to A, so a program clears the carry first with `CLC`. (To subtract it sets the carry with `SEC` and uses `SBC`.) The carry flag also catches an add that goes past 255: it is set, and A holds what is left over.' },
+      { p: '`CMP #30` compares A with 30. It works like a subtraction whose answer is thrown away: A does not change, only the flags do. The Z flag is set when A equals 30, and the carry flag is set when A is 30 or more, because nothing had to be borrowed.' },
+      { p: 'So after a CMP the branches choose: `BEQ` when they are equal, `BNE` when they are not, `BCC` (“branch if carry clear”) when A is smaller, and `BCS` (“branch if carry set”) when A is the same or bigger. Here BCC goes back to the loop for as long as A is below 30.' },
     ],
   },
   {
@@ -94,7 +122,7 @@ text:   .byte "HELLO", 0
     maxTicks: 1500,
     lesson: [
       { p: 'The board now has a text console at address $4001: a character stored there is printed. A string is a row of bytes, one for each letter, and a 0 at the end so a program knows when to stop: `text: .byte "HELLO", 0`. The label `text` is the address of the first letter.' },
-      { p: 'The 6502 can add X to an address: `LDA text,X` loads the byte at text + X. With X counting 0, 1, 2… the program reads one letter after the other, until the 0, which BEQ (“branch if equal”: the Z flag is 1 because the byte loaded was 0) notices. This is the idea of the index register you met in chapter 11, with the table you read there.' },
+      { p: 'The 6502 can add X to an address: `LDA text,X` loads the byte at text + X. With X counting 0, 1, 2… the program reads one letter after the other, until the 0, which BEQ (“branch if equal”: the Z flag is 1 because the byte loaded was 0) notices. This is the idea of the index register you met in chapter 11, with the table you read there. Put the string after `done: JMP done`: the CPU never gets that far, so it never runs the letters as instructions.' },
     ],
   },
   {

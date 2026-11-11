@@ -72,7 +72,7 @@ export const CH11: Step[] = [
       {
         quiz: [
           { q: 'What is the biggest number the 8-bit computer’s accumulator can hold?', options: ['15', '127', '255'], answer: 2, why: '8 bits make 2⁸ = 256 numbers, from 0 to 255. Yours holds 4 bits: 0 to 15.' },
-          { q: 'How is the 8-bit computer different from yours in the way it works?', options: ['It fetches, decodes and executes in the same three steps', 'It has no control ROM', 'It runs the program without a clock'], answer: 0, why: 'It is the same machine: a program counter, a ROM, control ROMs, RAM, an ALU and an accumulator. It is wider, and it knows more instructions.' },
+          { q: 'How is the 8-bit computer different from yours?', options: ['It is wider and knows more instructions', 'It has no control ROM', 'It runs the program without a clock'], answer: 0, why: 'It is the same machine in the way it works: a program counter, a ROM, control ROMs, RAM, an ALU and an accumulator, fetching, decoding and executing. It is wider, and it knows more instructions.' },
         ],
       },
     ],
@@ -101,6 +101,7 @@ export const CH11: Step[] = [
     lesson: [
       { p: 'The computer you built has a multiplexer in front of the ACC to choose where the number comes from. There is another way, and the 8-bit computer’s designers could have used it: put every source on one set of wires, the bus, and let only one of them talk at a time.' },
       { p: 'A gate’s output is always 0 or 1; wire two outputs together and they fight. A tri-state buffer has a third state: when its enable, EN, is off it lets go of the line (Z, “high impedance”) and is as if it were not there. So a bus is several tri-state buffers whose outputs are joined, with at most one enabled. A Bus junction joins them; if two enabled buffers disagree, you get X, a contention. The examples Tri-state and Shared data bus show it.' },
+      { p: 'A warning about the word “bus”, which means two things. A bus of 8 wires drawn thick is a bundle that carries a number, like the 8-bit computer’s data wires. A bus in the sense of this step is one set of wires that several parts share and take turns to drive. The 8-bit computer has both, and so does the 6502 board in the next chapter, whose one address bus and one data bus are shared by everything on it. That is why you build one here.' },
       { p: 'Build a bus of two bits for two sources, X and Y. SEL chooses who drives it.' },
     ],
   },
@@ -111,7 +112,7 @@ export const CH11: Step[] = [
     kind: 'program',
     computer: 'cpu8',
     summary: 'Write HI on the console with OUT CHAR.',
-    task: 'Write a program that prints HI on the text console and stops. OUT CHAR prints the ACC as a character: the letter H is 72 and I is 73 (or write them as characters, 72 = \'H\').',
+    task: 'Write a program that prints HI on the text console and stops. OUT CHAR prints the ACC as a character: the letter H is 72 and I is 73.',
     hint: 'LDI 72 puts H in the ACC, OUT CHAR prints it. Then the same for I, then HALT.',
     starter: `; Print HI on the console, then stop.
 ; OUT CHAR prints the ACC as a character (ASCII: H is 72, I is 73).
@@ -126,7 +127,7 @@ export const CH11: Step[] = [
     tests: [{ title: 'The console shows HI, and the program stops', expect: { console: 'HI' } }],
     lesson: [
       { p: 'The canvas now has the 8-bit computer with a text console: a small screen that prints the character whose code the program sends to port CHAR. The [[Program]] has room for 256 instructions, and the RAM 256 bytes.' },
-      { p: 'Instructions that talk to devices are `OUT port` and `IN port`: `OUT CHAR` sends the ACC to the console. Characters are numbers too, in the ASCII code: A is 65, H 72, I 73, a space 32, 10 a new line. Select the Program ROM (the button below does it) and write the program in its inspector.' },
+      { p: 'Instructions that talk to devices are `OUT port` and `IN port`: `OUT CHAR` sends the ACC to the console. Characters are numbers too, in the ASCII code: A is 65, H 72, I 73, a space 32, 10 a new line. Select the Program ROM (the button below does it) and write the program in its inspector. Tools → SKASM lists every instruction and port, with examples.' },
     ],
   },
   {

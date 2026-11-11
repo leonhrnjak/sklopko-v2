@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, #122; L7, polish, built).** **The path is complete: 79 steps** (78 when first built; review item 11 added one). Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, #122; L7, polish, built).** **The path is complete: 81 steps** (78 when first built; review items 11, 13 and 25 added three). Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -278,6 +278,7 @@ Programs are 6502 assembly in the ROM inspector (*Tools → 6502* is the referen
 |---|---|---|---|---|---|
 | 13.1 | `asm-leds` | ⌨ | `LDA #$55` / `STA $4000` | LEDs = `$55` | `/6502` |
 | 13.2 | `asm-count` | ⌨ | Count on the LEDs with `INX`, `TXA` and `BNE` | the LEDs take 1, 2, 3, … in order | `/6502-counter` |
+| 13.2b | `asm-arith` | ⌨ | Count by threes with `CLC`, `ADC`, `CMP` and `BCC` | the LEDs take 3, 6, 9, … 30 in order | `/6502-counter` |
 | 13.3 | `asm-string` | ⌨ | Write `HELLO` on the console with `LDA msg,X` | console text = `HELLO` | `/6502-hello` |
 | 13.4 | `asm-subroutine` | ⌨ | A `JSR` delay routine between LED changes; watch S and page `$01` | LEDs change; S is back after each `RTS` | |
 | 13.5 | `asm-lcd` | 🔍⌨ | Ben Eater's hello world on the LCD; then change the message | LCD line 1 = their text | `/6502-lcd` |
@@ -289,9 +290,10 @@ Programs are 6502 assembly in the ROM inspector (*Tools → 6502* is the referen
 | 14.1 | `basic-boot` | 🔍 | The BASIC computer: a 6502, 16 KB RAM, 16 KB ROM, a terminal | goal: the terminal shows `OK` | `/6502-basic` |
 | 14.2 | `basic-print` | 🔍 | `PRINT 2+3`, then `10 PRINT "HELLO"` and `RUN` | goals: `5` appears; `HELLO` after `RUN` | |
 | 14.3 | `basic-loop` | 🔍 | `FOR I=1 TO 10: PRINT I: NEXT` | goal: `10` appears | *Tools → BASIC* |
+| 14.3b | `basic-decide` | 🔍 | A program that decides: `IF N<3 THEN GOTO 20` | goal: `DONE` appears | |
 | 14.4 | `journey` | 📖 | **Your journey:** every chip you built, your CPU, your programs, from NAND to BASIC | — | |
 
-78 steps. Ten are existing challenges as they are, and most explore steps open an existing example.
+81 steps (78 when first built; review items 11, 13 and 25 added three). Ten are existing challenges as they are, and most explore steps open an existing example.
 
 ## The model
 New files under `src/model/path/` (pure, tested in Node) and `src/app/path*.ts` (the store and the work). The UI goes under `src/ui/path/`.
