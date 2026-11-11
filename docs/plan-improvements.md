@@ -215,7 +215,7 @@ changed chunk refetches only that chunk; the prompt appears instead of a silent 
 **Done when:** a reader of `CLAUDE.md` sees only work that is really open.
 
 ### C3 Link previews and a content security policy (`c3-site-meta`)
-- [ ] C3
+- [x] C3
 
 **Tasks**
 - `index.html`: a `description`, Open Graph and Twitter card tags, and `public/og.png` (1200×630, a screenshot of the app with the
