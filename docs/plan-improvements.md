@@ -140,7 +140,7 @@ without a visit).
 ## Track B: startup and bundle
 
 ### B1 The budget measures the real startup (`b1-bundle-budget`)
-- [ ] B1
+- [x] B1
 
 **Why.** `scripts/check-bundle.mjs` counts only what `dist/index.html` asks for (69.6 kB). `src/main.tsx` loads the engine, the
 runtime and `App` with `import()`, so 187.3 kB of script is loaded before the first draw and the check sees 70 kB of it.
