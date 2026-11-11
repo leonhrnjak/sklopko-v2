@@ -198,7 +198,9 @@ changed chunk refetches only that chunk; the prompt appears instead of a silent 
 ## Track C: repository and site
 
 ### C1 Commit identity (PR #254)
-- [ ] C1 Sessions commit under Leon's git identity, so squash merges add no co-author line.
+- [x] C1 Sessions commit under Leon's git identity, so squash merges add no co-author line.
+  Merged; its squash commit on `main` has no `Co-authored-by` line. The merge itself was authored with Leon's personal address:
+  GitHub uses the no-reply one only once "Keep my email addresses private" is on in Settings → Emails (Leon's step).
 
 ### C2 Status docs (`c2-status-docs`)
 - [ ] C2
