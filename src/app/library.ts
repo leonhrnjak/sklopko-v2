@@ -174,9 +174,29 @@ export async function listDocs(kind?: DocKind): Promise<DocMeta[]> {
 
 export const getDoc = (id: string) => backend.get(id)
 
+let persistAsked = false
+
+/**
+ * Ask the browser not to clear this site's data when it is short of space or (Safari) after weeks without a visit. Asked once, after the
+ * first save to the library (a browser may only grant it to a site that has something to keep); a refusal is ignored.
+ */
+export function requestPersistence() {
+  if (persistAsked) return
+  persistAsked = true
+  try {
+    void navigator.storage?.persist?.().catch(() => {})
+  } catch {
+    // no storage manager here: nothing to ask
+  }
+}
+
+/** Forget that it was asked (tests). */
+export const resetPersistenceAsked = () => void (persistAsked = false)
+
 /** Write a record as it is, and tell other tabs. Part of a queued change: use `saveActive` and the like from elsewhere. */
 export async function putDoc(rec: DocRecord) {
   await backend.put(rec)
+  if (backend.persistent) requestPersistence()
   announce(rec.id)
 }
 
@@ -342,6 +362,35 @@ export async function exportAll(): Promise<Backup> {
     if (rec) docs.push(rec)
   }
   return { app: 'sklopko-library', version: 1, docs }
+}
+
+const BACKUP_KEY = 'sklopko-last-backup'
+
+/** When *Download all* last ran in this browser (ms since 1970), or null. */
+export function lastBackup(): number | null {
+  try {
+    const n = Number(localStorage.getItem(BACKUP_KEY))
+    return n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
+
+/** Remember that a backup was just saved. */
+export function noteBackup(now = Date.now()) {
+  try {
+    localStorage.setItem(BACKUP_KEY, String(now))
+  } catch {
+    // private window: the line will say "never"
+  }
+}
+
+/** "Last backup: never", "today", "yesterday" or "N days ago". */
+export function describeBackup(at: number | null, now = Date.now()): string {
+  if (at === null) return 'Last backup: never'
+  const days = Math.floor((now - at) / 86_400_000)
+  if (days <= 0) return 'Last backup: today'
+  return days === 1 ? 'Last backup: yesterday' : `Last backup: ${days} days ago`
 }
 
 /** The longest thumbnail a backup file may bring in. */
