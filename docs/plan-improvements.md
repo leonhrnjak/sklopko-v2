@@ -157,7 +157,7 @@ runtime and `App` with `import()`, so 187.3 kB of script is loaded before the fi
 in the PR, not committed).
 
 ### B2 A faster first draw (`b2-startup`, stacked on B1; needs A1 merged, both edit `src/main.tsx`)
-- [ ] B2
+- [x] B2
 
 **Why.** Startup is a chain of fetches one after another: entry, simulator, engine glue, `engine.wasm`, runtime, `App`. First content
 appears at 940 ms on localhost; on a real connection each link adds a round trip.
