@@ -46,6 +46,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('Logic basics', 'encoder', 'Priority encoder and decoder'),
   e('Logic basics', 'seg7-table', 'Seven-segment decoder from a truth table', 'From a truth table'),
   e('Logic basics', 'labels', 'Net labels (wireless connections)'),
+  e('Logic basics', 'parity-gray', 'A parity bit over a faulty line, and a Gray counter', 'Parity: catching'),
   e('Memory and sequential', 'sr-latch', 'SR latch from NOR gates'),
   e('Memory and sequential', 'd-latch', 'D latch from NAND gates'),
   e('Memory and sequential', 'master-slave', 'Master-slave flip-flop from two latches'),
