@@ -288,3 +288,33 @@ describe('UART example', () => {
     for (const byte of [0xa5, 0x3c, 0xff, 0x00, 0x81]) expect(send(byte).got, byte.toString(16)).toBe(byte)
   })
 })
+
+describe('half and full adder example', () => {
+  it('the gate versions and the parts give the same sum and carry for every input, and add', () => {
+    const r = rig('adders')
+    const switches = Object.values(r.c.comps).filter((k) => k.type === 'switch')
+    const sw = (side: (x: number) => boolean, label: string) => switches.find((k) => side(k.x) && k.label === label)!.id
+    const flip = (id: string, on: boolean) => {
+      r.sim.setParams(id, { ...r.c.comps[id].params, on })
+      r.sim.settle()
+    }
+    const out = (...labels: string[]) => labels.map((l) => r.lit(l))
+    const half = (x: number) => x < 300
+    for (let v = 0; v < 4; v++) {
+      flip(sw(half, 'A'), !!(v & 1))
+      flip(sw(half, 'B'), !!(v & 2))
+      const total = (v & 1) + (v >> 1)
+      expect(out('Sum', 'Carry'), `half ${v}`).toEqual([total & 1, total >> 1])
+      expect(out('Part sum', 'Part carry'), `half part ${v}`).toEqual([total & 1, total >> 1])
+    }
+    const full = (x: number) => x > 300
+    for (let v = 0; v < 8; v++) {
+      flip(sw(full, 'A'), !!(v & 1))
+      flip(sw(full, 'B'), !!(v & 2))
+      flip(sw(full, 'Carry in'), !!(v & 4))
+      const total = (v & 1) + ((v >> 1) & 1) + (v >> 2)
+      expect(out('Full sum', 'Carry out'), `full ${v}`).toEqual([total & 1, total >> 1])
+      expect(out('Part full sum', 'Part carry out'), `full part ${v}`).toEqual([total & 1, total >> 1])
+    }
+  })
+})

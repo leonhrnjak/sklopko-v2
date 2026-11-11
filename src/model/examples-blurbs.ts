@@ -66,6 +66,7 @@ export const BLURBS: Record<string, string> = {
   'computer-sine': 'Scrolls a sine wave across an LCD, with the values read from a table in the ROM.',
   'computer-ant': "Langton's ant walks over the LCD, reading the pixels it draws.",
   'computer-raycaster': 'A first-person view of a maze, drawn by a raycaster and walked with a gamepad.',
+  adders: 'A half adder and a full adder built from gates, each beside the one-part version, on the same switches.',
   'ic-adder': 'A half adder in a full adder in a 4-bit adder: parts made from circuits, used like any other part.',
   'computer-blocks': 'The Fibonacci computer drawn as seven ICs: fetch, program ROM, fields, control, memory, ALU and accumulator.',
 }
