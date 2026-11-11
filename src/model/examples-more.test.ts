@@ -3,6 +3,7 @@ import { Simulator } from '../engine/simulator'
 import { simComps } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
+import { LIT, SEGMENTS } from './seg7-examples'
 
 /** Load an example into a simulator, with helpers to find its parts by label and to flip switches and buttons. */
 function rig(id: string) {
@@ -315,6 +316,28 @@ describe('half and full adder example', () => {
       const total = (v & 1) + ((v >> 1) & 1) + (v >> 2)
       expect(out('Full sum', 'Carry out'), `full ${v}`).toEqual([total & 1, total >> 1])
       expect(out('Part full sum', 'Part carry out'), `full part ${v}`).toEqual([total & 1, total >> 1])
+    }
+  })
+})
+
+describe('seven-segment decoder example', () => {
+  it('shows each digit 0 to 9 the same three ways, and the decoder and the part stay blank for 10 to 15', () => {
+    const r = rig('seg7-table')
+    const input = r.ofType('hexin')[0]
+    const [fromTable, fromDecoder, part] = ['From the table', 'From the decoder', 'The part'].map((l) => r.part(l))
+    const lit = (id: string) => [...SEGMENTS].map((s) => r.sim.pinValue(id, s))
+    for (let digit = 0; digit < 16; digit++) {
+      r.sim.setParams(input, { ...r.c.comps[input].params, value: digit })
+      r.sim.settle()
+      const want = [...SEGMENTS].map((s) => (LIT[s].includes(digit) ? 1 : 0))
+      if (digit < 10) {
+        expect(lit(fromTable), `table, digit ${digit}`).toEqual(want)
+        expect(lit(fromDecoder), `decoder, digit ${digit}`).toEqual(want)
+        expect(lit(part), `part, digit ${digit}`).toEqual(want)
+      } else {
+        expect(lit(fromDecoder), `decoder, code ${digit}`).toEqual(want)
+        expect(lit(part), `part, code ${digit}`).toEqual(want)
+      }
     }
   })
 })

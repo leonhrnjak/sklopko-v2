@@ -38,6 +38,8 @@ describe('notes and frames in the examples', () => {
     for (const e of EXAMPLES) {
       const comps = Object.values(example(e.id).comps)
       const frames = comps.filter(isFrame)
+      // A title longer than the frame part's limit is dropped when the example is loaded, and the frame becomes "Frame".
+      for (const f of frames) expect(String(f.params.title).length, `${e.id}: "${f.params.title}"`).toBeLessThanOrEqual(40)
       for (let i = 0; i < frames.length; i++) {
         const a = boundsRect(frames[i])
         expect(
