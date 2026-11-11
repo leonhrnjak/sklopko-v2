@@ -248,7 +248,8 @@ URL it would open.
 ## Track D: examples
 
 ### D1 Every beginner example explains itself (`d1-example-notes`)
-- [ ] D1
+- [x] D1
+  Done in #264: `noteBelow` helper, notes on the 13 examples, and a test that every example has one (the exception list is empty).
 
 **Tasks**
 - A note on each of the 13 examples that have none: `adder`, `calculator`, `clock`, `d-latch`, `dice`, `gates`, `intersection`,
@@ -260,7 +261,8 @@ URL it would open.
 **Done when:** a test in `examples.test.ts` asserts that every example has a note, except a list of exceptions written in the test.
 
 ### D2 Regroup and reorder (`d2-example-groups`, stacked on D1)
-- [ ] D2
+- [x] D2
+  Done in #266: as planned, except that the counter stays first in "Start here" (the app opens on the first example), so the order is counter, gates, shift register.
 
 **Tasks**
 - "Start here": basic gates, the counter, then a small sequential circuit (the shift register or the LFSR). `beginner` moves to the
@@ -275,7 +277,8 @@ URL it would open.
 **Done when:** the gallery shows the new groups; tests updated.
 
 ### D3 Large examples open where they can be read (`d3-example-fit`, stacked on D2)
-- [ ] D3
+- [x] D3
+  Done: `fit` on `ExampleInfo` (the CPU frame of the 6502 boards and the Doom-like, the fetch stage of the computers, the sequencer of the 6502 from parts, the first stage of `beginner`); `fitToExample` in `view.ts` opens at most 80% so the note beside the frame stays in view, and fits again while a panel opens. A test checks every named frame exists, and a frame title over 40 characters (which loading would drop) fails a test.
 
 **Why.** The large examples open fitted to the whole circuit, at 12 to 28%, where nothing can be read.
 
@@ -292,15 +295,20 @@ URL it would open.
 Each adds one example with a note, a blurb, a thumbnail (the build makes it) and a test in `examples-more.test.ts` that it runs.
 Together they put 13 of the 14 unused part types into an example.
 
-- [ ] **D4** `d4-adders` Half adder and full adder from gates, beside the `halfadd` and `fulladd` parts, so the learner can compare.
-- [ ] **D5** `d5-seg7-table` A seven-segment decoder made from a truth table with the Logic panel (its note says how), beside `bcddec`.
-- [ ] **D6** `d6-subtract` Two's complement: `addsub4` adding and subtracting with a sign shown, `halfsub`, `fullsub`, `sub4`, and the
+- [x] **D4** `d4-adders` Half adder and full adder from gates, beside the `halfadd` and `fulladd` parts, so the learner can compare.
+- [x] **D5** `d5-seg7-table` A seven-segment decoder made from a truth table with the Logic panel (its note says how), beside `bcddec`.
+- [x] **D6** `d6-subtract` Two's complement: `addsub4` adding and subtracting with a sign shown, `halfsub`, `fullsub`, `sub4`, and the
   bus versions `bussub` and `busaddsub`.
-- [ ] **D7** `d7-sync-counter` A JK flip-flop (`jkff`) and a synchronous counter beside the ripple counter, with probes, so the waveform
+- [x] **D7** `d7-sync-counter` A JK flip-flop (`jkff`) and a synchronous counter beside the ripple counter, with probes, so the waveform
   shows the ripple counter's glitches; and a `ringcounter`.
-- [ ] **D8** `d8-parity-gray` A parity bit over a line with a fault switch (`parity`), and a Gray counter beside a binary one (`gray`).
-- [ ] **D9** `d9-testbench` A comparator (or the ALU) with a testbench saved in it, a `lut` beside the gates it replaces, and a
+- [x] **D8** `d8-parity-gray` A parity bit over a line with a fault switch (`parity`), and a Gray counter beside a binary one (`gray`).
+- [x] **D9** `d9-testbench` A comparator (or the ALU) with a testbench saved in it, a `lut` beside the gates it replaces, and a
   `demux`. Its note: Tools → Tests → Run tests.
+
+D3 to D9 were built on stacked branches (`d3-example-fit` to `d9-testbench`) and opened as one PR, because of a limit on open PRs.
+Where they differ from the text above: the examples are `adders`, `seg7-table`, `subtract`, `sync-counter`, `parity-gray` and
+`testbench`; the unit tests are in `examples-more.test.ts` and an e2e test runs the testbench example's steps; and with them every
+part type is in some example (a test now asks for that, with an empty list of exceptions).
 
 Later, not in this plan: a shift-and-add multiplier, a stack in hardware, two computers talking over the UART.
 
