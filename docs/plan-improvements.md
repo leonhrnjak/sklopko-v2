@@ -203,7 +203,7 @@ changed chunk refetches only that chunk; the prompt appears instead of a silent 
   GitHub uses the no-reply one only once "Keep my email addresses private" is on in Settings → Emails (Leon's step).
 
 ### C2 Status docs (`c2-status-docs`)
-- [ ] C2
+- [x] C2
 
 **Tasks**
 - `CLAUDE.md`, "Current work": move finished plans to "Finished plans" (check each against `git log`: VIA and LCD, the Learn path,
