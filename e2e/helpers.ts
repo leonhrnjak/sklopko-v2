@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { clearStorage } from './storage'
 
 export async function fresh(page: Page) {
@@ -95,4 +96,22 @@ export async function chooseExample(page: Page, id: string) {
   await page.getByTestId(`example-${id}`).click()
   // The address changes once the example is on the canvas (it is fetched first).
   await page.waitForURL(new RegExp(`/${id}$`))
+}
+
+/**
+ * Start `vite preview` of `dist/` on a port and wait until it answers (the specs that test the built app: offline, built).
+ * Each spec file uses a port of its own, because files run in parallel workers.
+ */
+export async function startPreview(port: number): Promise<ChildProcess> {
+  const server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], { stdio: 'ignore' })
+  for (let i = 0; i < 100; i++) {
+    try {
+      if ((await fetch(`http://localhost:${port}`)).ok) return server
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  server.kill()
+  throw new Error('vite preview did not start')
 }

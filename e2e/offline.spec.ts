@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { type ChildProcess } from 'node:child_process'
+import { startPreview } from './helpers'
 import { existsSync } from 'node:fs'
 
 // The service worker exists only in the built app, so this spec runs against `vite preview` of `dist/` (CI builds before it
@@ -13,16 +14,7 @@ test.describe.configure({ mode: 'serial' })
 
 test.beforeAll(async () => {
   test.skip(!existsSync('dist/index.html'), 'dist/ is not built: run `npm run build`')
-  server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await fetch(BASE)).ok) return
-    } catch {
-      // not up yet
-    }
-    await new Promise((r) => setTimeout(r, 200))
-  }
-  throw new Error('vite preview did not start')
+  server = await startPreview(PORT)
 })
 
 test.afterAll(() => {
