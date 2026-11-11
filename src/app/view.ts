@@ -9,6 +9,23 @@ export function registerFit(fn: () => void) {
 /** Zoom and pan so the whole circuit is visible. */
 export const fitToScreen = () => fit()
 
+let focus: (title: string, maxZoom?: number) => boolean = () => false
+
+/** Register how to zoom and pan to the frame whose title starts with a text (false if there is none). */
+export function registerFocus(fn: (title: string, maxZoom?: number) => boolean) {
+  focus = fn
+}
+
+/**
+ * Where a circuit opens. A large example names a frame (its `fit`) so it opens at a zoom where the parts can be read; the Fit
+ * button still shows everything. Without a frame, or if the circuit has no such frame, the whole circuit is fitted. A small
+ * frame is not blown up: at most 80%, so the note and the parts around it stay in the picture.
+ */
+export const EXAMPLE_MAX_ZOOM = 0.8
+export function fitToExample(frame?: string) {
+  if (!frame || !focus(frame, EXAMPLE_MAX_ZOOM)) fit()
+}
+
 let refit: ((ms: number) => void) | null = null
 let waiting: number | null = null
 /** Register how to keep the circuit fitted for a while as the canvas changes size. */

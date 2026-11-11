@@ -89,3 +89,15 @@ test('a card has a button that copies the example’s short link', async ({ page
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/dice$/)
   await expect(gallery(page)).toBeVisible() // copying a link does not open the example
 })
+
+test('a large example opens at a zoom where it can be read, and Fit still shows everything', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
+  const zoom = async () => Number((await page.getByText(/^\d+%$/).first().innerText()).replace('%', ''))
+  await expect.poll(zoom).toBeGreaterThanOrEqual(60)
+  await page.getByRole('button', { name: 'Fit', exact: true }).click()
+  await expect.poll(zoom).toBeLessThan(40)
+  // Opened from the gallery it is the same.
+  await chooseExample(page, 'computer')
+  await expect.poll(zoom).toBeGreaterThanOrEqual(60)
+})

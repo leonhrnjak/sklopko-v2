@@ -631,6 +631,18 @@ describe('the examples index', () => {
     expect(ids('Doom-like')).toEqual(['6502-doomlike'])
   })
 
+  it('names, for a large example, a frame that it has to open at', () => {
+    const withFit = EXAMPLE_LIST.filter((e) => e.fit)
+    expect(withFit.length).toBeGreaterThan(30)
+    for (const e of withFit) {
+      const frames = Object.values(example(e.id).comps).filter(isFrame)
+      expect(frames.some((f) => String(f.params.title).startsWith(e.fit!)), `${e.id}: no frame starts with "${e.fit}"`).toBe(true)
+    }
+    // Every computer and 6502 board has one; the small examples open whole.
+    for (const e of EXAMPLE_LIST.filter((x) => x.group === 'Computers' || x.group === '6502' || x.group === 'Doom-like')) expect(e.fit, e.id).toBeTruthy()
+    expect(EXAMPLE_LIST.find((e) => e.id === 'gates')!.fit).toBeUndefined()
+  }, 120000)
+
   it('finds an example from its short link', () => {
     expect(exampleFromPath('/Intersection/')?.id).toBe('intersection')
     expect(exampleFromPath('/')).toBeUndefined()
