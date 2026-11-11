@@ -1,12 +1,12 @@
 # A Doom-like on the 6502 (spec)
 
-> **Status: proposed, waiting for Leon's approval. No code before that.** Read `CLAUDE.md` first (feature branch, PR, CI, no attribution).
+> **Status: built (D0 to D5; D4b dropped).** Read `CLAUDE.md` first (feature branch, PR, CI, no attribution).
 > Background and numbers: `docs/assessment-doom-6502.md` (PR #232). One PR per milestone, each stacked on the one before it
 > (`doom-d0-spike`, `doom-d1-video`, …); tick each box when its PR merges and add a short *What it did, and where it differs from the spec*
 > note under it, as `plan-cpu6502.md` does. The first PR (D0) bumps the **minor** version in `package.json` (`0.4.0` → `0.5.0`).
 >
 > - [x] D0 The spike: a raycaster in 6502 assembly on the bare core, measured (no app change)
-> - [ ] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
+> - [x] D1 Video: a framebuffer part with an auto-increment port, drawn on a canvas
 > - [x] D1b Column fill (the D0 numbers said it pays)
 > - [x] D2 The game board: video, gamepad, VIA and a banked 48 KB ROM together
 > - [x] D3 The engine on the board: walls, doors, movement, shading

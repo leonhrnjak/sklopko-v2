@@ -1,4 +1,5 @@
 import { Suspense, useState, type ReactNode } from 'react'
+import { ErrorBoundary } from './ErrorBoundary'
 
 /**
  * Mounts `children` (a lazy panel) from the first time `open` is true, and keeps it mounted after that, so the panel's
@@ -7,5 +8,9 @@ import { Suspense, useState, type ReactNode } from 'react'
 export function OnDemand({ open, children }: { open: boolean; children: ReactNode }) {
   const [wanted, setWanted] = useState(open)
   if (open && !wanted) setWanted(true)
-  return wanted ? <Suspense fallback={null}>{children}</Suspense> : null
+  return wanted ? (
+    <ErrorBoundary kind="panel">
+      <Suspense fallback={null}>{children}</Suspense>
+    </ErrorBoundary>
+  ) : null
 }
