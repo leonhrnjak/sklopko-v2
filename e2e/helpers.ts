@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { clearStorage } from './storage'
 
@@ -59,15 +59,34 @@ export const ledOn = (page: Page, id: string) => page.locator(`.comp[data-id="${
 /** Select a part by the label shown above it. */
 export async function pickByLabel(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
-  let b = (await g.boundingBox())!
-  // A large example opens at a frame, so the part may be off screen: Fit shows everything.
-  const view = page.viewportSize()!
-  if (b.x < 0 || b.y < 0 || b.x + b.width > view.width || b.y + b.height > view.height) {
-    await page.getByRole('button', { name: 'Fit', exact: true }).click()
-    await page.waitForTimeout(300)
-    b = (await g.boundingBox())!
-  }
+  const b = await showPart(page, g)
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+}
+
+/**
+ * The box of a part that is on the canvas: a large example opens at a frame, so the part may be off screen. Fit shows
+ * everything, and if the circuit is too wide for that (the zoom stops at 12%) the canvas is panned with space and a drag.
+ */
+export async function showPart(page: Page, part: Locator) {
+  const canvas = (await page.getByTestId('canvas').boundingBox())!
+  const inside = (b: { x: number; y: number; width: number; height: number }) =>
+    b.x >= canvas.x && b.y >= canvas.y && b.x + b.width <= canvas.x + canvas.width && b.y + b.height <= canvas.y + canvas.height
+  let b = (await part.boundingBox())!
+  if (inside(b)) return b
+  await page.getByRole('button', { name: 'Fit', exact: true }).click()
+  await page.waitForTimeout(300)
+  b = (await part.boundingBox())!
+  if (inside(b)) return b
+  const dx = canvas.x + canvas.width / 2 - (b.x + b.width / 2)
+  const dy = canvas.y + canvas.height / 2 - (b.y + b.height / 2)
+  const from = { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 }
+  await page.keyboard.down('Space')
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + dx, from.y + dy, { steps: 5 })
+  await page.mouse.up()
+  await page.keyboard.up('Space')
+  return (await part.boundingBox())!
 }
 
 /** Open a toolbar menu ("Tools" or "File") and click one of its entries by name. */
@@ -94,8 +113,8 @@ export async function clickLabelled(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
   let b = (await g.boundingBox())!
   // A large example opens at a frame, so the part may be off screen: Fit shows everything.
-  const view = page.viewportSize()!
-  if (b.x < 0 || b.y < 0 || b.x + b.width > view.width || b.y + b.height > view.height) {
+  const view = (await page.getByTestId('canvas').boundingBox())!
+  if (b.x < view.x || b.y < view.y || b.x + b.width > view.x + view.width || b.y + b.height > view.y + view.height) {
     await page.getByRole('button', { name: 'Fit', exact: true }).click()
     await page.waitForTimeout(300)
     b = (await g.boundingBox())!
