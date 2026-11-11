@@ -109,9 +109,8 @@ compile the module before the first Simulator exists (`installEngine` in `src/en
 
 Three things stay in TypeScript on purpose: parts the page runs itself (switch, button, labels, constants and displays, which keep a
 small `evaluate` and tell the module their value through `refreshPart`), the ROM's `evaluate` (its words are read by asking the part),
-and the frozen test oracle, `src/engine/testdata/oracle/` (the old simulator, part definitions and chip cores) plus
-`src/engine/testdata/reference/` (the tier 1 reference). They exist only so the lockstep tests can compare Rust against an independent
-implementation; nothing in `src/` outside the tests imports them.
+and the frozen test oracle, `src/engine/testdata/oracle/` (the old simulator, part definitions and chip cores). It exists only so the
+lockstep and `CASES` tests can compare Rust against an independent implementation; nothing in `src/` outside the tests imports it.
 
 ## Debugging
 

@@ -572,6 +572,13 @@ describe('single parts in the Rust engine, against the TypeScript engine, with u
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
   const CASES: [string, Record<string, string | number | boolean>][] = [
+    // (the parts the reference copy used to check as well: gates, flip-flop, memory, word-wide parts, terminal)
+    ['and', {}], ['or', {}], ['xor', {}], ['nand', {}], ['nor', {}], ['xnor', {}], ['not', {}], ['buf', {}],
+    ['and', { inputs: 4 }], ['or', { inputs: 3 }], ['xor', { inputs: 3 }], ['mux', {}], ['mux', { n: 2 }], ['mux', { n: 3 }],
+    ['dff', {}], ['ram', {}], ['ram', { dbits: 8, abits: 5 }],
+    ['busadd', { bits: 4 }], ['busadd', { bits: 8 }], ['buscmp', { bits: 4 }], ['buscmp', { bits: 8 }], ['busctr', { bits: 4 }], ['busctr', { bits: 8 }],
+    ['busgate', { bits: 4 }], ['busmux', { bits: 4 }], ['busmux', { bits: 8, n: 4 }], ['busreg', { bits: 4 }], ['busreg', { bits: 8 }],
+    ['acia6551', {}],
     ['srlatch', {}], ['dlatch', {}], ['jkff', {}],
     ['counter', { mod: 10 }], ['counter', { mod: 16 }], ['counter', { mod: 3 }],
     ['counterld', {}], ['register', {}], ['shiftreg', {}],

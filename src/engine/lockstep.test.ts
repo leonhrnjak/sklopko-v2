@@ -1,38 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { flatten } from '../model/buses'
 import { EXAMPLES } from '../model/examples'
-import { DEFS } from './testdata/oracle/registry'
 import { Simulator } from './simulator'
-import { layoutOf } from './layoutcache'
-import { ReferenceSimulator } from './testdata/reference/simulator'
-import { getDef as referenceDef } from './testdata/reference/registry'
-import type { Params, V } from './types'
+import { OracleSimulator } from './testdata/oracle/simulator'
 
 /**
- * Guards the speed work (docs/spec-sim-speed-tier1.md): the engine must do exactly what it did before. `testdata/reference/` holds the
- * simulator and the word-wide, gate and sequential parts as they were, and these tests run the real ones against them.
+ * Guards the engine: it must do what it did before. `testdata/oracle/` holds the old TypeScript simulator and parts, and these tests run
+ * the real simulator (the Rust engine inside it) against them on every example. The single parts, with random 0/1/X/Z inputs, are the
+ * `CASES` of `wasmengine.test.ts`.
  */
 
 /** Every net, as the simulator keeps them. */
-const netsOf = (s: Simulator | ReferenceSimulator) => (s as unknown as { values: Uint8Array }).values
+const netsOf = (s: Simulator | OracleSimulator) => (s as unknown as { values: Uint8Array }).values
 
-/** A small deterministic random generator (mulberry32). */
-function rng(seed: number) {
-  let a = seed
-  return () => {
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-describe('the simulator against the reference simulator', () => {
+describe('the simulator against the oracle', () => {
   for (const ex of EXAMPLES) {
     it(`${ex.id}: every net, the tick count and the time agree after each clock edge`, { timeout: 60000 }, () => {
       const circuit = flatten(ex.build())
       const a = new Simulator()
-      const b = new ReferenceSimulator()
+      const b = new OracleSimulator()
       a.load(circuit)
       b.load(circuit)
       a.settle()
@@ -76,13 +62,13 @@ function digest(x: unknown): string {
   return String(x)
 }
 
-const statesOf = (s: Simulator | ReferenceSimulator) => {
+const statesOf = (s: Simulator | OracleSimulator) => {
   // (with the Rust engine running, the parts' states are brought up to date from the module first)
   ;(s as unknown as { syncWasm?: () => void }).syncWasm?.()
   return (s as unknown as { comps: { id: string; inst: { state: unknown } }[] }).comps.map((c) => `${c.id}=${digest(c.inst.state)}`)
 }
 
-describe('the fast engine against the reference simulator', () => {
+describe('the fast engine against the oracle', () => {
   const accepted: string[] = []
   const staysExact: string[] = []
   for (const ex of EXAMPLES) {
@@ -90,7 +76,7 @@ describe('the fast engine against the reference simulator', () => {
       const circuit = flatten(ex.build())
       const a = new Simulator()
       a.setFast(true)
-      const b = new ReferenceSimulator()
+      const b = new OracleSimulator()
       a.load(circuit)
       b.load(circuit)
       a.settle()
@@ -113,54 +99,17 @@ describe('the fast engine against the reference simulator', () => {
       }
     })
   }
+  it('keeps 65c02-timer exact for a reason it names: a second clock (the timer) feeds the NMI pin of a CPU clocked by the first', () => {
+    // (the note of the example says so; if the planner starts to take it, the note and this test go)
+    const a = new Simulator()
+    a.setFast(true)
+    a.load(flatten(EXAMPLES.find((e) => e.id === '65c02-timer')!.build()))
+    a.settle()
+    expect([a.engine, a.fastRejected]).toEqual(['exact', 'race'])
+  })
   it('runs all but the loops and delays of the teaching circuits on the fast engine', () => {
     // (65c02-timer and debounce have a second clock feeding the data of a part clocked by the first, e.g. the CPU's NMI: which edge comes first depends on gate depths, so it stays exact)
     expect(staysExact.sort()).toEqual(['65c02-timer', 'd-latch', 'debounce', 'oscillator', 'ripple', 'sr-latch'])
     expect(accepted.length).toBeGreaterThan(53)
   })
-})
-
-describe('the parts against the reference parts', () => {
-  const draw = (r: () => number, acceptsZ: boolean): V => {
-    const x = r()
-    if (x < 0.08) return 2
-    if (x < 0.1) return acceptsZ ? 3 : 2
-    return x < 0.55 ? 0 : 1
-  }
-  /** The default params, and each param with a choice (a width, a list of options) set to each of its values, one at a time. */
-  function variants(def: (typeof DEFS)[number]): Params[] {
-    const base: Params = {}
-    for (const p of def.params ?? []) base[p.key] = p.default
-    const out: Params[] = [base]
-    for (const p of def.params ?? []) {
-      const values: (string | number | boolean)[] =
-        p.kind === 'select' ? (p.options ?? []).map((o) => o.value) : p.key === 'bits' || p.key === 'n' ? Array.from({ length: (p.max ?? 16) - (p.min ?? 2) + 1 }, (_, i) => (p.min ?? 2) + i) : []
-      for (const v of values) if (v !== p.default) out.push({ ...base, [p.key]: v })
-    }
-    return out
-  }
-
-  for (const def of DEFS) {
-    const ref = referenceDef(def.type)
-    it(`${def.type}: random 0/1/X/Z inputs give the same outputs and state`, () => {
-      const r = rng(def.type.length * 7919 + def.type.charCodeAt(0))
-      for (const params of variants(def)) {
-        const layout = layoutOf(def.type, params)
-        const nIn = layout.pins.filter((p) => p.dir === 'in').length
-        const nOut = layout.pins.filter((p) => p.dir === 'out').length
-        const mk = (d: typeof def) => ({ ins: new Array<V>(nIn).fill(2), outs: new Array<V>(nOut).fill(2), state: d.init?.(params), params })
-        const x = mk(def)
-        const y = mk(ref)
-        const zOk = !!def.acceptsZ
-        for (let step = 0; step < 120; step++) {
-          for (let i = 0; i < nIn; i++) x.ins[i] = y.ins[i] = draw(r, zOk)
-          def.evaluate(x)
-          ref.evaluate(y)
-          const where = `${def.type} ${JSON.stringify(params)} step ${step} ins ${x.ins.join('')}`
-          expect(x.outs.join(''), where).toBe(y.outs.join(''))
-          if (x.state !== undefined && !ArrayBuffer.isView(x.state) && JSON.stringify(x.state).length < 4000) expect(JSON.stringify(x.state), where).toBe(JSON.stringify(y.state))
-        }
-      }
-    })
-  }
 })
