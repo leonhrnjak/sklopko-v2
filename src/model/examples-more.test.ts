@@ -384,3 +384,31 @@ describe('subtraction example', () => {
     expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([1, 1])
   })
 })
+
+describe('synchronous counter example', () => {
+  it('both counters count 0 to 15, but going from 7 to 8 only the ripple counter passes through 6, 4 and 0', () => {
+    const r = rig('sync-counter')
+    const nets = (prefix: string) => [0, 1, 2, 3].map((i) => r.sim.netOf(r.part(`${prefix} Q${i}`), 'A'))
+    const [ripple, sync] = [nets('Ripple'), nets('Sync')]
+    const probe = (prefix: string, i: number) => r.part(`${prefix} Q${i}`)
+    const read = (prefix: string) => [0, 1, 2, 3].reduce((n, i) => n | ((r.sim.pinValue(probe(prefix, i), 'A') as number) << i), 0)
+    const now = (ns: number[]) => read(ns === ripple ? 'Ripple' : 'Sync')
+    for (let i = 0; i < 20; i++) {
+      expect(now(ripple), `ripple after ${i} clocks`).toBe(i % 16)
+      expect(now(sync), `sync after ${i} clocks`).toBe(i % 16)
+      r.cycle()
+    }
+    // Run on to 7, then watch one clock edge tick by tick.
+    while (now(ripple) !== 7) r.cycle()
+    r.sim.setCapture(true)
+    r.sim.stepClock()
+    const frames = r.sim.getCapture()!.frames
+    /** The numbers the counter shows, tick by tick, without repeats. */
+    const path = (ns: number[]) =>
+      frames
+        .map((f) => ns.reduce((n, net, i) => n | (f[net] << i), 0))
+        .filter((v, k, all) => k === 0 || v !== all[k - 1])
+    expect(path(ripple)).toEqual([7, 6, 4, 0, 8])
+    expect(path(sync)).toEqual([7, 8])
+  })
+})

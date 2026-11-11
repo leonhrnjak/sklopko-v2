@@ -1,4 +1,4 @@
-import { registerFit, registerFocus, registerRefit } from '../../app/view'
+import { refitView, registerFit, registerFocus, registerRefit } from '../../app/view'
 import { setView, useStore } from '../../app/store'
 import { boundsRect } from '../../model/circuit'
 
@@ -89,7 +89,7 @@ registerFocus(focusFrame)
 registerRefit((ms) => {
   if (typeof ResizeObserver === 'undefined') return
   refitObserver?.disconnect()
-  const ro = new ResizeObserver(() => fitView())
+  const ro = new ResizeObserver(() => refitView())
   refitObserver = ro
   if (svgEl) ro.observe(svgEl)
   // Until the time is up, or the learner has touched the canvas (then the view is theirs).
