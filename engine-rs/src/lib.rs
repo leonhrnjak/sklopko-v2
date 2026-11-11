@@ -25,7 +25,8 @@ pub extern "C" fn abi_version() -> u32 {
 }
 
 /// Memory the page can write into, kept for the life of the module.
-#[unsafe(no_mangle)]
+// Not exported by name in the host test binary: a symbol called `free` there would replace the C library's own.
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let mut v = Vec::<u8>::with_capacity(len);
     let p = v.as_mut_ptr();
@@ -34,7 +35,8 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
 }
 
 /// Give back memory from `alloc` (the same `len`).
-#[unsafe(no_mangle)]
+// Not exported by name in the host test binary: a symbol called `free` there would replace the C library's own.
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub extern "C" fn free(ptr: *mut u8, len: usize) {
     drop(unsafe { Vec::<u8>::from_raw_parts(ptr, 0, len) });
 }

@@ -56,9 +56,15 @@ numbers never change once given; new ones are appended.** The page's `KIND` tabl
 2. Rust: a number in `engine-rs/src/parts/mod.rs` (`kind` module, appended), its behaviour in the family file, the dispatch range.
 3. `KIND` in `src/engine/wasmengine.ts`; if the part has state or settings the module needs, send them in the constructor and read them
    back in `syncOut`.
-4. Add the part to `CASES` in `src/engine/wasmengine.test.ts`: it is run against the frozen TypeScript oracle (`src/engine/testdata/oracle/`) with unknown inputs and
-   random switches, so a mistake in the Rust behaviour shows.
-5. `npm run build:wasm` and commit `src/engine/wasm/engine.wasm` with the source (CI runs `build:wasm -- --check`).
+4. Add Rust table tests for the part: a `#[cfg(test)] mod tests` at the end of its family file, built on `engine-rs/src/parts/testkit.rs`
+   (`Part` keeps the part's state, `table` runs rows of inputs and expected outputs as strings of `0 1 X Z`). `gates.rs` (a gate),
+   `seq.rs` (the D flip-flop, the counter) and `memory.rs` (the RAM) are the patterns to copy; `cargo test` in `engine-rs/` runs them on
+   the host, and the `wasm` CI job runs it before the build.
+5. **The oracle in `src/engine/testdata/oracle/` takes no new parts.** It is a frozen TypeScript copy; `CASES` in
+   `src/engine/wasmengine.test.ts` runs each older part through it and through the Rust module with unknown inputs and random switches. A
+   new part is not written a second time in TypeScript: its expected behaviour is its Rust table tests (step 4). Add it to `CASES` only
+   if the oracle already has the part.
+6. `npm run build:wasm` and commit `src/engine/wasm/engine.wasm` with the source (CI runs `build:wasm -- --check`).
 
 ## How the speed was won
 

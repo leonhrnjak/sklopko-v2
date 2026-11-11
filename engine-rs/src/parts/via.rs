@@ -324,16 +324,12 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parts::{Console, Shared};
+    use crate::parts::testkit::Part;
 
     #[test]
     fn evaluates_with_unknown_inputs() {
-        let mut vias = vec![Via::from_numbers(&[0, 0, 0, 0, 0xffff, 0xffff, 0, 0, 1, 0xffff, 0xff, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, 1, 1, 0, 0, 0, 0, 2, 0])];
-        let mut sh = Shared { rom: vec![], ram: vec![], fb: vec![], acias: vec![], consoles: Vec::<Console>::new(), vias: std::mem::take(&mut vias) };
-        let ins = [2u8; 37];
-        let mut outs = [0u8; 64];
-        let (mut n, mut pc, mut q) = (0, 0, 0);
-        let mut cell = Cell { ins: &ins, outs: &mut outs, no: 27, n: &mut n, pc: &mut pc, q: &mut q, p0: 0, p1: 0, p2: 0, mem_off: 0 };
-        eval(VIA6522, &mut cell, &mut sh);
+        let mut part = Part::new(VIA6522, 27);
+        part.sh.vias.push(Via::from_numbers(&[0, 0, 0, 0, 0xffff, 0xffff, 0, 0, 1, 0xffff, 0xff, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, 1, 1, 0, 0, 0, 0, 2, 0]));
+        part.eval(&[2u8; 37]);
     }
 }

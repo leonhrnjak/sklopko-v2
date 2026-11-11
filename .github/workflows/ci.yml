@@ -131,6 +131,9 @@ jobs:
         with:
           node-version: 22
       # rustup (on the runner) installs the toolchain that engine-rs/rust-toolchain.toml names, on the first cargo call.
+      # The Rust tests run on the host (no WebAssembly needed) and fail the job before the build.
+      - name: Rust tests
+        run: cargo test --manifest-path engine-rs/Cargo.toml
       - run: npm run build:wasm
       - name: Keep the built engine for the other jobs
         uses: actions/upload-artifact@v6

@@ -76,3 +76,44 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         _ => {}
     }
 }
+
+// Table tests: each row is the inputs of one evaluation and the outputs it must give. Copy this pattern for a new part (see testkit.rs).
+#[cfg(test)]
+mod tests {
+    use super::super::testkit::{table, Part};
+    use super::*;
+
+    #[test]
+    fn ram_four_words_of_four_bits() {
+        // Inputs: four data bits, write enable, clock, two address bits (least significant first). Outputs: the word at the address.
+        let mut r = Part::new(RAM, 4).params(4, 2, 0).ram(4);
+        table(&mut r, &[
+            ("0000 0 0 00", "0000"),
+            ("1010 1 0 01", "0000"), // write enabled, clock low: nothing written
+            ("1010 1 1 01", "1010"), // rising edge: 5 is written to address 2 (the read shows it at once)
+            ("0000 0 0 01", "1010"),
+            ("0000 0 0 00", "0000"), // another address
+            ("1111 1 0 00", "0000"),
+            ("1111 1 1 00", "1111"),
+            ("0000 0 0 01", "1010"), // the first word is still there
+            ("0000 0 0 11", "0000"),
+            ("1111 0 1 11", "0000"), // an edge with write disabled writes nothing
+            ("0000 0 0 X1", "XXXX"), // an unknown address reads unknown
+        ]);
+        assert_eq!(r.sh.ram, vec![15, 0, 5, 0]);
+    }
+
+    #[test]
+    fn rom_reads_its_words() {
+        // Inputs: two address bits. Outputs: four bits.
+        let mut r = Part::new(ROM, 4).params(2, 4, 0).rom(&[3, 5, 10, 15]);
+        table(&mut r, &[("00", "1100"), ("10", "1010"), ("01", "0101"), ("11", "1111"), ("X0", "XXXX")]);
+    }
+
+    #[test]
+    fn lookup_table_rows_start_at_the_first_input() {
+        // An XOR table: two inputs (the first the most significant), one output.
+        let mut l = Part::new(LUT, 1).params(2, 0, 0).rom(&[0, 1, 1, 0]);
+        table(&mut l, &[("00", "0"), ("01", "1"), ("10", "1"), ("11", "0"), ("X1", "X")]);
+    }
+}
