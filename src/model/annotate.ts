@@ -15,3 +15,11 @@ export function frameAround(b: CircuitBuilder, title: string, ids: string[], col
   const y2 = Math.max(...rects.map((r) => r.y + r.h)) + pad
   return b.add('frame', snap(x1), snap(y1), { params: { title, w: snap(x2 - x1) + 10, h: snap(y2 - y1) + 10, color } })
 }
+
+/** A note under the circuit built so far, left-aligned with it, with a gap of `gap` pixels. For examples that have no better place for one. */
+export function noteBelow(b: CircuitBuilder, text: string, cols = 48, gap = 60, color = 'yellow') {
+  const rects = Object.values(b.c.comps).map((k) => boundsRect(k))
+  const left = Math.min(...rects.map((r) => r.x))
+  const bottom = Math.max(...rects.map((r) => r.y + r.h))
+  return note(b, snap(left), snap(bottom + gap), text, cols, color)
+}

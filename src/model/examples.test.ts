@@ -55,10 +55,16 @@ describe('notes and frames in the examples', () => {
     }
   }, 60000)
 
-  it('the examples that explain themselves have a note', () => {
-    for (const id of ['counter', 'labels', 'computer'])
-      expect(Object.values(example(id).comps).some((k) => k.type === 'note'), id).toBe(true)
-  }, 60000)
+  // Every example explains itself: what it shows and one thing to try. Add an id here only with a reason.
+  const WITHOUT_NOTE: string[] = []
+
+  it('every example has a note, except those listed here', () => {
+    for (const e of EXAMPLES) {
+      const hasNote = Object.values(example(e.id).comps).some((k) => k.type === 'note')
+      expect(hasNote || WITHOUT_NOTE.includes(e.id), `${e.id} has no note`).toBe(true)
+    }
+    for (const id of WITHOUT_NOTE) expect(Object.values(example(id).comps).some((k) => k.type === 'note'), `${id} now has a note: remove it from the list`).toBe(false)
+  }, 120000)
 })
 
 describe('digital clock example', () => {
