@@ -5,6 +5,7 @@ import { PROGRAMS, computer2Builder, type Program } from './computer2'
 import { frameAround, note, noteBelow } from './annotate'
 import { adders } from './adder-examples'
 import { seg7Table } from './seg7-examples'
+import { subtract } from './subtract-examples'
 import { beginnerComputer } from './beginner'
 import { board6502 } from './board6502'
 import { ball6502, basic6502, doomLike6502, gameBoard6502, basicLcd6502, lcd6502, video6502, via6502, counter6502, echo6502, echoIrq6502, hello6502, keypad6502, sweep65c02, timer65c02 } from './board6502-examples'
@@ -1164,6 +1165,7 @@ const BUILDERS: Record<string, () => Circuit> = {
   adder,
   adders,
   'seg7-table': seg7Table,
+  subtract,
   'alu-flags': aluFlags,
   calculator,
   tristate: sharedLine,

@@ -53,6 +53,7 @@ export const EXAMPLE_LIST: ExampleInfo[] = [
   e('Memory and sequential', 'ripple-counter', 'Ripple counter (T flip-flops)'),
   e('Arithmetic', 'adder', '4-bit adder'),
   e('Arithmetic', 'adders', 'Half and full adders: from gates, and as parts'),
+  e('Arithmetic', 'subtract', 'Subtracting: two’s complement, borrow and overflow', 'Four bits'),
   e('Arithmetic', 'alu-flags', 'ALU with zero, carry and negative flags'),
   e('Arithmetic', 'calculator', 'Calculator: ALU, multiplier, ROM, BCD'),
   e('Buses and tri-state', 'tristate', 'Tri-state buffers on a shared line'),
