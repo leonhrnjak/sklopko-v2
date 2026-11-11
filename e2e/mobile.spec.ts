@@ -58,7 +58,7 @@ test('the overflow menu holds the secondary actions, and the example gallery fit
   await dialog.getByRole('button', { name: /^Start here/ }).tap()
   await dialog.getByTestId('example-gates').tap()
   await expect(dialog).toHaveCount(0)
-  await expect(page.locator('.comp')).toHaveCount(10)
+  await expect(page.locator('.comp')).toHaveCount(11) // with the note
 })
 
 test('the Examples button leads the menu, and the speed list does not span the screen', async ({ page }) => {
