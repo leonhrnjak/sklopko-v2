@@ -341,3 +341,46 @@ describe('seven-segment decoder example', () => {
     }
   })
 })
+
+describe('subtraction example', () => {
+  it('four bits: 3 - 5 is 1110 with the sign set, 3 + 5 overflows; the plain subtractor agrees and borrows', () => {
+    const r = rig('subtract')
+    const bits = () => ['S3', 'S2', 'S1', 'S0'].map((l) => r.lit(l)).join('')
+    expect(bits()).toBe('1110')
+    expect(r.lit('Negative (S3)')).toBe(1)
+    expect([r.lit('Carry out'), r.lit('Overflow'), r.lit('Borrow (A < B)')]).toEqual([0, 0, 1])
+    const [subtractor] = ['Subtractor'].map((l) => r.part(l))
+    expect([0, 1, 2, 3].map((i) => r.sim.pinValue(subtractor, `D${i}`)).join('')).toBe('0111') // D0..D3 of 14
+    r.set('Subtract', false) // 3 + 5 = 8: does not fit in four signed bits
+    expect(bits()).toBe('1000')
+    expect([r.lit('Carry out'), r.lit('Overflow')]).toEqual([0, 1])
+  })
+
+  it('eight bits on a bus: 5 - 9 is 252 with a borrow, and 5 + 9 is 14', () => {
+    const c = EXAMPLES.find((e) => e.id === 'subtract')!.build()
+    const sim = new Simulator()
+    sim.load(flatten(c)) // the bus wires become one wire for each bit
+    sim.settle()
+    const ofType = (type: string) => Object.values(c.comps).filter((k) => k.type === type).map((k) => k.id)
+    const [sub] = ofType('bussub')
+    const [addsub] = ofType('busaddsub')
+    const value = (id: string, pin: string) => [0, 1, 2, 3, 4, 5, 6, 7].reduce((n, i) => n | (sim.pinValue(id, `${pin}${i}`) << i), 0)
+    expect(value(sub, 'D')).toBe(252)
+    expect(sim.pinValue(sub, 'Bo')).toBe(1)
+    expect(value(addsub, 'S')).toBe(252)
+    const m = Object.values(c.comps).find((k) => k.type === 'switch' && k.label === 'Subtract' && k.x > 1000)!.id
+    sim.setParams(m, { ...c.comps[m].params, on: false })
+    sim.settle()
+    expect(value(addsub, 'S')).toBe(14)
+  })
+
+  it('one bit: the half subtractor borrows when B is 1 and A is 0', () => {
+    const r = rig('subtract')
+    const [hs] = r.ofType('halfsub')
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([1, 0]) // A = 1, B = 0
+    r.set('B', true)
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([0, 0])
+    r.set('A', false)
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([1, 1])
+  })
+})
