@@ -229,7 +229,7 @@ changed chunk refetches only that chunk; the prompt appears instead of a silent 
 against the preview URL, its output in the PR), and a link pasted into a chat app shows the picture.
 
 ### C4 Analytics and "Report a problem" (`c4-analytics`, stacked on C3)
-- [ ] C4
+- [x] C4
 
 **Tasks**
 - Leon turns on Cloudflare Web Analytics for the Pages project (no code; it injects its own script). Add its two hosts to the CSP
