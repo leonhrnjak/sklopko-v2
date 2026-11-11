@@ -412,3 +412,48 @@ describe('synchronous counter example', () => {
     expect(path(sync)).toEqual([7, 8])
   })
 })
+
+describe('parity and Gray code example', () => {
+  it('the checker flags one flipped bit, not two, for every data value', () => {
+    const r = rig('parity-gray')
+    const data = r.ofType('hexin')[0]
+    const flip = (label: string, on: boolean) => r.set(label, on)
+    for (let v = 0; v < 16; v++) {
+      r.sim.setParams(data, { ...r.c.comps[data].params, value: v })
+      for (const [f0, f1] of [[false, false], [true, false], [false, true], [true, true]]) {
+        flip('Flip bit 0', f0)
+        flip('Flip bit 1', f1)
+        const ones = Number(f0) + Number(f1)
+        expect(r.lit('Error'), `data ${v}, flips ${ones}`).toBe(ones === 1 ? 1 : 0)
+      }
+    }
+  })
+
+  it('the parity bit makes the count of ones even', () => {
+    const r = rig('parity-gray')
+    const data = r.ofType('hexin')[0]
+    for (let v = 0; v < 16; v++) {
+      r.sim.setParams(data, { ...r.c.comps[data].params, value: v })
+      r.sim.settle()
+      const ones = v.toString(2).split('1').length - 1
+      expect(r.lit('Parity bit'), `data ${v}`).toBe(ones % 2)
+    }
+  })
+
+  it('the Gray code changes one bit at each step, round to the start; the binary count sometimes changes four', () => {
+    const r = rig('parity-gray')
+    const read = (prefix: string) => [0, 1, 2, 3].reduce((n, i) => n | ((r.sim.pinValue(r.part(`${prefix} ${i}`), 'A') as number) << i), 0)
+    const bits = (n: number) => n.toString(2).split('1').length - 1
+    const changes = { binary: [] as number[], gray: [] as number[] }
+    let [pb, pg] = [read('Binary'), read('Gray')]
+    for (let i = 0; i < 16; i++) {
+      r.cycle()
+      const [nb, ng] = [read('Binary'), read('Gray')]
+      changes.binary.push(bits(pb ^ nb))
+      changes.gray.push(bits(pg ^ ng))
+      ;[pb, pg] = [nb, ng]
+    }
+    expect(changes.gray).toEqual(Array(16).fill(1))
+    expect(Math.max(...changes.binary)).toBe(4)
+  })
+})
