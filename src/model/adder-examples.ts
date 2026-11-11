@@ -71,7 +71,7 @@ export function adders(): Circuit {
   noteBelow(
     b,
     'Each adder is built twice from the same switches: from gates, and as a single part. Flip A, B and Carry in and check that both give the same Sum and Carry. The full adder is two half adders and an OR gate. Try A = B = 1: the sum is 0 and the carry is 1, because 1 + 1 = 10 in binary.',
-    64,
+    60,
   )
   return b.build()
 }
