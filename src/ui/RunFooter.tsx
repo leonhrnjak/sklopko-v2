@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ClockMeter, describeClock, formatTime } from '../app/clockrate'
 import { useForceCount, useSimStatus } from '../app/hooks'
-import { sim } from '../app/sim'
+import { restartSim, sim } from '../app/sim'
+import { useSimHealth } from '../app/simHealth'
 import { select, useStore } from '../app/store'
 import { ZoomControls } from './ZoomControls'
 
@@ -47,8 +48,9 @@ const breakpointIds = (comps: Record<string, { type: string }>) => Object.keys(c
  * switch), warnings, signals held at a level, breakpoints and the simulated time; the zoom is at its right end. The lock is passed in,
  * so that this chunk does not need the settings.
  */
-export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onToggleLock: () => void }) {
+function FooterRow({ lockEdits, onToggleLock }: { lockEdits: boolean; onToggleLock: () => void }) {
   const running = useStore((s) => s.running)
+  const failed = useSimHealth((s) => s.failed)
   const { clock, time, engine, wasm } = useStats()
   const oscillating = useSimStatus() === 'u'
   const held = useForceCount()
@@ -59,8 +61,14 @@ export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onT
       <div className="run-left" role="status" aria-label="Simulation">
         <span className="run-label">Run</span>
         <span className="run-state">
-          <span className={`run-dot${running ? ' live' : ''}`} aria-hidden="true" />
-          <span data-testid="run-state">{running ? 'Running' : 'Paused'}</span>
+          <span className={`run-dot${running && !failed ? ' live' : ''}${failed ? ' dead' : ''}`} aria-hidden="true" />
+          {failed ? (
+            <span className="run-pill failed" data-testid="run-state">
+              Simulator stopped
+            </span>
+          ) : (
+            <span data-testid="run-state">{running ? 'Running' : 'Paused'}</span>
+          )}
         </span>
         {clock && (
           <span
@@ -138,5 +146,26 @@ export function RunFooter({ lockEdits, onToggleLock }: { lockEdits: boolean; onT
       </div>
       <ZoomControls />
     </div>
+  )
+}
+
+/** The footer, with a banner above it when the simulator has stopped (the engine did not load, or the worker crashed). */
+export function RunFooter(props: { lockEdits: boolean; onToggleLock: () => void }) {
+  const failed = useSimHealth((s) => s.failed)
+  return (
+    <>
+      {failed && (
+        <div className="sim-banner" role="alert" data-testid="sim-banner">
+          <span>
+            <b>The simulator stopped.</b> {failed} Nothing is simulated until it runs again; your circuit is not lost.
+          </span>
+          <button className="primary-action" onClick={() => void restartSim()}>
+            Restart simulator
+          </button>
+          <button onClick={() => location.reload()}>Reload</button>
+        </div>
+      )}
+      <FooterRow {...props} />
+    </>
   )
 }

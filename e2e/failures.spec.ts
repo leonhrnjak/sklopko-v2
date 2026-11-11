@@ -17,3 +17,12 @@ test('a preload error offers a reload', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
   await expect(page.getByTestId('canvas')).toBeVisible()
 })
+
+test('a simulator engine that cannot load is announced, not "Running"', async ({ page }) => {
+  await page.route(/engine[^/]*\.wasm/, (route) => route.fulfill({ status: 404, body: 'not found' }))
+  await page.goto('/counter', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('sim-banner')).toBeVisible()
+  await expect(page.getByTestId('run-state')).toHaveText('Simulator stopped')
+  await expect(page.getByText('Running')).toHaveCount(0)
+  await expect(page.getByTestId('canvas')).toBeVisible()
+})

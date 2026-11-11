@@ -4454,3 +4454,25 @@ button.linklike:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   font-size: 13px;
 }
+
+/* The simulator stopped: the footer's red pill and the banner above the footer. */
+.run-dot.dead {
+  background: var(--danger);
+}
+.run-pill.failed {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+.sim-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--danger);
+  background: var(--panel);
+  color: var(--danger);
+  font-size: 13px;
+}

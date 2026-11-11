@@ -2,18 +2,20 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { registerOffline } from './app/offline'
+import { reportSimFailure } from './app/simHealth'
 import { installEngine } from './engine/wasm'
 import { CrashScreen } from './ui/ErrorBoundary'
 
 registerOffline()
 
 // The Rust engine's module is compiled before anything makes a Simulator (the page's own, for the analyses, and the one in the
-// worker does the same), so every Simulator has it from the start. If it cannot be loaded the TypeScript engines run instead.
+// worker does the same), so every Simulator has it from the start. If it cannot be loaded there is no engine to run instead: the footer
+// says "Simulator stopped" (`simHealth`) and offers a restart.
 // The engine, the runtime and App are fetched together; only `startRuntime` (which makes the first Simulator) waits for the engine.
 // The library is read before the first render, so the canvas never shows a circuit that is about to be replaced.
 async function start() {
   const [, { startRuntime }, { default: App }] = await Promise.all([
-    installEngine().catch((e) => console.error(e)),
+    installEngine().catch(reportSimFailure),
     import('./app/runtime'),
     import('./App.tsx'),
   ])

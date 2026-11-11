@@ -81,15 +81,37 @@ export function checksum(bytes: Uint8Array): number {
   return a
 }
 
+/** Fetch and compile the module. Throws an error that says what went wrong (the server's answer, a module of another interface). */
+async function fetchEngine(): Promise<WebAssembly.Module> {
+  let response: Response
+  try {
+    response = await fetch(engineUrl)
+  } catch (e) {
+    throw new Error(`The simulator engine could not be fetched (${e instanceof Error ? e.message : e}). Check the connection and reload.`)
+  }
+  if (!response.ok) {
+    throw new Error(`The simulator engine could not be loaded: the server answered ${response.status} for ${engineUrl.pathname}. Reload the page.`)
+  }
+  let module: WebAssembly.Module
+  try {
+    // Streaming compilation needs the server to send the type `application/wasm`; if it does not (or there is no such function), compile the bytes.
+    module = await WebAssembly.compileStreaming(response.clone())
+  } catch {
+    module = await compileEngine(await response.arrayBuffer())
+  }
+  await loadEngine(module) // (throws if the interface differs)
+  return module
+}
+
 /**
  * Start-up for the page and for the worker: fetch and compile the module, and make it every new Simulator's engine
- * (`Simulator.defaultOpener`). Done before the first Simulator exists. If the module cannot be loaded the error is thrown to the caller.
+ * (`Simulator.defaultOpener`). Done before the first Simulator exists. If the module cannot be loaded the error is thrown to the caller,
+ * which must say so (there is no other engine to run instead).
  */
 export async function installEngine(): Promise<void> {
   // The three downloads run together: the module's bytes and the two chunks that use them.
-  const bytes = fetch(engineUrl).then((r) => r.arrayBuffer())
-  bytes.catch(() => {}) // (the error is thrown below; this only keeps an early failure from being reported as unhandled)
+  const loaded = fetchEngine()
+  loaded.catch(() => {}) // (the error is thrown below; this only keeps an early failure from being reported as unhandled)
   const [{ Simulator }, { openerFor }] = await Promise.all([import('./simulator'), import('./wasmengine')])
-  const module = await compileEngine(await bytes)
-  Simulator.defaultOpener = openerFor(module)
+  Simulator.defaultOpener = openerFor(await loaded)
 }
