@@ -2,7 +2,7 @@ import { minimizeExpr } from '../logic/minimize'
 import type { Cell } from '../logic/table'
 import { CircuitBuilder } from './builder'
 import { frameAround, note } from './annotate'
-import { boundsRect, snap, type Circuit } from './circuit'
+import type { Circuit } from './circuit'
 import { synthesizeInto } from './synth'
 import { layoutOf } from '../engine/layoutcache'
 
