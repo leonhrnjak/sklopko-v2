@@ -1,6 +1,6 @@
 # From NAND to a computer: a guided learning path (plan)
 
-> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, #122; L7, polish, built).** **The path is complete: 78 steps.** Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
+> **Status: L1 and L1.5 built; L2 under way (L2a, chapter 3, #105; L2b, explore steps, #106; L2c, the spotlight, #107; L2d-1, chapter 4, built; L2d-2, chapter 5, #111; L2d-3, chapter 6, #112; L3a, chapter 7, #113; L3b, chapter 8 and unlocks, #114; L4a, chapter 9 first four steps, #115; L4b, steps 9.5 to 9.8, #116; L4c, steps 9.9 and 9.10, #117; L5a, chapter 10, #118; L5b, chapter 11, #119; L6a, chapter 12, #120; L6b, chapter 13, #121; L6c, chapter 14, #122; L7, polish, built).** **The path is complete: 79 steps** (78 when first built; review item 11 added one). Read `CLAUDE.md` first. Seven PRs, stacked (`learn-l1-framework`, `learn-l2-explore`, …), each
 > based on the one before; L1 bumps the version to `0.4.0`. Tick each box when its PR merges and add a *What it did, and where it differs
 > from the plan* note under it, as `plan-via-lcd.md` does.
 >
@@ -17,7 +17,7 @@
 >   - [x] L2d-1 Chapter 4, choosing (own PR, `learn-l2-ch4`)
 >   - [x] L2d-2 Chapter 5, adding numbers (own PR, `learn-l2-ch5`)
 >   - [x] L2d-3 Chapter 6, the ALU (own PR, `learn-l2-ch6`)
-> - [ ] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
+> - [x] L3 Clocked builds and chapters 7–8 (memory; counting, ROM and RAM)
   - [x] L3a Clocked steps (`pulse`) and chapter 7, memory (own PR, `learn-l3-ch7`)
   - [x] L3b Chapter 8, counting and memories, and the unlocks (own PR, `learn-l3-ch8`, stacked on `learn-l3-ch7`)
 > - [x] L4 The CPU project: chapter 9 (build a computer, and its two upgrades)

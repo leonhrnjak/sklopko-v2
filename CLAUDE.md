@@ -104,32 +104,31 @@ your next push). Run `npm run build:wasm` locally only to try the change in the 
 
 ## Current work
 
-The roadmap is in `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar and example gallery,
-custom ICs, small wins; milestone 15, challenges for classrooms, is dropped for now), in order, one PR per sub-milestone; tick each
-box when it merges. Milestone 11 (My circuits) is built (PRs #33 to #35); 12 (load speed: code splitting, prebuilt examples and thumbnails, rendering measured) is built; 13 (toolbar menus, collapsible help, e2e split, example gallery) is built; 14 (custom ICs: instances and expansion, make and place, edit, collapse, two examples) is built; 16 (small wins: keyboard control, a lookup table from an expression, a testbench, offline use) is built, so the roadmap is done apart from the dropped 15. Each sub-milestone's PR was stacked on the one before it (#36 onward, one branch each). All of these have merged. The control ROMs plan (`docs/plan-control-rom.md`: named signals and rows, edit by signal, the text form, ready-made ROMs) has C1 to C4 merged (v0.0.1-79 to -82); C5 (polish: reference page, example notes, e2e, README) is done too.
+**Open: improvements from the November 2026 review** (`docs/plan-improvements.md`: tracks A, B, C, D, E, T, then R, then P, L, I, X, G; one
+PR per milestone, stacked inside a track; tick each box when it merges). Read the plan's "How an agent works on this plan" first.
+Track E1 is items 13 to 25 of `docs/plan-learn-review.md` (the Learn path's review: items 1 to 12 have merged; three of the items add
+steps, 78 → 81).
 
-**Milestones 0–10 are all done** (`docs/plan-next-features.md`). Milestone 10 (buses and tri-state) is recorded in
-`docs/plan-m10-buses.md` (decisions, five sub-milestones 10a to 10e, what each did). Milestone 9 (timing view and state machine
-editor) is done; `docs/plan-m9-timing-fsm.md` records its decisions.
+**Open: a 6502 built from our own parts** (`docs/plan-micro6502.md`: a microcoded datapath of registers, an adder and ROMs, one bus
+cycle per clock, checked cycle for cycle against the `cpu6502` part). Built: all 151 documented opcodes with decimal mode, the reset
+sequence, IRQ and NMI at its pins, `/6502-parts-irq` and `/6502-parts-basic` (Microsoft BASIC on it). Not built: the SingleStepTests
+vectors on the circuit. `src/engine/micro6502.ts` is the microcode, `src/model/micro6502.ts` the circuit.
 
-**Done: control ROMs you can read and edit** (`docs/plan-control-rom.md`): signal and row names on the ROM part, a decoded
-listing (C1), editing a row by signal (C2), a text form (C3), ready-made ROMs (C4), and the reference tab and notes (C5); one PR per milestone, stacked (`c1-decoded-listing`, `c2-edit-row`, `c3-text-form`…), tick the boxes in the plan when each merges.
+**Not built, if wanted:** challenges where you write a program (they need a new kind of challenge that runs the program on a board);
+real level layouts for the Doom-like (its levels are one corridor turned five ways; needs a new spec); optional textures at 120 columns.
 
-**Done: a real CPU part, the MOS 6502 and the 65C02** (`docs/plan-cpu6502.md`: PRs #66, #67, #69, #73, #75, #76, #77, #78 and #80; the shown version is `v0.1.0` from #79 on): a cycle-exact core
-(R1), bigger RAM and ROM (R2), the part and a first board (R3), 6502 assembly with a listing and a reference page (R4), devices and
-examples (R5) and the 65C02, its interrupt example and probes (R6). Not done: challenges where you write a program (they need a new kind of
-challenge that runs the program on a board). SKASM stays on our own computers.
-
-**Done: a BASIC computer on the 6502** (`docs/plan-basic-computer.md`, a spec with all decisions made; Ben Eater's memory map: 16 KB RAM, a 6551-style terminal part at `$5000`, 16 KB ROM with Microsoft BASIC built from Microsoft's own MIT source; B1 to B7; B1, the ROM (Microsoft's source translated and built by `scripts/basic/`, with a test harness and a second-opinion test), is built and bumps the version to `0.2.0`; B2 (a clock up to 1 MHz, a per-circuit switch for the step-back history, the CPU's real rate, and more simulation time per frame for a circuit that cannot keep up) is built; B3 (RAM to 32 KB, ROM to 16 KB, and the 6502 board with `memory: 'big'`) is built; B4 (the `acia6551` terminal part with its screen, keyboard and inspector) is built; B5 (a board with the terminal, and two echo examples `6502-echo` and `6502-echo-irq`) is built; B6 (the example `6502-basic`: the board boots to `OK` and runs your programs) is built; B7 (programs to type in, a BASIC reference in Tools → BASIC, README) is built, so the plan is done).
-
-**Built, waiting for review (PRs #97 to #99): a 6522 VIA and a character LCD** (`docs/plan-via-lcd.md`: V1 the VIA part, its board and a timer example, V2 the HD44780 LCD, V3 the board with both and Ben Eater's examples, plus a BASIC variant; one PR each, stacked `via-6522`, `lcd-hd44780`, `via-lcd-board`; V1 bumps the version to `0.3.0`).
-
-**Built, waiting for review: a guided learning path, *Learn: From NAND to a computer*** (`docs/plan-learn-path.md`, mockup `docs/mockups/learn-path.html`): 14 chapters and **all 78 steps**, from NAND gates through *from a truth table to gates* and chips that carry forward, a 4-bit CPU the learner builds and programs, an 8-bit computer, to the 6502 and BASIC; progress is kept in the browser (and in *Download all*). Seven milestones, one PR each, stacked: L1 (the framework, the kit, chapters 1–2; version `0.4.0`), L1.5 (kit chips as the gates they are), L2 (explore steps, quizzes, the spotlight, chapters 3–6; #105 to #112, merged), L3 (the clocked builds: `pulse` in challenge steps, chapters 7–8, and the parts a finished chapter unlocks; #113, #114), L4 (the CPU project, chapter 9: `ProjectStep`, `cpuStage`, test programs run on the learner's computer; #115 to #117), L5 (program steps, chapters 10–11; #118, #119), L6 (the 6502 and BASIC, chapters 12–14; #120 to #122) and L7 (polish: this PR). The PRs are stacked (`learn-l3-ch7`, `learn-l3-ch8`, `learn-l4a-cpu-1`, …, `learn-l7-polish`): merge them in that order, retargeting each to `main` as the one below merges. The startup chunk's budget was 181 kB (it was at 180.6 before L7; raised to 183 kB, with the user's yes, in the force-wire PR, which took it to 181.7; raised to 187 kB, with the user's yes, after the simulator worker, which took it to about 186.5; raised to 188 kB, with the user's yes, for the Rust engine hookup, which took it to 187.1): the path's code must load on demand, and anything that grows the main chunk needs the user's yes to raise the budget. 
-
-**In progress: a 6502 built from our own parts** (`docs/plan-micro6502.md`: a microcoded datapath of registers, an adder and ROMs, one bus cycle per clock, checked cycle for cycle against the `cpu6502` part; steps 1 to 5 and 3b (all 151 documented opcodes, with decimal mode: every addressing mode, the shifts, the stack, BRK and RTI, the reset sequence, and IRQ and NMI at its pins, with `/6502-parts-irq`; and `/6502-parts-basic`, which runs Microsoft BASIC on it) are built (only the SingleStepTests vectors on the circuit are not); `src/engine/micro6502.ts` is the microcode, `src/model/micro6502.ts` the circuit).
-
-**In progress: a review of the Learn path** (`docs/plan-learn-review.md`: 25 fixes and gaps found by reading every step, one PR each, stacked `learn-fix-01-…` to `learn-fix-25-…`; three of them add steps, 78 → 81). Tick the boxes as they merge.
-
-Finished plans, for background: `docs/plan-cpu6502.md` (the 6502 and 65C02 parts), `docs/plan-examples.md` (more examples: UART, games and so on) and `docs/plan-raycaster.md`
-(index register, CALL/RET, table ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer); `docs/plan-m9-timing-fsm.md`, `docs/plan-skasm.md` (one assembly language for every computer) and `docs/plan-stretch-features.md`
-(the earlier plan; its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
+**Done** (all merged; each plan's own header has the PR numbers and what differed from the spec):
+- `docs/plan-next-features.md`: milestones 0–10, including buses and tri-state (`docs/plan-m10-buses.md`) and the timing view and state
+  machine editor (`docs/plan-m9-timing-fsm.md`).
+- `docs/plan-next-milestones.md`: milestones 11–16 (My circuits, load speed, toolbar menus and the example gallery, custom ICs, small
+  wins); 15, challenges for classrooms, is dropped.
+- `docs/plan-control-rom.md` (control ROMs you can read and edit, C1 to C5), `docs/plan-cpu6502.md` (the MOS 6502 and 65C02 parts; the
+  shown version has been `0.1.0` or later since #79), `docs/plan-basic-computer.md` (Microsoft BASIC on a 6502 board, B1 to B7),
+  `docs/plan-via-lcd.md` (a 6522 VIA and an HD44780 LCD, V1 to V3), `docs/plan-doom-like.md` (a Doom-like raycaster on the 6502, D0 to D5).
+- `docs/plan-learn-path.md`: the guided path *Learn: From NAND to a computer*, 14 chapters and 79 steps (L1 to L7). Its code loads on
+  demand: the startup chunk's budget is 188 kB, and anything that grows the main chunk needs Leon's yes to raise it (it was raised from
+  181 to 188 kB in steps, with his yes each time).
+- `docs/spec-sim-wasm.md`: the Rust engine (E1 to E7), the fast settle and the simulator worker.
+- Earlier plans: `docs/plan-examples.md` (more examples: UART, games and so on), `docs/plan-raycaster.md` (index register, CALL/RET, table
+  ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer), `docs/plan-skasm.md` (one assembly language for every
+  computer) and `docs/plan-stretch-features.md` (its custom ICs milestone is now milestone 14 of `docs/plan-next-milestones.md`).
