@@ -135,8 +135,10 @@ security headers.
   ICs* examples show a 4-bit adder of ICs inside ICs and the 8-bit computer as blocks.
 - **Tests:** *Tools ▾ → Tests…* is a testbench for any circuit: one step per line, e.g. `D=1; pulse CLK; expect Q=1`, saved
   with the circuit; *Run tests* lists the steps that fail and why.
-- **Offline:** after one visit the built app (page, scripts and all examples) is kept by the browser, so it opens without a
-  network, and it can be installed from the browser's menu.
+- **Offline:** after one visit the browser keeps the page, the start-up scripts and the engine, and whatever you opened since
+  (panels, examples), so the app opens without a network; it can be installed from the browser's menu. *File → Keep all examples
+  offline* fetches every example at once. Scripts are kept by name across versions, so a new version downloads only what
+  changed; it waits until you press *Reload* in the "new version" message.
 - **Pins:** select a part to see a table of what each of its pins does, inputs first, then outputs.
 - **Keys:** R rotate, F flip, Del delete, ⌘Z/⇧⌘Z undo/redo, ⌘C/⌘V/⌘D copy/paste/duplicate, ⌘A select all,
   H (or 0) fit to screen, Space+drag or scroll to pan, ⌘/Ctrl+scroll or pinch to zoom. A switch with a **Key** (1–9 or a letter,

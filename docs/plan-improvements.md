@@ -175,7 +175,7 @@ appears at 940 ms on localhost; on a real connection each link adds a round trip
 (Fast 4G), and the budget check passes.
 
 ### B3 A service worker that does not refetch everything (`b3-service-worker`; needs A1 merged)
-- [ ] B3
+- [x] B3
 
 **Why.** It precaches all of `dist` (4.5 MB) and names the cache after a hash of every file, so every deploy makes every visitor
 download 4.5 MB again. It also calls `skipWaiting` and deletes the old cache under open tabs, which causes the failure A1 handles.

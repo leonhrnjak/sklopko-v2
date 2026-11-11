@@ -1,4 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
+import { applyUpdate } from '../app/offline'
 
 /**
  * Catches a failure while a part of the page renders or loads (a lazy chunk that cannot be fetched, a bug in a panel) so the
@@ -62,8 +63,8 @@ export function CrashScreen() {
 }
 
 /**
- * After a deploy, a tab that was open asks for chunk names that no longer exist. Vite reports that as `vite:preloadError`:
- * keep the circuit and offer a reload.
+ * After a deploy, a new version waits in the browser (`sklopko:update-ready`, from app/offline.ts), or, if the tab asks for chunk
+ * names that no longer exist, Vite reports `vite:preloadError`: either way, keep the circuit and offer a reload.
  */
 export function UpdatePrompt() {
   const [stale, setStale] = useState(false)
@@ -73,13 +74,17 @@ export function UpdatePrompt() {
       void import('../app/documents').then((m) => m.flushSave()).catch(() => {})
     }
     window.addEventListener('vite:preloadError', onError)
-    return () => window.removeEventListener('vite:preloadError', onError)
+    window.addEventListener('sklopko:update-ready', onError)
+    return () => {
+      window.removeEventListener('vite:preloadError', onError)
+      window.removeEventListener('sklopko:update-ready', onError)
+    }
   }, [])
   if (!stale) return null
   return (
     <div className="update-prompt" role="alert">
       <span>A new version of Sklopko is available. Your circuit is saved.</span>
-      <button className="primary-action" onClick={() => location.reload()}>
+      <button className="primary-action" onClick={applyUpdate}>
         Reload
       </button>
     </div>
