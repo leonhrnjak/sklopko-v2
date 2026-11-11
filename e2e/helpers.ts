@@ -59,7 +59,14 @@ export const ledOn = (page: Page, id: string) => page.locator(`.comp[data-id="${
 /** Select a part by the label shown above it. */
 export async function pickByLabel(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
-  const b = (await g.boundingBox())!
+  let b = (await g.boundingBox())!
+  // A large example opens at a frame, so the part may be off screen: Fit shows everything.
+  const view = page.viewportSize()!
+  if (b.x < 0 || b.y < 0 || b.x + b.width > view.width || b.y + b.height > view.height) {
+    await page.getByRole('button', { name: 'Fit', exact: true }).click()
+    await page.waitForTimeout(300)
+    b = (await g.boundingBox())!
+  }
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 }
 
@@ -85,7 +92,14 @@ export const tableRows = async (page: Page, label: string) =>
 /** Click a part by the label shown above it (a switch or an input toggles; this operates, it does not select). */
 export async function clickLabelled(page: Page, label: string) {
   const g = page.locator('.comp', { has: page.locator('.comp-label', { hasText: new RegExp(`^${label}$`) }) }).locator('> g').first()
-  const b = (await g.boundingBox())!
+  let b = (await g.boundingBox())!
+  // A large example opens at a frame, so the part may be off screen: Fit shows everything.
+  const view = page.viewportSize()!
+  if (b.x < 0 || b.y < 0 || b.x + b.width > view.width || b.y + b.height > view.height) {
+    await page.getByRole('button', { name: 'Fit', exact: true }).click()
+    await page.waitForTimeout(300)
+    b = (await g.boundingBox())!
+  }
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 }
 
