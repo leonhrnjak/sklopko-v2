@@ -71,7 +71,7 @@ export const timer65c02 = (): Circuit =>
     {
       intro:
         'An interrupt. The 65C02 runs WAI and goes to sleep: its address bus stops on the next instruction. Twice a second a timer drops the NMI line; the CPU wakes, pushes its place and its flags on the stack, reads the NMI vector from $FFFA, and runs the interrupt routine, which counts on the LEDs and prints a star. RTI returns to where it was, and it sleeps again. The probes record Φ2, the address bus, the data, R/W and SYNC: open Tools → Waveforms to see an interrupt cycle by cycle (the vector is read with VP low).',
-      devices: 'The timer is a clock whose output is inverted, so the NMI line rests high and falls at each tick: NMI reacts to the falling edge, whatever the I flag says.',
+      devices: 'The timer is a clock whose output is inverted, so the NMI line rests high and falls at each tick: NMI reacts to the falling edge, whatever the I flag says. The timer is a second clock, separate from the CPU\u2019s, and when two clocks meet in one part the simulator cannot say which of them comes first at an edge that falls together. So this is the one 6502 board that runs on the exact engine, one gate delay at a time (the footer says \u201cexact\u201d), and it is slower than the others. The VIA timer in the VIA example has no second clock and runs on the fast engine.',
     },
   )
 

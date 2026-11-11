@@ -5,6 +5,7 @@ import { cycle, newCpu } from './testdata/oracle/cpu6502'
  * Klaus Dormann's 6502 functional test, the usual whole-chip check. It is GPL, so it is not in the repository: get
  * `6502_functional_test.bin` from https://github.com/Klaus2m5/6502_65C02_functional_tests (bin_files) and run
  * `VITE_DORMANN=/path/6502_functional_test.bin npx vitest run src/engine/cpu6502.dormann`.
+ * (The Rust core runs the same programs, every night: `cargo test -- --ignored dormann` in `engine-rs/`; this file is the TypeScript oracle's.)
  * The program starts at $0400 and ends in a jump to itself at $3469 when every check passed; a failure traps earlier.
  */
 const file = import.meta.env.VITE_DORMANN as string | undefined

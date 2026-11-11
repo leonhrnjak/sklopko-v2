@@ -150,7 +150,7 @@ function setCpuNumbers(st: CpuState, v: Int32Array) {
 const packChars = (s: string) => [...s].reduce((n, ch, i) => n | (ch.charCodeAt(0) << (8 * i)), 0)
 const KIND_CODE = { read: 0, write: 1, rmw: 2, other: 3 }
 /** The opcode tables of the NMOS chip and the 65C02, as the module takes them: 7 numbers for each of 256 opcodes. */
-function opcodeTable(): number[] {
+export function opcodeTable(): number[] {
   const row = (o: Opcode6502 | undefined) =>
     o ? [1, packChars(o.mnemonic), packChars(o.mode), KIND_CODE[o.kind], o.cycles, o.pageCross ? 1 : 0, o.bit ?? -1] : [0, 0, 0, 0, 0, 0, -1]
   return [BY_OPCODE_6502, BY_OPCODE_65C02].flatMap((table) => Array.from({ length: 256 }, (_, op) => row(table[op])).flat())

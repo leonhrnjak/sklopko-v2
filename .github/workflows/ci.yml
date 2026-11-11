@@ -134,6 +134,22 @@ jobs:
       # The Rust tests run on the host (no WebAssembly needed) and fail the job before the build.
       - name: Rust tests
         run: cargo test --manifest-path engine-rs/Cargo.toml
+      # Klaus Dormann's 6502 tests are GPL, so they are not in the repository: the nightly (and a manual) run downloads them from a
+      # fixed commit and checks their hashes, then runs both on the Rust core (engine-rs/src/parts/cpu6502.rs, `dormann`).
+      - name: Dormann's 6502 and 65C02 tests on the Rust core
+        if: github.event_name != 'pull_request'
+        run: |
+          base=https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/7954e2dbb49c469ea286070bf46cdd71aeb29e4b/bin_files
+          mkdir "$RUNNER_TEMP/dormann"
+          curl -sSfL -o "$RUNNER_TEMP/dormann/6502_functional_test.bin" "$base/6502_functional_test.bin"
+          curl -sSfL -o "$RUNNER_TEMP/dormann/65C02_extended_opcodes_test.bin" "$base/65C02_extended_opcodes_test.bin"
+          (cd "$RUNNER_TEMP/dormann" && sha256sum -c - <<'EOF'
+          fa12bfc761e6f9057e4cc01a665a7b800ff01ae91f598af1e39a1201d01953fd  6502_functional_test.bin
+          10a2a07fa240666fa610c46accebe8d42b1000feef3aae619da15a8d152869b2  65C02_extended_opcodes_test.bin
+          EOF
+          )
+          DORMANN_6502="$RUNNER_TEMP/dormann/6502_functional_test.bin" DORMANN_65C02="$RUNNER_TEMP/dormann/65C02_extended_opcodes_test.bin" \
+            cargo test --release --manifest-path engine-rs/Cargo.toml -- --ignored dormann --nocapture
       - run: npm run build:wasm
       - name: Keep the built engine for the other jobs
         uses: actions/upload-artifact@v6

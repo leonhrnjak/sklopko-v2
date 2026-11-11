@@ -838,3 +838,93 @@ pub fn eval(kind: i32, c: &mut Cell, sh: &mut Shared) {
         outs[O_MLB] = if st.ml != 0 { 0 } else { 1 };
     }
 }
+
+// The core on its own, on a flat 64 KB memory: a short program as a check of the harness, and Klaus Dormann's functional tests (below).
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The opcode table the page sends the module, as a copy in a file that a unit test of the page keeps up to date
+    /// (src/engine/opcodetable.test.ts).
+    fn programs() -> Programs {
+        let table: Vec<i32> = include_str!("../../testdata/opcode-table.txt").split_whitespace().map(|n| n.parse().unwrap()).collect();
+        assert_eq!(table.len(), 2 * 256 * 7);
+        Programs::build(&table)
+    }
+
+    /// A CPU of this kind that is about to fetch the instruction at `pc` (the registers as the chip leaves reset).
+    fn cpu_at(pc: i32, cmos: bool) -> Cpu {
+        Cpu { sp: 0xfd, p: FU | FI, pc, addr: pc, read: 1, sync: 1, prog: -1, cmos: cmos as i32, ..Cpu::default() }
+    }
+
+    /// Run the CPU on `mem` until an instruction jumps to itself (how these test programs stop), and return how many cycles it took.
+    /// Panics after `limit` cycles.
+    fn run_until_trap(c: &mut Cpu, progs: &Programs, mem: &mut [u8; 65536], limit: i32) {
+        let mut last = -1;
+        while c.cycles < limit {
+            let d = if c.read != 0 {
+                mem[c.addr as usize] as i32
+            } else {
+                mem[c.addr as usize] = c.out as u8;
+                0
+            };
+            cycle(c, progs, d);
+            if c.sync != 0 {
+                if c.pc == last {
+                    return;
+                }
+                last = c.pc;
+            }
+        }
+        panic!("no trap within {limit} cycles: the program is at ${:04x}", c.pc);
+    }
+
+    #[test]
+    fn runs_a_short_program_on_both_chips() {
+        let progs = programs();
+        for cmos in [false, true] {
+            let mut mem = [0u8; 65536];
+            // LDA #$42, CLC, ADC #$01, STA $10, LDX #$05, loop: DEX, BNE loop, JMP *
+            let code = [0xa9, 0x42, 0x18, 0x69, 0x01, 0x85, 0x10, 0xa2, 0x05, 0xca, 0xd0, 0xfd, 0x4c, 0x0c, 0x02];
+            mem[0x200..0x200 + code.len()].copy_from_slice(&code);
+            let mut c = cpu_at(0x200, cmos);
+            run_until_trap(&mut c, &progs, &mut mem, 1000);
+            assert_eq!((mem[0x10], c.a, c.x), (0x43, 0x43, 0), "cmos {cmos}");
+            assert_eq!(c.pc, 0x20c);
+            // LDA, CLC, ADC (2 each), STA (3), LDX (2); five rounds of DEX (2) and BNE (3 taken, 2 on the last); then the JMP (3)
+            assert_eq!(c.cycles, (2 + 2 + 2 + 3 + 2) + 5 * 2 + (4 * 3 + 2) + 3);
+        }
+    }
+
+    /// Klaus Dormann's tests (GPL, so not in the repository: the nightly run downloads them from
+    /// https://github.com/Klaus2m5/6502_65C02_functional_tests, `bin_files/`). They run only when asked, with the files' paths:
+    ///
+    /// `DORMANN_6502=/path/6502_functional_test.bin DORMANN_65C02=/path/65C02_extended_opcodes_test.bin cargo test --release -- --ignored dormann`
+    ///
+    /// Each program is 64 KB loaded at 0 and starts at $0400; it ends in a jump to itself, at the success trap when every check passed
+    /// and earlier at the check that failed.
+    fn dormann(var: &str, cmos: bool, success: i32) {
+        let path = std::env::var(var).unwrap_or_else(|_| panic!("set {var} to the path of the test program"));
+        let bin = std::fs::read(&path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+        assert!(bin.len() <= 65536, "{path} is {} bytes", bin.len());
+        let mut mem = [0u8; 65536];
+        mem[..bin.len()].copy_from_slice(&bin);
+        let progs = programs();
+        let mut c = cpu_at(0x400, cmos);
+        run_until_trap(&mut c, &progs, &mut mem, 400_000_000);
+        assert_eq!(c.pc, success, "trapped at ${:04x} after {} cycles, not at the success trap ${success:04x}", c.pc, c.cycles);
+        println!("{var}: passed after {} cycles", c.cycles);
+    }
+
+    #[test]
+    #[ignore = "needs DORMANN_6502 (see `dormann`)"]
+    fn dormann_functional_test_nmos() {
+        dormann("DORMANN_6502", false, 0x3469);
+    }
+
+    #[test]
+    #[ignore = "needs DORMANN_65C02 (see `dormann`)"]
+    fn dormann_extended_opcodes_test_65c02() {
+        dormann("DORMANN_65C02", true, 0x24f1);
+    }
+}
