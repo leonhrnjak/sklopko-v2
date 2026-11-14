@@ -7,6 +7,7 @@ import { newCircuit, renameOpenDoc, useDoc } from '../app/documents'
 import { isEmbed } from '../app/embed'
 import { openFsm } from '../app/fsm'
 import { openLibraryDialog } from '../app/libraryUi'
+import { keepExamplesOffline } from '../app/offline'
 import { openMap, useDoneCount } from '../app/path'
 import { openPicture } from '../app/picture'
 import { openLogic } from '../app/logic'
@@ -23,6 +24,7 @@ import {
   setRunning,
   setSheetOpen,
   setSpeed,
+  showToast,
   undo,
   useStore,
 } from '../app/store'
@@ -384,6 +386,15 @@ export function Toolbar() {
     </>
   )
 
+  const keepAllExamples = () => {
+    showToast('Keeping the examples offline…')
+    void keepExamplesOffline().then((r) =>
+      showToast(
+        !r ? 'Offline use is not available here: this browser has not kept the app.' : r.failed ? `${r.failed} of the example files could not be fetched: try again when the connection is better.` : 'All examples are kept for offline use.',
+      ),
+    )
+  }
+
   const fileItems = (
     <>
       <MenuItem onClick={newCircuit} title="Start an empty circuit. What is open stays in your library">
@@ -407,6 +418,9 @@ export function Toolbar() {
       <MenuItem onClick={openPicture} title="Save the circuit as an SVG or PNG picture: all of it, or what is on screen">
         Save picture
         <OpensWindow />
+      </MenuItem>
+      <MenuItem onClick={keepAllExamples} title="Download every example now, so each one opens without a network (the ones you open are kept anyway)">
+        Keep all examples offline
       </MenuItem>
     </>
   )
