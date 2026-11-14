@@ -51,7 +51,7 @@ until R merges, then rebases onto it.
 
 ### A1 Error boundaries and a reload prompt (`a1-error-boundary`)
 - [x] A1
-  Merged (#257, version 0.6.0): `ErrorBoundary` (root and panel), `CrashScreen` with Download all, `UpdatePrompt` on `vite:preloadError`. Not yet: the boundaries do not call C's `recordError()` (needs #262 on main).
+  Merged (#257, version 0.6.0): `ErrorBoundary` (root and panel), `CrashScreen` with Download all, `UpdatePrompt` on `vite:preloadError`. The boundaries call `recordError()` from C (#262) since the follow-up PR.
 
 **Why.** One chunk that fails to load leaves `#root` empty. After a deploy, a tab that was open asks for chunk names that no longer
 exist and gets `index.html` back.
@@ -71,7 +71,7 @@ and the message shown; a second test fires `vite:preloadError` and finds the pro
 
 ### A2 The engine and the worker say when they fail (`a2-engine-failure`, stacked on A1)
 - [x] A2
-  Merged (#259): the engine loads from bytes if streaming fails, a worker that dies or throws posts `fatal`, the footer says "Simulator stopped" with a banner and *Restart simulator*. Not yet: `reportSimFailure` does not call `recordError()`.
+  Merged (#259): the engine loads from bytes if streaming fails, a worker that dies or throws posts `fatal`, the footer says "Simulator stopped" with a banner and *Restart simulator*. `reportSimFailure` calls `recordError()` too, since the follow-up PR.
 
 **Why.** If `engine.wasm` does not load, the footer says "Running" and nothing is simulated. A crash in the worker freezes the
 circuit with no message. The comments in `src/main.tsx` and `src/engine/sim.worker.ts` still say "the TypeScript engines run
