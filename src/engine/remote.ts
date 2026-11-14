@@ -15,6 +15,10 @@ import { Simulator, type Capture, type SimCircuit, type TerminalOp, type ViewSna
 export interface Port {
   postMessage(message: unknown, transfer?: Transferable[]): void
   onmessage: ((e: { data: unknown }) => void) | null
+  /** A worker's uncaught error (a script that did not load, an exception outside `SimHost`). */
+  onerror?: ((e: { message?: string }) => void) | null
+  /** Stop the worker (a `Worker` has it). */
+  terminate?(): void
 }
 
 export type Command =
@@ -45,6 +49,12 @@ interface SnapshotMessage {
   edges?: { values: Uint8Array[]; times: number[] }
 }
 
+/** The host says it cannot go on: the engine did not load, or a command threw. */
+interface FatalMessage {
+  t: 'fatal'
+  message: string
+}
+
 /** The most clock edges kept for an `edgeHook` between two messages (the oldest are dropped). */
 const EDGES_MAX = 5000
 
@@ -60,6 +70,7 @@ export class SimHost {
   private scheduled = false
   private inFlight = false
   private changed = true
+  private dead = false
   private captureSent = -1
   private hit: string | null = null
   private edges: { values: Uint8Array[]; times: number[] } | null = null
@@ -81,7 +92,23 @@ export class SimHost {
     }
   }
 
+  /** Do what the page asks. If that throws, stop and say so (`fatal`): the page shows it instead of a frozen circuit. */
   handle(m: Command) {
+    if (this.dead) return
+    try {
+      this.run(m)
+    } catch (e) {
+      this.fail(e)
+    }
+  }
+
+  private fail(e: unknown) {
+    this.dead = true
+    this.running = false
+    this.port.postMessage({ t: 'fatal', message: e instanceof Error ? e.message : String(e) } satisfies FatalMessage)
+  }
+
+  private run(m: Command) {
     const s = this.sim
     switch (m.t) {
       case 'load':
@@ -173,7 +200,15 @@ export class SimHost {
   /** One slice of running: simulate the time since the last one (as far as `SLICE_MS` of work goes), then pass the snapshot on. */
   slice = () => {
     this.scheduled = false
-    if (!this.running) return
+    if (!this.running || this.dead) return
+    try {
+      this.step()
+    } catch (e) {
+      this.fail(e)
+    }
+  }
+
+  private step() {
     const now = performance.now()
     const dt = Math.min(now - this.last, 100)
     this.last = now
@@ -224,14 +259,66 @@ export class WorkerSim {
   private lastRun = ''
   private hook: (() => void) | null = null
   private hooked = false
+  private circuit: SimCircuit | null = null
+  private capturing = false
+  private runArgs: { running: boolean; speed: number } | null = null
+  private spawn: (() => Port) | null
+  private onFatal: (message: string) => void
 
-  constructor(port: Port) {
+  /**
+   * `spawn` makes a new port (a new worker) for `restart`. `onFatal` is told when the simulation cannot go on: the host said so, or the
+   * worker died.
+   */
+  constructor(port: Port, spawn: (() => Port) | null = null, onFatal: (message: string) => void = () => {}) {
+    this.spawn = spawn
+    this.onFatal = onFatal
     this.port = port
+    this.wire(port)
+  }
+
+  private wire(port: Port) {
     port.onmessage = (e) => {
-      const m = e.data as SnapshotMessage
+      const m = e.data as SnapshotMessage | FatalMessage
+      if (m?.t === 'fatal') {
+        this.failed = m.message
+        this.onFatal(m.message)
+        return
+      }
       if (m?.t !== 'snapshot') return
       this.take(m)
     }
+    port.onerror = (e) => {
+      const message = e?.message || 'The simulation worker stopped.'
+      this.failed = message
+      this.onFatal(message)
+    }
+  }
+
+  /** Why the simulation stopped, or null. */
+  failed: string | null = null
+
+  /**
+   * Start again with a new worker, loaded with the circuit that was last loaded and the settings and run state sent since.
+   * Returns false when there is no way to make a new worker.
+   */
+  restart(): boolean {
+    if (!this.spawn) return false
+    this.port.onmessage = null
+    this.port.onerror = null
+    this.port.terminate?.()
+    this.port = this.spawn()
+    this.wire(this.port)
+    this.failed = null
+    this.view = null
+    this.lastRun = ''
+    this.hit = null
+    this.send({ t: 'setHistory', on: this.history })
+    this.send({ t: 'setFast', on: this.fast })
+    if (this.capturing) this.send({ t: 'setCapture', on: true })
+    if (this.circuit) this.send({ t: 'load', circuit: this.circuit })
+    if (this.hooked) this.send({ t: 'edgeHook', on: true })
+    if (this.runArgs) this.run(this.runArgs.running, this.runArgs.speed)
+    return true
   }
 
   private send(m: Command) {
@@ -257,6 +344,7 @@ export class WorkerSim {
 
   // The commands: sent to the simulation, nothing to wait for. What they did arrives with the next snapshot.
   load(c: SimCircuit) {
+    this.circuit = c
     this.mirror.load(c)
     this.mirror.settle()
     this.view = null
@@ -315,12 +403,14 @@ export class WorkerSim {
     this.send({ t: 'setFast', on })
   }
   setCapture(on: boolean) {
+    this.capturing = on
     this.send({ t: 'setCapture', on })
   }
   publish() {
     this.mirror.publish()
   }
   run(running: boolean, speed: number) {
+    this.runArgs = { running, speed }
     const key = `${running}:${speed}`
     if (key === this.lastRun) return
     this.lastRun = key

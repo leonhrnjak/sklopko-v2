@@ -120,3 +120,58 @@ describe('the simulation in a worker, seen through a mirror', () => {
     client.edgeHook = null
   })
 })
+
+describe('when the simulation cannot go on', () => {
+  it('a fatal message from the host sets `failed` and calls onFatal', () => {
+    const told: string[] = []
+    const port: Port = { postMessage: () => {}, onmessage: null }
+    const client = new WorkerSim(port, null, (m) => told.push(m))
+    expect(client.failed).toBeNull()
+    port.onmessage?.({ data: { t: 'fatal', message: 'engine.wasm: 404' } })
+    expect(client.failed).toBe('engine.wasm: 404')
+    expect(told).toEqual(['engine.wasm: 404'])
+  })
+
+  it("the worker's own error event counts too", () => {
+    const told: string[] = []
+    const port: Port = { postMessage: () => {}, onmessage: null, onerror: null }
+    const client = new WorkerSim(port, null, (m) => told.push(m))
+    port.onerror?.({ message: 'boom' })
+    expect(client.failed).toBe('boom')
+    expect(told).toEqual(['boom'])
+  })
+
+  it('a command that throws in the host is reported and the host stops', () => {
+    const sent: { t: string; message?: string }[] = []
+    const host = new SimHost({ postMessage: (m) => void sent.push(m as never) }, () => {})
+    host.handle({ t: 'load', circuit: null as never })
+    expect(sent.at(-1)?.t).toBe('fatal')
+    const n = sent.length
+    host.handle({ t: 'reset' })
+    expect(sent.length).toBe(n) // dead: nothing more is done or sent
+  })
+
+  it('restart makes a new port, clears the failure and loads the last circuit again', () => {
+    const made: { sent: { t: string }[]; port: Port; terminated: boolean }[] = []
+    const spawn = () => {
+      const rec = { sent: [] as { t: string }[], terminated: false, port: null as unknown as Port }
+      rec.port = { postMessage: (m) => void rec.sent.push(m as { t: string }), onmessage: null, onerror: null, terminate: () => void (rec.terminated = true) }
+      made.push(rec)
+      return rec.port
+    }
+    const client = new WorkerSim(spawn(), spawn)
+    const circuit = flatten(EXAMPLES.find((e) => e.id === 'counter')!.build())
+    client.load(circuit)
+    client.run(true, 1)
+    made[0].port.onerror?.({ message: 'crash' })
+    expect(client.failed).toBe('crash')
+    expect(client.restart()).toBe(true)
+    expect(client.failed).toBeNull()
+    expect(made[0].terminated).toBe(true)
+    expect(made[1].sent.map((m) => m.t)).toEqual(['setHistory', 'setFast', 'load', 'run'])
+  })
+
+  it('restart is refused when there is no way to make a worker', () => {
+    expect(new WorkerSim({ postMessage: () => {}, onmessage: null }).restart()).toBe(false)
+  })
+})
