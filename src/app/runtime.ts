@@ -12,6 +12,7 @@ import { installGamepadKeys } from './gamepad'
 import { installKeypadKeys } from './keypad'
 import { metaOf, openLastDoc, openLibrary, watchLibrary } from './library'
 import { openLearnRoute } from './path'
+import { tooLong, useLongShare } from './shareLimit'
 import { loadIntoSim, sim } from './sim'
 import { MIN_WORK_MS, workBudget } from './workbudget'
 import { setRunning, showToast, useStore } from './store'
@@ -199,16 +200,23 @@ export async function startRuntime() {
   installKeypadKeys(sim)
 }
 
+/** Put text on the clipboard and say so; when the browser refuses, show it for copying by hand. */
+export async function copyText(text: string, done: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast(done)
+  } catch {
+    window.prompt('Copy this:', text)
+  }
+}
+
 export async function shareLink() {
   // An untouched example has a short link of its own.
   const ex = exampleFromPath(location.pathname)
   const url = ex ? `${location.origin}/${ex.id}` : `${location.origin}/#${toShareHash(useStore.getState().circuit)}`
-  try {
-    await navigator.clipboard.writeText(url)
-    showToast('Share link copied to the clipboard.')
-  } catch {
-    window.prompt('Copy this link:', url)
-  }
+  const toast = 'Share link copied to the clipboard.'
+  if (tooLong(url)) useLongShare.setState({ pending: { what: 'link', text: url, length: url.length, toast } })
+  else await copyText(url, toast)
 }
 
 /** Copy the HTML for an iframe that shows this circuit, running, in another web page. */
@@ -219,12 +227,9 @@ export async function copyEmbedCode() {
   const html =
     `<iframe src="${src}" width="900" height="560" loading="lazy" allowfullscreen title="Sklopko circuit" ` +
     `style="border: 1px solid #d0d0cc; border-radius: 8px; max-width: 100%"></iframe>`
-  try {
-    await navigator.clipboard.writeText(html)
-    showToast('Embed code copied to the clipboard.')
-  } catch {
-    window.prompt('Copy this HTML:', html)
-  }
+  const toast = 'Embed code copied to the clipboard.'
+  if (tooLong(src)) useLongShare.setState({ pending: { what: 'embed code', text: html, length: src.length, toast } })
+  else await copyText(html, toast)
 }
 
 export function downloadJSON() {
