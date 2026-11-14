@@ -26,6 +26,7 @@ import { busModel } from '../model/buses'
 import { traceNet } from '../model/trace'
 import { enterInstance, expandInstance, openMakeIc } from '../app/ics'
 import { openMap } from '../app/path'
+import { openReport } from '../app/errors'
 import { openReference } from '../app/reference'
 import { updateSettings, useSettings } from '../app/settings'
 import { TextParam } from './TextParam'
@@ -455,6 +456,13 @@ function Help() {
             Open the SKASM reference
           </button>
           .
+        </li>
+        <li>
+          <b>Something wrong?</b>{' '}
+          <button className="inline-link" onClick={openReport} data-testid="report-problem">
+            Report a problem
+          </button>{' '}
+          opens a new GitHub issue with your version, browser and recent errors filled in. Nothing is sent until you submit it.
         </li>
         <li>
           <b>Navigate:</b> scroll or Space+drag to pan, ⌘/Ctrl+scroll, pinch, the − and + buttons or the - and + keys to zoom (the percentage goes back to 100%), H to fit. Right-click a part, a wire or the canvas for a menu of what you can do there.
