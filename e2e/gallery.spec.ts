@@ -43,18 +43,26 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await expect(gallery(page)).toHaveCount(0)
 })
 
-test('the BASIC computer has a category of its own, with the BASIC computer first and the terminal examples that lead up to it', async ({ page }) => {
+test('the BASIC computer has a category of its own, with the BASIC computer first; the terminal examples that lead up to it are in 6502', async ({ page }) => {
   await fresh(page)
   await page.getByRole('button', { name: 'Examples', exact: true }).click()
   const tabs = gallery(page).getByRole('navigation', { name: 'Categories' })
   await tabs.getByRole('button', { name: /^BASIC computer/ }).click()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(5)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(3)
   await expect(gallery(page).locator('.gallery-card b').first()).toContainText('BASIC computer')
-  await expect(gallery(page).getByTestId('example-6502-echo')).toBeVisible()
-  // The 6502 category no longer holds them.
+  await expect(gallery(page).getByTestId('example-6502-echo')).toHaveCount(0)
+  // The 6502 category holds the echo examples, and ends with the video chip and the game board.
   await tabs.getByRole('button', { name: /^6502/ }).click()
   await expect(gallery(page).getByTestId('example-6502-basic')).toHaveCount(0)
   await expect(gallery(page).getByTestId('example-6502-hello')).toBeVisible()
+  await expect(gallery(page).getByTestId('example-6502-echo')).toBeVisible()
+  await expect(gallery(page).getByTestId('example-6502-echo-irq')).toBeVisible()
+  await expect(gallery(page).locator('.gallery-card [data-testid^="example-"]').last()).toHaveAttribute('data-testid', 'example-6502-gameboard')
+  // Doom-like keeps only the game; Computers starts with the beginner's computer.
+  await tabs.getByRole('button', { name: /^Doom-like/ }).click()
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(1)
+  await tabs.getByRole('button', { name: /^Computers/ }).click()
+  await expect(gallery(page).locator('.gallery-card [data-testid^="example-"]').first()).toHaveAttribute('data-testid', 'example-beginner')
 })
 
 test('opening a card opens the example and keeps the circuit you were working on', async ({ page }) => {

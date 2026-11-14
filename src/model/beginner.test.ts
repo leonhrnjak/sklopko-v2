@@ -185,8 +185,8 @@ describe('beginner computer: random programs against the reference interpreter (
 describe('beginner computer: the example', () => {
   const c = beginnerComputer()
   const byLabel = (label: string) => Object.values(c.comps).find((k) => k.label === label)
-  it('is in the examples list, near the top', () => {
-    expect(EXAMPLES.findIndex((e) => e.id === 'beginner')).toBeLessThan(3)
+  it('is the first example of the Computers group', () => {
+    expect(EXAMPLES.find((e) => e.group === 'Computers')!.id).toBe('beginner')
   })
   it('names its parts, and has a frame and a note for each of the three steps', () => {
     for (const label of ['Program ROM', 'Control ROM', 'RAM: data', 'Adder', 'ACC: the accumulator', 'PC: the next instruction', 'Clock'])

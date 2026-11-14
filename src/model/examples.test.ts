@@ -620,6 +620,17 @@ describe('the examples index', () => {
     expect(counterDisplay()).toEqual(EXAMPLES[0].build())
   })
 
+  it('keeps each group together, in the order of the menu, and puts the groups the plan names where they belong', () => {
+    const order = EXAMPLE_LIST.map((e) => EXAMPLE_GROUPS.indexOf(e.group))
+    expect(order).toEqual([...order].sort((x, y) => x - y))
+    const ids = (g: string) => EXAMPLE_LIST.filter((e) => e.group === g).map((e) => e.id)
+    expect(ids('Start here')).toEqual(['counter', 'gates', 'shift-register'])
+    expect(ids('Computers')[0]).toBe('beginner')
+    expect(ids('6502')).toEqual(expect.arrayContaining(['6502-echo', '6502-echo-irq']))
+    expect(ids('6502').slice(-2)).toEqual(['6502-video', '6502-gameboard'])
+    expect(ids('Doom-like')).toEqual(['6502-doomlike'])
+  })
+
   it('finds an example from its short link', () => {
     expect(exampleFromPath('/Intersection/')?.id).toBe('intersection')
     expect(exampleFromPath('/')).toBeUndefined()

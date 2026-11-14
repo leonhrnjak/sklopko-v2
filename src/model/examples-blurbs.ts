@@ -43,7 +43,7 @@ export const BLURBS: Record<string, string> = {
   hazard: 'A glitch on a signal that should stay still, found in the timing view, and the fix.',
   ripple: 'The carry ripples through an adder one gate at a time, so sum bits flicker before they settle.',
   oscillator: 'A ring of inverters that never settles: the simulator calls it unstable.',
-  uart: 'Sends a byte over one wire (start bit, eight data bits, stop bit) and receives it again.',
+  uart: 'A byte over one wire: start bit, eight data bits, stop bit. Drawn by hand, unlike the generated machines beside it.',
   'fsm-traffic': 'A traffic light as a state machine, turned into gates and flip-flops by the generator.',
   'fsm-detector': 'Spots the bits 1011 in a stream, generated from a state diagram.',
   'fsm-vending': 'Takes nickels and dimes and dispenses a drink at 15 cents.',
