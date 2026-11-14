@@ -12,7 +12,9 @@ import {
   getDoc,
   importDocs,
   isPersistent,
+  lastBackup,
   listDocs,
+  noteBackup,
   renameDoc,
   restoreDoc,
   type DocKind,
@@ -29,12 +31,14 @@ interface LibraryUi {
   filter: LibraryFilter
   /** False when the library is only in memory: nothing here will be there next time. */
   persistent: boolean
+  /** When *Download all* last ran, to show "Last backup: …". */
+  backedUp: number | null
 }
 
-export const useLibraryUi = create<LibraryUi>(() => ({ open: false, docs: [], filter: 'all', persistent: true }))
+export const useLibraryUi = create<LibraryUi>(() => ({ open: false, docs: [], filter: 'all', persistent: true, backedUp: lastBackup() }))
 
 export async function refreshLibrary() {
-  useLibraryUi.setState({ docs: await listDocs(), persistent: isPersistent() })
+  useLibraryUi.setState({ docs: await listDocs(), persistent: isPersistent(), backedUp: lastBackup() })
 }
 
 export async function openLibraryDialog() {
@@ -120,6 +124,8 @@ export async function downloadLibrary() {
   // The progress and the kit of Learn go in the same file: what was built is in the documents, what was done is here.
   const learn = (await import('./pathBackup')).addLearn(backup)
   downloadText('sklopko-library.json', JSON.stringify(backup), 'application/json')
+  noteBackup()
+  useLibraryUi.setState({ backedUp: Date.now() })
   showToast(`Saved ${backup.docs.length} ${backup.docs.length === 1 ? 'document' : 'documents'}${learn} to a file.`)
 }
 

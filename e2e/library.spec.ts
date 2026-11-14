@@ -319,9 +319,11 @@ test('the state machine of an earlier version is brought in', async ({ page }) =
 test('a backup holds everything, and importing adds it again without overwriting', async ({ page }) => {
   await twoCircuits(page)
   await openLibrary(page)
+  await expect(page.getByTestId('last-backup')).toHaveText('Last backup: never')
   const download = page.waitForEvent('download')
   await dialog(page).getByRole('button', { name: 'Download all' }).click()
   const file = await download
+  await expect(page.getByTestId('last-backup')).toHaveText('Last backup: today')
   expect(file.suggestedFilename()).toBe('sklopko-library.json')
   const path = (await file.path())!
   const backup = JSON.parse(readFileSync(path, 'utf8')) as { app: string; docs: { name: string }[] }

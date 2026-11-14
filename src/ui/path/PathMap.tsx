@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { closeMap, usePath } from '../../app/path'
 import { forgetAll, startStep } from '../../app/pathWork'
+import { downloadLibrary } from '../../app/libraryUi'
 import { useKit } from '../../app/pathKit'
 import { CHAPTERS } from '../../model/path/chapters'
 import { countDone, type Progress } from '../../model/path/progress'
@@ -140,6 +141,12 @@ function MapView() {
               </ul>
             ) : (
               <p className="learn-soon">This chapter is not written yet. It comes with a later update.</p>
+            )}
+            {steps.length > 0 && countDone(progress, steps.map((x) => x.id)) === steps.length && (
+              <p className="learn-keep" data-testid="chapter-done-card">
+                ✔ Chapter done. <b>Keep a copy of your progress</b>: it is stored in this browser only.{' '}
+                <button onClick={() => void downloadLibrary()}>Download all</button>
+              </p>
             )}
           </section>
         </div>

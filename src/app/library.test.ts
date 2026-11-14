@@ -1,21 +1,25 @@
 import { IDBFactory } from 'fake-indexeddb'
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   activeDoc,
   deleteDoc,
+  describeBackup,
   duplicateDoc,
   exportAll,
   getDoc,
   importDocs,
   idbBackend,
+  lastBackup,
   listDocs,
   MAX_THUMB,
   memoryBackend,
   nextUntitled,
+  noteBackup,
   onActiveChange,
   openLastDoc,
   putDoc,
   renameDoc,
+  resetPersistenceAsked,
   restoreDoc,
   saveActive,
   setActive,
@@ -293,5 +297,60 @@ describe('the library', () => {
     expect(await importDocs(file, () => true)).toEqual({ added: 3, skipped: 0 })
     const thumbs = Object.fromEntries((await listDocs()).map((d) => [d.name, d.thumb]))
     expect(thumbs).toEqual({ a: '<svg ok/>', b: undefined, c: undefined })
+  })
+})
+
+describe('asking the browser to keep the library', () => {
+  const stubPersist = () => {
+    const persist = vi.fn(() => Promise.resolve(true))
+    vi.stubGlobal('navigator', { storage: { persist } })
+    resetPersistenceAsked()
+    return persist
+  }
+
+  test('not before something is saved, then once however many saves follow', async () => {
+    const persist = stubPersist()
+    setBackend(idbBackend(new IDBFactory()))
+    expect(persist).not.toHaveBeenCalled()
+    await putDoc(rec('a', 1))
+    await putDoc(rec('b', 2))
+    expect(persist).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  test('a library that is only in memory has nothing to keep', async () => {
+    const persist = stubPersist()
+    setBackend(memoryBackend())
+    await putDoc(rec('a', 1))
+    expect(persist).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  test('a refusal or a missing storage manager is ignored', async () => {
+    vi.stubGlobal('navigator', { storage: { persist: () => Promise.reject(new Error('no')) } })
+    resetPersistenceAsked()
+    setBackend(idbBackend(new IDBFactory()))
+    await putDoc(rec('a', 1))
+    vi.stubGlobal('navigator', {})
+    resetPersistenceAsked()
+    await putDoc(rec('b', 2))
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('the date of the last backup', () => {
+  const day = 86_400_000
+  test('is remembered and described', () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) })
+    expect(lastBackup()).toBeNull()
+    expect(describeBackup(null)).toBe('Last backup: never')
+    const now = Date.UTC(2026, 10, 11, 12)
+    noteBackup(now)
+    expect(lastBackup()).toBe(now)
+    expect(describeBackup(now, now + 3_600_000)).toBe('Last backup: today')
+    expect(describeBackup(now, now + day)).toBe('Last backup: yesterday')
+    expect(describeBackup(now, now + 9 * day)).toBe('Last backup: 9 days ago')
+    vi.unstubAllGlobals()
   })
 })

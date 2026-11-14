@@ -12,7 +12,7 @@ import {
   useLibraryUi,
   type LibraryFilter,
 } from '../../app/libraryUi'
-import { activeDoc, type DocMeta } from '../../app/library'
+import { activeDoc, describeBackup, type DocMeta } from '../../app/library'
 import { useDoc } from '../../app/documents'
 import { fitView } from '../canvas/viewport'
 
@@ -80,7 +80,7 @@ function Row({ meta, open }: { meta: DocMeta; open: boolean }) {
 
 /** Everything in the library: circuits and state machines, newest first. Opening one never loses what was open: it stays here. */
 export function LibraryDialog() {
-  const { open, docs, filter, persistent } = useLibraryUi()
+  const { open, docs, filter, persistent, backedUp } = useLibraryUi()
   // Re-render when the open document changes (its name, which one it is).
   useDoc((s) => s.name)
   useEffect(() => {
@@ -134,7 +134,8 @@ export function LibraryDialog() {
             </ul>
           )}
           <p className="challenge-intro">
-            Your circuits are kept in this browser only. Download a backup now and then; it also moves them to another computer.
+            Your circuits are kept in this browser only. Download a backup now and then; it also moves them to another computer.{' '}
+            <span data-testid="last-backup">{describeBackup(backedUp)}</span>
           </p>
         </div>
       </div>

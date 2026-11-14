@@ -4476,3 +4476,12 @@ button.linklike:hover {
   color: var(--danger);
   font-size: 13px;
 }
+
+/* A finished Learn chapter reminds the learner to keep a copy. */
+.learn-keep {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-size: 13px;
+}
