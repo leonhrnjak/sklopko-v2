@@ -1,5 +1,6 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
 import { applyUpdate } from '../app/offline'
+import { recordError } from '../app/errors'
 
 /**
  * Catches a failure while a part of the page renders or loads (a lazy chunk that cannot be fetched, a bug in a panel) so the
@@ -14,6 +15,7 @@ export class ErrorBoundary extends Component<{ kind: 'root' | 'panel'; children:
 
   componentDidCatch(error: unknown) {
     console.error(error)
+    recordError(error)
   }
 
   render() {
