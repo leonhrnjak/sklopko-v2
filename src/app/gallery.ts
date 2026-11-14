@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ExampleGroup, ExampleInfo } from '../model/examples-index'
 import { openExample } from './runtime'
 import { showToast } from './store'
-import { fitToScreen } from './view'
+import { fitToExample } from './view'
 
 /** The example gallery: a window with a card for every example, one category at a time (or all of them). */
 export const useGallery = create<{ open: boolean; query: string; group: ExampleGroup | 'all' }>(() => ({ open: false, query: '', group: 'Start here' }))
@@ -16,7 +16,7 @@ export const setGalleryGroup = (group: ExampleGroup | 'all') => useGallery.setSt
 /** Open an example and close the gallery. What was open stays in the library (see `openExample`). */
 export function openFromGallery(ex: ExampleInfo) {
   closeGallery()
-  void openExample(ex).then(() => requestAnimationFrame(fitToScreen))
+  void openExample(ex).then(() => requestAnimationFrame(() => fitToExample(ex.fit)))
 }
 
 /** Copy the short link of an example. */

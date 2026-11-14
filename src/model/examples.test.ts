@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Simulator } from '../engine/simulator'
 import { boundsRect, isAnnotation, isFrame } from './circuit'
 import { flatten } from './buses'
+import { DEFS } from '../engine/registry'
 import { buildRows } from '../app/waveform'
 import { SKASM, assemble, disassemble } from '../engine/isa'
 import { FIBONACCI_SOURCE, programWords } from './computer2'
@@ -38,6 +39,8 @@ describe('notes and frames in the examples', () => {
     for (const e of EXAMPLES) {
       const comps = Object.values(example(e.id).comps)
       const frames = comps.filter(isFrame)
+      // A title longer than the frame part's limit is dropped when the example is loaded, and the frame becomes "Frame".
+      for (const f of frames) expect(String(f.params.title).length, `${e.id}: "${f.params.title}"`).toBeLessThanOrEqual(40)
       for (let i = 0; i < frames.length; i++) {
         const a = boundsRect(frames[i])
         expect(
@@ -630,6 +633,28 @@ describe('the examples index', () => {
     expect(ids('6502').slice(-2)).toEqual(['6502-video', '6502-gameboard'])
     expect(ids('Doom-like')).toEqual(['6502-doomlike'])
   })
+
+  it('names, for a large example, a frame that it has to open at', () => {
+    const withFit = EXAMPLE_LIST.filter((e) => e.fit)
+    expect(withFit.length).toBeGreaterThan(30)
+    for (const e of withFit) {
+      const frames = Object.values(example(e.id).comps).filter(isFrame)
+      expect(frames.some((f) => String(f.params.title).startsWith(e.fit!)), `${e.id}: no frame starts with "${e.fit}"`).toBe(true)
+    }
+    // Every computer and 6502 board has one; the small examples open whole.
+    for (const e of EXAMPLE_LIST.filter((x) => x.group === 'Computers' || x.group === '6502' || x.group === 'Doom-like')) expect(e.fit, e.id).toBeTruthy()
+    expect(EXAMPLE_LIST.find((e) => e.id === 'gates')!.fit).toBeUndefined()
+  }, 120000)
+
+  it('shows every part type in at least one example, except those listed here', () => {
+    // Add a type here only with a reason; a new part comes with an example or a line in this list.
+    const NOT_IN_AN_EXAMPLE: string[] = []
+    const used = new Set<string>()
+    for (const e of EXAMPLES) for (const k of Object.values(example(e.id).comps)) used.add(k.type)
+    const missing = DEFS.map((d) => d.type).filter((t) => !used.has(t) && !NOT_IN_AN_EXAMPLE.includes(t))
+    expect(missing, `part types in no example: ${missing.join(', ')}`).toEqual([])
+    for (const t of NOT_IN_AN_EXAMPLE) expect(used.has(t), `${t} is in an example now: remove it from the list`).toBe(false)
+  }, 120000)
 
   it('finds an example from its short link', () => {
     expect(exampleFromPath('/Intersection/')?.id).toBe('intersection')

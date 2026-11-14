@@ -3,6 +3,8 @@ import { Simulator } from '../engine/simulator'
 import { simComps } from './circuit'
 import { EXAMPLES } from './examples'
 import { flatten } from './buses'
+import { LIT, SEGMENTS } from './seg7-examples'
+import { runTests } from './testbench'
 
 /** Load an example into a simulator, with helpers to find its parts by label and to flip switches and buttons. */
 function rig(id: string) {
@@ -286,5 +288,204 @@ describe('UART example', () => {
     wait(500)
     expect([read('Received low'), read('Received high')]).toEqual([0, 0])
     for (const byte of [0xa5, 0x3c, 0xff, 0x00, 0x81]) expect(send(byte).got, byte.toString(16)).toBe(byte)
+  })
+})
+
+describe('half and full adder example', () => {
+  it('the gate versions and the parts give the same sum and carry for every input, and add', () => {
+    const r = rig('adders')
+    const switches = Object.values(r.c.comps).filter((k) => k.type === 'switch')
+    const sw = (side: (x: number) => boolean, label: string) => switches.find((k) => side(k.x) && k.label === label)!.id
+    const flip = (id: string, on: boolean) => {
+      r.sim.setParams(id, { ...r.c.comps[id].params, on })
+      r.sim.settle()
+    }
+    const out = (...labels: string[]) => labels.map((l) => r.lit(l))
+    const half = (x: number) => x < 300
+    for (let v = 0; v < 4; v++) {
+      flip(sw(half, 'A'), !!(v & 1))
+      flip(sw(half, 'B'), !!(v & 2))
+      const total = (v & 1) + (v >> 1)
+      expect(out('Sum', 'Carry'), `half ${v}`).toEqual([total & 1, total >> 1])
+      expect(out('Part sum', 'Part carry'), `half part ${v}`).toEqual([total & 1, total >> 1])
+    }
+    const full = (x: number) => x > 300
+    for (let v = 0; v < 8; v++) {
+      flip(sw(full, 'A'), !!(v & 1))
+      flip(sw(full, 'B'), !!(v & 2))
+      flip(sw(full, 'Carry in'), !!(v & 4))
+      const total = (v & 1) + ((v >> 1) & 1) + (v >> 2)
+      expect(out('Full sum', 'Carry out'), `full ${v}`).toEqual([total & 1, total >> 1])
+      expect(out('Part full sum', 'Part carry out'), `full part ${v}`).toEqual([total & 1, total >> 1])
+    }
+  })
+})
+
+describe('seven-segment decoder example', () => {
+  it('shows each digit 0 to 9 the same three ways, and the decoder and the part stay blank for 10 to 15', () => {
+    const r = rig('seg7-table')
+    const input = r.ofType('hexin')[0]
+    const [fromTable, fromDecoder, part] = ['From the table', 'From the decoder', 'The part'].map((l) => r.part(l))
+    const lit = (id: string) => [...SEGMENTS].map((s) => r.sim.pinValue(id, s))
+    for (let digit = 0; digit < 16; digit++) {
+      r.sim.setParams(input, { ...r.c.comps[input].params, value: digit })
+      r.sim.settle()
+      const want = [...SEGMENTS].map((s) => (LIT[s].includes(digit) ? 1 : 0))
+      if (digit < 10) {
+        expect(lit(fromTable), `table, digit ${digit}`).toEqual(want)
+        expect(lit(fromDecoder), `decoder, digit ${digit}`).toEqual(want)
+        expect(lit(part), `part, digit ${digit}`).toEqual(want)
+      } else {
+        expect(lit(fromDecoder), `decoder, code ${digit}`).toEqual(want)
+        expect(lit(part), `part, code ${digit}`).toEqual(want)
+      }
+    }
+  })
+})
+
+describe('subtraction example', () => {
+  it('four bits: 3 - 5 is 1110 with the sign set, 3 + 5 overflows; the plain subtractor agrees and borrows', () => {
+    const r = rig('subtract')
+    const bits = () => ['S3', 'S2', 'S1', 'S0'].map((l) => r.lit(l)).join('')
+    expect(bits()).toBe('1110')
+    expect(r.lit('Negative (S3)')).toBe(1)
+    expect([r.lit('Carry out'), r.lit('Overflow'), r.lit('Borrow (A < B)')]).toEqual([0, 0, 1])
+    const [subtractor] = ['Subtractor'].map((l) => r.part(l))
+    expect([0, 1, 2, 3].map((i) => r.sim.pinValue(subtractor, `D${i}`)).join('')).toBe('0111') // D0..D3 of 14
+    r.set('Subtract', false) // 3 + 5 = 8: does not fit in four signed bits
+    expect(bits()).toBe('1000')
+    expect([r.lit('Carry out'), r.lit('Overflow')]).toEqual([0, 1])
+  })
+
+  it('eight bits on a bus: 5 - 9 is 252 with a borrow, and 5 + 9 is 14', () => {
+    const c = EXAMPLES.find((e) => e.id === 'subtract')!.build()
+    const sim = new Simulator()
+    sim.load(flatten(c)) // the bus wires become one wire for each bit
+    sim.settle()
+    const ofType = (type: string) => Object.values(c.comps).filter((k) => k.type === type).map((k) => k.id)
+    const [sub] = ofType('bussub')
+    const [addsub] = ofType('busaddsub')
+    const value = (id: string, pin: string) => [0, 1, 2, 3, 4, 5, 6, 7].reduce((n, i) => n | (sim.pinValue(id, `${pin}${i}`) << i), 0)
+    expect(value(sub, 'D')).toBe(252)
+    expect(sim.pinValue(sub, 'Bo')).toBe(1)
+    expect(value(addsub, 'S')).toBe(252)
+    const m = Object.values(c.comps).find((k) => k.type === 'switch' && k.label === 'Subtract' && k.x > 1000)!.id
+    sim.setParams(m, { ...c.comps[m].params, on: false })
+    sim.settle()
+    expect(value(addsub, 'S')).toBe(14)
+  })
+
+  it('one bit: the half subtractor borrows when B is 1 and A is 0', () => {
+    const r = rig('subtract')
+    const [hs] = r.ofType('halfsub')
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([1, 0]) // A = 1, B = 0
+    r.set('B', true)
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([0, 0])
+    r.set('A', false)
+    expect([r.sim.pinValue(hs, 'D'), r.sim.pinValue(hs, 'Bo')]).toEqual([1, 1])
+  })
+})
+
+describe('synchronous counter example', () => {
+  it('both counters count 0 to 15, but going from 7 to 8 only the ripple counter passes through 6, 4 and 0', () => {
+    const r = rig('sync-counter')
+    const nets = (prefix: string) => [0, 1, 2, 3].map((i) => r.sim.netOf(r.part(`${prefix} Q${i}`), 'A'))
+    const [ripple, sync] = [nets('Ripple'), nets('Sync')]
+    const probe = (prefix: string, i: number) => r.part(`${prefix} Q${i}`)
+    const read = (prefix: string) => [0, 1, 2, 3].reduce((n, i) => n | ((r.sim.pinValue(probe(prefix, i), 'A') as number) << i), 0)
+    const now = (ns: number[]) => read(ns === ripple ? 'Ripple' : 'Sync')
+    for (let i = 0; i < 20; i++) {
+      expect(now(ripple), `ripple after ${i} clocks`).toBe(i % 16)
+      expect(now(sync), `sync after ${i} clocks`).toBe(i % 16)
+      r.cycle()
+    }
+    // Run on to 7, then watch one clock edge tick by tick.
+    while (now(ripple) !== 7) r.cycle()
+    r.sim.setCapture(true)
+    r.sim.stepClock()
+    const frames = r.sim.getCapture()!.frames
+    /** The numbers the counter shows, tick by tick, without repeats. */
+    const path = (ns: number[]) =>
+      frames
+        .map((f) => ns.reduce((n, net, i) => n | (f[net] << i), 0))
+        .filter((v, k, all) => k === 0 || v !== all[k - 1])
+    expect(path(ripple)).toEqual([7, 6, 4, 0, 8])
+    expect(path(sync)).toEqual([7, 8])
+  })
+})
+
+describe('parity and Gray code example', () => {
+  it('the checker flags one flipped bit, not two, for every data value', () => {
+    const r = rig('parity-gray')
+    const data = r.ofType('hexin')[0]
+    const flip = (label: string, on: boolean) => r.set(label, on)
+    for (let v = 0; v < 16; v++) {
+      r.sim.setParams(data, { ...r.c.comps[data].params, value: v })
+      for (const [f0, f1] of [[false, false], [true, false], [false, true], [true, true]]) {
+        flip('Flip bit 0', f0)
+        flip('Flip bit 1', f1)
+        const ones = Number(f0) + Number(f1)
+        expect(r.lit('Error'), `data ${v}, flips ${ones}`).toBe(ones === 1 ? 1 : 0)
+      }
+    }
+  })
+
+  it('the parity bit makes the count of ones even', () => {
+    const r = rig('parity-gray')
+    const data = r.ofType('hexin')[0]
+    for (let v = 0; v < 16; v++) {
+      r.sim.setParams(data, { ...r.c.comps[data].params, value: v })
+      r.sim.settle()
+      const ones = v.toString(2).split('1').length - 1
+      expect(r.lit('Parity bit'), `data ${v}`).toBe(ones % 2)
+    }
+  })
+
+  it('the Gray code changes one bit at each step, round to the start; the binary count sometimes changes four', () => {
+    const r = rig('parity-gray')
+    const read = (prefix: string) => [0, 1, 2, 3].reduce((n, i) => n | ((r.sim.pinValue(r.part(`${prefix} ${i}`), 'A') as number) << i), 0)
+    const bits = (n: number) => n.toString(2).split('1').length - 1
+    const changes = { binary: [] as number[], gray: [] as number[] }
+    let [pb, pg] = [read('Binary'), read('Gray')]
+    for (let i = 0; i < 16; i++) {
+      r.cycle()
+      const [nb, ng] = [read('Binary'), read('Gray')]
+      changes.binary.push(bits(pb ^ nb))
+      changes.gray.push(bits(pg ^ ng))
+      ;[pb, pg] = [nb, ng]
+    }
+    expect(changes.gray).toEqual(Array(16).fill(1))
+    expect(Math.max(...changes.binary)).toBe(4)
+  })
+})
+
+describe('testbench example', () => {
+  it('has a testbench saved in it, and every step of it passes', () => {
+    const c = EXAMPLES.find((e) => e.id === 'testbench')!.build()
+    expect(c.tests).toBeTruthy()
+    const { run, errors } = runTests(c, c.tests!)
+    expect(errors).toEqual([])
+    expect(run!.outcomes.filter((o) => o.problem || o.failures.length)).toEqual([])
+    expect(run!.passed).toBe(true)
+    expect(run!.outcomes.length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('a broken circuit fails the steps: with the lookup table emptied, the majority lines fail', () => {
+    const c = EXAMPLES.find((e) => e.id === 'testbench')!.build()
+    const lut = Object.values(c.comps).find((k) => k.type === 'lut')!
+    lut.params = { ...lut.params, data: '0 0 0 0 0 0 0 0' }
+    const { run } = runTests(c, c.tests!)
+    expect(run!.passed).toBe(false)
+    expect(run!.outcomes.some((o) => o.failures.some((f) => f.output === 'Lut'))).toBe(true)
+  })
+
+  it('the lookup table is the majority function, row for row, like the gates', () => {
+    const r = rig('testbench')
+    for (let v = 0; v < 8; v++) {
+      r.set('P', !!(v & 1))
+      r.set('Q', !!(v & 2))
+      r.set('R', !!(v & 4))
+      expect(r.lit('Lut'), `inputs ${v}`).toBe(r.lit('Gates'))
+    }
   })
 })

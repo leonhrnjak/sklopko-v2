@@ -109,7 +109,7 @@ describe('the fast engine against the oracle', () => {
   })
   it('runs all but the loops and delays of the teaching circuits on the fast engine', () => {
     // (65c02-timer and debounce have a second clock feeding the data of a part clocked by the first, e.g. the CPU's NMI: which edge comes first depends on gate depths, so it stays exact)
-    expect(staysExact.sort()).toEqual(['65c02-timer', 'd-latch', 'debounce', 'oscillator', 'ripple', 'sr-latch'])
+    expect(staysExact.sort()).toEqual(['65c02-timer', 'd-latch', 'debounce', 'oscillator', 'ripple', 'sr-latch', 'sync-counter'])
     expect(accepted.length).toBeGreaterThan(53)
   })
 })

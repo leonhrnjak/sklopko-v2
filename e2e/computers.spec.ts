@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { freshEmpty, place, clickComp, pickByLabel, chooseTool } from './helpers'
+import { freshEmpty, place, clickComp, pickByLabel, chooseTool, showPart } from './helpers'
 
 test('ROM: contents are edited as hex text in the inspector and shown in the table', async ({ page }) => {
   await freshEmpty(page)
@@ -283,7 +283,7 @@ test('computers: the calculator takes its sums from the keypad and shows them on
   // The keys of the calculator keypad send 0-9 for the digits, 10-13 for + - × ÷, 14 for = and 15 for C.
   const key = async (code: number) => {
     const k = page.locator(`.comp[data-id^="keypad"] [data-key="${code}"]`).first()
-    const b = (await k.boundingBox())!
+    const b = await showPart(page, k)
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
     await page.mouse.down()
     await page.waitForTimeout(60)
@@ -536,7 +536,7 @@ test('the 6502 from parts takes an interrupt: pressing NMI adds one to the count
   const lit = async () => (await leds.evaluateAll((els) => els.map((e) => e.classList.contains('on')))).map(Number).join('')
   await expect.poll(lit, { timeout: 60000 }).toBe('00000000') // the program runs: nothing counted yet
   const button = page.locator('.comp', { has: page.locator('.comp-label', { hasText: /^NMI button/ }) }).locator('> g').first()
-  const box = (await button.boundingBox())!
+  const box = await showPart(page, button)
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
   await page.waitForTimeout(400) // a few clock cycles: NMI is seen going low

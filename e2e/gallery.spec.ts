@@ -19,7 +19,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   expect(arithmetic).toBeLessThan(15)
   await expect(gallery(page).locator('.gallery-card b').first()).not.toHaveText('Basic gates')
   await tabs.getByRole('button', { name: /^All/ }).click()
-  await expect(gallery(page).locator('.gallery-card')).toHaveCount(66)
+  await expect(gallery(page).locator('.gallery-card')).toHaveCount(72)
   await expect(gallery(page).locator('.gallery-group h3')).toHaveCount(13)
   await tabs.getByRole('button', { name: /^Start here/ }).click()
   await expect(gallery(page).getByTestId('example-gates')).toContainText('Basic gates')
@@ -33,7 +33,7 @@ test('the gallery shows every example as a card with a picture, in groups, and a
   await search.fill('latch') // a search looks through every category
   await expect(tabs.getByRole('button', { pressed: true })).toHaveText(/^All/)
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(4) // the two latches, the flip-flop made of latches, the debouncer
-  await expect(gallery(page)).toContainText('4 of 66')
+  await expect(gallery(page)).toContainText('4 of 72')
   await search.fill('gamepad computers')
   await expect(gallery(page).locator('.gallery-card')).toHaveCount(3) // pong, snake and the raycaster
   await search.fill('zzzz')
@@ -88,4 +88,16 @@ test('a card has a button that copies the example’s short link', async ({ page
   await expect(page.locator('.toast')).toContainText('Link to “Electronic dice” copied')
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/dice$/)
   await expect(gallery(page)).toBeVisible() // copying a link does not open the example
+})
+
+test('a large example opens at a zoom where it can be read, and Fit still shows everything', async ({ page }) => {
+  await fresh(page)
+  await page.goto('/6502-doomlike', { waitUntil: 'networkidle' })
+  const zoom = async () => Number((await page.getByText(/^\d+%$/).first().innerText()).replace('%', ''))
+  await expect.poll(zoom).toBeGreaterThanOrEqual(60)
+  await page.getByRole('button', { name: 'Fit', exact: true }).click()
+  await expect.poll(zoom).toBeLessThan(40)
+  // Opened from the gallery it is the same.
+  await chooseExample(page, 'computer')
+  await expect.poll(zoom).toBeGreaterThanOrEqual(60)
 })
