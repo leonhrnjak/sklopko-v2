@@ -50,7 +50,8 @@ until R merges, then rebases onto it.
 ## Track A: failures that are silent today
 
 ### A1 Error boundaries and a reload prompt (`a1-error-boundary`)
-- [ ] A1
+- [x] A1
+  Merged (#257, version 0.6.0): `ErrorBoundary` (root and panel), `CrashScreen` with Download all, `UpdatePrompt` on `vite:preloadError`. Not yet: the boundaries do not call C's `recordError()` (needs #262 on main).
 
 **Why.** One chunk that fails to load leaves `#root` empty. After a deploy, a tab that was open asks for chunk names that no longer
 exist and gets `index.html` back.
@@ -69,7 +70,8 @@ exist and gets `index.html` back.
 and the message shown; a second test fires `vite:preloadError` and finds the prompt.
 
 ### A2 The engine and the worker say when they fail (`a2-engine-failure`, stacked on A1)
-- [ ] A2
+- [x] A2
+  Merged (#259): the engine loads from bytes if streaming fails, a worker that dies or throws posts `fatal`, the footer says "Simulator stopped" with a banner and *Restart simulator*. Not yet: `reportSimFailure` does not call `recordError()`.
 
 **Why.** If `engine.wasm` does not load, the footer says "Running" and nothing is simulated. A crash in the worker freezes the
 circuit with no message. The comments in `src/main.tsx` and `src/engine/sim.worker.ts` still say "the TypeScript engines run
@@ -91,7 +93,8 @@ instead"; they were removed in E7.
 fatal message through the `Port` and sees `simFailed`.
 
 ### A3 Keep the learner's work (`a3-persist-storage`)
-- [ ] A3
+- [x] A3
+  Merged (#265): `navigator.storage.persist()` after the first save, the last backup date in the Library dialog, a backup card in the Learn map when a chapter is done (the plan's "done card" did not exist, so it is in `PathMap`).
 
 **Why.** Circuits, the Learn kit and progress live only in this browser, and browsers may clear them (Safari after a few weeks
 without a visit).
@@ -107,7 +110,8 @@ without a visit).
 "Last backup" line.
 
 ### A4 Share links that fit (`a4-share-length`)
-- [ ] A4
+- [x] A4
+  Merged (#267): a link over 2,000 characters opens *Too big for a link* with *Save file* and "Copy the long link anyway"; the same for embed codes.
 
 **Why.** The median example makes a 5,400-character link and the large ones 26,000 to 77,000. Chat and mail tools cut them.
 
@@ -121,7 +125,8 @@ without a visit).
 **Done when:** a unit test for the limit; an e2e test shares a large circuit and sees the dialog, and a small one is copied as before.
 
 ### A5 A smoke test of the built app (`a5-build-smoke`)
-- [ ] A5
+- [x] A5
+  Merged (#268): `e2e/built.spec.ts` opens five pages of the built app and a missing lazy chunk (service worker blocked so `page.route` sees it); the dev-server failure tests stay where they are.
 
 **Why.** The e2e suite runs on the dev server; only `offline.spec.ts` tests `dist/`. A bug that appears only after bundling passes CI.
 
