@@ -123,8 +123,8 @@ describe('programs of chapter 13, on a 6502 board', () => {
     return withSource6502(built.get(s.example!)!, source)!
   }
 
-  it('has the five programs, in order', () => {
-    expect(boards.map((s) => s.id)).toEqual(['asm-leds', 'asm-count', 'asm-string', 'asm-subroutine', 'asm-lcd'])
+  it('has the six programs, in order', () => {
+    expect(boards.map((s) => s.id)).toEqual(['asm-leds', 'asm-count', 'asm-arith', 'asm-string', 'asm-subroutine', 'asm-lcd'])
   })
 
   for (const s of boards) {
@@ -156,5 +156,11 @@ describe('programs of chapter 13, on a 6502 board', () => {
     const count = boards.find((s) => s.id === 'asm-count')!
     const r = checkProgram(count, computer(count, '.org $F000\nstart: LDA #1\n STA $4000\ndone: JMP done\n.org $FFFC\n.word start'))
     expect(r.problems).toEqual(['The program has to use INX.', 'The program has to use TXA.', 'The program has to use BNE.'])
+  })
+
+  it('asks for the instructions it teaches: CLC, ADC and CMP', () => {
+    const arith = boards.find((s) => s.id === 'asm-arith')!
+    const r = checkProgram(arith, computer(arith, '.org $F000\nstart: LDA #1\n STA $4000\ndone: JMP done\n.org $FFFC\n.word start'))
+    expect(r.problems).toEqual(['The program has to use CLC.', 'The program has to use ADC.', 'The program has to use CMP.'])
   })
 })

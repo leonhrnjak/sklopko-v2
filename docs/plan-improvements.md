@@ -317,7 +317,7 @@ Later, not in this plan: a shift-and-add multiplier, a stack in hardware, two co
 ## Track E: finish the Learn review
 
 ### E1 Items 13 to 25 of `docs/plan-learn-review.md`
-- [ ] E1
+- [x] E1
 
 That plan already describes each item, one PR per item, stacked `learn-fix-13-…` to `learn-fix-25-…`. Follow it; nothing here
 changes it. When it is done, tick E1.

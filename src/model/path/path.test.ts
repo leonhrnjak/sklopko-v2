@@ -552,7 +552,7 @@ describe('chapter 8, counting and memories, and what a chapter unlocks', () => {
     expect(chapterDone(p, 'memory')).toBe(false)
     const done = markDone(p, ids[ids.length - 1], 'solved', 2)
     expect(chaptersUnlockedBy(p, done).map((c) => c.id)).toEqual(['memory'])
-    expect(unlockedParts(done)).toEqual(['srlatch', 'dlatch', 'dff', 'jkff', 'tff', 'register'])
+    expect(unlockedParts(done)).toEqual(['srlatch', 'dlatch', 'dff', 'register'])
     expect(chaptersUnlockedBy(done, markDone(done, ids[0], 'solved', 3))).toEqual([])
   })
 })

@@ -17,7 +17,7 @@ test('learn: the map, a gate built by hand goes into the kit, and the next step 
   await page.getByTestId('learn-button').click()
   await expect(map(page)).toContainText(`0 of ${PATH_STEPS.length} steps`)
   await expect(map(page).getByTestId('learn-continue')).toContainText('Start: 1.1 A bit is a 0 or a 1')
-  await expect(map(page).getByTestId('learn-chapter-basic')).toContainText('0/4')
+  await expect(map(page).getByTestId('learn-chapter-basic')).toContainText('0/5')
   await page.getByTestId('learn-chapter-nand').click()
   await page.getByTestId('learn-step-not-from-nand').click()
 

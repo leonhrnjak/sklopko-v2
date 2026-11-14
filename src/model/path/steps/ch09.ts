@@ -14,7 +14,8 @@ export const CH09: Step[] = [
     kind: 'read',
     summary: 'What a computer does, and what an instruction is: a number with a few fields.',
     lesson: [
-      { p: 'You have built the parts of a computer: an ALU, registers, a counter and memories. A computer is those parts and a rhythm. On every tick of its clock it does three things in turn. It fetches the next instruction from memory, using the program counter. It decodes it: works out what it asks for. Then it executes it: the registers, the adder and the RAM do what was asked.' },
+      { p: 'You have built the parts of a computer: an ALU, registers, a counter and memories. A computer is those parts and a rhythm. On every tick of its clock it does three things: it fetches the next instruction from memory, using the program counter; it decodes it, working out what it asks for; and it executes it, so the registers, the adder and the RAM do what was asked.' },
+      { p: 'In the computer you will build, all three happen within one tick. The PC points at an instruction, and the ROM and the Control ROM show and decode it at once, because they are only tables; when the clock ticks, the registers take their new values and the PC moves on.' },
       { p: 'An instruction is only a number. The computer you will build reads a 16-bit word from its program memory. Click the bits of this one to see what the word means: bits 4 to 7 are the opcode, which says which instruction it is; the rest are what the instruction works on, a number to load or the address of a word of RAM.' },
       { word: { value: 0x0300 } },
       { p: 'The word 0300 in hexadecimal has the opcode 0, LDI, “load immediate”: put the number in the instruction into the accumulator, the register the computer works on. The number is in bits 8 to 11: 3. The word 0020 has the opcode 2, STA, “store”: write the accumulator into RAM at the address in bits 0 to 3.' },
@@ -81,7 +82,7 @@ export const CH09: Step[] = [
       },
     ],
     lesson: [
-      { p: 'The ROM now shows each instruction, but nothing understands it. The opcode, bits 4 to 7 of the word, says which instruction it is, and a second table, the [[Control ROM]], says what each one does. Its address is the opcode; its outputs are the signals that switch parts of the computer on and off: LOAD_ACC (the accumulator takes a new value), WRITE_RAM, SUBTRACT, JUMP, HALT.' },
+      { p: 'The ROM now shows each instruction, but nothing understands it. The opcode, bits 4 to 7 of the word, says which instruction it is, and a second table, the [[Control ROM]], says what each one does. Its address is the opcode; its outputs are the signals that switch parts of the computer on and off: LOAD_ACC (the accumulator takes a new value), ACC_SRC (where that new value comes from: the number in the instruction, the adder or the RAM), WRITE_RAM, SUBTRACT, JUMP, HALT and SAVE_CARRY (keep the adder’s carry).' },
       { p: 'The Control ROM has been added for you, with its signals named and every row empty. Wire the four opcode bits to its four address pins. Then click it: the rows are the instructions, and clicking a row lets you choose its signals. LDI has to switch LOAD_ACC on; leave the others for later.' },
       { p: 'Put an LED labelled LOAD_ACC on that output to see the signal. Then tick the clock: it should light on every LDI and stay dark on every other instruction.' },
     ],
@@ -201,6 +202,7 @@ export const CH09: Step[] = [
       { p: 'The adder is what makes it a calculator. ADD adds a word of RAM to the ACC and keeps the sum in the ACC: the adder’s A is the ACC, its B the RAM word, and its sum goes to the ACC through input 1, the second, of each multiplexer (ACC_SRC = ADDER).' },
       { p: 'Subtraction is addition with the second number flipped and a 1 added: A − B is A + NOT B + 1 (your ADDSUB did exactly that). So B passes through an XOR with a signal, SUBTRACT: XOR leaves the bit as it is when SUBTRACT is 0 and flips it when it is 1. And SUBTRACT also goes to the adder’s carry in, which is the + 1.' },
       { p: 'The carry out is worth keeping: it says that an ADD went over 15, or that a SUB had to borrow. A one-bit memory, the carry flag, takes it when the control signal SAVE_CARRY is on. For SUB the carry comes out the other way round, so the flag takes the carry XOR SUBTRACT. A 4-bit register is a good flag: use its first bit, and tie the other three inputs to a Constant 0.' },
+      { p: 'Two things to remember. The carry flag is a register, so it needs the Clock on its CLK pin like the ACC does, or it never takes the carry. And your computer uses only the adder and subtractor half of the ALU you built in chapter 6: the AND and OR half has no instructions here, so it is left out.' },
       { p: 'ADD and SUB rows: LOAD_ACC, ACC_SRC set to ADDER, and SAVE_CARRY; SUB also has SUBTRACT on.' },
     ],
   },

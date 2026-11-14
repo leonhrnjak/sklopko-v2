@@ -107,8 +107,7 @@ your next push). Run `npm run build:wasm` locally only to try the change in the 
 
 **Open: improvements from the November 2026 review** (`docs/plan-improvements.md`: tracks A, B, C, D, E, T, then R, then P, L, I, X, G; one
 PR per milestone, stacked inside a track; tick each box when it merges). Read the plan's "How an agent works on this plan" first.
-Track E1 is items 13 to 25 of `docs/plan-learn-review.md` (the Learn path's review: items 1 to 12 have merged; three of the items add
-steps, 78 → 81).
+Track E1 (the Learn review, items 13 to 25 of `docs/plan-learn-review.md`) is done: the path has 81 steps.
 
 **Open: a 6502 built from our own parts** (`docs/plan-micro6502.md`: a microcoded datapath of registers, an adder and ROMs, one bus
 cycle per clock, checked cycle for cycle against the `cpu6502` part). Built: all 151 documented opcodes with decimal mode, the reset
@@ -126,7 +125,7 @@ real level layouts for the Doom-like (its levels are one corridor turned five wa
 - `docs/plan-control-rom.md` (control ROMs you can read and edit, C1 to C5), `docs/plan-cpu6502.md` (the MOS 6502 and 65C02 parts; the
   shown version has been `0.1.0` or later since #79), `docs/plan-basic-computer.md` (Microsoft BASIC on a 6502 board, B1 to B7),
   `docs/plan-via-lcd.md` (a 6522 VIA and an HD44780 LCD, V1 to V3), `docs/plan-doom-like.md` (a Doom-like raycaster on the 6502, D0 to D5).
-- `docs/plan-learn-path.md`: the guided path *Learn: From NAND to a computer*, 14 chapters and 79 steps (L1 to L7). Its code loads on
+- `docs/plan-learn-path.md`: the guided path *Learn: From NAND to a computer*, 14 chapters and 81 steps (L1 to L7). Its code loads on
   demand: the startup budget is 250 kB gzip (everything loaded before the first draw, which `scripts/check-bundle.mjs` reads from Vite's manifest; `engine.wasm`, the worker and the stylesheet are listed outside it), and anything that grows the main chunk needs Leon's yes to raise it (it was raised from
   181 to 188 kB in steps, with his yes each time, and then to 250 kB in one go so that it stops being a recurring request; startup was about 189 kB then, so the room is for real growth, not a reason to stop cutting).
 - `docs/spec-sim-wasm.md`: the Rust engine (E1 to E7), the fast settle and the simulator worker.

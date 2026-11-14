@@ -59,6 +59,21 @@ export const CH14: Step[] = [
     ],
   },
   {
+    id: 'basic-decide',
+    chapter: 'basic',
+    title: 'A program that decides',
+    kind: 'explore',
+    open: { example: '6502-basic' },
+    summary: 'IF … THEN and GOTO: a program that goes one way or the other.',
+    task: 'Type this program, a line at a time with Enter after each, then RUN it: 10 N=0, 20 N=N+1, 30 PRINT N, 40 IF N<3 THEN GOTO 20, 50 PRINT "DONE". It counts 1, 2, 3 and says DONE.',
+    goals: [{ terminal: TERMINAL, line: 'DONE', text: 'The program counts to 3 and prints DONE' }],
+    hint: 'Click the screen first. Type each numbered line and press Enter; then type RUN. If you make a mistake in a line, type the line again with the same number: it replaces the old one. LIST shows the program.',
+    lesson: [
+      { p: 'A program that always does the same is not much use. IF N<3 THEN GOTO 20 is a decision: if the condition is true, the program jumps to line 20; if not, it goes on to the next line. It is your computer’s conditional jump, JZ, and the 6502’s BNE and BCC, in a language you can read.' },
+      { p: 'GOTO 20 is a plain jump to the line with that number. Together they make a loop by hand: line 20 adds one to N, line 30 prints it, and line 40 sends the program back to line 20 for as long as N is below 3. When N reaches 3 the condition is false, the jump is not taken, and line 50 prints DONE. FOR and NEXT, which you used before, are a tidier way of writing the same thing.' },
+    ],
+  },
+  {
     id: 'journey',
     chapter: 'basic',
     title: 'Your journey',

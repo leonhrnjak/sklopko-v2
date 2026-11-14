@@ -206,8 +206,8 @@ export const CH03: Step[] = [
     solution: () => nandNandSolution(['A', 'B', 'C'], 'Y', [['A', 'B'], ['A', 'C'], ['B', 'C']]),
     after: { step: 'xor-from-kit', text: 'Now you can get the star on XOR: A⊕B = A·¬(A·B) + B·¬(A·B) is a NAND-NAND form that shares one NAND, so it takes 4 gates.' },
     lesson: [
-      { p: 'You built majority from fourteen chips. Now build it again the way you have just seen: the smallest sum of products, A·B + A·C + B·C, as NAND-NAND.' },
-      { p: 'Four gates, against fourteen chips that are each several NANDs inside. Making the sum of products small is the work that circuit designers spend their time on.' },
+      { p: 'You built majority from about fourteen chips. Now build it again the way you have just seen: the smallest sum of products, A·B + A·C + B·C, as NAND-NAND.' },
+      { p: 'Four gates, against about fourteen chips that are each several NANDs inside. Making the sum of products small is the work that circuit designers spend their time on.' },
     ],
   },
 ]
