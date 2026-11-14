@@ -149,7 +149,7 @@ runtime and `App` with `import()`, so 187.3 kB of script is loaded before the fi
 - Turn on `build.manifest` in `vite.config.ts`. The script starts at the entry, adds its static imports, and the dynamic imports of
   `src/main.tsx` (they run before the first render), each with their static imports.
 - Report `engine.wasm`, the worker chunk and the stylesheet on their own lines, outside the budget.
-- The budget stays 188 kB for the new total (decision L-B1).
+- The budget stays 188 kB for the new total (decision L-B1). Later, with the other tracks' code added, Leon set it to 250 kB so it stops being a recurring bump.
 
 **Files:** `scripts/check-bundle.mjs`, `vite.config.ts`, `CLAUDE.md` (the sentence on the budget).
 

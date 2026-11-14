@@ -127,8 +127,8 @@ real level layouts for the Doom-like (its levels are one corridor turned five wa
   shown version has been `0.1.0` or later since #79), `docs/plan-basic-computer.md` (Microsoft BASIC on a 6502 board, B1 to B7),
   `docs/plan-via-lcd.md` (a 6522 VIA and an HD44780 LCD, V1 to V3), `docs/plan-doom-like.md` (a Doom-like raycaster on the 6502, D0 to D5).
 - `docs/plan-learn-path.md`: the guided path *Learn: From NAND to a computer*, 14 chapters and 79 steps (L1 to L7). Its code loads on
-  demand: the startup budget is 188 kB gzip (everything loaded before the first draw, which `scripts/check-bundle.mjs` reads from Vite's manifest; `engine.wasm`, the worker and the stylesheet are listed outside it), and anything that grows the main chunk needs Leon's yes to raise it (it was raised from
-  181 to 188 kB in steps, with his yes each time).
+  demand: the startup budget is 250 kB gzip (everything loaded before the first draw, which `scripts/check-bundle.mjs` reads from Vite's manifest; `engine.wasm`, the worker and the stylesheet are listed outside it), and anything that grows the main chunk needs Leon's yes to raise it (it was raised from
+  181 to 188 kB in steps, with his yes each time, and then to 250 kB in one go so that it stops being a recurring request; startup was about 189 kB then, so the room is for real growth, not a reason to stop cutting).
 - `docs/spec-sim-wasm.md`: the Rust engine (E1 to E7), the fast settle and the simulator worker.
 - Earlier plans: `docs/plan-examples.md` (more examples: UART, games and so on), `docs/plan-raycaster.md` (index register, CALL/RET, table
   ROM, readable and shaded LCD, and a 3D raycaster on the 8-bit computer), `docs/plan-skasm.md` (one assembly language for every

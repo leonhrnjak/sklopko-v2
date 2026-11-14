@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
-const BUDGET_KB = 188
+const BUDGET_KB = 250
 const dist = new URL('../dist/', import.meta.url).pathname
 const manifestPath = join(dist, '.vite/manifest.json')
 if (!existsSync(manifestPath)) {
